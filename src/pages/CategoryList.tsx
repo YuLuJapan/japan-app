@@ -5,6 +5,7 @@ import { CATEGORY_LABELS } from '../api/types'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
+import { ZoneImage } from '../components/ZoneImage'
 
 export default function CategoryList() {
   const { zoneId = '', category = '' } = useParams()
@@ -39,13 +40,23 @@ export default function CategoryList() {
             <li key={p.id}>
               <Link
                 to={`/places/${p.id}`}
-                className="block rounded-lg border border-sand bg-white/50 px-4 py-3 active:bg-white/80"
+                className="flex items-stretch gap-3 overflow-hidden rounded-xl border border-sand bg-white/50 active:bg-white/80"
               >
-                <p className="font-medium">
-                  {p.name}
-                  {p.name_ja && <span className="ml-2 text-sm font-normal text-fog">{p.name_ja}</span>}
-                </p>
-                {p.summary_line && <p className="mt-0.5 line-clamp-2 text-sm text-fog">{p.summary_line}</p>}
+                <ZoneImage
+                  src={p.image_url}
+                  alt={`${p.name} photo`}
+                  nameJa={p.name_ja}
+                  className="h-20 w-20 shrink-0"
+                />
+                <div className="min-w-0 flex-1 py-2.5 pr-3">
+                  <p className="truncate font-medium">
+                    {p.name}
+                    {p.name_ja && <span className="ml-2 text-sm font-normal text-fog">{p.name_ja}</span>}
+                  </p>
+                  {p.summary_line && (
+                    <p className="mt-0.5 line-clamp-2 text-sm text-fog">{p.summary_line}</p>
+                  )}
+                </div>
               </Link>
             </li>
           ))}

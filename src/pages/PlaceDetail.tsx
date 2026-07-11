@@ -8,6 +8,7 @@ import { ErrorState } from '../components/ErrorState'
 import { FileList } from '../components/FileList'
 import { Loading } from '../components/Loading'
 import { TipEditor } from '../components/TipEditor'
+import { ZoneImage } from '../components/ZoneImage'
 
 export default function PlaceDetail() {
   const { placeId = '' } = useParams()
@@ -28,7 +29,17 @@ export default function PlaceDetail() {
         <Link to={`/zones/${place.zone_id}/c/${place.category}`} className="text-xs text-fog">
           ← {label.en}
         </Link>
-        <h1 className="mt-2 font-display text-2xl font-bold">{place.name}</h1>
+        {place.image_url && (
+          <div className="mt-2 overflow-hidden rounded-xl border border-sand">
+            <ZoneImage
+              src={place.image_url}
+              alt={`${place.name} photo`}
+              nameJa={place.name_ja}
+              className="h-44 w-full"
+            />
+          </div>
+        )}
+        <h1 className="mt-3 font-display text-2xl font-bold">{place.name}</h1>
         {place.name_ja && <p className="text-fog">{place.name_ja}</p>}
         <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-shu">
           {label.en} {label.ja}

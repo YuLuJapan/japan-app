@@ -26,6 +26,7 @@ export interface Zone {
   name: string
   name_ja: string | null
   summary: string | null
+  image_url?: string | null
 }
 
 export interface PlaceLink {
@@ -42,6 +43,7 @@ export interface Place {
   description: string | null
   address: string | null
   links: PlaceLink[]
+  image_url?: string | null
 }
 
 export interface Tip {
@@ -70,6 +72,7 @@ export interface PlaceInput {
   description?: string | null
   address?: string | null
   links?: PlaceLink[]
+  image_url?: string | null
 }
 
 export interface TipInput {

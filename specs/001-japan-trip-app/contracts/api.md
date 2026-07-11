@@ -10,6 +10,7 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
 - **Error envelope**: `{"error":{"code":"<MACHINE_CODE>","message":"<human text>"}}`. Codes: `UNAUTHORIZED`, `NOT_FOUND`, `VALIDATION` (400, with `details` array), `FILE_MISSING` (404), `INTERNAL` (500).
 - **IDs** are UUID strings. Timestamps ISO-8601. Dates `YYYY-MM-DD`.
 - Successful `DELETE` → `204` no body.
+- **2026-07-11 addition**: zones and places carry an optional `image_url` (http(s) photo). It appears in zone summaries (GET /api/trip), zone detail, place list items, and place detail; accepted on place POST/PATCH (validated as http(s) URL).
 
 ## Auth
 

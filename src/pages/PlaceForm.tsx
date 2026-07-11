@@ -25,6 +25,7 @@ export default function PlaceForm() {
   const [category, setCategory] = useState<Category>((params.get('category') as Category) || 'food')
   const [description, setDescription] = useState('')
   const [address, setAddress] = useState('')
+  const [imageUrl, setImageUrl] = useState('')
   const [links, setLinks] = useState<PlaceLink[]>([])
 
   // prefill once when editing
@@ -37,6 +38,7 @@ export default function PlaceForm() {
       setCategory(p.category)
       setDescription(p.description ?? '')
       setAddress(p.address ?? '')
+      setImageUrl(p.image_url ?? '')
       setLinks(p.links)
     }
   }, [Boolean(loaded)])
@@ -53,6 +55,7 @@ export default function PlaceForm() {
       category,
       description: description.trim() || null,
       address: address.trim() || null,
+      image_url: imageUrl.trim() || null,
       links: links.filter((l) => l.label.trim() && l.url.trim()),
     }
     const onSuccess = (data: { place: { id: string } }) =>
@@ -120,6 +123,20 @@ export default function PlaceForm() {
           Address
         </label>
         <input id="address" className="field" value={address} onChange={(e) => setAddress(e.target.value)} />
+      </div>
+
+      <div>
+        <label className="label" htmlFor="image-url">
+          Photo URL
+        </label>
+        <input
+          id="image-url"
+          className="field"
+          inputMode="url"
+          placeholder="https://… (paste any image link)"
+          value={imageUrl}
+          onChange={(e) => setImageUrl(e.target.value)}
+        />
       </div>
 
       <div>

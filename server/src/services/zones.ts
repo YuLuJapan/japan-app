@@ -37,6 +37,7 @@ export async function listZonePlaces(store: DataStore, zoneId: string, category:
       name_ja: p.name_ja,
       category: p.category,
       summary_line: p.description ? p.description.slice(0, 100) : '',
+      image_url: p.image_url ?? null,
     })),
   }
 }

@@ -85,6 +85,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         description: input.description ?? null,
         address: input.address ?? null,
         links: input.links ?? [],
+        image_url: input.image_url ?? null,
       }
       db.places.push(place)
       return structuredClone(place)
@@ -101,6 +102,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       if (patch.description !== undefined) place.description = patch.description ?? null
       if (patch.address !== undefined) place.address = patch.address ?? null
       if (patch.links !== undefined) place.links = patch.links ?? []
+      if (patch.image_url !== undefined) place.image_url = patch.image_url ?? null
       return structuredClone(place)
     },
 

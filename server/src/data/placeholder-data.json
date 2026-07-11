@@ -2,214 +2,424 @@
   "trip": {
     "id": "trip-japan",
     "name": "Yuval & Luz in Japan",
-    "start_date": "2026-10-05",
-    "end_date": "2026-10-24",
-    "description": "PLACEHOLDER trip skeleton — edit this file (or use the app) to replace sample content with the real plan. Loaded by the in-memory datastore until infrastructure is activated."
+    "start_date": "2026-09-25",
+    "end_date": "2026-10-16",
+    "description": "The real itinerary (9 Booking.com reservations). Attractions/food/shopping entries are starter suggestions per zone — edit freely in the app or in this file."
   },
   "steps": [
-    { "id": "step-1", "trip_id": "trip-japan", "zone_id": "zone-tokyo", "position": 1, "start_date": "2026-10-05", "end_date": "2026-10-10" },
-    { "id": "step-2", "trip_id": "trip-japan", "zone_id": "zone-hakone", "position": 2, "start_date": "2026-10-10", "end_date": "2026-10-12" },
-    { "id": "step-3", "trip_id": "trip-japan", "zone_id": "zone-kyoto", "position": 3, "start_date": "2026-10-12", "end_date": "2026-10-17" },
-    { "id": "step-4", "trip_id": "trip-japan", "zone_id": "zone-osaka", "position": 4, "start_date": "2026-10-17", "end_date": "2026-10-21" },
-    { "id": "step-5", "trip_id": "trip-japan", "zone_id": "zone-tokyo", "position": 5, "start_date": "2026-10-21", "end_date": "2026-10-24" }
+    { "id": "step-1", "trip_id": "trip-japan", "zone_id": "zone-hakone", "position": 1, "start_date": "2026-09-25", "end_date": "2026-09-27" },
+    { "id": "step-2", "trip_id": "trip-japan", "zone_id": "zone-fuji", "position": 2, "start_date": "2026-09-27", "end_date": "2026-09-28" },
+    { "id": "step-3", "trip_id": "trip-japan", "zone_id": "zone-matsumoto", "position": 3, "start_date": "2026-09-28", "end_date": "2026-09-29" },
+    { "id": "step-4", "trip_id": "trip-japan", "zone_id": "zone-takayama", "position": 4, "start_date": "2026-09-29", "end_date": "2026-10-01" },
+    { "id": "step-5", "trip_id": "trip-japan", "zone_id": "zone-kanazawa", "position": 5, "start_date": "2026-10-01", "end_date": "2026-10-03" },
+    { "id": "step-6", "trip_id": "trip-japan", "zone_id": "zone-kyoto", "position": 6, "start_date": "2026-10-03", "end_date": "2026-10-07" },
+    { "id": "step-7", "trip_id": "trip-japan", "zone_id": "zone-osaka", "position": 7, "start_date": "2026-10-07", "end_date": "2026-10-11" },
+    { "id": "step-8", "trip_id": "trip-japan", "zone_id": "zone-tokyo", "position": 8, "start_date": "2026-10-11", "end_date": "2026-10-16" }
   ],
   "zones": [
-    {
-      "id": "zone-tokyo",
-      "name": "Tokyo",
-      "name_ja": "東京",
-      "summary": "First and last stop. Placeholder: neighborhoods we care about — Shinjuku, Shibuya, Asakusa."
-    },
     {
       "id": "zone-hakone",
       "name": "Hakone",
       "name_ja": "箱根",
-      "summary": "Onsen break with (hopefully) Fuji views. Placeholder summary."
+      "summary": "Onsen town in the mountains — hot springs, the Hakone loop and (weather permitting) Mt. Fuji views over Lake Ashi.",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/View_of_Mount_Fuji_from_Lake_Ashi.jpg/3840px-View_of_Mount_Fuji_from_Lake_Ashi.jpg"
+    },
+    {
+      "id": "zone-fuji",
+      "name": "Fujikawaguchiko",
+      "name_ja": "富士河口湖",
+      "summary": "Lake Kawaguchi at the foot of Mt. Fuji — the classic postcard views.",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/5/50/Fujikawaguchiko_2013-11-13_%2810863157174%29.jpg"
+    },
+    {
+      "id": "zone-matsumoto",
+      "name": "Matsumoto",
+      "name_ja": "松本",
+      "summary": "Castle town in the Japanese Alps — one-night stop between Fuji and Takayama.",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/d/dd/Matsumoto_Montage.jpg"
+    },
+    {
+      "id": "zone-takayama",
+      "name": "Takayama",
+      "name_ja": "高山",
+      "summary": "Beautifully preserved old town in the Hida mountains — morning markets and Hida beef.",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/f/f8/Takayama%27s_Early_Winter_Welcome_%28NE%29.jpg"
+    },
+    {
+      "id": "zone-kanazawa",
+      "name": "Kanazawa",
+      "name_ja": "金沢",
+      "summary": "Edo-period districts, one of Japan's top three gardens, and a great food market.",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/%E6%9C%9B%E6%B9%96%E5%8F%B0%EF%BC%92.jpg/3840px-%E6%9C%9B%E6%B9%96%E5%8F%B0%EF%BC%92.jpg"
     },
     {
       "id": "zone-kyoto",
       "name": "Kyoto",
       "name_ja": "京都",
-      "summary": "Temples, gardens and old streets. Placeholder summary."
+      "summary": "Temples, gardens, geisha districts and old streets — four full days.",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/3/3c/Kiyomizu.jpg"
     },
     {
       "id": "zone-osaka",
       "name": "Osaka",
       "name_ja": "大阪",
-      "summary": "Food capital. Placeholder summary."
+      "summary": "Japan's kitchen — neon, street food and day-trip base (Nara, Kobe, Himeji).",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Osaka_Castle_02bs3200.jpg/3840px-Osaka_Castle_02bs3200.jpg"
+    },
+    {
+      "id": "zone-tokyo",
+      "name": "Tokyo",
+      "name_ja": "東京",
+      "summary": "The grand finale — five days based in Shinjuku.",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/b/b2/Skyscrapers_of_Shinjuku_2009_January.jpg"
     }
   ],
   "places": [
     {
-      "id": "place-tokyo-hotel",
-      "zone_id": "zone-tokyo",
-      "category": "hotel",
-      "name": "Placeholder Hotel Shinjuku",
-      "name_ja": "新宿ホテル",
-      "description": "PLACEHOLDER — replace with the real booking. Check-in 15:00, check-out 11:00.",
-      "address": "1-2-3 Nishi-Shinjuku, Shinjuku-ku, Tokyo",
-      "links": [{ "label": "Booking", "url": "https://example.com/booking" }]
-    },
-    {
-      "id": "place-tokyo-teamlab",
-      "zone_id": "zone-tokyo",
-      "category": "attraction",
-      "name": "teamLab Planets",
-      "name_ja": "チームラボプラネッツ",
-      "description": "PLACEHOLDER — digital art museum in Toyosu. Book tickets ~2 weeks ahead; go barefoot, wear shorts.",
-      "address": "6-1-16 Toyosu, Koto-ku, Tokyo",
-      "links": [{ "label": "Tickets", "url": "https://example.com/teamlab" }]
-    },
-    {
-      "id": "place-tokyo-sensoji",
-      "zone_id": "zone-tokyo",
-      "category": "attraction",
-      "name": "Senso-ji Temple",
-      "name_ja": "浅草寺",
-      "description": "PLACEHOLDER — Tokyo's oldest temple, in Asakusa. Go early (before 09:00) to beat the crowds on Nakamise street.",
-      "address": "2-3-1 Asakusa, Taito-ku, Tokyo",
-      "links": []
-    },
-    {
-      "id": "place-tokyo-ramen",
-      "zone_id": "zone-tokyo",
-      "category": "food",
-      "name": "Placeholder Ramen Bar",
-      "name_ja": "ラーメン屋",
-      "description": "PLACEHOLDER — the ramen place we saved. Ticket machine at the entrance, cash only.",
-      "address": "Shinjuku, Tokyo",
-      "links": [{ "label": "Tabelog", "url": "https://example.com/ramen" }]
-    },
-    {
-      "id": "place-tokyo-coffee",
-      "zone_id": "zone-tokyo",
-      "category": "food",
-      "name": "Placeholder Kissaten Coffee",
-      "name_ja": "喫茶店",
-      "description": "PLACEHOLDER — old-school Japanese coffee house for a slow morning.",
-      "address": "Shibuya, Tokyo",
-      "links": []
-    },
-    {
-      "id": "place-tokyo-donki",
-      "zone_id": "zone-tokyo",
-      "category": "shopping",
-      "name": "Don Quijote Shibuya",
-      "name_ja": "ドン・キホーテ",
-      "description": "PLACEHOLDER — chaotic everything-store; good for souvenirs and snacks. Tax-free counter with passport.",
-      "address": "Shibuya, Tokyo",
-      "links": []
-    },
-    {
-      "id": "place-hakone-ryokan",
+      "id": "hotel-hakone-yutowa",
       "zone_id": "zone-hakone",
       "category": "hotel",
-      "name": "Placeholder Ryokan with Onsen",
-      "name_ja": "旅館",
-      "description": "PLACEHOLDER — traditional inn, dinner included (kaiseki). Tattoo policy: check private bath option.",
+      "name": "Hakone Yutowa",
+      "name_ja": "箱根ゆとわ",
+      "description": "Sep 25 – 27 · Hakone · Booking.com, confirmed, free cancellation. Onsen resort with public baths. Option noted: upgrade to a superior room with private bath.",
       "address": "Hakone, Kanagawa",
-      "links": [{ "label": "Reservation", "url": "https://example.com/ryokan" }]
+      "links": [{ "label": "Booking.com reservations", "url": "https://secure.booking.com/myreservations.html" }],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/View_of_Mount_Fuji_from_Lake_Ashi.jpg/3840px-View_of_Mount_Fuji_from_Lake_Ashi.jpg"
     },
     {
-      "id": "place-hakone-openair",
+      "id": "hotel-mizno",
+      "zone_id": "zone-fuji",
+      "category": "hotel",
+      "name": "Mizno Hotel",
+      "name_ja": null,
+      "description": "Sep 27 – 28 · Fujikawaguchiko · Booking.com, confirmed, free cancellation. Option noted: upgrade to a superior room with balcony (lake/Fuji view).",
+      "address": "Fujikawaguchiko, Yamanashi",
+      "links": [{ "label": "Booking.com reservations", "url": "https://secure.booking.com/myreservations.html" }],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/5/50/Fujikawaguchiko_2013-11-13_%2810863157174%29.jpg"
+    },
+    {
+      "id": "hotel-nono-matsumoto",
+      "zone_id": "zone-matsumoto",
+      "category": "hotel",
+      "name": "Onyado Nono Matsumoto Natural Hot Spring",
+      "name_ja": "御宿野乃 松本",
+      "description": "Sep 28 – 29 · Matsumoto · Booking.com, confirmed, free cancellation. Natural hot spring baths; parking info available on the reservation.",
+      "address": "Matsumoto, Nagano",
+      "links": [{ "label": "Booking.com reservations", "url": "https://secure.booking.com/myreservations.html" }],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/d/dd/Matsumoto_Montage.jpg"
+    },
+    {
+      "id": "hotel-wood-takayama",
+      "zone_id": "zone-takayama",
+      "category": "hotel",
+      "name": "HOTEL WOOD TAKAYAMA",
+      "name_ja": null,
+      "description": "Sep 29 – Oct 1 · Takayama · Booking.com, confirmed, free cancellation. Parking info available on the reservation.",
+      "address": "Takayama, Gifu",
+      "links": [{ "label": "Booking.com reservations", "url": "https://secure.booking.com/myreservations.html" }],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/f/f8/Takayama%27s_Early_Winter_Welcome_%28NE%29.jpg"
+    },
+    {
+      "id": "hotel-sanraku",
+      "zone_id": "zone-kanazawa",
+      "category": "hotel",
+      "name": "The HOTEL SANRAKU KANAZAWA",
+      "name_ja": "ホテル山楽 金沢",
+      "description": "Oct 1 – 3 · Kanazawa · Booking.com, confirmed, free cancellation. Parking info and invoice available on the reservation.",
+      "address": "Kanazawa, Ishikawa",
+      "links": [{ "label": "Booking.com reservations", "url": "https://secure.booking.com/myreservations.html" }],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/%E6%9C%9B%E6%B9%96%E5%8F%B0%EF%BC%92.jpg/3840px-%E6%9C%9B%E6%B9%96%E5%8F%B0%EF%BC%92.jpg"
+    },
+    {
+      "id": "hotel-mitsui-kyoto",
+      "zone_id": "zone-kyoto",
+      "category": "hotel",
+      "name": "Mitsui Garden Hotel Kyoto Shinmachi Bettei",
+      "name_ja": "三井ガーデンホテル京都新町別邸",
+      "description": "Oct 3 – 7 · Kyoto · Booking.com, confirmed, free cancellation. Machiya-style hotel on Shinmachi street, central Kyoto.",
+      "address": "Shinmachi-dori, Nakagyo-ku, Kyoto",
+      "links": [{ "label": "Booking.com reservations", "url": "https://secure.booking.com/myreservations.html" }],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/3/3c/Kiyomizu.jpg"
+    },
+    {
+      "id": "hotel-candeo-osaka",
+      "zone_id": "zone-osaka",
+      "category": "hotel",
+      "name": "Candeo Hotels Osaka Shinsaibashi",
+      "name_ja": "カンデオホテルズ大阪心斎橋",
+      "description": "Oct 7 – 11 · Osaka · Booking.com, confirmed. Rooftop sky spa; steps from Shinsaibashi shopping arcade and Dotonbori.",
+      "address": "Shinsaibashi, Chuo-ku, Osaka",
+      "links": [{ "label": "Booking.com reservations", "url": "https://secure.booking.com/myreservations.html" }],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Osaka_Castle_02bs3200.jpg/3840px-Osaka_Castle_02bs3200.jpg"
+    },
+    {
+      "id": "hotel-gracery",
+      "zone_id": "zone-tokyo",
+      "category": "hotel",
+      "name": "Hotel Gracery Shinjuku",
+      "name_ja": "ホテルグレイスリー新宿",
+      "description": "Oct 11 – 16 · Tokyo (Shinjuku) · Booking.com, confirmed, free cancellation. Two reservations on file: Oct 11–16 and Oct 12–16. The Godzilla-head hotel in Kabukicho.",
+      "address": "1-19-1 Kabukicho, Shinjuku-ku, Tokyo",
+      "links": [{ "label": "Booking.com reservations", "url": "https://secure.booking.com/myreservations.html" }],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/b/b2/Skyscrapers_of_Shinjuku_2009_January.jpg"
+    },
+    {
+      "id": "attr-owakudani",
+      "zone_id": "zone-hakone",
+      "category": "attraction",
+      "name": "Owakudani",
+      "name_ja": "大涌谷",
+      "description": "Volcanic valley on the Hakone ropeway — sulfur vents and the famous black eggs.",
+      "address": "Sengokuhara, Hakone",
+      "links": [],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Owakudani_-_Hakone_%2827369344357%29.jpg/3840px-Owakudani_-_Hakone_%2827369344357%29.jpg"
+    },
+    {
+      "id": "attr-hakone-openair",
       "zone_id": "zone-hakone",
       "category": "attraction",
       "name": "Hakone Open-Air Museum",
       "name_ja": "彫刻の森美術館",
-      "description": "PLACEHOLDER — sculptures in the mountains, Picasso pavilion, foot bath.",
+      "description": "Sculptures in the mountains, Picasso pavilion, and a foot bath.",
       "address": "Ninotaira, Hakone",
-      "links": []
+      "links": [],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/9/91/Hakone5.jpg"
     },
     {
-      "id": "place-kyoto-hotel",
-      "zone_id": "zone-kyoto",
-      "category": "hotel",
-      "name": "Placeholder Machiya Stay",
-      "name_ja": "町家",
-      "description": "PLACEHOLDER — restored townhouse near Gion.",
-      "address": "Higashiyama, Kyoto",
-      "links": []
+      "id": "attr-kawaguchi",
+      "zone_id": "zone-fuji",
+      "category": "attraction",
+      "name": "Lake Kawaguchi",
+      "name_ja": "河口湖",
+      "description": "Lakeside walk and the Panoramic Ropeway; best Fuji reflections early morning.",
+      "address": "Fujikawaguchiko, Yamanashi",
+      "links": [],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/1/18/KawaguchiKo.jpg"
     },
     {
-      "id": "place-kyoto-fushimi",
+      "id": "attr-chureito",
+      "zone_id": "zone-fuji",
+      "category": "attraction",
+      "name": "Chureito Pagoda",
+      "name_ja": "忠霊塔",
+      "description": "THE Fuji photo spot — pagoda + Fuji in one frame. ~400 steps up; 20 min by train from Kawaguchiko.",
+      "address": "Arakura Sengen Shrine, Fujiyoshida",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "attr-matsumoto-castle",
+      "zone_id": "zone-matsumoto",
+      "category": "attraction",
+      "name": "Matsumoto Castle",
+      "name_ja": "松本城",
+      "description": "One of Japan's most beautiful original castles — the black 'Crow Castle'. Evening light-up is lovely.",
+      "address": "4-1 Marunochi, Matsumoto",
+      "links": [],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Matsumoto_Castle_Keep_Tower.jpg/3840px-Matsumoto_Castle_Keep_Tower.jpg"
+    },
+    {
+      "id": "attr-sanmachi",
+      "zone_id": "zone-takayama",
+      "category": "attraction",
+      "name": "Sanmachi Suji old town",
+      "name_ja": "三町筋",
+      "description": "Preserved Edo-period streets — sake breweries, craft shops. Combine with the Miyagawa morning market by the river.",
+      "address": "Kamisannomachi, Takayama",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "attr-kenrokuen",
+      "zone_id": "zone-kanazawa",
+      "category": "attraction",
+      "name": "Kenroku-en Garden",
+      "name_ja": "兼六園",
+      "description": "One of Japan's three great gardens — go right at opening for near-empty paths. Kanazawa Castle is next door.",
+      "address": "1 Kenrokumachi, Kanazawa",
+      "links": [],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/Stone_lantern_Kenrokuen.jpg/3840px-Stone_lantern_Kenrokuen.jpg"
+    },
+    {
+      "id": "attr-higashichaya",
+      "zone_id": "zone-kanazawa",
+      "category": "attraction",
+      "name": "Higashi Chaya District",
+      "name_ja": "ひがし茶屋街",
+      "description": "Geisha teahouse district — gold-leaf everything, including gold-leaf ice cream.",
+      "address": "Higashiyama, Kanazawa",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "shop-omicho",
+      "zone_id": "zone-kanazawa",
+      "category": "shopping",
+      "name": "Omicho Market",
+      "name_ja": "近江町市場",
+      "description": "Kanazawa's kitchen since 1721 — seafood breakfast (kaisendon) is the move.",
+      "address": "50 Kamiomicho, Kanazawa",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "attr-fushimi",
       "zone_id": "zone-kyoto",
       "category": "attraction",
       "name": "Fushimi Inari Shrine",
       "name_ja": "伏見稲荷大社",
-      "description": "PLACEHOLDER — the thousand torii gates. Sunrise visit = no crowds; full loop ~2h.",
+      "description": "The thousand vermillion torii gates. Open 24h — sunrise or after 17:00 beats the crowds; full loop ~2h.",
       "address": "68 Fukakusa Yabunouchicho, Fushimi-ku, Kyoto",
-      "links": []
+      "links": [],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Torii_path_with_lantern_at_Fushimi_Inari_Taisha_Shrine%2C_Kyoto%2C_Japan.jpg/3840px-Torii_path_with_lantern_at_Fushimi_Inari_Taisha_Shrine%2C_Kyoto%2C_Japan.jpg"
     },
     {
-      "id": "place-kyoto-arashiyama",
+      "id": "attr-arashiyama",
       "zone_id": "zone-kyoto",
       "category": "attraction",
       "name": "Arashiyama Bamboo Grove",
       "name_ja": "嵐山竹林",
-      "description": "PLACEHOLDER — combine with Tenryu-ji temple and the monkey park.",
+      "description": "Bamboo forest walk — combine with Tenryu-ji temple and the monkey park. Go before 08:30.",
       "address": "Arashiyama, Kyoto",
-      "links": []
+      "links": [],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/d/de/Arashiyama_013.jpg"
     },
     {
-      "id": "place-kyoto-matcha",
+      "id": "attr-kinkakuji",
       "zone_id": "zone-kyoto",
-      "category": "food",
-      "name": "Placeholder Matcha House",
-      "name_ja": "抹茶屋",
-      "description": "PLACEHOLDER — matcha everything; expect a queue after 11:00.",
-      "address": "Gion, Kyoto",
-      "links": []
+      "category": "attraction",
+      "name": "Kinkaku-ji (Golden Pavilion)",
+      "name_ja": "金閣寺",
+      "description": "The gold-leaf pavilion over its mirror pond. 30–45 min visit; pairs well with Ryoan-ji rock garden nearby.",
+      "address": "1 Kinkakujicho, Kita-ku, Kyoto",
+      "links": [],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/Golden_Pavilion_Kinkaku-ji_water_mirror_2024.jpg/3840px-Golden_Pavilion_Kinkaku-ji_water_mirror_2024.jpg"
     },
     {
-      "id": "place-kyoto-market",
+      "id": "shop-nishiki",
       "zone_id": "zone-kyoto",
       "category": "shopping",
       "name": "Nishiki Market",
       "name_ja": "錦市場",
-      "description": "PLACEHOLDER — 'Kyoto's kitchen'. Knives, pickles, street snacks. No eating while walking.",
+      "description": "'Kyoto's kitchen' — knives, pickles, matcha sweets, street snacks. No eating while walking.",
       "address": "Nishikikoji-dori, Nakagyo-ku, Kyoto",
-      "links": []
+      "links": [],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/c/ce/Nishiki_Ichiba_by_matsuyuki.jpg"
     },
     {
-      "id": "place-osaka-hotel",
-      "zone_id": "zone-osaka",
-      "category": "hotel",
-      "name": "Placeholder Hotel Namba",
-      "name_ja": "難波ホテル",
-      "description": "PLACEHOLDER — near Dotonbori.",
-      "address": "Namba, Osaka",
-      "links": []
+      "id": "food-kyoto-matcha",
+      "zone_id": "zone-kyoto",
+      "category": "food",
+      "name": "Matcha stop in Gion",
+      "name_ja": "抹茶",
+      "description": "Placeholder pick — matcha parfait/tea house in Gion; expect queues after 11:00.",
+      "address": "Gion, Kyoto",
+      "links": [],
+      "image_url": null
     },
     {
-      "id": "place-osaka-dotonbori",
+      "id": "attr-dotonbori",
       "zone_id": "zone-osaka",
       "category": "attraction",
       "name": "Dotonbori at night",
       "name_ja": "道頓堀",
-      "description": "PLACEHOLDER — neon canal walk, Glico sign photo.",
+      "description": "Neon canal walk, Glico sign photo — 5 minutes from the hotel.",
       "address": "Dotonbori, Chuo-ku, Osaka",
-      "links": []
+      "links": [],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/Dotonbori%2C_Osaka%2C_at_night%2C_November_2016.jpg/3840px-Dotonbori%2C_Osaka%2C_at_night%2C_November_2016.jpg"
     },
     {
-      "id": "place-osaka-okonomiyaki",
+      "id": "attr-osaka-castle",
+      "zone_id": "zone-osaka",
+      "category": "attraction",
+      "name": "Osaka Castle",
+      "name_ja": "大阪城",
+      "description": "The castle park is the highlight — nice at golden hour; museum inside is skippable if short on time.",
+      "address": "1-1 Osakajo, Chuo-ku, Osaka",
+      "links": [],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/c/ca/Osaka_Castle_03bs3200.jpg"
+    },
+    {
+      "id": "food-okonomiyaki",
       "zone_id": "zone-osaka",
       "category": "food",
-      "name": "Placeholder Okonomiyaki Grill",
+      "name": "Okonomiyaki & takoyaki crawl",
       "name_ja": "お好み焼き",
-      "description": "PLACEHOLDER — the okonomiyaki spot we bookmarked; also try takoyaki nearby.",
+      "description": "Placeholder pick — okonomiyaki dinner around Dotonbori/Namba, takoyaki stands for dessert.",
       "address": "Dotonbori, Osaka",
-      "links": []
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "attr-sensoji",
+      "zone_id": "zone-tokyo",
+      "category": "attraction",
+      "name": "Senso-ji Temple",
+      "name_ja": "浅草寺",
+      "description": "Tokyo's oldest temple, in Asakusa. Before 09:00 beats the crowds on Nakamise street.",
+      "address": "2-3-1 Asakusa, Taito-ku, Tokyo",
+      "links": [],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/4/43/Sensoji_2023.jpg"
+    },
+    {
+      "id": "attr-shibuya",
+      "zone_id": "zone-tokyo",
+      "category": "attraction",
+      "name": "Shibuya Crossing & Sky",
+      "name_ja": "渋谷",
+      "description": "The scramble crossing at dusk; Shibuya Sky observation deck needs advance tickets.",
+      "address": "Shibuya, Tokyo",
+      "links": [],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/8/88/Shibuya_Crossing%2C_Aerial.jpg"
+    },
+    {
+      "id": "attr-teamlab",
+      "zone_id": "zone-tokyo",
+      "category": "attraction",
+      "name": "teamLab Planets",
+      "name_ja": "チームラボプラネッツ",
+      "description": "Immersive digital art in Toyosu. Book ~2 weeks ahead; you walk barefoot through water — wear shorts.",
+      "address": "6-1-16 Toyosu, Koto-ku, Tokyo",
+      "links": [{ "label": "Tickets", "url": "https://www.teamlab.art/e/planets/" }],
+      "image_url": null
+    },
+    {
+      "id": "food-tokyo-ramen",
+      "zone_id": "zone-tokyo",
+      "category": "food",
+      "name": "Ramen night in Shinjuku",
+      "name_ja": "ラーメン",
+      "description": "Placeholder pick — Omoide Yokocho alleys are next to the hotel; ticket machines, cash only.",
+      "address": "Omoide Yokocho, Shinjuku",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "shop-donki",
+      "zone_id": "zone-tokyo",
+      "category": "shopping",
+      "name": "Don Quijote Kabukicho",
+      "name_ja": "ドン・キホーテ",
+      "description": "Chaotic everything-store around the corner from the hotel — souvenirs, snacks, tax-free with passport.",
+      "address": "Kabukicho, Shinjuku",
+      "links": [],
+      "image_url": null
     }
   ],
   "tips": [
-    { "id": "tip-tokyo-1", "zone_id": "zone-tokyo", "place_id": null, "body": "PLACEHOLDER — Get a Suica/Pasmo in Apple/Google Wallet for all metro and convenience stores." },
-    { "id": "tip-tokyo-2", "zone_id": "zone-tokyo", "place_id": null, "body": "PLACEHOLDER — Trash cans are rare: carry a small bag for your garbage." },
-    { "id": "tip-hakone-1", "zone_id": "zone-hakone", "place_id": null, "body": "PLACEHOLDER — Hakone Free Pass covers the loop (train, cable car, ropeway, boat)." },
-    { "id": "tip-kyoto-1", "zone_id": "zone-kyoto", "place_id": null, "body": "PLACEHOLDER — Buses get packed; the subway + walking is often faster." },
-    { "id": "tip-osaka-1", "zone_id": "zone-osaka", "place_id": null, "body": "PLACEHOLDER — Stand on the RIGHT on escalators in Osaka (opposite of Tokyo)." },
-    { "id": "tip-teamlab-1", "zone_id": null, "place_id": "place-tokyo-teamlab", "body": "PLACEHOLDER — Lockers available; you will walk in water up to your knees." },
-    { "id": "tip-fushimi-1", "zone_id": null, "place_id": "place-kyoto-fushimi", "body": "PLACEHOLDER — Open 24h; sunrise or after 17:00 for photos without crowds." },
-    { "id": "tip-ryokan-1", "zone_id": null, "place_id": "place-hakone-ryokan", "body": "PLACEHOLDER — Dinner is served early (~18:00); arrive before 17:00." }
+    { "id": "tip-hakone-pass", "zone_id": "zone-hakone", "place_id": null, "body": "Hakone Free Pass covers the whole loop (train, cable car, ropeway, pirate boat) and discounts many sights." },
+    { "id": "tip-hakone-luggage", "zone_id": "zone-hakone", "place_id": null, "body": "Use luggage forwarding (takkyubin) to send big bags ahead to a later hotel — travel the Fuji–Alps stretch light." },
+    { "id": "tip-fuji-weather", "zone_id": "zone-fuji", "place_id": null, "body": "Fuji hides in clouds by late morning — plan viewpoints for early morning and check a Fuji visibility forecast." },
+    { "id": "tip-matsumoto-walk", "zone_id": "zone-matsumoto", "place_id": null, "body": "Everything is walkable: station → Nakamachi street → castle in 20 minutes." },
+    { "id": "tip-takayama-beef", "zone_id": "zone-takayama", "place_id": null, "body": "Hida beef is the local specialty — beef sushi at the market stalls, or a proper grill dinner." },
+    { "id": "tip-kanazawa-bus", "zone_id": "zone-kanazawa", "place_id": null, "body": "The Kanazawa Loop Bus connects all the sights; day pass pays off with 3+ rides." },
+    { "id": "tip-kyoto-buses", "zone_id": "zone-kyoto", "place_id": null, "body": "Buses get packed — prefer subway + walking; taxis are reasonable for 2 people on short hops." },
+    { "id": "tip-osaka-escalator", "zone_id": "zone-osaka", "place_id": null, "body": "Stand on the RIGHT on escalators in Osaka (opposite of Tokyo)." },
+    { "id": "tip-tokyo-suica", "zone_id": "zone-tokyo", "place_id": null, "body": "Get a Suica/Pasmo in Apple/Google Wallet for all trains, metro and convenience stores." },
+    { "id": "tip-tokyo-trash", "zone_id": "zone-tokyo", "place_id": null, "body": "Trash cans are rare — carry a small bag for garbage." },
+    { "id": "tip-yutowa-onsen", "zone_id": null, "place_id": "hotel-hakone-yutowa", "body": "Onsen etiquette: wash sitting down before entering the bath; towels stay out of the water." },
+    { "id": "tip-gracery-godzilla", "zone_id": null, "place_id": "hotel-gracery", "body": "Ask for a high floor on the Godzilla side; the head 'roars' on schedule from the 8F terrace." },
+    { "id": "tip-fushimi-sunrise", "zone_id": null, "place_id": "attr-fushimi", "body": "Open 24h — sunrise or after 17:00 for photos without crowds." }
   ],
   "files": [
     {
@@ -220,7 +430,7 @@
       "display_name": "Flight booking (placeholder)",
       "storage_path": "placeholder-files/flight-booking.pdf",
       "mime_type": "application/pdf",
-      "size_bytes": 0
+      "size_bytes": 948
     },
     {
       "id": "file-kyoto-map",
@@ -230,17 +440,17 @@
       "display_name": "Kyoto walking map (placeholder)",
       "storage_path": "placeholder-files/kyoto-walking-map.svg",
       "mime_type": "image/svg+xml",
-      "size_bytes": 0
+      "size_bytes": 1000
     },
     {
-      "id": "file-ryokan-res",
+      "id": "file-yutowa-res",
       "trip_id": null,
       "zone_id": null,
-      "place_id": "place-hakone-ryokan",
-      "display_name": "Ryokan reservation (placeholder)",
+      "place_id": "hotel-hakone-yutowa",
+      "display_name": "Hakone Yutowa reservation (placeholder)",
       "storage_path": "placeholder-files/hotel-reservation.pdf",
       "mime_type": "application/pdf",
-      "size_bytes": 0
+      "size_bytes": 909
     }
   ]
 }

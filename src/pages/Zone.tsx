@@ -5,6 +5,7 @@ import { ErrorState } from '../components/ErrorState'
 import { FileList } from '../components/FileList'
 import { Loading } from '../components/Loading'
 import { TipEditor } from '../components/TipEditor'
+import { ZoneImage } from '../components/ZoneImage'
 
 export default function Zone() {
   const { zoneId = '' } = useParams()
@@ -23,7 +24,10 @@ export default function Zone() {
         <Link to="/" className="text-xs text-fog">
           ← Journey
         </Link>
-        <h1 className="mt-2 font-display text-3xl font-bold">
+        <div className="mt-2 overflow-hidden rounded-xl border border-sand">
+          <ZoneImage src={zone.image_url} alt={`${zone.name} photo`} nameJa={zone.name_ja} className="h-40 w-full" />
+        </div>
+        <h1 className="mt-3 font-display text-3xl font-bold">
           {zone.name}
           {zone.name_ja && <span className="ml-3 text-xl font-normal text-fog">{zone.name_ja}</span>}
         </h1>

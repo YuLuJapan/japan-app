@@ -23,6 +23,7 @@ export interface ZoneSummary {
   name: string
   name_ja: string | null
   summary: string | null
+  image_url?: string | null
   place_counts: Record<Category, number>
 }
 
@@ -55,7 +56,13 @@ export interface FileMeta {
 }
 
 export interface ZoneDetail {
-  zone: { id: string; name: string; name_ja: string | null; summary: string | null }
+  zone: {
+    id: string
+    name: string
+    name_ja: string | null
+    summary: string | null
+    image_url?: string | null
+  }
   tips: Tip[]
   files: FileMeta[]
   place_counts: Record<Category, number>
@@ -67,6 +74,7 @@ export interface PlaceListItem {
   name_ja: string | null
   category: Category
   summary_line: string
+  image_url?: string | null
 }
 
 export interface PlaceLink {
@@ -83,6 +91,7 @@ export interface Place {
   description: string | null
   address: string | null
   links: PlaceLink[]
+  image_url?: string | null
 }
 
 export interface PlaceDetail {
@@ -99,4 +108,5 @@ export interface PlaceInput {
   description?: string | null
   address?: string | null
   links?: PlaceLink[]
+  image_url?: string | null
 }

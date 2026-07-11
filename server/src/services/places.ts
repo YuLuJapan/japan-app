@@ -48,6 +48,8 @@ function collectPlaceErrors(input: Partial<PlaceInput>, partial: boolean): strin
   }
   if (has('description') && (input.description ?? '').length > 5000)
     errors.push('description must be at most 5000 characters')
+  if (has('image_url') && input.image_url != null && input.image_url !== '' && !isHttpUrl(input.image_url))
+    errors.push('image_url must start with http(s)://')
   return errors
 }
 

@@ -50,6 +50,7 @@ City or area grouping content (FR-002).
 | name | text | required, 1–80 chars (e.g., "Tokyo") |
 | name_ja | text | optional Japanese name (e.g., "東京") — decorative per design language |
 | summary | text | optional |
+| image_url | text | optional http(s) photo URL (added 2026-07-11: booking-style visual cards); UI falls back to a styled block when absent/unloadable |
 
 ## places
 
@@ -65,6 +66,7 @@ Points of interest (FR-002, FR-003, FR-015).
 | description | text | optional (notes) |
 | address | text | optional address / location reference |
 | links | jsonb | optional array of `{label, url}`; urls must be http(s) |
+| image_url | text | optional http(s) photo URL (added 2026-07-11); editable in the place form |
 
 Index: `(zone_id, category)` — the primary browse query (FR-002, SC-001).
 
