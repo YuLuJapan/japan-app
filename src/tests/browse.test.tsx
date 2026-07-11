@@ -57,6 +57,9 @@ describe('PlaceDetail page (US1)', () => {
     expect(await screen.findByText('Fushimi Inari')).toBeInTheDocument()
     expect(screen.getByText('The thousand torii gates.')).toBeInTheDocument()
     expect(screen.getByText('Sunrise visit — no crowds')).toBeInTheDocument()
-    expect(screen.getByText('Official site ↗')).toHaveAttribute('href', 'https://example.com')
+    expect(screen.getByRole('link', { name: /Official site/ })).toHaveAttribute(
+      'href',
+      'https://example.com'
+    )
   })
 })

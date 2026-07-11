@@ -12,23 +12,23 @@ export function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', 
   if (!open) return null
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-sumi/40 p-4 sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/50 p-4 backdrop-blur-sm sm:items-center"
       role="dialog"
       aria-modal="true"
       aria-label={title}
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-sm rounded-xl border border-sand bg-paper p-5 shadow-xl"
+        className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-pop"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="font-display text-lg font-bold">{title}</h2>
-        {message && <p className="mt-1 text-sm text-fog">{message}</p>}
-        <div className="mt-5 flex gap-2">
+        <h2 className="font-display text-lg font-extrabold">{title}</h2>
+        {message && <p className="mt-1 text-sm text-muted">{message}</p>}
+        <div className="mt-5 flex gap-3">
           <button type="button" className="btn-ghost flex-1" onClick={onCancel}>
             Cancel
           </button>
-          <button type="button" className="btn-danger flex-1" onClick={onConfirm}>
+          <button type="button" className="btn bg-brand text-white flex-1" onClick={onConfirm}>
             {confirmLabel}
           </button>
         </div>

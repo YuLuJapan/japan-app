@@ -2,12 +2,15 @@
 export const CATEGORIES = ['hotel', 'attraction', 'food', 'shopping', 'other'] as const
 export type Category = (typeof CATEGORIES)[number]
 
-export const CATEGORY_LABELS: Record<Category, { en: string; ja: string }> = {
-  hotel: { en: 'Hotels', ja: '宿泊' },
-  attraction: { en: 'Attractions', ja: '観光' },
-  food: { en: 'Food & Cafes', ja: '食事' },
-  shopping: { en: 'Shopping', ja: '買い物' },
-  other: { en: 'More places', ja: 'その他' },
+export const CATEGORY_META: Record<
+  Category,
+  { label: string; singular: string; icon: string; color: string }
+> = {
+  hotel: { label: 'Stays', singular: 'Stay', icon: '🛏️', color: 'bg-violet-100 text-violet-700' },
+  attraction: { label: 'Things to do', singular: 'Attraction', icon: '📸', color: 'bg-sky-100 text-sky-700' },
+  food: { label: 'Food & Cafés', singular: 'Food spot', icon: '🍜', color: 'bg-amber-100 text-amber-700' },
+  shopping: { label: 'Shopping', singular: 'Shop', icon: '🛍️', color: 'bg-pink-100 text-pink-700' },
+  other: { label: 'More', singular: 'Place', icon: '📍', color: 'bg-emerald-100 text-emerald-700' },
 }
 
 export interface Trip {
@@ -24,6 +27,8 @@ export interface ZoneSummary {
   name_ja: string | null
   summary: string | null
   image_url?: string | null
+  lat?: number | null
+  lng?: number | null
   place_counts: Record<Category, number>
 }
 
@@ -62,6 +67,8 @@ export interface ZoneDetail {
     name_ja: string | null
     summary: string | null
     image_url?: string | null
+    lat?: number | null
+    lng?: number | null
   }
   tips: Tip[]
   files: FileMeta[]

@@ -1,25 +1,25 @@
 // Photo block with a graceful fallback: when there is no image (or it fails to
-// load on a bad connection), show a quiet paper block with the Japanese name —
-// never a broken-image icon.
+// load on a bad connection), show a warm gradient with an icon — never a
+// broken-image icon.
 import { useState } from 'react'
 
 interface Props {
   src?: string | null
   alt: string
-  nameJa?: string | null
+  icon?: string
   className?: string
 }
 
-export function ZoneImage({ src, alt, nameJa, className = '' }: Props) {
+export function ZoneImage({ src, alt, icon = '📍', className = '' }: Props) {
   const [failed, setFailed] = useState(false)
 
   if (!src || failed) {
     return (
       <div
         aria-hidden
-        className={`flex items-center justify-center bg-gradient-to-br from-sand/60 to-sand ${className}`}
+        className={`flex items-center justify-center bg-gradient-to-br from-sun/70 via-brand/60 to-brand ${className}`}
       >
-        <span className="font-display text-3xl text-fog/50">{nameJa || '旅'}</span>
+        <span className="text-3xl opacity-90 drop-shadow">{icon}</span>
       </div>
     )
   }

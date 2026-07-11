@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import { useZone } from '../api/hooks'
-import { CATEGORIES, CATEGORY_LABELS } from '../api/types'
+import { CATEGORIES, CATEGORY_META } from '../api/types'
+import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { FileList } from '../components/FileList'
 import { Loading } from '../components/Loading'
@@ -21,57 +22,58 @@ export default function Zone() {
   return (
     <div className="space-y-8">
       <div>
-        <Link to="/" className="text-xs text-fog">
-          ← Journey
+        <Link to="/" className="text-sm font-semibold text-muted">
+          ‹ Journey
         </Link>
-        <div className="mt-2 overflow-hidden rounded-xl border border-sand">
-          <ZoneImage src={zone.image_url} alt={`${zone.name} photo`} nameJa={zone.name_ja} className="h-40 w-full" />
+        <div className="relative mt-3 overflow-hidden rounded-3xl shadow-card">
+          <ZoneImage src={zone.image_url} alt={zone.name} className="h-52 w-full" />
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-5 pb-4 pt-10">
+            <h1 className="font-display text-3xl font-extrabold text-white drop-shadow">{zone.name}</h1>
+          </div>
         </div>
-        <h1 className="mt-3 font-display text-3xl font-bold">
-          {zone.name}
-          {zone.name_ja && <span className="ml-3 text-xl font-normal text-fog">{zone.name_ja}</span>}
-        </h1>
-        {zone.summary && <p className="mt-2 text-sm leading-relaxed text-fog">{zone.summary}</p>}
+        {zone.summary && <p className="mt-3 text-sm leading-relaxed text-muted">{zone.summary}</p>}
       </div>
 
       <section>
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-fog">Explore 探す</h2>
-          <Link to={`/zones/${zoneId}/places/new`} className="text-sm font-medium text-shu">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-display text-lg font-extrabold">Explore</h2>
+          <Link to={`/zones/${zoneId}/places/new`} className="text-sm font-bold text-brand">
             + Add place
           </Link>
         </div>
         {visible.length === 0 ? (
-          <p className="mt-2 text-sm text-fog">
-            Nothing saved here yet — add the first place.
-          </p>
+          <EmptyState message="Nothing saved here yet — add the first place." />
         ) : (
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {visible.map((c) => (
-              <Link
-                key={c}
-                to={`/zones/${zoneId}/c/${c}`}
-                data-testid={`category-${c}`}
-                className="rounded-lg border border-sand bg-white/50 px-4 py-3 active:bg-white/80"
-              >
-                <p className="font-medium">{CATEGORY_LABELS[c].en}</p>
-                <p className="mt-0.5 text-xs text-fog">
-                  {CATEGORY_LABELS[c].ja} · {place_counts[c]}
-                </p>
-              </Link>
-            ))}
+          <div className="grid grid-cols-2 gap-3">
+            {visible.map((c) => {
+              const meta = CATEGORY_META[c]
+              return (
+                <Link
+                  key={c}
+                  to={`/zones/${zoneId}/c/${c}`}
+                  data-testid={`category-${c}`}
+                  className="card flex items-center gap-3 p-4 active:scale-[0.98]"
+                >
+                  <span className={`chip h-10 w-10 justify-center rounded-2xl text-lg ${meta.color}`}>
+                    {meta.icon}
+                  </span>
+                  <span>
+                    <span className="block text-sm font-bold leading-tight">{meta.label}</span>
+                    <span className="text-xs text-muted">{place_counts[c]} saved</span>
+                  </span>
+                </Link>
+              )
+            })}
           </div>
         )}
       </section>
 
-      <TipEditor tips={tips} parent={{ zone_id: zoneId }} title="Zone tips 心得" />
+      <TipEditor tips={tips} parent={{ zone_id: zoneId }} title="Local tips" />
 
       {files.length > 0 && (
         <section>
-          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-fog">Files 書類</h2>
-          <div className="mt-2">
-            <FileList files={files} />
-          </div>
+          <h2 className="mb-3 font-display text-lg font-extrabold">Files</h2>
+          <FileList files={files} />
         </section>
       )}
     </div>

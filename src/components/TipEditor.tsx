@@ -10,7 +10,7 @@ interface Props {
   title?: string
 }
 
-export function TipEditor({ tips, parent, title = 'Tips 心得' }: Props) {
+export function TipEditor({ tips, parent, title = 'Tips' }: Props) {
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -42,19 +42,19 @@ export function TipEditor({ tips, parent, title = 'Tips 心得' }: Props) {
   return (
     <section>
       <div className="flex items-center justify-between">
-        <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-fog">{title}</h2>
+        <h2 className="font-display text-lg font-extrabold">{title}</h2>
         {!adding && (
-          <button type="button" className="text-sm font-medium text-shu" onClick={() => setAdding(true)}>
+          <button type="button" className="text-sm font-bold text-brand" onClick={() => setAdding(true)}>
             + Add tip
           </button>
         )}
       </div>
 
-      {tips.length === 0 && !adding && <p className="mt-2 text-sm text-fog">No tips yet.</p>}
+      {tips.length === 0 && !adding && <p className="mt-2 text-sm text-muted">No tips yet.</p>}
 
-      <ul className="mt-2 space-y-2">
+      <ul className="mt-3 space-y-2">
         {tips.map((tip) => (
-          <li key={tip.id} className="rounded-lg border border-sand bg-white/50 px-3 py-2.5">
+          <li key={tip.id} className="rounded-2xl border border-line bg-white px-4 py-3">
             {editingId === tip.id ? (
               <div className="space-y-2">
                 <textarea
@@ -64,7 +64,7 @@ export function TipEditor({ tips, parent, title = 'Tips 心得' }: Props) {
                   aria-label="Edit tip"
                 />
                 {updateTip.isError && (
-                  <p className="text-sm text-shu">Save failed — your text is kept, try again.</p>
+                  <p className="text-sm text-brand">Save failed — your text is kept, try again.</p>
                 )}
                 <div className="flex gap-2">
                   <button type="button" className="btn-primary flex-1" onClick={saveEdit} disabled={updateTip.isPending}>
@@ -76,12 +76,12 @@ export function TipEditor({ tips, parent, title = 'Tips 心得' }: Props) {
                 </div>
               </div>
             ) : (
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start justify-between gap-3">
                 <p className="text-sm leading-relaxed">{tip.body}</p>
-                <span className="flex shrink-0 gap-3 text-xs">
+                <span className="flex shrink-0 gap-3 text-xs font-semibold">
                   <button
                     type="button"
-                    className="text-fog underline-offset-2 active:underline"
+                    className="text-muted"
                     onClick={() => {
                       setEditingId(tip.id)
                       setEditDraft(tip.body)
@@ -89,7 +89,7 @@ export function TipEditor({ tips, parent, title = 'Tips 心得' }: Props) {
                   >
                     Edit
                   </button>
-                  <button type="button" className="text-shu" onClick={() => setDeletingId(tip.id)}>
+                  <button type="button" className="text-brand" onClick={() => setDeletingId(tip.id)}>
                     Delete
                   </button>
                 </span>
@@ -109,7 +109,7 @@ export function TipEditor({ tips, parent, title = 'Tips 心得' }: Props) {
             aria-label="New tip"
           />
           {createTip.isError && (
-            <p className="text-sm text-shu">Save failed — your text is kept, try again.</p>
+            <p className="text-sm text-brand">Save failed — your text is kept, try again.</p>
           )}
           <div className="flex gap-2">
             <button type="button" className="btn-primary flex-1" onClick={saveNew} disabled={createTip.isPending}>

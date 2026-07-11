@@ -48,13 +48,17 @@ export function FileList({ files }: { files: FileMeta[] }) {
             type="button"
             onClick={() => open(file)}
             disabled={busyId === file.id}
-            className="flex min-h-11 w-full items-center gap-3 rounded-lg border border-sand bg-white/50 px-3 py-2.5 text-left active:bg-white/80"
+            className="flex min-h-11 w-full items-center gap-3 rounded-2xl border border-line bg-white px-4 py-3 text-left active:scale-[0.99]"
           >
-            <span aria-hidden>{icon(file.mime_type)}</span>
-            <span className="flex-1 text-sm font-medium">{file.display_name}</span>
-            <span className="text-xs text-fog">{busyId === file.id ? 'Opening…' : size(file.size_bytes)}</span>
+            <span className="text-lg" aria-hidden>
+              {icon(file.mime_type)}
+            </span>
+            <span className="flex-1 text-sm font-semibold">{file.display_name}</span>
+            <span className="text-xs text-muted">
+              {busyId === file.id ? 'Opening…' : size(file.size_bytes)}
+            </span>
           </button>
-          {errors[file.id] && <p className="mt-1 px-3 text-sm text-shu">{errors[file.id]}</p>}
+          {errors[file.id] && <p className="mt-1 px-4 text-sm text-brand">{errors[file.id]}</p>}
         </li>
       ))}
     </ul>

@@ -7,31 +7,49 @@
     -webkit-tap-highlight-color: transparent;
   }
   body {
-    @apply bg-paper font-body text-sumi antialiased;
+    @apply bg-canvas font-body text-ink antialiased;
   }
 }
 
 @layer components {
-  /* thin horizontal rule used as a quiet divider (ma) */
-  .rule {
-    @apply border-t border-sand;
-  }
   .btn {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-all active:scale-[0.98];
   }
   .btn-primary {
-    @apply btn bg-shu text-paper active:bg-shu/90;
+    @apply btn bg-brand text-white shadow-card hover:bg-brand-600;
   }
   .btn-ghost {
-    @apply btn border border-sand bg-transparent text-sumi active:bg-sand/50;
+    @apply btn border border-line bg-white text-ink hover:bg-canvas;
   }
   .btn-danger {
-    @apply btn border border-shu/40 text-shu active:bg-shu/10;
+    @apply btn border border-brand/30 bg-white text-brand hover:bg-brand/5;
   }
   .field {
-    @apply w-full rounded-md border border-sand bg-white/70 px-3 py-2.5 text-base text-sumi outline-none focus:border-shu;
+    @apply w-full rounded-2xl border border-line bg-white px-4 py-3 text-base text-ink outline-none transition-colors placeholder:text-muted focus:border-brand focus:ring-2 focus:ring-brand/20;
   }
   .label {
-    @apply mb-1 block text-xs font-medium uppercase tracking-wider text-fog;
+    @apply mb-1.5 block text-xs font-bold uppercase tracking-wide text-muted;
   }
+  .card {
+    @apply rounded-3xl bg-white shadow-card;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold;
+  }
+  .section-title {
+    @apply text-xs font-bold uppercase tracking-wide text-muted;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Custom map pin marker (see TripMap) */
+.trip-pin {
+  background: transparent;
+  border: none;
 }

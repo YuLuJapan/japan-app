@@ -1,25 +1,38 @@
 import type { Config } from 'tailwindcss'
 
-// Japanese-inspired modern palette (research R6): warm paper, sumi ink,
-// vermillion (shu-iro) accent, quiet sand rules, muted fog text.
+// Modern, vibrant travel-app palette: warm coral primary, sunset gradient,
+// clean off-white canvas, near-black ink. (Redesigned 2026-07-11.)
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        paper: '#f8f4ed',
-        sumi: '#201d1a',
-        shu: '#c5442d',
-        sand: '#e8e0d2',
-        fog: '#6f6a62',
-        moss: '#5c6b52',
+        canvas: '#f6f7f9',
+        ink: '#161a22',
+        muted: '#6b7280',
+        line: '#e7e9ee',
+        brand: {
+          DEFAULT: '#ff5a4d',
+          600: '#f0392a',
+          700: '#d92c1e',
+        },
+        sun: '#ff9d3c',
+        ocean: '#2bb6c4',
       },
       fontFamily: {
-        body: ['"Zen Kaku Gothic New"', 'system-ui', 'sans-serif'],
-        display: ['"Shippori Mincho"', 'Georgia', 'serif'],
+        display: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        body: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+      },
+      boxShadow: {
+        card: '0 6px 20px -8px rgba(22,26,34,0.18)',
+        pop: '0 12px 32px -10px rgba(22,26,34,0.28)',
+      },
+      borderRadius: {
+        '2xl': '1.25rem',
+        '3xl': '1.75rem',
       },
       maxWidth: {
-        app: '28rem',
+        app: '30rem',
       },
     },
   },

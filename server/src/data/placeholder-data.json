@@ -2,19 +2,20 @@
   "trip": {
     "id": "trip-japan",
     "name": "Yuval & Luz in Japan",
-    "start_date": "2026-09-25",
+    "start_date": "2026-09-19",
     "end_date": "2026-10-16",
-    "description": "The real itinerary (9 Booking.com reservations). Attractions/food/shopping entries are starter suggestions per zone — edit freely in the app or in this file."
+    "description": "The real itinerary. Arrive Tokyo Sep 19, then the 9 Booking.com hotel stays. Attractions/food/shopping entries are starter suggestions per zone — edit freely in the app or in this file."
   },
   "steps": [
-    { "id": "step-1", "trip_id": "trip-japan", "zone_id": "zone-hakone", "position": 1, "start_date": "2026-09-25", "end_date": "2026-09-27" },
-    { "id": "step-2", "trip_id": "trip-japan", "zone_id": "zone-fuji", "position": 2, "start_date": "2026-09-27", "end_date": "2026-09-28" },
-    { "id": "step-3", "trip_id": "trip-japan", "zone_id": "zone-matsumoto", "position": 3, "start_date": "2026-09-28", "end_date": "2026-09-29" },
-    { "id": "step-4", "trip_id": "trip-japan", "zone_id": "zone-takayama", "position": 4, "start_date": "2026-09-29", "end_date": "2026-10-01" },
-    { "id": "step-5", "trip_id": "trip-japan", "zone_id": "zone-kanazawa", "position": 5, "start_date": "2026-10-01", "end_date": "2026-10-03" },
-    { "id": "step-6", "trip_id": "trip-japan", "zone_id": "zone-kyoto", "position": 6, "start_date": "2026-10-03", "end_date": "2026-10-07" },
-    { "id": "step-7", "trip_id": "trip-japan", "zone_id": "zone-osaka", "position": 7, "start_date": "2026-10-07", "end_date": "2026-10-11" },
-    { "id": "step-8", "trip_id": "trip-japan", "zone_id": "zone-tokyo", "position": 8, "start_date": "2026-10-11", "end_date": "2026-10-16" }
+    { "id": "step-0", "trip_id": "trip-japan", "zone_id": "zone-tokyo", "position": 1, "start_date": "2026-09-19", "end_date": "2026-09-25" },
+    { "id": "step-1", "trip_id": "trip-japan", "zone_id": "zone-hakone", "position": 2, "start_date": "2026-09-25", "end_date": "2026-09-27" },
+    { "id": "step-2", "trip_id": "trip-japan", "zone_id": "zone-fuji", "position": 3, "start_date": "2026-09-27", "end_date": "2026-09-28" },
+    { "id": "step-3", "trip_id": "trip-japan", "zone_id": "zone-matsumoto", "position": 4, "start_date": "2026-09-28", "end_date": "2026-09-29" },
+    { "id": "step-4", "trip_id": "trip-japan", "zone_id": "zone-takayama", "position": 5, "start_date": "2026-09-29", "end_date": "2026-10-01" },
+    { "id": "step-5", "trip_id": "trip-japan", "zone_id": "zone-kanazawa", "position": 6, "start_date": "2026-10-01", "end_date": "2026-10-03" },
+    { "id": "step-6", "trip_id": "trip-japan", "zone_id": "zone-kyoto", "position": 7, "start_date": "2026-10-03", "end_date": "2026-10-07" },
+    { "id": "step-7", "trip_id": "trip-japan", "zone_id": "zone-osaka", "position": 8, "start_date": "2026-10-07", "end_date": "2026-10-11" },
+    { "id": "step-8", "trip_id": "trip-japan", "zone_id": "zone-tokyo", "position": 9, "start_date": "2026-10-11", "end_date": "2026-10-16" }
   ],
   "zones": [
     {
@@ -22,56 +23,72 @@
       "name": "Hakone",
       "name_ja": "箱根",
       "summary": "Onsen town in the mountains — hot springs, the Hakone loop and (weather permitting) Mt. Fuji views over Lake Ashi.",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/View_of_Mount_Fuji_from_Lake_Ashi.jpg/3840px-View_of_Mount_Fuji_from_Lake_Ashi.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/View_of_Mount_Fuji_from_Lake_Ashi.jpg/3840px-View_of_Mount_Fuji_from_Lake_Ashi.jpg",
+      "lat": 35.2324,
+      "lng": 139.1069
     },
     {
       "id": "zone-fuji",
       "name": "Fujikawaguchiko",
       "name_ja": "富士河口湖",
       "summary": "Lake Kawaguchi at the foot of Mt. Fuji — the classic postcard views.",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/5/50/Fujikawaguchiko_2013-11-13_%2810863157174%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/5/50/Fujikawaguchiko_2013-11-13_%2810863157174%29.jpg",
+      "lat": 35.5171,
+      "lng": 138.7639
     },
     {
       "id": "zone-matsumoto",
       "name": "Matsumoto",
       "name_ja": "松本",
       "summary": "Castle town in the Japanese Alps — one-night stop between Fuji and Takayama.",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/d/dd/Matsumoto_Montage.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/d/dd/Matsumoto_Montage.jpg",
+      "lat": 36.2381,
+      "lng": 137.972
     },
     {
       "id": "zone-takayama",
       "name": "Takayama",
       "name_ja": "高山",
       "summary": "Beautifully preserved old town in the Hida mountains — morning markets and Hida beef.",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/f/f8/Takayama%27s_Early_Winter_Welcome_%28NE%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/f/f8/Takayama%27s_Early_Winter_Welcome_%28NE%29.jpg",
+      "lat": 36.1461,
+      "lng": 137.2522
     },
     {
       "id": "zone-kanazawa",
       "name": "Kanazawa",
       "name_ja": "金沢",
       "summary": "Edo-period districts, one of Japan's top three gardens, and a great food market.",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/%E6%9C%9B%E6%B9%96%E5%8F%B0%EF%BC%92.jpg/3840px-%E6%9C%9B%E6%B9%96%E5%8F%B0%EF%BC%92.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/%E6%9C%9B%E6%B9%96%E5%8F%B0%EF%BC%92.jpg/3840px-%E6%9C%9B%E6%B9%96%E5%8F%B0%EF%BC%92.jpg",
+      "lat": 36.5613,
+      "lng": 136.6562
     },
     {
       "id": "zone-kyoto",
       "name": "Kyoto",
       "name_ja": "京都",
       "summary": "Temples, gardens, geisha districts and old streets — four full days.",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/3/3c/Kiyomizu.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/3/3c/Kiyomizu.jpg",
+      "lat": 35.0116,
+      "lng": 135.7681
     },
     {
       "id": "zone-osaka",
       "name": "Osaka",
       "name_ja": "大阪",
       "summary": "Japan's kitchen — neon, street food and day-trip base (Nara, Kobe, Himeji).",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Osaka_Castle_02bs3200.jpg/3840px-Osaka_Castle_02bs3200.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Osaka_Castle_02bs3200.jpg/3840px-Osaka_Castle_02bs3200.jpg",
+      "lat": 34.6937,
+      "lng": 135.5023
     },
     {
       "id": "zone-tokyo",
       "name": "Tokyo",
       "name_ja": "東京",
-      "summary": "The grand finale — five days based in Shinjuku.",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/b/b2/Skyscrapers_of_Shinjuku_2009_January.jpg"
+      "summary": "Arrival city and grand finale — Shinjuku, Shibuya, Asakusa and everything in between.",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/b/b2/Skyscrapers_of_Shinjuku_2009_January.jpg",
+      "lat": 35.6895,
+      "lng": 139.6917
     }
   ],
   "places": [

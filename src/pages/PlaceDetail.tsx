@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { usePlace } from '../api/hooks'
 import { useDeletePlace } from '../api/mutations'
-import { CATEGORY_LABELS } from '../api/types'
+import { CATEGORY_META } from '../api/types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorState } from '../components/ErrorState'
 import { FileList } from '../components/FileList'
@@ -21,53 +21,50 @@ export default function PlaceDetail() {
   if (isError) return <ErrorState message="Could not load this place." onRetry={() => refetch()} />
 
   const { place, tips, files } = data
-  const label = CATEGORY_LABELS[place.category]
+  const meta = CATEGORY_META[place.category]
 
   return (
     <div className="space-y-8">
       <div>
-        <Link to={`/zones/${place.zone_id}/c/${place.category}`} className="text-xs text-fog">
-          ← {label.en}
+        <Link to={`/zones/${place.zone_id}/c/${place.category}`} className="text-sm font-semibold text-muted">
+          ‹ {meta.label}
         </Link>
         {place.image_url && (
-          <div className="mt-2 overflow-hidden rounded-xl border border-sand">
-            <ZoneImage
-              src={place.image_url}
-              alt={`${place.name} photo`}
-              nameJa={place.name_ja}
-              className="h-44 w-full"
-            />
+          <div className="mt-3 overflow-hidden rounded-3xl shadow-card">
+            <ZoneImage src={place.image_url} alt={place.name} icon={meta.icon} className="h-52 w-full" />
           </div>
         )}
-        <h1 className="mt-3 font-display text-2xl font-bold">{place.name}</h1>
-        {place.name_ja && <p className="text-fog">{place.name_ja}</p>}
-        <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-shu">
-          {label.en} {label.ja}
-        </p>
+        <div className="mt-3 flex items-start justify-between gap-3">
+          <h1 className="font-display text-2xl font-extrabold">{place.name}</h1>
+          <span className={`chip shrink-0 ${meta.color}`}>
+            {meta.icon} {meta.singular}
+          </span>
+        </div>
       </div>
 
       {place.description && <p className="text-sm leading-relaxed">{place.description}</p>}
 
       {place.address && (
         <div>
-          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-fog">Address 住所</h2>
+          <h2 className="section-title">Address</h2>
           <p className="mt-1 text-sm">{place.address}</p>
         </div>
       )}
 
       {place.links.length > 0 && (
         <div>
-          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-fog">Links リンク</h2>
-          <ul className="mt-1 space-y-1">
+          <h2 className="section-title">Links</h2>
+          <ul className="mt-2 space-y-2">
             {place.links.map((link, i) => (
               <li key={i}>
                 <a
                   href={link.url}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="text-sm text-shu underline underline-offset-2"
+                  className="flex items-center justify-between rounded-2xl border border-line bg-white px-4 py-3 text-sm font-semibold text-brand active:scale-[0.99]"
                 >
-                  {link.label} ↗
+                  {link.label}
+                  <span aria-hidden>↗</span>
                 </a>
               </li>
             ))}
@@ -75,19 +72,16 @@ export default function PlaceDetail() {
         </div>
       )}
 
-      <TipEditor tips={tips} parent={{ place_id: placeId }} />
+      <TipEditor tips={tips} parent={{ place_id: placeId }} title="Tips" />
 
       {files.length > 0 && (
         <section>
-          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-fog">Files 書類</h2>
-          <div className="mt-2">
-            <FileList files={files} />
-          </div>
+          <h2 className="mb-3 section-title">Files</h2>
+          <FileList files={files} />
         </section>
       )}
 
-      <div className="rule" />
-      <div className="flex gap-2">
+      <div className="flex gap-3 border-t border-line pt-6">
         <Link to={`/places/${placeId}/edit`} className="btn-ghost flex-1">
           Edit
         </Link>

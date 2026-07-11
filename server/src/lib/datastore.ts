@@ -27,6 +27,8 @@ export interface Zone {
   name_ja: string | null
   summary: string | null
   image_url?: string | null
+  lat?: number | null
+  lng?: number | null
 }
 
 export interface PlaceLink {

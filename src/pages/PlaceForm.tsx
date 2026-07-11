@@ -6,7 +6,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { usePlace } from '../api/hooks'
 import { useCreatePlace, useUpdatePlace } from '../api/mutations'
 import type { Category, PlaceInput, PlaceLink } from '../api/types'
-import { CATEGORIES, CATEGORY_LABELS } from '../api/types'
+import { CATEGORIES, CATEGORY_META } from '../api/types'
 import { Loading } from '../components/Loading'
 
 export default function PlaceForm() {
@@ -21,7 +21,6 @@ export default function PlaceForm() {
   const mutation = editing ? update : create
 
   const [name, setName] = useState('')
-  const [nameJa, setNameJa] = useState('')
   const [category, setCategory] = useState<Category>((params.get('category') as Category) || 'food')
   const [description, setDescription] = useState('')
   const [address, setAddress] = useState('')
@@ -34,7 +33,6 @@ export default function PlaceForm() {
     if (loaded) {
       const p = existing.data.place
       setName(p.name)
-      setNameJa(p.name_ja ?? '')
       setCategory(p.category)
       setDescription(p.description ?? '')
       setAddress(p.address ?? '')
@@ -51,7 +49,6 @@ export default function PlaceForm() {
     e.preventDefault()
     const input: Partial<PlaceInput> = {
       name: name.trim(),
-      name_ja: nameJa.trim() || null,
       category,
       description: description.trim() || null,
       address: address.trim() || null,
@@ -69,23 +66,16 @@ export default function PlaceForm() {
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <Link to={editing ? `/places/${placeId}` : `/zones/${targetZone}`} className="text-xs text-fog">
-        ← Back
+      <Link to={editing ? `/places/${placeId}` : `/zones/${targetZone}`} className="text-sm font-semibold text-muted">
+        ‹ Back
       </Link>
-      <h1 className="font-display text-2xl font-bold">{editing ? 'Edit place' : 'Add a place'}</h1>
+      <h1 className="font-display text-2xl font-extrabold">{editing ? 'Edit place' : 'Add a place'}</h1>
 
       <div>
         <label className="label" htmlFor="name">
           Name *
         </label>
         <input id="name" className="field" value={name} onChange={(e) => setName(e.target.value)} required />
-      </div>
-
-      <div>
-        <label className="label" htmlFor="name-ja">
-          Japanese name
-        </label>
-        <input id="name-ja" className="field" value={nameJa} onChange={(e) => setNameJa(e.target.value)} />
       </div>
 
       <div>
@@ -100,7 +90,7 @@ export default function PlaceForm() {
         >
           {CATEGORIES.map((c) => (
             <option key={c} value={c}>
-              {CATEGORY_LABELS[c].en} {CATEGORY_LABELS[c].ja}
+              {CATEGORY_META[c].icon} {CATEGORY_META[c].label}
             </option>
           ))}
         </select>
@@ -171,7 +161,7 @@ export default function PlaceForm() {
           ))}
           <button
             type="button"
-            className="text-sm font-medium text-shu"
+            className="text-sm font-bold text-brand"
             onClick={() => setLinks((ls) => [...ls, { label: '', url: '' }])}
           >
             + Add link
@@ -180,8 +170,8 @@ export default function PlaceForm() {
       </div>
 
       {mutation.isError && (
-        <div className="rounded-lg border border-shu/30 bg-shu/5 px-4 py-3">
-          <p className="text-sm text-sumi">
+        <div className="rounded-2xl border border-brand/20 bg-brand/5 px-4 py-3">
+          <p className="text-sm text-ink">
             Save failed — your text is safe. Check the connection and retry.
           </p>
         </div>

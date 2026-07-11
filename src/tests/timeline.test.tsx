@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { JourneyTimeline } from '../components/JourneyTimeline'
+import { JourneyStepsSlider } from '../components/JourneyStepsSlider'
 import type { TripStep } from '../api/types'
 
 const counts = { hotel: 0, attraction: 0, food: 0, shopping: 0, other: 0 }
@@ -22,16 +22,16 @@ const steps: TripStep[] = [
   },
 ]
 
-const renderTimeline = (today: Date) =>
+const renderSlider = (today: Date) =>
   render(
     <MemoryRouter>
-      <JourneyTimeline steps={steps} today={today} />
+      <JourneyStepsSlider steps={steps} today={today} />
     </MemoryRouter>
   )
 
-describe('JourneyTimeline (US2)', () => {
+describe('JourneyStepsSlider (US2)', () => {
   it('renders all steps in order with zone names and dates', () => {
-    renderTimeline(new Date('2026-01-01T12:00:00Z'))
+    renderSlider(new Date('2026-01-01T12:00:00Z'))
     const links = screen.getAllByRole('link')
     expect(links).toHaveLength(2)
     expect(links[0]).toHaveTextContent('Tokyo')
@@ -41,23 +41,23 @@ describe('JourneyTimeline (US2)', () => {
   })
 
   it('highlights the current step when today is inside its dates (FR-006)', () => {
-    renderTimeline(new Date('2026-10-10T12:00:00Z'))
+    renderSlider(new Date('2026-10-10T12:00:00Z'))
     const links = screen.getAllByRole('link')
     expect(links[0]).toHaveAttribute('data-status', 'past')
     expect(links[1]).toHaveAttribute('data-status', 'current')
-    expect(screen.getByText(/Now 今/)).toBeInTheDocument()
+    expect(screen.getByText(/Now/)).toBeInTheDocument()
   })
 
   it('marks no step current when the trip is entirely in the future (edge case)', () => {
-    renderTimeline(new Date('2026-01-01T12:00:00Z'))
+    renderSlider(new Date('2026-01-01T12:00:00Z'))
     for (const link of screen.getAllByRole('link')) {
       expect(link).toHaveAttribute('data-status', 'future')
     }
-    expect(screen.queryByText(/Now 今/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Now/)).not.toBeInTheDocument()
   })
 
   it('marks no step current when the trip is entirely in the past (edge case)', () => {
-    renderTimeline(new Date('2027-01-01T12:00:00Z'))
+    renderSlider(new Date('2027-01-01T12:00:00Z'))
     for (const link of screen.getAllByRole('link')) {
       expect(link).toHaveAttribute('data-status', 'past')
     }
