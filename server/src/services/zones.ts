@@ -23,13 +23,17 @@ export async function getZoneDetail(store: DataStore, zoneId: string) {
   }
 }
 
+// category === '' means "every category" (used by the city map, which plots
+// all of a zone's places and filters client-side).
 export async function listZonePlaces(store: DataStore, zoneId: string, category: string) {
-  if (!CATEGORIES.includes(category as Category)) {
+  if (category !== '' && !CATEGORIES.includes(category as Category)) {
     throw validation([`category must be one of: ${CATEGORIES.join(', ')}`])
   }
   const zone = await store.getZone(zoneId)
   if (!zone) throw notFound('Zone')
-  const places = await store.listPlaces(zoneId, category as Category)
+  const places = category
+    ? await store.listPlaces(zoneId, category as Category)
+    : await store.listPlacesInZone(zoneId)
   return {
     places: places.map((p) => ({
       id: p.id,
@@ -38,6 +42,9 @@ export async function listZonePlaces(store: DataStore, zoneId: string, category:
       category: p.category,
       summary_line: p.description ? p.description.slice(0, 100) : '',
       image_url: p.image_url ?? null,
+      address: p.address ?? null,
+      lat: p.lat ?? null,
+      lng: p.lng ?? null,
     })),
   }
 }

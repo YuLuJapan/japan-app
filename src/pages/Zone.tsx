@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { useItinerary, useTrip, useZone } from '../api/hooks'
+import { useItinerary, useTrip, useZone, useZoneMapPlaces } from '../api/hooks'
 import { CATEGORIES, CATEGORY_META } from '../api/types'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
@@ -9,6 +9,7 @@ import { Loading } from '../components/Loading'
 import { Schedule } from '../components/Schedule'
 import { TipEditor } from '../components/TipEditor'
 import { ZoneImage } from '../components/ZoneImage'
+import { ZoneMap } from '../components/ZoneMap'
 import { enumerateDays, toISODate, zoneDays } from '../lib/schedule'
 
 export default function Zone() {
@@ -16,11 +17,13 @@ export default function Zone() {
   const { data, isPending, isError, refetch } = useZone(zoneId)
   const trip = useTrip()
   const itinerary = useItinerary()
+  const mapPlaces = useZoneMapPlaces(zoneId)
 
   if (isPending) return <Loading />
   if (isError) return <ErrorState message="Could not load this zone." onRetry={() => refetch()} />
 
   const { zone, tips, files, place_counts } = data
+  const hasCoords = typeof zone.lat === 'number' && typeof zone.lng === 'number'
 
   const steps = trip.data?.steps ?? []
   const days = trip.data?.trip
@@ -43,6 +46,18 @@ export default function Zone() {
         </div>
         {zone.summary && <p className="mt-3 text-sm leading-relaxed text-muted">{zone.summary}</p>}
       </div>
+
+      {hasCoords && (
+        <section>
+          <h2 className="mb-3 font-display text-lg font-extrabold">Map</h2>
+          <ZoneMap
+            zoneId={zoneId}
+            zoneName={zone.name}
+            center={[zone.lat as number, zone.lng as number]}
+            places={mapPlaces.data?.places ?? []}
+          />
+        </section>
+      )}
 
       {days.length > 0 && itinerary.data && (
         <section>

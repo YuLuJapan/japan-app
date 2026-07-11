@@ -50,6 +50,10 @@ function collectPlaceErrors(input: Partial<PlaceInput>, partial: boolean): strin
     errors.push('description must be at most 5000 characters')
   if (has('image_url') && input.image_url != null && input.image_url !== '' && !isHttpUrl(input.image_url))
     errors.push('image_url must start with http(s)://')
+  if (has('lat') && input.lat != null && (typeof input.lat !== 'number' || input.lat < -90 || input.lat > 90))
+    errors.push('lat must be a number between -90 and 90')
+  if (has('lng') && input.lng != null && (typeof input.lng !== 'number' || input.lng < -180 || input.lng > 180))
+    errors.push('lng must be a number between -180 and 180')
   return errors
 }
 

@@ -112,6 +112,16 @@ export interface PlaceListItem {
   category: Category
   summary_line: string
   image_url?: string | null
+  address?: string | null
+  lat?: number | null
+  lng?: number | null
+}
+
+export interface GeocodeResult {
+  name: string
+  address: string | null
+  lat: number
+  lng: number
 }
 
 export interface PlaceLink {
@@ -129,6 +139,8 @@ export interface Place {
   address: string | null
   links: PlaceLink[]
   image_url?: string | null
+  lat?: number | null
+  lng?: number | null
 }
 
 export interface PlaceDetail {
@@ -146,6 +158,8 @@ export interface PlaceInput {
   address?: string | null
   links?: PlaceLink[]
   image_url?: string | null
+  lat?: number | null
+  lng?: number | null
 }
 
 export interface ItineraryItem {

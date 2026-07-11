@@ -31,6 +31,13 @@ const SIGNED_URL_TTL = 300 // seconds
 const ITINERARY_BASE_COLS = 'id,trip_id,zone_id,place_id,day,start_time,title,note,position'
 const ITINERARY_COLS = `${ITINERARY_BASE_COLS},highlight,icon`
 
+// Columns added in migration 0005 (place map coordinates). Same graceful
+// fallback as the itinerary highlight columns: if a deployment ships this code
+// before 0005 runs, we retry the query without lat/lng so places still load
+// (they just have no pins until the migration is applied).
+const PLACE_BASE_COLS = 'id,zone_id,category,name,name_ja,description,address,links,image_url'
+const PLACE_COLS = `${PLACE_BASE_COLS},lat,lng`
+
 function isMissingHighlightColumn(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false
   // 42703 = undefined_column (select); PGRST204 = column not in schema cache (write)
@@ -38,6 +45,15 @@ function isMissingHighlightColumn(error: { code?: string; message?: string } | n
     error.code === '42703' ||
     error.code === 'PGRST204' ||
     /\b(highlight|icon)\b/i.test(error.message ?? '')
+  )
+}
+
+function isMissingCoordColumn(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false
+  return (
+    error.code === '42703' ||
+    error.code === 'PGRST204' ||
+    /\b(lat|lng)\b/i.test(error.message ?? '')
   )
 }
 
@@ -91,26 +107,42 @@ export function createSupabaseStore(): DataStore {
     },
 
     async listPlaces(zoneId, category) {
-      const { data } = await db
-        .from('places')
-        .select('id,zone_id,category,name,name_ja,description,address,links,image_url')
-        .eq('zone_id', zoneId)
-        .eq('category', category)
-        .order('created_at', { ascending: true })
-      return (data as Place[]) ?? []
+      const run = (cols: string) =>
+        db
+          .from('places')
+          .select(cols)
+          .eq('zone_id', zoneId)
+          .eq('category', category)
+          .order('created_at', { ascending: true })
+      let { data, error } = await run(PLACE_COLS)
+      if (error && isMissingCoordColumn(error)) ({ data, error } = await run(PLACE_BASE_COLS))
+      if (error) throw new Error(error.message)
+      return (data as unknown as Place[]) ?? []
+    },
+
+    async listPlacesInZone(zoneId) {
+      const run = (cols: string) =>
+        db
+          .from('places')
+          .select(cols)
+          .eq('zone_id', zoneId)
+          .order('created_at', { ascending: true })
+      let { data, error } = await run(PLACE_COLS)
+      if (error && isMissingCoordColumn(error)) ({ data, error } = await run(PLACE_BASE_COLS))
+      if (error) throw new Error(error.message)
+      return (data as unknown as Place[]) ?? []
     },
 
     async getPlace(placeId) {
-      const { data } = await db
-        .from('places')
-        .select('id,zone_id,category,name,name_ja,description,address,links,image_url')
-        .eq('id', placeId)
-        .maybeSingle()
-      return (data as Place) ?? null
+      const run = (cols: string) => db.from('places').select(cols).eq('id', placeId).maybeSingle()
+      let { data, error } = await run(PLACE_COLS)
+      if (error && isMissingCoordColumn(error)) ({ data, error } = await run(PLACE_BASE_COLS))
+      if (error) throw new Error(error.message)
+      return (data as unknown as Place) ?? null
     },
 
     async createPlace(input: PlaceInput) {
-      const row = {
+      const base = {
         id: randomUUID(),
         zone_id: input.zone_id,
         category: input.category,
@@ -121,7 +153,10 @@ export function createSupabaseStore(): DataStore {
         links: input.links ?? [],
         image_url: input.image_url ?? null,
       }
-      const { data, error } = await db.from('places').insert(row).select().single()
+      const row = { ...base, lat: input.lat ?? null, lng: input.lng ?? null }
+      let { data, error } = await db.from('places').insert(row).select().single()
+      if (error && isMissingCoordColumn(error))
+        ({ data, error } = await db.from('places').insert(base).select().single())
       if (error) throw new Error(error.message)
       return data as Place
     },
@@ -136,7 +171,18 @@ export function createSupabaseStore(): DataStore {
       if (patch.address !== undefined) fields.address = patch.address ?? null
       if (patch.links !== undefined) fields.links = patch.links ?? []
       if (patch.image_url !== undefined) fields.image_url = patch.image_url ?? null
-      const { data } = await db.from('places').update(fields).eq('id', placeId).select().maybeSingle()
+      if (patch.lat !== undefined) fields.lat = patch.lat ?? null
+      if (patch.lng !== undefined) fields.lng = patch.lng ?? null
+      const run = (f: Record<string, unknown>) =>
+        db.from('places').update(f).eq('id', placeId).select().maybeSingle()
+      let { data, error } = await run(fields)
+      if (error && isMissingCoordColumn(error)) {
+        const rest = { ...fields }
+        delete rest.lat
+        delete rest.lng
+        ;({ data, error } = await run(rest))
+      }
+      if (error) throw new Error(error.message)
       return (data as Place) ?? null
     },
 
@@ -345,11 +391,15 @@ export function createSupabaseStore(): DataStore {
       const term = query.replace(/[%,()]/g, ' ').trim()
       if (!term) return { places: [], zones: [], tips: [] }
       const like = `%${term}%`
+      const placeFilter = `name.ilike.${like},name_ja.ilike.${like},description.ilike.${like},address.ilike.${like}`
+      const searchPlaces = async () => {
+        const run = (cols: string) => db.from('places').select(cols).or(placeFilter)
+        let { data, error } = await run(PLACE_COLS)
+        if (error && isMissingCoordColumn(error)) ({ data, error } = await run(PLACE_BASE_COLS))
+        return (data as unknown as Place[]) ?? []
+      }
       const [places, zones, tips] = await Promise.all([
-        db
-          .from('places')
-          .select('id,zone_id,category,name,name_ja,description,address,links,image_url')
-          .or(`name.ilike.${like},name_ja.ilike.${like},description.ilike.${like},address.ilike.${like}`),
+        searchPlaces(),
         db
           .from('zones')
           .select('id,name,name_ja,summary,image_url,lat,lng')
@@ -357,7 +407,7 @@ export function createSupabaseStore(): DataStore {
         db.from('tips').select('id,zone_id,place_id,body').ilike('body', like),
       ])
       return {
-        places: (places.data as Place[]) ?? [],
+        places,
         zones: (zones.data as Zone[]) ?? [],
         tips: (tips.data as Tip[]) ?? [],
       }

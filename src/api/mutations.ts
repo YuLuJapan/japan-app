@@ -42,6 +42,17 @@ export function useUpdatePlace(placeId: string) {
   })
 }
 
+// Attach map coordinates to an existing place (the "locate on map" action).
+// Not bound to a single id like useUpdatePlace, so the map can locate any pin.
+export function useSetPlaceCoords(zoneId: string) {
+  const invalidate = usePlaceInvalidation()
+  return useMutation({
+    mutationFn: ({ placeId, lat, lng }: { placeId: string; lat: number; lng: number }) =>
+      api.patch<{ place: Place }>(`/places/${placeId}`, { lat, lng }),
+    onSuccess: (data) => invalidate(zoneId, data.place.id),
+  })
+}
+
 export function useDeletePlace(zoneId: string | undefined) {
   const invalidate = usePlaceInvalidation()
   const qc = useQueryClient()

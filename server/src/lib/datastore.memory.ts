@@ -98,6 +98,10 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return db.places.filter((p) => p.zone_id === zoneId && p.category === category)
     },
 
+    async listPlacesInZone(zoneId) {
+      return db.places.filter((p) => p.zone_id === zoneId)
+    },
+
     async getPlace(placeId) {
       return db.places.find((p) => p.id === placeId) ?? null
     },
@@ -113,6 +117,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         address: input.address ?? null,
         links: input.links ?? [],
         image_url: input.image_url ?? null,
+        lat: input.lat ?? null,
+        lng: input.lng ?? null,
       }
       db.places.push(place)
       return structuredClone(place)
@@ -130,6 +136,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       if (patch.address !== undefined) place.address = patch.address ?? null
       if (patch.links !== undefined) place.links = patch.links ?? []
       if (patch.image_url !== undefined) place.image_url = patch.image_url ?? null
+      if (patch.lat !== undefined) place.lat = patch.lat ?? null
+      if (patch.lng !== undefined) place.lng = patch.lng ?? null
       return structuredClone(place)
     },
 

@@ -46,6 +46,8 @@ export interface Place {
   address: string | null
   links: PlaceLink[]
   image_url?: string | null
+  lat?: number | null
+  lng?: number | null
 }
 
 export interface Tip {
@@ -102,6 +104,8 @@ export interface PlaceInput {
   address?: string | null
   links?: PlaceLink[]
   image_url?: string | null
+  lat?: number | null
+  lng?: number | null
 }
 
 export interface TipInput {
@@ -140,6 +144,8 @@ export interface DataStore {
   countPlacesByCategory(zoneId: string): Promise<Record<Category, number>>
 
   listPlaces(zoneId: string, category: Category): Promise<Place[]>
+  /** Every place in a zone, all categories (used by the city map). */
+  listPlacesInZone(zoneId: string): Promise<Place[]>
   getPlace(placeId: string): Promise<Place | null>
   createPlace(input: PlaceInput): Promise<Place>
   updatePlace(placeId: string, patch: Partial<PlaceInput>): Promise<Place | null>

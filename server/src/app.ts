@@ -3,6 +3,7 @@ import { authMiddleware } from './lib/auth.js'
 import { errorMiddleware, notFound } from './lib/errors.js'
 import { authRouter } from './routes/auth.js'
 import { filesRouter } from './routes/files.js'
+import { geocodeRouter } from './routes/geocode.js'
 import { healthRouter } from './routes/health.js'
 import { itineraryRouter } from './routes/itinerary.js'
 import { placesRouter } from './routes/places.js'
@@ -34,6 +35,7 @@ export function createApp() {
   app.use('/api', filesRouter)
   app.use('/api', searchRouter)
   app.use('/api', ratesRouter)
+  app.use('/api', geocodeRouter)
 
   app.use('/api', (_req, _res, next) => next(notFound('Endpoint')))
   app.use(errorMiddleware)

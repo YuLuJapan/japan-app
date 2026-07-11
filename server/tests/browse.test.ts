@@ -71,6 +71,61 @@ describe('GET /api/zones/:id/places', () => {
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('VALIDATION')
   })
+
+  it('lists every category (with coords) when no category is given — the map view', async () => {
+    const res = await auth(request(app).get('/api/zones/zone-tokyo/places'))
+    expect(res.status).toBe(200)
+    // both the food place and the hotel, across categories
+    expect(res.body.places.map((p: { name: string }) => p.name).sort()).toEqual([
+      'Ramen Bar',
+      'Test Hotel',
+    ])
+    // map fields are exposed even when unset
+    const ramen = res.body.places.find((p: { name: string }) => p.name === 'Ramen Bar')
+    expect(ramen).toMatchObject({ address: 'Shinjuku', lat: null, lng: null })
+  })
+})
+
+describe('place map coordinates', () => {
+  it('round-trips lat/lng through create and shows up in the map listing', async () => {
+    const created = await auth(
+      request(app).post('/api/places').send({
+        zone_id: 'zone-tokyo',
+        category: 'food',
+        name: 'Blue Bottle',
+        lat: 35.6506849,
+        lng: 139.7219251,
+      })
+    )
+    expect(created.status).toBe(201)
+    expect(created.body.place).toMatchObject({ lat: 35.6506849, lng: 139.7219251 })
+
+    const list = await auth(request(app).get('/api/zones/zone-tokyo/places'))
+    const pin = list.body.places.find((p: { name: string }) => p.name === 'Blue Bottle')
+    expect(pin).toMatchObject({ lat: 35.6506849, lng: 139.7219251, category: 'food' })
+  })
+
+  it('attaches coords to an existing place via PATCH (the "pin it" action)', async () => {
+    const res = await auth(
+      request(app).patch('/api/places/place-hotel').send({ lat: 35.69, lng: 139.7 })
+    )
+    expect(res.status).toBe(200)
+    expect(res.body.place).toMatchObject({ lat: 35.69, lng: 139.7 })
+  })
+
+  it('400 VALIDATION for out-of-range coordinates', async () => {
+    const res = await auth(
+      request(app).post('/api/places').send({
+        zone_id: 'zone-tokyo',
+        category: 'food',
+        name: 'Bad Coords',
+        lat: 999,
+        lng: 0,
+      })
+    )
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('VALIDATION')
+  })
 })
 
 describe('GET /api/places/:id', () => {

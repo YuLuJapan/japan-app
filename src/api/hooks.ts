@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from './client'
 import type {
   Category,
+  GeocodeResult,
   ItineraryItem,
   PlaceDetail,
   PlaceListItem,
@@ -31,6 +32,13 @@ export const useZonePlaces = (zoneId: string, category: Category) =>
       api.get<{ places: PlaceListItem[] }>(`/zones/${zoneId}/places?category=${category}`),
   })
 
+// Every place in a zone, all categories — powers the city map's pins.
+export const useZoneMapPlaces = (zoneId: string) =>
+  useQuery({
+    queryKey: ['zone-places', zoneId, ''],
+    queryFn: () => api.get<{ places: PlaceListItem[] }>(`/zones/${zoneId}/places`),
+  })
+
 export const usePlace = (placeId: string) =>
   useQuery({
     queryKey: ['place', placeId],
@@ -47,6 +55,17 @@ export const useRates = () =>
     queryFn: () => api.get<Rates>('/rates'),
     staleTime: 1000 * 60 * 60 * 6, // refetch at most every ~6h
   })
+
+// Free OpenStreetMap place search (proxied by the server). Called on demand
+// from the map's search box, not as a standing query.
+export const geocode = (query: string, bias?: { lat: number; lng: number }) => {
+  const params = new URLSearchParams({ q: query })
+  if (bias) {
+    params.set('lat', String(bias.lat))
+    params.set('lng', String(bias.lng))
+  }
+  return api.get<{ results: GeocodeResult[] }>(`/geocode?${params}`)
+}
 
 export const useSearch = (query: string) =>
   useQuery({
