@@ -55,6 +55,29 @@ export interface Tip {
   body: string
 }
 
+export interface ItineraryItem {
+  id: string
+  trip_id: string
+  zone_id: string | null
+  place_id: string | null
+  day: string // YYYY-MM-DD
+  start_time: string | null // HH:MM (24h) or null
+  title: string
+  note: string | null
+  position: number
+}
+
+export interface ItineraryItemInput {
+  trip_id: string
+  zone_id?: string | null
+  place_id?: string | null
+  day: string
+  start_time?: string | null
+  title: string
+  note?: string | null
+  position?: number
+}
+
 export interface FileAttachment {
   id: string
   trip_id: string | null
@@ -101,6 +124,14 @@ export interface DataStore {
   updatePlace(placeId: string, patch: Partial<PlaceInput>): Promise<Place | null>
   /** Hard delete; the place's tips are deleted with it. Returns false if not found. */
   deletePlace(placeId: string): Promise<boolean>
+
+  listItinerary(tripId: string): Promise<ItineraryItem[]>
+  createItineraryItem(input: ItineraryItemInput): Promise<ItineraryItem>
+  updateItineraryItem(
+    itemId: string,
+    patch: Partial<ItineraryItemInput>
+  ): Promise<ItineraryItem | null>
+  deleteItineraryItem(itemId: string): Promise<boolean>
 
   listTips(parent: { zone_id: string } | { place_id: string }): Promise<Tip[]>
   createTip(input: TipInput): Promise<Tip>

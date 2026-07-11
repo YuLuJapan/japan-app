@@ -11,6 +11,8 @@ import type {
   DataStore,
   FileAttachment,
   FileUrlResult,
+  ItineraryItem,
+  ItineraryItemInput,
   JourneyStep,
   Place,
   PlaceInput,
@@ -28,6 +30,7 @@ export interface MemoryData {
   places: Place[]
   tips: Tip[]
   files: FileAttachment[]
+  itinerary?: ItineraryItem[]
 }
 
 function loadPlaceholderData(): MemoryData {
@@ -35,9 +38,23 @@ function loadPlaceholderData(): MemoryData {
   return JSON.parse(readFileSync(dataPath, 'utf-8')) as MemoryData
 }
 
+// Stable itinerary order: by day, then timed items (ascending) before untimed,
+// then manual position, then id.
+function compareItinerary(a: ItineraryItem, b: ItineraryItem): number {
+  if (a.day !== b.day) return a.day < b.day ? -1 : 1
+  if (a.start_time !== b.start_time) {
+    if (a.start_time === null) return 1
+    if (b.start_time === null) return -1
+    return a.start_time < b.start_time ? -1 : 1
+  }
+  if (a.position !== b.position) return a.position - b.position
+  return a.id < b.id ? -1 : 1
+}
+
 export function createMemoryStore(initial?: MemoryData): DataStore {
   // deep clone so mutations never touch the caller's fixture or the JSON module cache
   const db: MemoryData = structuredClone(initial ?? loadPlaceholderData())
+  db.itinerary ??= [] // optional in older fixtures
 
   const emptyCounts = (): Record<Category, number> =>
     Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<Category, number>
@@ -111,6 +128,48 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       if (idx === -1) return false
       db.places.splice(idx, 1)
       db.tips = db.tips.filter((t) => t.place_id !== placeId) // cascade
+      // keep the day plan; just unlink the deleted place (mirrors on delete set null)
+      for (const item of db.itinerary!) if (item.place_id === placeId) item.place_id = null
+      return true
+    },
+
+    async listItinerary(tripId) {
+      return db.itinerary!.filter((i) => i.trip_id === tripId).sort(compareItinerary)
+    },
+
+    async createItineraryItem(input: ItineraryItemInput) {
+      const item: ItineraryItem = {
+        id: randomUUID(),
+        trip_id: input.trip_id,
+        zone_id: input.zone_id ?? null,
+        place_id: input.place_id ?? null,
+        day: input.day,
+        start_time: input.start_time ?? null,
+        title: input.title,
+        note: input.note ?? null,
+        position: input.position ?? 0,
+      }
+      db.itinerary!.push(item)
+      return structuredClone(item)
+    },
+
+    async updateItineraryItem(itemId, patch) {
+      const item = db.itinerary!.find((i) => i.id === itemId)
+      if (!item) return null
+      if (patch.zone_id !== undefined) item.zone_id = patch.zone_id ?? null
+      if (patch.place_id !== undefined) item.place_id = patch.place_id ?? null
+      if (patch.day !== undefined) item.day = patch.day
+      if (patch.start_time !== undefined) item.start_time = patch.start_time ?? null
+      if (patch.title !== undefined) item.title = patch.title
+      if (patch.note !== undefined) item.note = patch.note ?? null
+      if (patch.position !== undefined) item.position = patch.position ?? 0
+      return structuredClone(item)
+    },
+
+    async deleteItineraryItem(itemId) {
+      const i = db.itinerary!.findIndex((x) => x.id === itemId)
+      if (i === -1) return false
+      db.itinerary!.splice(i, 1)
       return true
     },
 

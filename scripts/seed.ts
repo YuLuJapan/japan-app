@@ -21,6 +21,7 @@ async function main() {
     ['journey_steps', data.steps],
     ['places', data.places],
     ['tips', data.tips],
+    ['itinerary_items', data.itinerary ?? []],
     ['files', data.files],
   ]
 

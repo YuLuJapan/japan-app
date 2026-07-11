@@ -438,6 +438,15 @@
     { "id": "tip-gracery-godzilla", "zone_id": null, "place_id": "hotel-gracery", "body": "Ask for a high floor on the Godzilla side; the head 'roars' on schedule from the 8F terrace." },
     { "id": "tip-fushimi-sunrise", "zone_id": null, "place_id": "attr-fushimi", "body": "Open 24h — sunrise or after 17:00 for photos without crowds." }
   ],
+  "itinerary": [
+    { "id": "itin-tokyo-sensoji", "trip_id": "trip-japan", "zone_id": "zone-tokyo", "place_id": "attr-sensoji", "day": "2026-09-20", "start_time": "09:00", "title": "Senso-ji Temple", "note": "Get there before the crowds on Nakamise street.", "position": 0 },
+    { "id": "itin-tokyo-teamlab", "trip_id": "trip-japan", "zone_id": "zone-tokyo", "place_id": "attr-teamlab", "day": "2026-09-20", "start_time": "13:00", "title": "teamLab Planets", "note": "Barefoot through water — wear shorts.", "position": 0 },
+    { "id": "itin-tokyo-shibuya", "trip_id": "trip-japan", "zone_id": "zone-tokyo", "place_id": "attr-shibuya", "day": "2026-09-20", "start_time": "18:30", "title": "Shibuya Crossing at dusk", "note": null, "position": 0 },
+    { "id": "itin-tokyo-ramen", "trip_id": "trip-japan", "zone_id": "zone-tokyo", "place_id": "food-tokyo-ramen", "day": "2026-09-21", "start_time": "20:00", "title": "Ramen night in Omoide Yokocho", "note": "Cash only.", "position": 0 },
+    { "id": "itin-kyoto-fushimi", "trip_id": "trip-japan", "zone_id": "zone-kyoto", "place_id": "attr-fushimi", "day": "2026-10-04", "start_time": "07:30", "title": "Fushimi Inari at sunrise", "note": "Beat the crowds — full loop ~2h.", "position": 0 },
+    { "id": "itin-kyoto-arashiyama", "trip_id": "trip-japan", "zone_id": "zone-kyoto", "place_id": "attr-arashiyama", "day": "2026-10-04", "start_time": "11:00", "title": "Arashiyama Bamboo Grove", "note": null, "position": 0 },
+    { "id": "itin-kyoto-free", "trip_id": "trip-japan", "zone_id": "zone-kyoto", "place_id": null, "day": "2026-10-04", "start_time": null, "title": "Coffee somewhere in Gion", "note": "No fixed time — wander.", "position": 0 }
+  ],
   "files": [
     {
       "id": "file-flights",

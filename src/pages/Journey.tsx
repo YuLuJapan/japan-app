@@ -1,15 +1,18 @@
-import { useTrip } from '../api/hooks'
+import { useItinerary, useTrip } from '../api/hooks'
 import type { MapCity } from '../components/TripMap'
 import { ErrorState } from '../components/ErrorState'
 import { JourneyStepsSlider, stepStatus } from '../components/JourneyStepsSlider'
 import { Loading } from '../components/Loading'
+import { Schedule } from '../components/Schedule'
 import { TripMap } from '../components/TripMap'
+import { enumerateDays, toISODate } from '../lib/schedule'
 
 const fmt = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString('en', { month: 'short', day: 'numeric' })
 
 export default function Journey() {
   const { data, isPending, isError, refetch } = useTrip()
+  const itinerary = useItinerary()
 
   if (isPending) return <Loading label="Loading the journey…" />
   if (isError) return <ErrorState message="Could not load the trip." onRetry={() => refetch()} />
@@ -53,6 +56,23 @@ export default function Journey() {
         </div>
         <JourneyStepsSlider steps={data.steps} today={today} />
       </div>
+
+      <section>
+        <h2 className="mb-3 font-display text-lg font-extrabold">Day by day</h2>
+        {itinerary.isPending ? (
+          <Loading label="Loading the schedule…" />
+        ) : itinerary.isError ? (
+          <ErrorState message="Could not load the schedule." onRetry={() => itinerary.refetch()} />
+        ) : (
+          <Schedule
+            mode="trip"
+            steps={data.steps}
+            items={itinerary.data.items}
+            days={enumerateDays(data.trip.start_date, data.trip.end_date)}
+            today={toISODate(today)}
+          />
+        )}
+      </section>
     </div>
   )
 }

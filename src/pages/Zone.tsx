@@ -1,21 +1,30 @@
 import { Link, useParams } from 'react-router-dom'
-import { useZone } from '../api/hooks'
+import { useItinerary, useTrip, useZone } from '../api/hooks'
 import { CATEGORIES, CATEGORY_META } from '../api/types'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { FileList } from '../components/FileList'
 import { Loading } from '../components/Loading'
+import { Schedule } from '../components/Schedule'
 import { TipEditor } from '../components/TipEditor'
 import { ZoneImage } from '../components/ZoneImage'
+import { enumerateDays, toISODate, zoneDays } from '../lib/schedule'
 
 export default function Zone() {
   const { zoneId = '' } = useParams()
   const { data, isPending, isError, refetch } = useZone(zoneId)
+  const trip = useTrip()
+  const itinerary = useItinerary()
 
   if (isPending) return <Loading />
   if (isError) return <ErrorState message="Could not load this zone." onRetry={() => refetch()} />
 
   const { zone, tips, files, place_counts } = data
+
+  const steps = trip.data?.steps ?? []
+  const days = trip.data?.trip
+    ? zoneDays(steps, zoneId, enumerateDays(trip.data.trip.start_date, trip.data.trip.end_date))
+    : []
   // hide empty categories without breaking navigation (FR-012)
   const visible = CATEGORIES.filter((c) => place_counts[c] > 0)
 
@@ -33,6 +42,20 @@ export default function Zone() {
         </div>
         {zone.summary && <p className="mt-3 text-sm leading-relaxed text-muted">{zone.summary}</p>}
       </div>
+
+      {days.length > 0 && itinerary.data && (
+        <section>
+          <h2 className="mb-3 font-display text-lg font-extrabold">Schedule</h2>
+          <Schedule
+            mode="zone"
+            zoneId={zoneId}
+            steps={steps}
+            items={itinerary.data.items}
+            days={days}
+            today={toISODate(new Date())}
+          />
+        </section>
+      )}
 
       <section>
         <div className="mb-3 flex items-center justify-between">

@@ -118,6 +118,28 @@ export interface PlaceInput {
   image_url?: string | null
 }
 
+export interface ItineraryItem {
+  id: string
+  trip_id: string
+  zone_id: string | null
+  place_id: string | null
+  day: string // YYYY-MM-DD
+  start_time: string | null // HH:MM (24h) or null
+  title: string
+  note: string | null
+  position: number
+}
+
+export interface ItineraryItemInput {
+  zone_id?: string | null
+  place_id?: string | null
+  day: string
+  start_time?: string | null
+  title: string
+  note?: string | null
+  position?: number
+}
+
 export interface SearchResult {
   type: 'place' | 'zone' | 'tip'
   id: string

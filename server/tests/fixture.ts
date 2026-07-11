@@ -46,6 +46,30 @@ export function fixture(): MemoryData {
       { id: 'tip-zone', zone_id: 'zone-tokyo', place_id: null, body: 'Get a Suica card' },
       { id: 'tip-place', zone_id: null, place_id: 'place-ramen', body: 'Cash only' },
     ],
+    itinerary: [
+      {
+        id: 'itin-ramen',
+        trip_id: 'trip-1',
+        zone_id: 'zone-tokyo',
+        place_id: 'place-ramen',
+        day: '2026-10-06',
+        start_time: '20:00',
+        title: 'Ramen Bar',
+        note: null,
+        position: 0,
+      },
+      {
+        id: 'itin-walk',
+        trip_id: 'trip-1',
+        zone_id: 'zone-tokyo',
+        place_id: null,
+        day: '2026-10-06',
+        start_time: null,
+        title: 'Walk Shinjuku',
+        note: 'After dinner',
+        position: 0,
+      },
+    ],
     files: [
       {
         id: 'file-trip',

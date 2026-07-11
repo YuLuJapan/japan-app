@@ -3,6 +3,7 @@ import { api } from './client'
 import type {
   Category,
   FileMeta,
+  ItineraryItem,
   PlaceDetail,
   PlaceListItem,
   SearchResult,
@@ -12,6 +13,12 @@ import type {
 
 export const useTrip = () =>
   useQuery({ queryKey: ['trip'], queryFn: () => api.get<TripBundle>('/trip') })
+
+export const useItinerary = () =>
+  useQuery({
+    queryKey: ['itinerary'],
+    queryFn: () => api.get<{ items: ItineraryItem[] }>('/itinerary'),
+  })
 
 export const useZone = (zoneId: string) =>
   useQuery({ queryKey: ['zone', zoneId], queryFn: () => api.get<ZoneDetail>(`/zones/${zoneId}`) })

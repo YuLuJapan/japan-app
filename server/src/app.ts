@@ -4,6 +4,7 @@ import { errorMiddleware, notFound } from './lib/errors.js'
 import { authRouter } from './routes/auth.js'
 import { filesRouter } from './routes/files.js'
 import { healthRouter } from './routes/health.js'
+import { itineraryRouter } from './routes/itinerary.js'
 import { placesRouter } from './routes/places.js'
 import { searchRouter } from './routes/search.js'
 import { tipsRouter } from './routes/tips.js'
@@ -18,6 +19,7 @@ export function createApp() {
   app.use('/api', healthRouter)
   app.use('/api', authRouter)
   app.use('/api', tripRouter)
+  app.use('/api', itineraryRouter)
   app.use('/api', zonesRouter)
   app.use('/api', placesRouter)
   app.use('/api', tipsRouter)

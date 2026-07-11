@@ -7,6 +7,8 @@ import type {
   DataStore,
   FileAttachment,
   FileUrlResult,
+  ItineraryItem,
+  ItineraryItemInput,
   JourneyStep,
   Place,
   PlaceInput,
@@ -117,6 +119,57 @@ export function createSupabaseStore(): DataStore {
     async deletePlace(placeId) {
       // tips cascade via the DB foreign key
       const { data } = await db.from('places').delete().eq('id', placeId).select('id')
+      return (data?.length ?? 0) > 0
+    },
+
+    async listItinerary(tripId) {
+      const { data } = await db
+        .from('itinerary_items')
+        .select('id,trip_id,zone_id,place_id,day,start_time,title,note,position')
+        .eq('trip_id', tripId)
+        .order('day', { ascending: true })
+        .order('start_time', { ascending: true, nullsFirst: false })
+        .order('position', { ascending: true })
+      return (data as ItineraryItem[]) ?? []
+    },
+
+    async createItineraryItem(input: ItineraryItemInput) {
+      const row = {
+        id: randomUUID(),
+        trip_id: input.trip_id,
+        zone_id: input.zone_id ?? null,
+        place_id: input.place_id ?? null,
+        day: input.day,
+        start_time: input.start_time ?? null,
+        title: input.title,
+        note: input.note ?? null,
+        position: input.position ?? 0,
+      }
+      const { data, error } = await db.from('itinerary_items').insert(row).select().single()
+      if (error) throw new Error(error.message)
+      return data as ItineraryItem
+    },
+
+    async updateItineraryItem(itemId, patch) {
+      const fields: Record<string, unknown> = {}
+      if (patch.zone_id !== undefined) fields.zone_id = patch.zone_id ?? null
+      if (patch.place_id !== undefined) fields.place_id = patch.place_id ?? null
+      if (patch.day !== undefined) fields.day = patch.day
+      if (patch.start_time !== undefined) fields.start_time = patch.start_time ?? null
+      if (patch.title !== undefined) fields.title = patch.title
+      if (patch.note !== undefined) fields.note = patch.note ?? null
+      if (patch.position !== undefined) fields.position = patch.position ?? 0
+      const { data } = await db
+        .from('itinerary_items')
+        .update(fields)
+        .eq('id', itemId)
+        .select()
+        .maybeSingle()
+      return (data as ItineraryItem) ?? null
+    },
+
+    async deleteItineraryItem(itemId) {
+      const { data } = await db.from('itinerary_items').delete().eq('id', itemId).select('id')
       return (data?.length ?? 0) > 0
     },
 

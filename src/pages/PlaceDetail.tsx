@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { usePlace } from '../api/hooks'
 import { useDeletePlace } from '../api/mutations'
 import { CATEGORY_META } from '../api/types'
+import { AddPlaceToDay } from '../components/AddPlaceToDay'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorState } from '../components/ErrorState'
 import { FileList } from '../components/FileList'
@@ -65,6 +66,8 @@ export default function PlaceDetail() {
           Directions
         </a>
       </div>
+
+      <AddPlaceToDay place={place} />
 
       {place.links.length > 0 && (
         <div>

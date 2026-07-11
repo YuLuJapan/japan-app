@@ -2,7 +2,7 @@
 // the other traveler's phone via refetch-on-focus (FR-018).
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
-import type { Place, PlaceInput, Tip } from './types'
+import type { ItineraryItem, ItineraryItemInput, Place, PlaceInput, Tip } from './types'
 
 function usePlaceInvalidation() {
   const qc = useQueryClient()
@@ -43,6 +43,37 @@ export function useDeletePlace(zoneId: string | undefined) {
       invalidate(zoneId)
       qc.invalidateQueries({ queryKey: ['trip-files'] }) // deleted place's files re-parent to trip
     },
+  })
+}
+
+function useItineraryInvalidation() {
+  const qc = useQueryClient()
+  return () => qc.invalidateQueries({ queryKey: ['itinerary'] })
+}
+
+export function useCreateItineraryItem() {
+  const invalidate = useItineraryInvalidation()
+  return useMutation({
+    mutationFn: (input: ItineraryItemInput) =>
+      api.post<{ item: ItineraryItem }>('/itinerary', input),
+    onSuccess: invalidate,
+  })
+}
+
+export function useUpdateItineraryItem() {
+  const invalidate = useItineraryInvalidation()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<ItineraryItemInput> }) =>
+      api.patch<{ item: ItineraryItem }>(`/itinerary/${id}`, patch),
+    onSuccess: invalidate,
+  })
+}
+
+export function useDeleteItineraryItem() {
+  const invalidate = useItineraryInvalidation()
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/itinerary/${id}`),
+    onSuccess: invalidate,
   })
 }
 
