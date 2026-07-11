@@ -1,7 +1,7 @@
 // Local dev API server — Vite (port 3000) proxies /api here (port 3001).
 // Production uses api/index.ts on Vercel instead.
 import { readFileSync } from 'node:fs'
-import { createApp } from './src/app'
+import { createApp } from './src/app.js'
 
 // tiny .env.local loader (no dotenv dep); real deployments use platform env vars
 try {

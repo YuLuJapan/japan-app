@@ -18,8 +18,8 @@ import type {
   TipInput,
   Trip,
   Zone,
-} from './datastore'
-import { CATEGORIES } from './datastore'
+} from './datastore.js'
+import { CATEGORIES } from './datastore.js'
 
 export interface MemoryData {
   trip: Trip

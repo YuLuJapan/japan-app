@@ -1,6 +1,6 @@
-import type { Category, DataStore } from '../lib/datastore'
-import { CATEGORIES } from '../lib/datastore'
-import { notFound, validation } from '../lib/errors'
+import type { Category, DataStore } from '../lib/datastore.js'
+import { CATEGORIES } from '../lib/datastore.js'
+import { notFound, validation } from '../lib/errors.js'
 
 export async function getZoneDetail(store: DataStore, zoneId: string) {
   const zone = await store.getZone(zoneId)

@@ -1,7 +1,7 @@
 import { Router } from 'express'
-import { asyncHandler } from '../lib/errors'
-import { getDataStore } from '../lib/datastore'
-import { createTip, deleteTip, updateTip } from '../services/tips'
+import { asyncHandler } from '../lib/errors.js'
+import { getDataStore } from '../lib/datastore.js'
+import { createTip, deleteTip, updateTip } from '../services/tips.js'
 
 export const tipsRouter = Router()
 

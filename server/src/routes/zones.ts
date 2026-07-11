@@ -1,7 +1,7 @@
 import { Router } from 'express'
-import { asyncHandler } from '../lib/errors'
-import { getDataStore } from '../lib/datastore'
-import { getZoneDetail, listZonePlaces } from '../services/zones'
+import { asyncHandler } from '../lib/errors.js'
+import { getDataStore } from '../lib/datastore.js'
+import { getZoneDetail, listZonePlaces } from '../services/zones.js'
 
 export const zonesRouter = Router()
 

@@ -1,13 +1,13 @@
 import express from 'express'
-import { authMiddleware } from './lib/auth'
-import { errorMiddleware, notFound } from './lib/errors'
-import { authRouter } from './routes/auth'
-import { filesRouter } from './routes/files'
-import { healthRouter } from './routes/health'
-import { placesRouter } from './routes/places'
-import { tipsRouter } from './routes/tips'
-import { tripRouter } from './routes/trip'
-import { zonesRouter } from './routes/zones'
+import { authMiddleware } from './lib/auth.js'
+import { errorMiddleware, notFound } from './lib/errors.js'
+import { authRouter } from './routes/auth.js'
+import { filesRouter } from './routes/files.js'
+import { healthRouter } from './routes/health.js'
+import { placesRouter } from './routes/places.js'
+import { tipsRouter } from './routes/tips.js'
+import { tripRouter } from './routes/trip.js'
+import { zonesRouter } from './routes/zones.js'
 
 export function createApp() {
   const app = express()

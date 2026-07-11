@@ -2,7 +2,7 @@
 // a bearer token on every API call. Exempt: /api/health (cron) and
 // /api/auth/verify (the gate screen itself).
 import type { NextFunction, Request, Response } from 'express'
-import { ApiError } from './errors'
+import { ApiError } from './errors.js'
 
 const EXEMPT_PATHS = new Set(['/api/health', '/api/auth/verify'])
 

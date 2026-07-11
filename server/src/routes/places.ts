@@ -1,7 +1,7 @@
 import { Router } from 'express'
-import { asyncHandler } from '../lib/errors'
-import { getDataStore } from '../lib/datastore'
-import { createPlace, deletePlace, getPlaceDetail, updatePlace } from '../services/places'
+import { asyncHandler } from '../lib/errors.js'
+import { getDataStore } from '../lib/datastore.js'
+import { createPlace, deletePlace, getPlaceDetail, updatePlace } from '../services/places.js'
 
 export const placesRouter = Router()
 

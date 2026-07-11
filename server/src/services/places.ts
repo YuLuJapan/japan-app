@@ -1,6 +1,6 @@
-import type { Category, DataStore, PlaceInput, PlaceLink } from '../lib/datastore'
-import { CATEGORIES } from '../lib/datastore'
-import { notFound, validation } from '../lib/errors'
+import type { Category, DataStore, PlaceInput, PlaceLink } from '../lib/datastore.js'
+import { CATEGORIES } from '../lib/datastore.js'
+import { notFound, validation } from '../lib/errors.js'
 
 export async function getPlaceDetail(store: DataStore, placeId: string) {
   const place = await store.getPlace(placeId)

@@ -1,7 +1,7 @@
 import { Router } from 'express'
-import { asyncHandler } from '../lib/errors'
-import { getDataStore } from '../lib/datastore'
-import { getTripBundle } from '../services/trips'
+import { asyncHandler } from '../lib/errors.js'
+import { getDataStore } from '../lib/datastore.js'
+import { getTripBundle } from '../services/trips.js'
 
 export const tripRouter = Router()
 

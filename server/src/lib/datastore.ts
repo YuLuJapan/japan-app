@@ -125,10 +125,10 @@ export async function getDataStore(): Promise<DataStore> {
   if (store) return store
   const backend = process.env.DATA_BACKEND ?? 'memory'
   if (backend === 'memory') {
-    const { createMemoryStore } = await import('./datastore.memory')
+    const { createMemoryStore } = await import('./datastore.memory.js')
     store = createMemoryStore()
   } else if (backend === 'supabase') {
-    const { createSupabaseStore } = await import('./datastore.supabase')
+    const { createSupabaseStore } = await import('./datastore.supabase.js')
     store = createSupabaseStore()
   } else {
     throw new Error(`Unknown DATA_BACKEND "${backend}" (expected "memory" or "supabase")`)

@@ -14,9 +14,9 @@ import type {
   TipInput,
   Trip,
   Zone,
-} from './datastore'
-import { CATEGORIES } from './datastore'
-import { FILES_BUCKET, getSupabase } from './supabase'
+} from './datastore.js'
+import { CATEGORIES } from './datastore.js'
+import { FILES_BUCKET, getSupabase } from './supabase.js'
 
 const SIGNED_URL_TTL = 300 // seconds
 

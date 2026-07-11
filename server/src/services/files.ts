@@ -1,5 +1,5 @@
-import type { DataStore } from '../lib/datastore'
-import { ApiError, notFound } from '../lib/errors'
+import type { DataStore } from '../lib/datastore.js'
+import { ApiError, notFound } from '../lib/errors.js'
 
 export async function listTripFiles(store: DataStore) {
   const trip = await store.getTrip()

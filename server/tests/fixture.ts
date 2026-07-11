@@ -1,5 +1,5 @@
 // Small deterministic dataset for API tests (independent of placeholder-data.json).
-import type { MemoryData } from '../src/lib/datastore.memory'
+import type { MemoryData } from '../src/lib/datastore.memory.js'
 
 export const TEST_CODE = 'test-code'
 

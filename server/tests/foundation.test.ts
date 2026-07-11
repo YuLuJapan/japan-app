@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
-import { createApp } from '../src/app'
-import { setDataStore } from '../src/lib/datastore'
-import { createMemoryStore } from '../src/lib/datastore.memory'
-import { TEST_CODE, fixture } from './fixture'
+import { createApp } from '../src/app.js'
+import { setDataStore } from '../src/lib/datastore.js'
+import { createMemoryStore } from '../src/lib/datastore.memory.js'
+import { TEST_CODE, fixture } from './fixture.js'
 
 process.env.TRIP_ACCESS_CODE = TEST_CODE
 const app = createApp()

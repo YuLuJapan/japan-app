@@ -1,6 +1,6 @@
 import { Router } from 'express'
-import { accessCode } from '../lib/auth'
-import { ApiError, asyncHandler } from '../lib/errors'
+import { accessCode } from '../lib/auth.js'
+import { ApiError, asyncHandler } from '../lib/errors.js'
 
 export const authRouter = Router()
 

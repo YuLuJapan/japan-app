@@ -1,5 +1,5 @@
-import type { DataStore, TipInput } from '../lib/datastore'
-import { notFound, validation } from '../lib/errors'
+import type { DataStore, TipInput } from '../lib/datastore.js'
+import { notFound, validation } from '../lib/errors.js'
 
 function collectTipErrors(input: TipInput): string[] {
   const errors: string[] = []

@@ -1,7 +1,7 @@
 import { Router } from 'express'
-import { asyncHandler } from '../lib/errors'
-import { getDataStore } from '../lib/datastore'
-import { getFileUrl, listTripFiles } from '../services/files'
+import { asyncHandler } from '../lib/errors.js'
+import { getDataStore } from '../lib/datastore.js'
+import { getFileUrl, listTripFiles } from '../services/files.js'
 
 export const filesRouter = Router()
 
