@@ -154,6 +154,39 @@ export default function TripEssentials() {
         <h1 className="mt-1 font-display text-2xl font-extrabold">Good to know</h1>
       </div>
 
+      {SECTIONS.map((s) => (
+        <section key={s.title}>
+          <h2 className="mb-2 font-display text-lg font-extrabold">
+            {s.icon} {s.title}
+          </h2>
+          {s.title === 'Money' && (
+            <div className="mb-3">
+              <CurrencyCalculator />
+            </div>
+          )}
+          <ul className="space-y-2">
+            {s.items.map((item, i) => (
+              <li key={i} className="flex gap-2 text-sm leading-relaxed">
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" aria-hidden />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+
+      <section>
+        <h2 className="mb-2 font-display text-lg font-extrabold">🗣️ Handy phrases</h2>
+        <ul className="divide-y divide-line rounded-2xl border border-line bg-white">
+          {PHRASES.map((p) => (
+            <li key={p.romaji} className="flex items-center justify-between px-4 py-2.5">
+              <span className="font-semibold">{p.romaji}</span>
+              <span className="text-sm text-muted">{p.meaning}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       <section>
         <h2 className="mb-2 font-display text-lg font-extrabold">🆘 Emergency</h2>
         <ul className="space-y-2">
@@ -166,39 +199,6 @@ export default function TripEssentials() {
                 <span className="text-sm font-semibold">{e.label}</span>
                 <span className="font-display text-lg font-bold text-brand">{e.value}</span>
               </a>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {SECTIONS.map((s) => (
-        <section key={s.title}>
-          <h2 className="mb-2 font-display text-lg font-extrabold">
-            {s.icon} {s.title}
-          </h2>
-          <ul className="space-y-2">
-            {s.items.map((item, i) => (
-              <li key={i} className="flex gap-2 text-sm leading-relaxed">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" aria-hidden />
-                {item}
-              </li>
-            ))}
-          </ul>
-          {s.title === 'Money' && (
-            <div className="mt-3">
-              <CurrencyCalculator />
-            </div>
-          )}
-        </section>
-      ))}
-
-      <section>
-        <h2 className="mb-2 font-display text-lg font-extrabold">🗣️ Handy phrases</h2>
-        <ul className="divide-y divide-line rounded-2xl border border-line bg-white">
-          {PHRASES.map((p) => (
-            <li key={p.romaji} className="flex items-center justify-between px-4 py-2.5">
-              <span className="font-semibold">{p.romaji}</span>
-              <span className="text-sm text-muted">{p.meaning}</span>
             </li>
           ))}
         </ul>
