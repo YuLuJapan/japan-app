@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { CurrencyCalculator } from '../components/CurrencyCalculator'
 
 // Curated static reference for the trip. Phrases are romaji (Latin script) +
 // English meaning — a travel phrasebook, no Japanese characters in the UI.
@@ -9,44 +10,93 @@ const EMERGENCY = [
   { label: 'Japan Visitor Hotline (24h, EN)', value: '050-3816-2787' },
 ]
 
+// Trip tips, incl. the "tips we got" from the traveller groups.
 const SECTIONS: { title: string; icon: string; items: string[] }[] = [
   {
     title: 'Money',
     icon: '💴',
     items: [
-      'Currency is the yen (¥). Cash is still king at small shops and restaurants.',
-      'Use IC cards (Suica / Pasmo in your phone wallet) for trains, buses and convenience stores.',
-      '7-Eleven and Japan Post ATMs reliably accept foreign cards for cash withdrawals.',
+      'Cash: hotels are prepaid, so you need less than you’d think — but keep some for small shops, shrines, markets and some restaurants.',
+      'Withdraw at 7-Eleven ATMs — they accept foreign cards and are everywhere. Rough rate when the group travelled: ~¥53 ≈ ₪1 (moves — check before you go).',
       'No tipping — it can even cause confusion. Pay into the little tray at registers.',
+      'Daily kit: cash + IC card + passport (for tax-free shopping).',
     ],
   },
   {
-    title: 'Getting around',
+    title: 'Trains & tickets',
     icon: '🚆',
     items: [
-      'Google Maps is excellent for trains — it gives platforms, lines and exact fares.',
-      'Tap in and out with your IC card; it just works across most networks.',
-      'Trains stop around midnight — check the last train if you are out late.',
-      'Stand left on escalators in Tokyo, right in Osaka.',
+      'Skip the JR Pass — after the price hike it no longer pays off for most routes. Ours has only two long JR rides (Kanazawa→Kyoto Thunderbird, Osaka→Tokyo Shinkansen); buy those per-journey (run it through a JR fare calculator if unsure).',
+      'Load a Suica / PASMO into Apple or Google Wallet — tap for every train, metro, bus and konbini. On iPhone no app is needed; top up with your card. You can add both our cards to one phone.',
+      'For the few reserved long-distance trains, buy those seats separately (station machines, or SmartEX / the JR sites).',
+      'Mountain buses (Takayama, Shirakawa-go, Kamikochi, Kanazawa — Nohi / Alpico) need advance seat reservations. Book early on their sites.',
+      'The Hakone Free Pass (2–3 day loop) is a regional pass that does pay off.',
+      'Avoid the crush around 7:30–9:00am and 5:30–7:00pm, especially with bags. Weekends are busier at parks and attractions.',
+      'Stand left on escalators in Tokyo, right in Osaka. Trains stop around midnight — check the last train.',
+    ],
+  },
+  {
+    title: 'Taxis',
+    icon: '🚕',
+    items: [
+      'Download the GO taxi app. Add a card to Apple Pay in advance — some found in-app card entry finicky, so set it up before you need it.',
+    ],
+  },
+  {
+    title: 'Luggage between cities',
+    icon: '🧳',
+    items: [
+      'With many one-night stops, consider Takkyubin forwarding (Yamato “Black Cat”) — send big cases hotel-to-hotel and travel light on the alpine legs. Counters at airports (Narita basement) and konbini.',
+      'Rolling them works too, but the group warned repeatedly: rush-hour trains and elevator-less stations are brutal with big cases. Forwarding a case ahead to Kyoto or the return-Tokyo hotel is worth it for the Tokyo→Hakone→Fuji→Alps stretch.',
+    ],
+  },
+  {
+    title: 'Weather (late Sept–mid Oct)',
+    icon: '🌤️',
+    items: [
+      'A lovely window: warm-not-scorching, far drier than summer, thinner crowds. T-shirt days, cooler evenings — pack a light layer.',
+      'Some rain is possible — bring a compact umbrella and it won’t cancel anything.',
+      'Typhoon season is tailing off but not zero — watch forecasts for the coastal/southern legs and stay flexible.',
     ],
   },
   {
     title: 'Connectivity',
     icon: '📶',
     items: [
-      'Keep the eSIM / pocket Wi-Fi topped up; coverage is great except deep in the mountains.',
+      'Get an eSIM before you fly (Airalo, Ubigi, Sakura Mobile…) and activate on landing.',
+      'Google Maps is your transit brain — trains, platforms and exit numbers. Download offline maps per city.',
       'Free Wi-Fi at most stations, convenience stores and cafés.',
-      'Download offline Google Maps for each city before you go.',
     ],
   },
   {
-    title: 'Etiquette',
-    icon: '🙏',
+    title: 'Food notes',
+    icon: '🍜',
     items: [
+      'Konbini (7-Eleven, Lawson, FamilyMart) are genuinely great for cheap, good meals and snacks — don’t skip them.',
+      'Ramen: “Tokyo Engine Ramen” got a rave; look for local ticket-machine shops everywhere.',
+      'Kyoto: HIRO (self-grill yakiniku), Musashi Sushi (good conveyor sushi).',
+      'Osaka: a guided food tour is fun — one member recommended a young English-speaking local guide (some routes pass the red-light district).',
+      'Regional: Hida beef in Takayama; seafood at Omicho (Kanazawa) & Kuromon (Osaka).',
+      'Book restaurants at parks (Disney / USJ) in advance or you’ll eat at odd hours.',
+    ],
+  },
+  {
+    title: 'Shopping',
+    icon: '🛍️',
+    items: [
+      'Don Quijote (“Donki”) for cheap souvenirs and everything under one roof.',
+      'Uniqlo / GU for clothes — sizes run small, so size up (an L at home may be XL/2XL here).',
+      'Konbini sell a great throat spray and every travel sundry.',
+    ],
+  },
+  {
+    title: 'Little things',
+    icon: '✨',
+    items: [
+      'Carry a small bag/pouch — street bins are rare; you’ll hold your own trash.',
+      'Tattoos: several onsen restrict them. Our private in-room baths (Hakone ryokan, hotel onsen) sidestep this.',
       'Keep phone calls off and voices low on trains.',
-      'Take shoes off where you see a step up or slippers waiting (ryokan, some restaurants).',
-      'Do not eat while walking; finish snacks by the shop.',
-      'Carry a small bag for trash — public bins are rare.',
+      'Take shoes off where you see a step up or slippers waiting; don’t eat while walking.',
     ],
   },
 ]
@@ -134,6 +184,11 @@ export default function TripEssentials() {
               </li>
             ))}
           </ul>
+          {s.title === 'Money' && (
+            <div className="mt-3">
+              <CurrencyCalculator />
+            </div>
+          )}
         </section>
       ))}
 

@@ -170,6 +170,13 @@ export interface ItineraryItemInput {
   position?: number
 }
 
+export interface Rates {
+  base: 'JPY'
+  date: string
+  usd: number // 1 JPY in USD
+  ils: number // 1 JPY in ILS
+}
+
 export interface SearchResult {
   type: 'place' | 'zone' | 'tip'
   id: string

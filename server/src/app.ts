@@ -6,6 +6,7 @@ import { filesRouter } from './routes/files.js'
 import { healthRouter } from './routes/health.js'
 import { itineraryRouter } from './routes/itinerary.js'
 import { placesRouter } from './routes/places.js'
+import { ratesRouter } from './routes/rates.js'
 import { searchRouter } from './routes/search.js'
 import { tipsRouter } from './routes/tips.js'
 import { tripRouter } from './routes/trip.js'
@@ -32,6 +33,7 @@ export function createApp() {
   app.use('/api', tipsRouter)
   app.use('/api', filesRouter)
   app.use('/api', searchRouter)
+  app.use('/api', ratesRouter)
 
   app.use('/api', (_req, _res, next) => next(notFound('Endpoint')))
   app.use(errorMiddleware)

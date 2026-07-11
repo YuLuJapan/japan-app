@@ -5,6 +5,7 @@ import type {
   ItineraryItem,
   PlaceDetail,
   PlaceListItem,
+  Rates,
   SearchResult,
   TripBundle,
   TripDocument,
@@ -39,6 +40,13 @@ export const usePlace = (placeId: string) =>
 
 export const useTripFiles = () =>
   useQuery({ queryKey: ['trip-files'], queryFn: () => api.get<{ files: TripDocument[] }>('/files') })
+
+export const useRates = () =>
+  useQuery({
+    queryKey: ['rates'],
+    queryFn: () => api.get<Rates>('/rates'),
+    staleTime: 1000 * 60 * 60 * 6, // refetch at most every ~6h
+  })
 
 export const useSearch = (query: string) =>
   useQuery({
