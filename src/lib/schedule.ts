@@ -58,6 +58,13 @@ export const dayNumber = (iso: string) => String(at(iso).getDate())
 export const fmtDayLong = (iso: string) =>
   at(iso).toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' })
 
+/** True when `b` is the calendar day right after `a` (used to spot gaps in a day list). */
+export function isNextDay(a: string, b: string): boolean {
+  const next = at(a)
+  next.setDate(next.getDate() + 1)
+  return toISODate(next) === b
+}
+
 /** Ordered, de-duplicated zones a day touches — used for "Tokyo → Hakone" labels. */
 export function dayZones(steps: TripStep[], day: string): ZoneSummary[] {
   const seen = new Set<string>()
