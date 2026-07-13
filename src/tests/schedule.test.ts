@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TripStep } from '../api/types'
-import { enumerateDays, isTravelDay, primaryStep, zoneDays } from '../lib/schedule'
+import { enumerateDays, isNextDay, isTravelDay, primaryStep, zoneDays } from '../lib/schedule'
 
 const counts = { hotel: 0, attraction: 0, food: 0, shopping: 0, other: 0 }
 const zone = (id: string, name: string) => ({ id, name, name_ja: null, summary: null, place_counts: counts })
@@ -45,5 +45,12 @@ describe('schedule helpers', () => {
       '2026-10-11',
       '2026-10-12',
     ])
+  })
+
+  it('isNextDay detects consecutive dates, including a return trip gap', () => {
+    expect(isNextDay('2026-10-05', '2026-10-06')).toBe(true)
+    expect(isNextDay('2026-10-05', '2026-10-07')).toBe(false)
+    // a zone revisited later in the trip (e.g. Tokyo bookending the itinerary)
+    expect(isNextDay('2026-09-24', '2026-10-11')).toBe(false)
   })
 })
