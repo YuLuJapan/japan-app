@@ -33,6 +33,10 @@ npm run build      # production bundle (~86 KB gzip JS)
 - **The source of truth for now**: edit [server/src/data/placeholder-data.json](server/src/data/placeholder-data.json) — replace the PLACEHOLDER entries with the real plan. This same file will be seeded into Supabase in Phase 8, so curating it is not throwaway work.
 - Sample files live in `public/placeholder-files/`; regenerate the PDFs with `node scripts/make-placeholder-files.mjs`.
 
+## English map labels (optional)
+
+The city maps (Leaflet + free CARTO tiles) label streets in Japanese by default. For English labels, get a free [MapTiler](https://cloud.maptiler.com/account/keys/) API key (no credit card) and set `VITE_MAPTILER_KEY` in `.env.local`. Small streets that OpenStreetMap hasn't tagged with an English name may still show Japanese or nothing.
+
 ## Infrastructure activation (Phase 8)
 
 All the code is written — schema, Supabase datastore, and seed scripts. Going
