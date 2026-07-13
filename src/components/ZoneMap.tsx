@@ -1,8 +1,8 @@
-// Per-city map (Leaflet + free CARTO Voyager tiles, no API key — same stack as
-// the all-cities TripMap). Plots the zone's saved places as category-coloured
+// Per-city map (Leaflet + free tiles — see lib/tiles.ts — same stack as the
+// all-cities TripMap). Plots the zone's saved places as category-coloured
 // pins, lets you filter by category, and add new pins by searching OpenStreetMap
-// (free, proxied through /api/geocode). Places without coordinates can be
-// "located" onto the map in one tap.
+// (free, proxied through /api/geocode). Every saved place is listed below the
+// map with a Pin it/Unpin toggle that attaches or clears its coordinates.
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import { useEffect, useMemo, useState } from 'react'
@@ -13,6 +13,7 @@ import { useCreatePlace, useSetPlaceCoords } from '../api/mutations'
 import type { Category, GeocodeResult, PlaceListItem } from '../api/types'
 import { CATEGORY_META } from '../api/types'
 import { placeMapsUrl } from '../lib/maps'
+import { tileLayer } from '../lib/tiles'
 
 // Map filter set — the user's requested filters mapped onto the existing
 // categories (coffee lives under Food). Order = chip order.
@@ -82,11 +83,11 @@ interface ZoneMapProps {
 }
 
 export function ZoneMap({ zoneId, zoneName, center, places }: ZoneMapProps) {
+  const tiles = tileLayer()
   const mapped = useMemo(
     () => places.filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number'),
     [places]
   )
-  const unmapped = useMemo(() => places.filter((p) => !mapped.includes(p)), [places, mapped])
 
   // Which categories exist among the pins → which filter chips to show.
   const presentCats = useMemo(() => {
@@ -175,6 +176,12 @@ export function ZoneMap({ zoneId, zoneName, center, places }: ZoneMapProps) {
     setLocateFailed(p.id)
   }
 
+  // Remove a place's pin from the map without deleting the place itself.
+  const unpinPlace = (p: PlaceListItem) => {
+    setLocateFailed(null)
+    locate.mutate({ placeId: p.id, lat: null, lng: null })
+  }
+
   const addPin = (category: Category) => {
     if (!pending) return
     create.mutate(
@@ -232,7 +239,7 @@ export function ZoneMap({ zoneId, zoneName, center, places }: ZoneMapProps) {
           attributionControl={false}
           style={{ height: '100%', width: '100%', background: '#eaf1f4' }}
         >
-          <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+          <TileLayer url={tiles.url} attribution={tiles.attribution} />
           <FitController points={fitPoints} />
           {shown.map((p) => (
             <Marker key={p.id} position={[p.lat as number, p.lng as number]} icon={pinIcon(p.category)}>
@@ -331,32 +338,36 @@ export function ZoneMap({ zoneId, zoneName, center, places }: ZoneMapProps) {
         )}
       </div>
 
-      {/* saved places that aren't on the map yet */}
-      {unmapped.length > 0 && (
+      {/* every saved place, with a pin/unpin toggle wired to the map above */}
+      {places.length > 0 && (
         <div className="rounded-2xl bg-line/40 p-3">
-          <p className="text-xs font-bold text-muted">
-            Saved here but not on the map ({unmapped.length})
-          </p>
+          <p className="text-xs font-bold text-muted">Places in this zone ({places.length})</p>
           <ul className="mt-2 space-y-1.5">
-            {unmapped.map((p) => (
-              <li key={p.id} className="flex items-center justify-between gap-3">
-                <span className="min-w-0 truncate text-sm">
-                  <span className="mr-1">{CATEGORY_META[p.category].icon}</span>
-                  {p.name}
-                  {locateFailed === p.id && (
-                    <span className="ml-2 text-xs text-brand">couldn’t find it — search above</span>
-                  )}
-                </span>
-                <button
-                  type="button"
-                  disabled={locate.isPending}
-                  onClick={() => locatePlace(p)}
-                  className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-bold text-brand ring-1 ring-line active:scale-95 disabled:opacity-60"
-                >
-                  Pin it
-                </button>
-              </li>
-            ))}
+            {places.map((p) => {
+              const isPinned = typeof p.lat === 'number' && typeof p.lng === 'number'
+              return (
+                <li key={p.id} className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 truncate text-sm">
+                    <span className="mr-1">{CATEGORY_META[p.category].icon}</span>
+                    {p.name}
+                    {locateFailed === p.id && (
+                      <span className="ml-2 text-xs text-brand">couldn’t find it — search above</span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={locate.isPending}
+                    aria-pressed={isPinned}
+                    onClick={() => (isPinned ? unpinPlace(p) : locatePlace(p))}
+                    className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ring-1 active:scale-95 disabled:opacity-60 ${
+                      isPinned ? 'bg-white text-muted ring-line' : 'bg-white text-brand ring-line'
+                    }`}
+                  >
+                    {isPinned ? 'Unpin' : 'Pin it'}
+                  </button>
+                </li>
+              )
+            })}
           </ul>
         </div>
       )}

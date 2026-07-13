@@ -7,6 +7,7 @@ import L from 'leaflet'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import { useNavigate } from 'react-router-dom'
+import { tileLayer } from '../lib/tiles'
 
 export interface MapCity {
   id: string
@@ -103,6 +104,7 @@ function MapController({
 }
 
 export function TripMap({ cities }: { cities: MapCity[] }) {
+  const tiles = tileLayer()
   const navigate = useNavigate()
   const [moved, setMoved] = useState(false)
   const recenterRef = useRef<(() => void) | null>(null)
@@ -122,7 +124,7 @@ export function TripMap({ cities }: { cities: MapCity[] }) {
         attributionControl={false}
         style={{ height: '100%', width: '100%', background: '#eaf1f4' }}
       >
-        <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+        <TileLayer url={tiles.url} attribution={tiles.attribution} />
         <MapController cities={cities} onMovedChange={setMoved} bindRecenter={bindRecenter} />
         {cities.map((c) => (
           <Marker
