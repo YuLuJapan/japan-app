@@ -497,29 +497,36 @@ export function ZoneMap({ zoneId, zoneName, center, places }: ZoneMapProps) {
       {/* fixed so it's reachable no matter how far the map got scrolled */}
       {placing && (
         <div className="fixed inset-x-0 bottom-16 z-30 px-4">
-          <div className="mx-auto flex max-w-app items-center gap-2 rounded-2xl bg-ink px-4 py-3 shadow-pop">
-            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
-              {placingPos
-                ? `Pin “${placing.name}” here?`
-                : `Tap the map to place “${placing.name}”`}
-            </span>
-            {placingPos && (
+          <div className="mx-auto max-w-app rounded-2xl bg-ink px-4 py-3 shadow-pop">
+            {locate.isError && (
+              <p className="mb-1.5 text-xs font-semibold text-brand-400">
+                Couldn’t save — {locate.error.message}
+              </p>
+            )}
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
+                {placingPos
+                  ? `Pin “${placing.name}” here?`
+                  : `Tap the map to place “${placing.name}”`}
+              </span>
+              {placingPos && (
+                <button
+                  type="button"
+                  disabled={locate.isPending}
+                  onClick={confirmPlacing}
+                  className="shrink-0 rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-white active:scale-95 disabled:opacity-60"
+                >
+                  Save pin
+                </button>
+              )}
               <button
                 type="button"
-                disabled={locate.isPending}
-                onClick={confirmPlacing}
-                className="shrink-0 rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-white active:scale-95 disabled:opacity-60"
+                onClick={cancelPlacing}
+                className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-white ring-1 ring-white/20 active:scale-95"
               >
-                Save pin
+                Cancel
               </button>
-            )}
-            <button
-              type="button"
-              onClick={cancelPlacing}
-              className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-white ring-1 ring-white/20 active:scale-95"
-            >
-              Cancel
-            </button>
+            </div>
           </div>
         </div>
       )}

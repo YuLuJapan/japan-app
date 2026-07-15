@@ -180,6 +180,16 @@ export function createSupabaseStore(): DataStore {
         const rest = { ...fields }
         delete rest.lat
         delete rest.lng
+        // If lat/lng were the only fields being patched, there's nothing left
+        // to update — migration 0005 (places.lat/lng) hasn't been applied
+        // yet. Fail loudly instead of issuing an empty UPDATE, which matches
+        // no row and would otherwise surface as a misleading "place not
+        // found" (the empty patch, not the id, is the actual problem).
+        if (Object.keys(rest).length === 0) {
+          throw new Error(
+            'Cannot save map coordinates: the places.lat/lng columns are missing — run supabase/migrations/0005_place_coords.sql'
+          )
+        }
         ;({ data, error } = await run(rest))
       }
       if (error) throw new Error(error.message)
@@ -245,6 +255,13 @@ export function createSupabaseStore(): DataStore {
         const rest = { ...fields }
         delete rest.highlight
         delete rest.icon
+        // Same "nothing left to update" case as updatePlace above — fail
+        // loudly rather than issuing an empty UPDATE that matches no row.
+        if (Object.keys(rest).length === 0) {
+          throw new Error(
+            'Cannot save highlight/icon: the itinerary_items.highlight/icon columns are missing — run supabase/migrations/0004_itinerary_highlights.sql'
+          )
+        }
         ;({ data, error } = await run(rest))
       }
       if (error) throw new Error(error.message)
