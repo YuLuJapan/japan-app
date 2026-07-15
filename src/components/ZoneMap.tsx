@@ -26,8 +26,14 @@ const MAP_CATS: { key: Category; label: string; color: string }[] = [
   { key: 'hotel', label: 'Stays', color: '#7c3aed' },
   { key: 'other', label: 'More', color: '#059669' },
 ]
-const CAT_COLOR = Object.fromEntries(MAP_CATS.map((c) => [c.key, c.color])) as Record<Category, string>
-const CAT_LABEL = Object.fromEntries(MAP_CATS.map((c) => [c.key, c.label])) as Record<Category, string>
+const CAT_COLOR = Object.fromEntries(MAP_CATS.map((c) => [c.key, c.color])) as Record<
+  Category,
+  string
+>
+const CAT_LABEL = Object.fromEntries(MAP_CATS.map((c) => [c.key, c.label])) as Record<
+  Category,
+  string
+>
 
 function pinIcon(category: Category, dimmed = false) {
   const color = CAT_COLOR[category] ?? '#059669'
@@ -177,18 +183,22 @@ export function ZoneMap({ zoneId, zoneName, center, places }: ZoneMapProps) {
   const [placing, setPlacing] = useState<PlaceListItem | null>(null)
   const [placingPos, setPlacingPos] = useState<[number, number] | null>(null)
   const placingIdRef = useRef<string | null>(null)
+  const mapWrapRef = useRef<HTMLDivElement>(null)
 
   const startPlacing = (p: PlaceListItem) => {
     placingIdRef.current = p.id
     setPlacing(p)
     setPlacingPos(null)
+    // "Pin it" is often reached by scrolling down a long place list — bring
+    // the map (which is above that list) back into view so there's actually
+    // something visible to tap.
+    mapWrapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     // Best-effort: seed a starting guess so there's less panning to do; the
     // user still confirms (or drags to correct) the exact spot before saving.
     const bias = { lat: center[0], lng: center[1] }
-    const queries = [
-      [p.name, p.address ?? ''].filter(Boolean).join(', '),
-      p.name,
-    ].filter((q, i, a) => q && a.indexOf(q) === i)
+    const queries = [[p.name, p.address ?? ''].filter(Boolean).join(', '), p.name].filter(
+      (q, i, a) => q && a.indexOf(q) === i
+    )
     ;(async () => {
       for (const q of queries) {
         try {
@@ -245,47 +255,260 @@ export function ZoneMap({ zoneId, zoneName, center, places }: ZoneMapProps) {
   }
 
   return (
-    <div className="space-y-3">
-      {/* filter chips */}
-      {presentCats.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {presentCats.map((c) => {
-            const on = active.has(c.key)
-            return (
-              <button
-                key={c.key}
-                type="button"
-                onClick={() => toggle(c.key)}
-                aria-pressed={on}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ring-1 transition active:scale-95 ${
-                  on ? 'text-white ring-transparent' : 'bg-white text-muted ring-line'
-                }`}
-                style={on ? { background: c.color } : undefined}
-              >
-                <span>{CATEGORY_META[c.key].icon}</span>
-                {c.label}
-              </button>
-            )
-          })}
-        </div>
-      )}
+    <>
+      <div className="space-y-3">
+        {/* filter chips */}
+        {presentCats.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {presentCats.map((c) => {
+              const on = active.has(c.key)
+              return (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => toggle(c.key)}
+                  aria-pressed={on}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ring-1 transition active:scale-95 ${
+                    on ? 'text-white ring-transparent' : 'bg-white text-muted ring-line'
+                  }`}
+                  style={on ? { background: c.color } : undefined}
+                >
+                  <span>{CATEGORY_META[c.key].icon}</span>
+                  {c.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
 
-      {/* tap-to-place banner */}
+        {/* tap-to-place hint (the actionable Save/Cancel bar is fixed to the
+          bottom of the screen below, since this map can be scrolled out of
+          view — e.g. reached "Pin it" from far down the places list) */}
+        {placing && (
+          <div className="rounded-2xl border border-brand/20 bg-brand/5 p-3">
+            <p className="text-sm font-bold">
+              {placingPos
+                ? `Pin “${placing.name}” here?`
+                : `Tap the map for ${placing.name}’s exact spot`}
+            </p>
+            <p className="mt-0.5 text-xs text-muted">
+              {placingPos
+                ? 'Drag the pin to fine-tune, then confirm below.'
+                : 'Or tap again to move the guess.'}
+            </p>
+          </div>
+        )}
+
+        {/* the map */}
+        <div
+          ref={mapWrapRef}
+          className="relative h-72 w-full overflow-hidden rounded-3xl shadow-card ring-1 ring-line"
+        >
+          <MapContainer
+            center={center}
+            zoom={13}
+            scrollWheelZoom={false}
+            zoomControl={false}
+            attributionControl={false}
+            style={{ height: '100%', width: '100%', background: '#eaf1f4' }}
+          >
+            <TileLayer url={tiles.url} attribution={tiles.attribution} />
+            <FitController points={fitPoints} />
+            <PlacingClickHandler
+              active={!!placing}
+              onPick={(lat, lng) => setPlacingPos([lat, lng])}
+            />
+            {placing && placingPos && (
+              <Marker
+                position={placingPos}
+                icon={pinIcon(placing.category)}
+                draggable
+                eventHandlers={{
+                  dragend: (e) => {
+                    const { lat, lng } = (e.target as L.Marker).getLatLng()
+                    setPlacingPos([lat, lng])
+                  },
+                }}
+              />
+            )}
+            {shown.map((p) => (
+              <Marker
+                key={p.id}
+                position={[p.lat as number, p.lng as number]}
+                icon={pinIcon(p.category)}
+              >
+                <Popup>
+                  <div style={{ minWidth: 140 }}>
+                    <p
+                      style={{
+                        margin: 0,
+                        font: "700 13px 'Plus Jakarta Sans',sans-serif",
+                        color: '#161a22',
+                      }}
+                    >
+                      {p.name}
+                    </p>
+                    <p
+                      style={{
+                        margin: '2px 0 8px',
+                        font: "500 11px 'Plus Jakarta Sans',sans-serif",
+                        color: '#6b7280',
+                      }}
+                    >
+                      {CAT_LABEL[p.category]}
+                    </p>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <Link
+                        to={`/places/${p.id}`}
+                        style={{
+                          font: "700 12px 'Plus Jakarta Sans',sans-serif",
+                          color: '#ff5a4d',
+                        }}
+                      >
+                        Details →
+                      </Link>
+                      <a
+                        href={placeMapsUrl(p.name, p.address)}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          font: "700 12px 'Plus Jakarta Sans',sans-serif",
+                          color: '#2563eb',
+                        }}
+                      >
+                        Directions
+                      </a>
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+            {pending && <Marker position={[pending.lat, pending.lng]} icon={pendingIcon} />}
+          </MapContainer>
+        </div>
+
+        {/* search-to-pin */}
+        <div>
+          <input
+            className="field"
+            placeholder={`Search a place to pin in ${zoneName}…`}
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setPending(null)
+            }}
+          />
+
+          {pending ? (
+            <div className="mt-2 rounded-2xl border border-brand/20 bg-brand/5 p-3">
+              <p className="text-sm font-bold">{pending.name}</p>
+              {pending.address && <p className="mt-0.5 text-xs text-muted">{pending.address}</p>}
+              <p className="mt-2 text-xs font-semibold text-muted">Pin as…</p>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {MAP_CATS.map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    disabled={create.isPending}
+                    onClick={() => addPin(c.key)}
+                    className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-white active:scale-95 disabled:opacity-60"
+                    style={{ background: c.color }}
+                  >
+                    <span>{CATEGORY_META[c.key].icon}</span>
+                    {c.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="rounded-full px-3 py-1.5 text-xs font-bold text-muted ring-1 ring-line active:scale-95"
+                  onClick={() => setPending(null)}
+                >
+                  Cancel
+                </button>
+              </div>
+              {create.isError && (
+                <p className="mt-2 text-xs text-brand">
+                  Couldn’t save — check your connection and retry.
+                </p>
+              )}
+            </div>
+          ) : (
+            query.trim().length >= 2 && (
+              <div className="mt-2 overflow-hidden rounded-2xl ring-1 ring-line">
+                {searching && <p className="px-3 py-2 text-sm text-muted">Searching…</p>}
+                {!searching && results.length === 0 && (
+                  <p className="px-3 py-2 text-sm text-muted">No matches — try a different name.</p>
+                )}
+                {results.map((r, i) => (
+                  <button
+                    key={`${r.lat},${r.lng},${i}`}
+                    type="button"
+                    onClick={() => setPending(r)}
+                    className="flex w-full flex-col items-start border-b border-line px-3 py-2 text-left last:border-0 hover:bg-line/40 active:bg-line/60"
+                  >
+                    <span className="text-sm font-semibold">{r.name}</span>
+                    {r.address && (
+                      <span className="line-clamp-1 text-xs text-muted">{r.address}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )
+          )}
+        </div>
+
+        {/* every saved place, with a pin/unpin toggle wired to the map above */}
+        {places.length > 0 && (
+          <div className="rounded-2xl bg-line/40 p-3">
+            <p className="text-xs font-bold text-muted">Places in this zone ({places.length})</p>
+            <ul className="mt-2 space-y-1.5">
+              {places.map((p) => {
+                const isPinned = typeof p.lat === 'number' && typeof p.lng === 'number'
+                const isPlacingThis = placing?.id === p.id
+                return (
+                  <li key={p.id} className="flex items-center justify-between gap-3">
+                    <span className="min-w-0 truncate text-sm">
+                      <span className="mr-1">{CATEGORY_META[p.category].icon}</span>
+                      {p.name}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={locate.isPending || !!placing}
+                      aria-pressed={isPinned}
+                      onClick={() => (isPinned ? unpinPlace(p) : startPlacing(p))}
+                      className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ring-1 active:scale-95 disabled:opacity-60 ${
+                        isPlacingThis
+                          ? 'bg-brand text-white ring-transparent'
+                          : isPinned
+                            ? 'bg-white text-muted ring-line'
+                            : 'bg-white text-brand ring-line'
+                      }`}
+                    >
+                      {isPlacingThis ? 'Placing…' : isPinned ? 'Unpin' : 'Pin it'}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      {/* fixed so it's reachable no matter how far the map got scrolled */}
       {placing && (
-        <div className="rounded-2xl border border-brand/20 bg-brand/5 p-3">
-          <p className="text-sm font-bold">
-            {placingPos ? `Pin “${placing.name}” here?` : `Tap the map for ${placing.name}’s exact spot`}
-          </p>
-          <p className="mt-0.5 text-xs text-muted">
-            {placingPos ? 'Drag the pin to fine-tune, then confirm.' : 'Or tap again to move the guess.'}
-          </p>
-          <div className="mt-2 flex gap-2">
+        <div className="fixed inset-x-0 bottom-16 z-30 px-4">
+          <div className="mx-auto flex max-w-app items-center gap-2 rounded-2xl bg-ink px-4 py-3 shadow-pop">
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
+              {placingPos
+                ? `Pin “${placing.name}” here?`
+                : `Tap the map to place “${placing.name}”`}
+            </span>
             {placingPos && (
               <button
                 type="button"
                 disabled={locate.isPending}
                 onClick={confirmPlacing}
-                className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-white active:scale-95 disabled:opacity-60"
+                className="shrink-0 rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-white active:scale-95 disabled:opacity-60"
               >
                 Save pin
               </button>
@@ -293,172 +516,13 @@ export function ZoneMap({ zoneId, zoneName, center, places }: ZoneMapProps) {
             <button
               type="button"
               onClick={cancelPlacing}
-              className="rounded-full px-3 py-1.5 text-xs font-bold text-muted ring-1 ring-line active:scale-95"
+              className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-white ring-1 ring-white/20 active:scale-95"
             >
               Cancel
             </button>
           </div>
         </div>
       )}
-
-      {/* the map */}
-      <div className="relative h-72 w-full overflow-hidden rounded-3xl shadow-card ring-1 ring-line">
-        <MapContainer
-          center={center}
-          zoom={13}
-          scrollWheelZoom={false}
-          zoomControl={false}
-          attributionControl={false}
-          style={{ height: '100%', width: '100%', background: '#eaf1f4' }}
-        >
-          <TileLayer url={tiles.url} attribution={tiles.attribution} />
-          <FitController points={fitPoints} />
-          <PlacingClickHandler active={!!placing} onPick={(lat, lng) => setPlacingPos([lat, lng])} />
-          {placing && placingPos && (
-            <Marker
-              position={placingPos}
-              icon={pinIcon(placing.category)}
-              draggable
-              eventHandlers={{
-                dragend: (e) => {
-                  const { lat, lng } = (e.target as L.Marker).getLatLng()
-                  setPlacingPos([lat, lng])
-                },
-              }}
-            />
-          )}
-          {shown.map((p) => (
-            <Marker key={p.id} position={[p.lat as number, p.lng as number]} icon={pinIcon(p.category)}>
-              <Popup>
-                <div style={{ minWidth: 140 }}>
-                  <p style={{ margin: 0, font: "700 13px 'Plus Jakarta Sans',sans-serif", color: '#161a22' }}>
-                    {p.name}
-                  </p>
-                  <p style={{ margin: '2px 0 8px', font: "500 11px 'Plus Jakarta Sans',sans-serif", color: '#6b7280' }}>
-                    {CAT_LABEL[p.category]}
-                  </p>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <Link to={`/places/${p.id}`} style={{ font: "700 12px 'Plus Jakarta Sans',sans-serif", color: '#ff5a4d' }}>
-                      Details →
-                    </Link>
-                    <a
-                      href={placeMapsUrl(p.name, p.address)}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ font: "700 12px 'Plus Jakarta Sans',sans-serif", color: '#2563eb' }}
-                    >
-                      Directions
-                    </a>
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
-          ))}
-          {pending && <Marker position={[pending.lat, pending.lng]} icon={pendingIcon} />}
-        </MapContainer>
-      </div>
-
-      {/* search-to-pin */}
-      <div>
-        <input
-          className="field"
-          placeholder={`Search a place to pin in ${zoneName}…`}
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value)
-            setPending(null)
-          }}
-        />
-
-        {pending ? (
-          <div className="mt-2 rounded-2xl border border-brand/20 bg-brand/5 p-3">
-            <p className="text-sm font-bold">{pending.name}</p>
-            {pending.address && <p className="mt-0.5 text-xs text-muted">{pending.address}</p>}
-            <p className="mt-2 text-xs font-semibold text-muted">Pin as…</p>
-            <div className="mt-1.5 flex flex-wrap gap-2">
-              {MAP_CATS.map((c) => (
-                <button
-                  key={c.key}
-                  type="button"
-                  disabled={create.isPending}
-                  onClick={() => addPin(c.key)}
-                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-white active:scale-95 disabled:opacity-60"
-                  style={{ background: c.color }}
-                >
-                  <span>{CATEGORY_META[c.key].icon}</span>
-                  {c.label}
-                </button>
-              ))}
-              <button
-                type="button"
-                className="rounded-full px-3 py-1.5 text-xs font-bold text-muted ring-1 ring-line active:scale-95"
-                onClick={() => setPending(null)}
-              >
-                Cancel
-              </button>
-            </div>
-            {create.isError && (
-              <p className="mt-2 text-xs text-brand">Couldn’t save — check your connection and retry.</p>
-            )}
-          </div>
-        ) : (
-          query.trim().length >= 2 && (
-            <div className="mt-2 overflow-hidden rounded-2xl ring-1 ring-line">
-              {searching && <p className="px-3 py-2 text-sm text-muted">Searching…</p>}
-              {!searching && results.length === 0 && (
-                <p className="px-3 py-2 text-sm text-muted">No matches — try a different name.</p>
-              )}
-              {results.map((r, i) => (
-                <button
-                  key={`${r.lat},${r.lng},${i}`}
-                  type="button"
-                  onClick={() => setPending(r)}
-                  className="flex w-full flex-col items-start border-b border-line px-3 py-2 text-left last:border-0 hover:bg-line/40 active:bg-line/60"
-                >
-                  <span className="text-sm font-semibold">{r.name}</span>
-                  {r.address && <span className="line-clamp-1 text-xs text-muted">{r.address}</span>}
-                </button>
-              ))}
-            </div>
-          )
-        )}
-      </div>
-
-      {/* every saved place, with a pin/unpin toggle wired to the map above */}
-      {places.length > 0 && (
-        <div className="rounded-2xl bg-line/40 p-3">
-          <p className="text-xs font-bold text-muted">Places in this zone ({places.length})</p>
-          <ul className="mt-2 space-y-1.5">
-            {places.map((p) => {
-              const isPinned = typeof p.lat === 'number' && typeof p.lng === 'number'
-              const isPlacingThis = placing?.id === p.id
-              return (
-                <li key={p.id} className="flex items-center justify-between gap-3">
-                  <span className="min-w-0 truncate text-sm">
-                    <span className="mr-1">{CATEGORY_META[p.category].icon}</span>
-                    {p.name}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={locate.isPending || !!placing}
-                    aria-pressed={isPinned}
-                    onClick={() => (isPinned ? unpinPlace(p) : startPlacing(p))}
-                    className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ring-1 active:scale-95 disabled:opacity-60 ${
-                      isPlacingThis
-                        ? 'bg-brand text-white ring-transparent'
-                        : isPinned
-                          ? 'bg-white text-muted ring-line'
-                          : 'bg-white text-brand ring-line'
-                    }`}
-                  >
-                    {isPlacingThis ? 'Placing…' : isPinned ? 'Unpin' : 'Pin it'}
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      )}
-    </div>
+    </>
   )
 }
