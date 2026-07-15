@@ -2,11 +2,13 @@
 // all-cities TripMap). Plots the zone's saved places as category-coloured
 // pins, lets you filter by category, and add new pins by searching OpenStreetMap
 // (free, proxied through /api/geocode). Every saved place is listed below the
-// map with a Pin it/Unpin toggle that attaches or clears its coordinates.
+// map with a Pin it/Unpin toggle; "Pin it" starts tap-to-place mode — tap the
+// map for the exact spot (a text search can't reliably find small local
+// businesses), drag to fine-tune, then confirm.
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
-import { useEffect, useMemo, useState } from 'react'
-import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import { Link } from 'react-router-dom'
 import { geocode } from '../api/hooks'
 import { useCreatePlace, useSetPlaceCoords } from '../api/mutations'
@@ -72,6 +74,23 @@ function FitController({ points }: { points: [number, number][] }) {
       clearTimeout(t2)
     }
   }, [map, key, points])
+  return null
+}
+
+// While active, forwards taps on the map to onPick instead of their default
+// behaviour (used for "tap the exact spot" placement).
+function PlacingClickHandler({
+  active,
+  onPick,
+}: {
+  active: boolean
+  onPick: (lat: number, lng: number) => void
+}) {
+  useMapEvents({
+    click(e) {
+      if (active) onPick(e.latlng.lat, e.latlng.lng)
+    },
+  })
   return null
 }
 
@@ -151,34 +170,56 @@ export function ZoneMap({ zoneId, zoneName, center, places }: ZoneMapProps) {
     }
   }, [query, center])
 
-  // Locate an already-saved place onto the map. Nominatim often returns nothing
-  // for a POI name glued to a full Japanese address, so try that first, then
-  // fall back to the name alone (which resolves far more reliably).
-  const [locateFailed, setLocateFailed] = useState<string | null>(null)
-  const locatePlace = async (p: PlaceListItem) => {
-    setLocateFailed(null)
+  // ── Tap-to-place an existing place onto the map ─────────────────────────
+  // A text search can't reliably find small local businesses, so the exact
+  // spot always comes from a tap (optionally seeded by a best-effort geocode
+  // guess, which the user can drag to correct before confirming).
+  const [placing, setPlacing] = useState<PlaceListItem | null>(null)
+  const [placingPos, setPlacingPos] = useState<[number, number] | null>(null)
+  const placingIdRef = useRef<string | null>(null)
+
+  const startPlacing = (p: PlaceListItem) => {
+    placingIdRef.current = p.id
+    setPlacing(p)
+    setPlacingPos(null)
+    // Best-effort: seed a starting guess so there's less panning to do; the
+    // user still confirms (or drags to correct) the exact spot before saving.
     const bias = { lat: center[0], lng: center[1] }
     const queries = [
       [p.name, p.address ?? ''].filter(Boolean).join(', '),
       p.name,
     ].filter((q, i, a) => q && a.indexOf(q) === i)
-    for (const q of queries) {
-      try {
-        const { results } = await geocode(q, bias)
-        if (results[0]) {
-          locate.mutate({ placeId: p.id, lat: results[0].lat, lng: results[0].lng })
-          return
+    ;(async () => {
+      for (const q of queries) {
+        try {
+          const { results } = await geocode(q, bias)
+          if (results[0]) {
+            if (placingIdRef.current === p.id) setPlacingPos([results[0].lat, results[0].lng])
+            return
+          }
+        } catch {
+          /* ignore — the user can still tap the spot manually */
         }
-      } catch {
-        /* try the next query */
       }
-    }
-    setLocateFailed(p.id)
+    })()
+  }
+
+  const cancelPlacing = () => {
+    placingIdRef.current = null
+    setPlacing(null)
+    setPlacingPos(null)
+  }
+
+  const confirmPlacing = () => {
+    if (!placing || !placingPos) return
+    locate.mutate(
+      { placeId: placing.id, lat: placingPos[0], lng: placingPos[1] },
+      { onSuccess: cancelPlacing }
+    )
   }
 
   // Remove a place's pin from the map without deleting the place itself.
   const unpinPlace = (p: PlaceListItem) => {
-    setLocateFailed(null)
     locate.mutate({ placeId: p.id, lat: null, lng: null })
   }
 
@@ -229,6 +270,37 @@ export function ZoneMap({ zoneId, zoneName, center, places }: ZoneMapProps) {
         </div>
       )}
 
+      {/* tap-to-place banner */}
+      {placing && (
+        <div className="rounded-2xl border border-brand/20 bg-brand/5 p-3">
+          <p className="text-sm font-bold">
+            {placingPos ? `Pin “${placing.name}” here?` : `Tap the map for ${placing.name}’s exact spot`}
+          </p>
+          <p className="mt-0.5 text-xs text-muted">
+            {placingPos ? 'Drag the pin to fine-tune, then confirm.' : 'Or tap again to move the guess.'}
+          </p>
+          <div className="mt-2 flex gap-2">
+            {placingPos && (
+              <button
+                type="button"
+                disabled={locate.isPending}
+                onClick={confirmPlacing}
+                className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-white active:scale-95 disabled:opacity-60"
+              >
+                Save pin
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={cancelPlacing}
+              className="rounded-full px-3 py-1.5 text-xs font-bold text-muted ring-1 ring-line active:scale-95"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* the map */}
       <div className="relative h-72 w-full overflow-hidden rounded-3xl shadow-card ring-1 ring-line">
         <MapContainer
@@ -241,6 +313,20 @@ export function ZoneMap({ zoneId, zoneName, center, places }: ZoneMapProps) {
         >
           <TileLayer url={tiles.url} attribution={tiles.attribution} />
           <FitController points={fitPoints} />
+          <PlacingClickHandler active={!!placing} onPick={(lat, lng) => setPlacingPos([lat, lng])} />
+          {placing && placingPos && (
+            <Marker
+              position={placingPos}
+              icon={pinIcon(placing.category)}
+              draggable
+              eventHandlers={{
+                dragend: (e) => {
+                  const { lat, lng } = (e.target as L.Marker).getLatLng()
+                  setPlacingPos([lat, lng])
+                },
+              }}
+            />
+          )}
           {shown.map((p) => (
             <Marker key={p.id} position={[p.lat as number, p.lng as number]} icon={pinIcon(p.category)}>
               <Popup>
@@ -345,25 +431,27 @@ export function ZoneMap({ zoneId, zoneName, center, places }: ZoneMapProps) {
           <ul className="mt-2 space-y-1.5">
             {places.map((p) => {
               const isPinned = typeof p.lat === 'number' && typeof p.lng === 'number'
+              const isPlacingThis = placing?.id === p.id
               return (
                 <li key={p.id} className="flex items-center justify-between gap-3">
                   <span className="min-w-0 truncate text-sm">
                     <span className="mr-1">{CATEGORY_META[p.category].icon}</span>
                     {p.name}
-                    {locateFailed === p.id && (
-                      <span className="ml-2 text-xs text-brand">couldn’t find it — search above</span>
-                    )}
                   </span>
                   <button
                     type="button"
-                    disabled={locate.isPending}
+                    disabled={locate.isPending || !!placing}
                     aria-pressed={isPinned}
-                    onClick={() => (isPinned ? unpinPlace(p) : locatePlace(p))}
+                    onClick={() => (isPinned ? unpinPlace(p) : startPlacing(p))}
                     className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ring-1 active:scale-95 disabled:opacity-60 ${
-                      isPinned ? 'bg-white text-muted ring-line' : 'bg-white text-brand ring-line'
+                      isPlacingThis
+                        ? 'bg-brand text-white ring-transparent'
+                        : isPinned
+                          ? 'bg-white text-muted ring-line'
+                          : 'bg-white text-brand ring-line'
                     }`}
                   >
-                    {isPinned ? 'Unpin' : 'Pin it'}
+                    {isPlacingThis ? 'Placing…' : isPinned ? 'Unpin' : 'Pin it'}
                   </button>
                 </li>
               )
