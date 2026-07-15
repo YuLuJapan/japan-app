@@ -189,6 +189,7 @@ export function ZoneMap({ zoneId, zoneName, center, places }: ZoneMapProps) {
     placingIdRef.current = p.id
     setPlacing(p)
     setPlacingPos(null)
+    locate.reset() // clear any error left over from a previous placement
     // "Pin it" is often reached by scrolling down a long place list — bring
     // the map (which is above that list) back into view so there's actually
     // something visible to tap.
@@ -218,6 +219,7 @@ export function ZoneMap({ zoneId, zoneName, center, places }: ZoneMapProps) {
     placingIdRef.current = null
     setPlacing(null)
     setPlacingPos(null)
+    locate.reset()
   }
 
   const confirmPlacing = () => {
