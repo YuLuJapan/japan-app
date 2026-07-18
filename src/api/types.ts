@@ -40,6 +40,31 @@ export interface TripStep {
   zone: ZoneSummary | null
 }
 
+export interface Zone {
+  id: string
+  name: string
+  name_ja: string | null
+  summary: string | null
+  image_url?: string | null
+  lat?: number | null
+  lng?: number | null
+}
+
+export interface JourneyStep {
+  id: string
+  trip_id: string
+  zone_id: string
+  position: number
+  start_date: string
+  end_date: string
+}
+
+export interface JourneyStepInput {
+  zone_id: string
+  start_date: string
+  end_date: string
+}
+
 export interface FlightLeg {
   flight_no: string
   from: string

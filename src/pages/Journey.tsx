@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useItinerary, useTrip } from '../api/hooks'
 import type { MapCity } from '../components/TripMap'
 import { CountdownWidget } from '../components/CountdownWidget'
@@ -55,7 +56,12 @@ export default function Journey() {
       <div>
         <div className="mb-3 flex items-baseline justify-between">
           <h2 className="font-display text-lg font-extrabold">The journey</h2>
-          <span className="text-xs text-muted">swipe →</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted">swipe →</span>
+            <Link to="/journey/edit" className="text-sm font-bold text-brand">
+              Edit
+            </Link>
+          </div>
         </div>
         <JourneyStepsSlider steps={data.steps} today={today} />
       </div>

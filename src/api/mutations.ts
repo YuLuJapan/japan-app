@@ -8,6 +8,8 @@ import type {
   FileUploadInput,
   ItineraryItem,
   ItineraryItemInput,
+  JourneyStep,
+  JourneyStepInput,
   Place,
   PlaceInput,
   Tip,
@@ -115,6 +117,45 @@ export function useDeleteItineraryItem() {
   const invalidate = useItineraryInvalidation()
   return useMutation({
     mutationFn: (id: string) => api.delete<void>(`/itinerary/${id}`),
+    onSuccess: invalidate,
+  })
+}
+
+function useStepInvalidation() {
+  const qc = useQueryClient()
+  return () => qc.invalidateQueries({ queryKey: ['trip'] })
+}
+
+export function useCreateStep() {
+  const invalidate = useStepInvalidation()
+  return useMutation({
+    mutationFn: (input: JourneyStepInput) => api.post<{ step: JourneyStep }>('/steps', input),
+    onSuccess: invalidate,
+  })
+}
+
+export function useUpdateStep() {
+  const invalidate = useStepInvalidation()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<JourneyStepInput> }) =>
+      api.patch<{ step: JourneyStep }>(`/steps/${id}`, patch),
+    onSuccess: invalidate,
+  })
+}
+
+export function useDeleteStep() {
+  const invalidate = useStepInvalidation()
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/steps/${id}`),
+    onSuccess: invalidate,
+  })
+}
+
+export function useMoveStep() {
+  const invalidate = useStepInvalidation()
+  return useMutation({
+    mutationFn: ({ id, direction }: { id: string; direction: 'up' | 'down' }) =>
+      api.post<{ steps: JourneyStep[] }>(`/steps/${id}/move`, { direction }),
     onSuccess: invalidate,
   })
 }

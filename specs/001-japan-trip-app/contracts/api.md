@@ -39,7 +39,33 @@ The whole journey skeleton in one call — powers the Journey (home) view and of
 ```
 - Current/past/future step status is **computed client-side** from device date (FR-006).
 
+## Journey steps
+
+Self-service editing of the trip schedule (which zones, in what order, over what dates). `position` is a dense 1..N sequence per trip and is never set directly by the client — it's assigned on create (append) and maintained by delete (compacts the gap) and move (swaps with the adjacent step).
+
+### POST /api/steps
+- Request: `{"zone_id":"…","start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD"}`
+- Appends a new stop at the end of the trip.
+- 201: `{"step": {"id":"…","trip_id":"…","zone_id":"…","position":9,"start_date":"…","end_date":"…"}}` · 400 `VALIDATION` (missing zone_id, bad dates, end before start) · 404 unknown zone.
+
+### PATCH /api/steps/:stepId
+- Request: any subset of `{"zone_id","start_date","end_date"}`. Dates are cross-checked against the merged (existing + patched) values, so patching just one date still enforces end ≥ start.
+- 200: `{"step": {…updated…}}` · 400 `VALIDATION` · 404 unknown step or zone.
+
+### DELETE /api/steps/:stepId
+- Removes the stop and compacts positions of every later stop by one.
+- 204 · 404.
+
+### POST /api/steps/:stepId/move
+- Request: `{"direction": "up" | "down"}` — swaps position with the adjacent stop. A no-op (200 with the unchanged list) if already at that end.
+- 200: `{"steps": [ …every step for the trip, reordered… ]}` · 400 `VALIDATION` (bad direction) · 404 unknown step.
+
 ## Zones
+
+### GET /api/zones
+The trip's fixed zone catalog — powers the zone picker when adding a stop.
+
+- 200: `{"zones":[{"id":"…","name":"Tokyo","name_ja":"東京","summary":"…"}]}`
 
 ### GET /api/zones/:zoneId
 Zone header + zone-level tips + zone-level files + per-category counts (drives category visibility, FR-012).
@@ -60,6 +86,24 @@ Places of one category in a zone, list form (name + summary line, FR-002).
 
 - `category` required, one of `hotel|attraction|food|shopping|other` → else 400 `VALIDATION`.
 - 200: `{"places":[{"id":"…","name":"…","name_ja":"…","category":"food","summary_line":"first ~100 chars of description"}]}` (may be empty — UI renders empty state, FR-012).
+
+## Itinerary (day-by-day activities)
+
+A flat list of timed/untimed activities per trip; the client groups them by day. Distinct from journey steps above — an itinerary item is a single activity within a day, optionally linked to a saved place.
+
+### GET /api/itinerary
+- 200: `{"items":[{"id":"…","trip_id":"…","zone_id":"…","place_id":"…","day":"YYYY-MM-DD","start_time":"HH:MM"|null,"title":"…","note":"…"|null,"position":0,"highlight":false,"icon":"…"|null}]}`
+
+### POST /api/itinerary
+- Request: `{"day":"YYYY-MM-DD","title":"…","zone_id?","place_id?","start_time?":"HH:MM","note?","position?","highlight?","icon?"}`
+- 201: `{"item": {…}}` · 400 `VALIDATION` (missing title/bad day/bad time) · 404 unknown zone.
+
+### PATCH /api/itinerary/:itemId
+- Request: any subset of the POST fields. Last write wins.
+- 200: `{"item": {…updated…}}` · 400 · 404.
+
+### DELETE /api/itinerary/:itemId
+- 204 · 404.
 
 ## Places
 
