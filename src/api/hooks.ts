@@ -57,13 +57,19 @@ export const useRates = () =>
   })
 
 // Free OpenStreetMap place search (proxied by the server). Called on demand
-// from the map's search box, not as a standing query.
-export const geocode = (query: string, bias?: { lat: number; lng: number }) => {
+// from the map's search box, not as a standing query. Japan-only by default;
+// pass global:true to search worldwide (the journey destination search).
+export const geocode = (
+  query: string,
+  bias?: { lat: number; lng: number },
+  opts?: { global?: boolean }
+) => {
   const params = new URLSearchParams({ q: query })
   if (bias) {
     params.set('lat', String(bias.lat))
     params.set('lng', String(bias.lng))
   }
+  if (opts?.global) params.set('global', '1')
   return api.get<{ results: GeocodeResult[] }>(`/geocode?${params}`)
 }
 

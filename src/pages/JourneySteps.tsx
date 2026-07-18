@@ -145,6 +145,7 @@ function DestinationForm({
   const [searching, setSearching] = useState(false)
   const [startDate, setStartDate] = useState(initial?.start_date ?? '')
   const [endDate, setEndDate] = useState(initial?.end_date ?? '')
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   // Editing an existing destination without touching the text field keeps the
   // current zone (no re-validation needed); adding, or changing the text,
@@ -161,7 +162,7 @@ function DestinationForm({
     let ignore = false
     setSearching(true)
     const t = setTimeout(() => {
-      geocode(q)
+      geocode(q, undefined, { global: true })
         .then((r) => !ignore && setResults(r.results))
         .catch(() => !ignore && setResults([]))
         .finally(() => !ignore && setSearching(false))
@@ -176,12 +177,22 @@ function DestinationForm({
     setSelected(r)
     setQuery(r.name)
     setResults([])
+    setSubmitError(null)
   }
 
-  const canSubmit = !!startDate && !!endDate && (!destinationTouched || !!selected)
-
   const submit = () => {
-    if (!canSubmit) return
+    if (!startDate || !endDate) {
+      setSubmitError('Pick a start and end date.')
+      return
+    }
+    if (destinationTouched && !selected) {
+      setSubmitError(
+        query.trim().length >= 2 && !searching && results.length === 0
+          ? `We couldn't find "${query.trim()}" — it doesn't look like a real place. Try a different spelling.`
+          : 'Pick a place from the suggestions before adding.'
+      )
+      return
+    }
     onSubmit({
       start_date: startDate,
       end_date: endDate,
@@ -199,6 +210,7 @@ function DestinationForm({
           onChange={(e) => {
             setQuery(e.target.value)
             setSelected(null)
+            setSubmitError(null)
           }}
           aria-label="Destination"
         />
@@ -227,28 +239,30 @@ function DestinationForm({
           type="date"
           className="field flex-1"
           value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
+          onChange={(e) => {
+            setStartDate(e.target.value)
+            setSubmitError(null)
+          }}
           aria-label="Start date"
         />
         <input
           type="date"
           className="field flex-1"
           value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
+          onChange={(e) => {
+            setEndDate(e.target.value)
+            setSubmitError(null)
+          }}
           aria-label="End date"
         />
       </div>
-      {destinationTouched && !selected && (
+      {destinationTouched && !selected && !submitError && (
         <p className="text-xs text-muted">Pick a place from the suggestions to confirm it's real.</p>
       )}
+      {submitError && <p className="text-sm text-brand">{submitError}</p>}
       {error && <p className="text-sm text-brand">Save failed — try again.</p>}
       <div className="flex gap-2">
-        <button
-          type="button"
-          className="btn-primary flex-1"
-          onClick={submit}
-          disabled={pending || !canSubmit}
-        >
+        <button type="button" className="btn-primary flex-1" onClick={submit} disabled={pending}>
           {pending ? 'Saving…' : error ? 'Retry' : submitLabel}
         </button>
         <button type="button" className="btn-ghost" onClick={onCancel}>
