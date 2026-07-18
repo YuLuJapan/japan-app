@@ -41,31 +41,22 @@ The whole journey skeleton in one call — powers the Journey (home) view and of
 
 ## Journey steps
 
-Self-service editing of the trip schedule (which zones, in what order, over what dates). `position` is a dense 1..N sequence per trip and is never set directly by the client — it's assigned on create (append) and maintained by delete (compacts the gap) and move (swaps with the adjacent step).
+Self-service editing of the trip schedule (which destinations, over what dates). Steps carry no client-controlled order — `GET /api/trip` always returns them **sorted by `start_date`**, so a destination added with an earlier date automatically appears earlier in the list. `position` is an internal bookkeeping field (assigned on create, never patched) and is not meaningful to clients.
+
+A destination is given either as an existing `zone_id` or as free-text `destination` (the name + coordinates of a real place, e.g. from a geocoder-backed autocomplete on the client — see `GET /api/geocode`). Exactly one of the two is required on create. When `destination` is given, the server reuses an existing zone whose name matches (case-insensitive); otherwise it creates a new zone from the destination's name/lat/lng.
 
 ### POST /api/steps
-- Request: `{"zone_id":"…","start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD"}`
-- Appends a new stop at the end of the trip.
-- 201: `{"step": {"id":"…","trip_id":"…","zone_id":"…","position":9,"start_date":"…","end_date":"…"}}` · 400 `VALIDATION` (missing zone_id, bad dates, end before start) · 404 unknown zone.
+- Request: `{"start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","zone_id":"…"} | {"start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","destination":{"name":"…","address?":"…","lat":n,"lng":n}}`
+- 201: `{"step": {"id":"…","trip_id":"…","zone_id":"…","position":n,"start_date":"…","end_date":"…"}}` · 400 `VALIDATION` (missing zone_id/destination, bad dates, end before start, bad destination name/lat/lng) · 404 unknown zone (when `zone_id` given).
 
 ### PATCH /api/steps/:stepId
-- Request: any subset of `{"zone_id","start_date","end_date"}`. Dates are cross-checked against the merged (existing + patched) values, so patching just one date still enforces end ≥ start.
+- Request: any subset of `{"zone_id","destination","start_date","end_date"}`. Dates are cross-checked against the merged (existing + patched) values, so patching just one date still enforces end ≥ start.
 - 200: `{"step": {…updated…}}` · 400 `VALIDATION` · 404 unknown step or zone.
 
 ### DELETE /api/steps/:stepId
-- Removes the stop and compacts positions of every later stop by one.
 - 204 · 404.
 
-### POST /api/steps/:stepId/move
-- Request: `{"direction": "up" | "down"}` — swaps position with the adjacent stop. A no-op (200 with the unchanged list) if already at that end.
-- 200: `{"steps": [ …every step for the trip, reordered… ]}` · 400 `VALIDATION` (bad direction) · 404 unknown step.
-
 ## Zones
-
-### GET /api/zones
-The trip's fixed zone catalog — powers the zone picker when adding a stop.
-
-- 200: `{"zones":[{"id":"…","name":"Tokyo","name_ja":"東京","summary":"…"}]}`
 
 ### GET /api/zones/:zoneId
 Zone header + zone-level tips + zone-level files + per-category counts (drives category visibility, FR-012).

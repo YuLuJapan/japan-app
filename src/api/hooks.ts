@@ -10,7 +10,6 @@ import type {
   SearchResult,
   TripBundle,
   TripDocument,
-  Zone,
   ZoneDetail,
 } from './types'
 
@@ -22,10 +21,6 @@ export const useItinerary = () =>
     queryKey: ['itinerary'],
     queryFn: () => api.get<{ items: ItineraryItem[] }>('/itinerary'),
   })
-
-// The trip's fixed zone catalog — powers the zone picker when adding a stop.
-export const useZones = () =>
-  useQuery({ queryKey: ['zones'], queryFn: () => api.get<{ zones: Zone[] }>('/zones') })
 
 export const useZone = (zoneId: string) =>
   useQuery({ queryKey: ['zone', zoneId], queryFn: () => api.get<ZoneDetail>(`/zones/${zoneId}`) })

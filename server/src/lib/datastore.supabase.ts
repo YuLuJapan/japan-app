@@ -19,6 +19,7 @@ import type {
   TipInput,
   Trip,
   Zone,
+  ZoneInput,
 } from './datastore.js'
 import { CATEGORIES } from './datastore.js'
 import { FILES_BUCKET, getSupabase } from './supabase.js'
@@ -87,6 +88,7 @@ export function createSupabaseStore(): DataStore {
         .from('journey_steps')
         .select('id,trip_id,zone_id,position,start_date,end_date')
         .eq('trip_id', tripId)
+        .order('start_date', { ascending: true })
         .order('position', { ascending: true })
       return (data as JourneyStep[]) ?? []
     },
@@ -150,6 +152,21 @@ export function createSupabaseStore(): DataStore {
         .eq('id', zoneId)
         .maybeSingle()
       return (data as Zone) ?? null
+    },
+
+    async createZone(input: ZoneInput) {
+      const row = {
+        id: randomUUID(),
+        name: input.name,
+        name_ja: input.name_ja ?? null,
+        summary: input.summary ?? null,
+        image_url: input.image_url ?? null,
+        lat: input.lat ?? null,
+        lng: input.lng ?? null,
+      }
+      const { data, error } = await db.from('zones').insert(row).select().single()
+      if (error) throw new Error(error.message)
+      return data as Zone
     },
 
     async countPlacesByCategory(zoneId) {

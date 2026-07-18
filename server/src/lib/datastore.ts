@@ -39,6 +39,15 @@ export interface Zone {
   lng?: number | null
 }
 
+export interface ZoneInput {
+  name: string
+  name_ja?: string | null
+  summary?: string | null
+  image_url?: string | null
+  lat?: number | null
+  lng?: number | null
+}
+
 export interface PlaceLink {
   label: string
   url: string
@@ -153,9 +162,11 @@ export interface DataStore {
   /** Hard delete. Callers are responsible for compacting positions afterward. */
   deleteStep(stepId: string): Promise<boolean>
 
-  /** Every zone in the trip's catalog (used to pick a zone when adding a stop). */
+  /** Every zone in the trip's catalog (used to find-or-create a zone for a free-text destination). */
   listZones(): Promise<Zone[]>
   getZone(zoneId: string): Promise<Zone | null>
+  /** Create a zone on the fly for a destination that doesn't match an existing one. */
+  createZone(input: ZoneInput): Promise<Zone>
   countPlacesByCategory(zoneId: string): Promise<Record<Category, number>>
 
   listPlaces(zoneId: string, category: Category): Promise<Place[]>
