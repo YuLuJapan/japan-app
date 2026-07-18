@@ -161,7 +161,7 @@ function DestinationForm({
     let ignore = false
     setSearching(true)
     const t = setTimeout(() => {
-      geocode(q)
+      geocode(q, undefined, { global: true })
         .then((r) => !ignore && setResults(r.results))
         .catch(() => !ignore && setResults([]))
         .finally(() => !ignore && setSearching(false))

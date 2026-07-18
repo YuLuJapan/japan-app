@@ -2,7 +2,9 @@
 // Proxied through the server so we can send the User-Agent Nominatim's usage
 // policy requires and so the browser isn't subject to per-origin CORS quirks.
 // Results are biased toward the city the search was launched from and cached
-// briefly to stay well under the 1 req/sec policy.
+// briefly to stay well under the 1 req/sec policy. Defaults to Japan-only
+// (this app is a Japan trip planner); pass global:true to search worldwide,
+// e.g. for a journey destination that isn't in Japan (a layover city).
 import { validation } from '../lib/errors.js'
 
 const ENDPOINT = 'https://nominatim.openstreetmap.org/search'
@@ -31,12 +33,14 @@ const CACHE_TTL_MS = 10 * 60 * 1000
 /** Search for places matching `query`, optionally biased around a lat/lng. */
 export async function geocodeSearch(
   query: string,
-  bias?: { lat: number; lng: number }
+  bias?: { lat: number; lng: number },
+  opts?: { global?: boolean }
 ): Promise<GeocodeResult[]> {
   const q = query.trim()
   if (q.length < 2) throw validation(['query must be at least 2 characters'])
 
-  const key = `${q.toLowerCase()}|${bias ? `${bias.lat.toFixed(2)},${bias.lng.toFixed(2)}` : ''}`
+  const global = opts?.global ?? false
+  const key = `${q.toLowerCase()}|${bias ? `${bias.lat.toFixed(2)},${bias.lng.toFixed(2)}` : ''}|${global ? 'global' : 'jp'}`
   const hit = cache.get(key)
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.results
 
@@ -45,8 +49,8 @@ export async function geocodeSearch(
     q,
     limit: '6',
     addressdetails: '0',
-    countrycodes: 'jp',
   })
+  if (!global) params.set('countrycodes', 'jp')
   if (bias) {
     // ~0.6° box around the city so nearby matches rank first (bounded=0 still
     // allows farther results when nothing nearby matches).

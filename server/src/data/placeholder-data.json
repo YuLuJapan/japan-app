@@ -203,6 +203,39 @@
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/9/91/Hakone5.jpg"
     },
     {
+      "id": "attr-hakone-shrine",
+      "zone_id": "zone-hakone",
+      "category": "attraction",
+      "name": "Hakone Shrine",
+      "name_ja": "箱根神社",
+      "description": "The vermillion torii gate 'floating' at the edge of Lake Ashi — one of Japan's most photographed shrine gates, best at sunrise.",
+      "address": "80-1 Motohakone, Hakone",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "food-hakone-soba",
+      "zone_id": "zone-hakone",
+      "category": "food",
+      "name": "Hatsuhana Soba",
+      "name_ja": "はつ花そば",
+      "description": "Century-old soba restaurant by the river near Hakone-Yumoto Station — try the mountain-vegetable or tempura soba.",
+      "address": "Yumoto, Hakone",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "shop-hakone-yumoto",
+      "zone_id": "zone-hakone",
+      "category": "shopping",
+      "name": "Hakone-Yumoto Shopping Street",
+      "name_ja": "箱根湯本商店街",
+      "description": "The main street by Hakone-Yumoto Station — onsen manju (steamed buns), pickles, and souvenir shops; a good last stop before heading out.",
+      "address": "Yumoto, Hakone",
+      "links": [],
+      "image_url": null
+    },
+    {
       "id": "attr-kawaguchi",
       "zone_id": "zone-fuji",
       "category": "attraction",
@@ -225,6 +258,39 @@
       "image_url": null
     },
     {
+      "id": "attr-fuji-oishipark",
+      "zone_id": "zone-fuji",
+      "category": "attraction",
+      "name": "Oishi Park",
+      "name_ja": "大石公園",
+      "description": "North-shore lakefront park with a wide Fuji view — lavender fields bloom late June/July, otherwise a quiet lakeside walk.",
+      "address": "Oishi, Fujikawaguchiko",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "food-fuji-houtou",
+      "zone_id": "zone-fuji",
+      "category": "food",
+      "name": "Houtou Fudou",
+      "name_ja": "ほうとう不動",
+      "description": "The local specialty — thick hand-cut noodles simmered in a hearty miso vegetable stew. Houtou Fudou has a few branches around the lake.",
+      "address": "Fujikawaguchiko, Yamanashi",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "shop-fuji-michinoeki",
+      "zone_id": "zone-fuji",
+      "category": "shopping",
+      "name": "Michi-no-Eki Kawaguchiko",
+      "name_ja": "道の駅かわぐちこ",
+      "description": "Roadside station on the lake — local produce, Fuji-themed souvenirs, and a good rest stop with a view.",
+      "address": "1936-1 Funatsu, Fujikawaguchiko",
+      "links": [],
+      "image_url": null
+    },
+    {
       "id": "attr-matsumoto-castle",
       "zone_id": "zone-matsumoto",
       "category": "attraction",
@@ -236,12 +302,78 @@
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Matsumoto_Castle_Keep_Tower.jpg/3840px-Matsumoto_Castle_Keep_Tower.jpg"
     },
     {
+      "id": "attr-matsumoto-nawate",
+      "zone_id": "zone-matsumoto",
+      "category": "attraction",
+      "name": "Nawate Street (Kaeru-machi)",
+      "name_ja": "縄手通り",
+      "description": "Frog-themed street market along the Metoba River, linking the castle to Nakamachi — snacks, curios, and street performers on weekends.",
+      "address": "Nawate-dori, Matsumoto",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "food-matsumoto-soba",
+      "zone_id": "zone-matsumoto",
+      "category": "food",
+      "name": "Shinshu soba around Nakamachi",
+      "name_ja": "信州そば",
+      "description": "Matsumoto sits in Nagano's soba country — look for a soba-dokoro along Nakamachi or Nawate street; zaru soba (cold, with dipping sauce) is the classic order.",
+      "address": "Nakamachi, Matsumoto",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "shop-matsumoto-nakamachi",
+      "zone_id": "zone-matsumoto",
+      "category": "shopping",
+      "name": "Nakamachi Street",
+      "name_ja": "中町通り",
+      "description": "Edo-period white-walled kura (storehouses) turned into craft shops, sake breweries, and cafés — a short walk from the castle.",
+      "address": "Nakamachi, Matsumoto",
+      "links": [],
+      "image_url": null
+    },
+    {
       "id": "attr-sanmachi",
       "zone_id": "zone-takayama",
       "category": "attraction",
       "name": "Sanmachi Suji old town",
       "name_ja": "三町筋",
       "description": "Preserved Edo-period streets — sake breweries, craft shops. Combine with the Miyagawa morning market by the river.",
+      "address": "Kamisannomachi, Takayama",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "attr-takayama-jinya",
+      "zone_id": "zone-takayama",
+      "category": "attraction",
+      "name": "Takayama Jinya",
+      "name_ja": "高山陣屋",
+      "description": "The only surviving Edo-period local government building in Japan — tatami rooms, an interrogation chamber, and a rice storehouse.",
+      "address": "1-5 Hachikenmachi, Takayama",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "food-takayama-morningmarket",
+      "zone_id": "zone-takayama",
+      "category": "food",
+      "name": "Miyagawa Morning Market",
+      "name_ja": "宮川朝市",
+      "description": "Riverside morning market, roughly 7:00–12:00 — Hida beef skewers, pickles, and local produce stalls.",
+      "address": "Miyagawa riverside, Takayama",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "shop-takayama-sake",
+      "zone_id": "zone-takayama",
+      "category": "shopping",
+      "name": "Kamisannomachi sake breweries",
+      "name_ja": "上三之町",
+      "description": "Look for the sugidama (round cedar ball) hanging outside — it marks a working sake brewery open for tastings, right in the old town.",
       "address": "Kamisannomachi, Takayama",
       "links": [],
       "image_url": null
@@ -280,6 +412,28 @@
       "image_url": null
     },
     {
+      "id": "attr-kanazawa-21c",
+      "zone_id": "zone-kanazawa",
+      "category": "attraction",
+      "name": "21st Century Museum of Contemporary Art",
+      "name_ja": "金沢21世紀美術館",
+      "description": "Modern art museum right next to Kenroku-en — the 'Swimming Pool' installation (viewable free from outside/below) is the famous shot.",
+      "address": "1-2-1 Hirosaka, Kanazawa",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "food-kanazawa-goldleaf",
+      "zone_id": "zone-kanazawa",
+      "category": "food",
+      "name": "Gold-leaf soft-serve ice cream",
+      "name_ja": "金箔ソフトクリーム",
+      "description": "The Kanazawa food photo — soft-serve wrapped in real gold leaf, sold at shops along the Higashi Chaya district.",
+      "address": "Higashiyama, Kanazawa",
+      "links": [],
+      "image_url": null
+    },
+    {
       "id": "attr-fushimi",
       "zone_id": "zone-kyoto",
       "category": "attraction",
@@ -289,6 +443,17 @@
       "address": "68 Fukakusa Yabunouchicho, Fushimi-ku, Kyoto",
       "links": [],
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Torii_path_with_lantern_at_Fushimi_Inari_Taisha_Shrine%2C_Kyoto%2C_Japan.jpg/3840px-Torii_path_with_lantern_at_Fushimi_Inari_Taisha_Shrine%2C_Kyoto%2C_Japan.jpg"
+    },
+    {
+      "id": "attr-kyoto-kiyomizu",
+      "zone_id": "zone-kyoto",
+      "category": "attraction",
+      "name": "Kiyomizu-dera Temple",
+      "name_ja": "清水寺",
+      "description": "Wooden stage built without a single nail, jutting out over the hillside — one of Kyoto's most iconic views, especially at sunrise before the crowds.",
+      "address": "1-294 Kiyomizu, Higashiyama-ku, Kyoto",
+      "links": [],
+      "image_url": null
     },
     {
       "id": "attr-arashiyama",
@@ -313,6 +478,17 @@
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/Golden_Pavilion_Kinkaku-ji_water_mirror_2024.jpg/3840px-Golden_Pavilion_Kinkaku-ji_water_mirror_2024.jpg"
     },
     {
+      "id": "attr-kyoto-gion",
+      "zone_id": "zone-kyoto",
+      "category": "attraction",
+      "name": "Gion district evening walk",
+      "name_ja": "祇園",
+      "description": "Kyoto's famous geisha district — walk Hanamikoji-dori around dusk for a chance to spot a geiko or maiko heading to an appointment (be respectful — no chasing or blocking).",
+      "address": "Gion, Higashiyama-ku, Kyoto",
+      "links": [],
+      "image_url": null
+    },
+    {
       "id": "shop-nishiki",
       "zone_id": "zone-kyoto",
       "category": "shopping",
@@ -329,8 +505,19 @@
       "category": "food",
       "name": "Matcha stop in Gion",
       "name_ja": "抹茶",
-      "description": "Placeholder pick — matcha parfait/tea house in Gion; expect queues after 11:00.",
+      "description": "Matcha parfait or tea in Gion — Tsujiri's Gion branch is a reliable pick; expect queues after 11:00.",
       "address": "Gion, Kyoto",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "food-kyoto-pontocho",
+      "zone_id": "zone-kyoto",
+      "category": "food",
+      "name": "Pontocho Alley",
+      "name_ja": "先斗町",
+      "description": "Narrow lantern-lit dining alley along the Kamo River — everything from cheap yakitori to riverside kaiseki; worth a walk-through even just browsing.",
+      "address": "Pontocho, Nakagyo-ku, Kyoto",
       "links": [],
       "image_url": null
     },
@@ -376,8 +563,30 @@
       "category": "food",
       "name": "Okonomiyaki & takoyaki crawl",
       "name_ja": "お好み焼き",
-      "description": "Placeholder pick — okonomiyaki dinner around Dotonbori/Namba, takoyaki stands for dessert.",
+      "description": "Okonomiyaki dinner around Dotonbori/Namba — Mizuno and Chibo are well-known chains here — with takoyaki from a street stand for dessert.",
       "address": "Dotonbori, Osaka",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "shop-osaka-shinsaibashi",
+      "zone_id": "zone-osaka",
+      "category": "shopping",
+      "name": "Shinsaibashi-suji",
+      "name_ja": "心斎橋筋",
+      "description": "Covered shopping arcade steps from the hotel — flagship fashion stores end to end, connects straight into Dotonbori.",
+      "address": "Shinsaibashi, Chuo-ku, Osaka",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "food-osaka-kuromon",
+      "zone_id": "zone-osaka",
+      "category": "food",
+      "name": "Kuromon Ichiba Market",
+      "name_ja": "黒門市場",
+      "description": "'Osaka's Kitchen' — a covered market street for grazing: grilled seafood, wagyu skewers, and fresh sushi, all eaten standing up.",
+      "address": "Nihonbashi, Chuo-ku, Osaka",
       "links": [],
       "image_url": null
     },
@@ -415,13 +624,35 @@
       "image_url": null
     },
     {
+      "id": "attr-tokyo-meiji",
+      "zone_id": "zone-tokyo",
+      "category": "attraction",
+      "name": "Meiji Jingu Shrine",
+      "name_ja": "明治神宮",
+      "description": "Forest shrine next to Harajuku — a 10-minute walk through tall trees feels a world away from the city; free to enter.",
+      "address": "1-1 Yoyogikamizonocho, Shibuya-ku, Tokyo",
+      "links": [],
+      "image_url": null
+    },
+    {
       "id": "food-tokyo-ramen",
       "zone_id": "zone-tokyo",
       "category": "food",
       "name": "Ramen night in Shinjuku",
       "name_ja": "ラーメン",
-      "description": "Placeholder pick — Omoide Yokocho alleys are next to the hotel; ticket machines, cash only.",
+      "description": "Omoide Yokocho's tiny ramen and yakitori stalls are right by the hotel — ticket machines at the door, cash only, seats fill fast.",
       "address": "Omoide Yokocho, Shinjuku",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "food-tokyo-tsukiji",
+      "zone_id": "zone-tokyo",
+      "category": "food",
+      "name": "Tsukiji Outer Market",
+      "name_ja": "築地場外市場",
+      "description": "The wholesale market moved to Toyosu, but the outer market stayed — go for a sushi breakfast and grazing street food from ~8:00, before it gets packed.",
+      "address": "Tsukiji, Chuo-ku, Tokyo",
       "links": [],
       "image_url": null
     },
@@ -433,6 +664,28 @@
       "name_ja": "ドン・キホーテ",
       "description": "Chaotic everything-store around the corner from the hotel — souvenirs, snacks, tax-free with passport.",
       "address": "Kabukicho, Shinjuku",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "shop-tokyo-takeshita",
+      "zone_id": "zone-tokyo",
+      "category": "shopping",
+      "name": "Takeshita Street, Harajuku",
+      "name_ja": "竹下通り",
+      "description": "Youth fashion, crepe stands, and quirky pop-culture shops packed into one pedestrian street — go early to beat the crowds.",
+      "address": "Jingumae, Shibuya-ku, Tokyo",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "shop-tokyo-akihabara",
+      "zone_id": "zone-tokyo",
+      "category": "shopping",
+      "name": "Akihabara Electric Town",
+      "name_ja": "秋葉原",
+      "description": "Electronics, anime/manga stores, and arcades stacked floor to floor — Mandarake and the Yodobashi flagship are good anchors.",
+      "address": "Akihabara, Chiyoda-ku, Tokyo",
       "links": [],
       "image_url": null
     }
