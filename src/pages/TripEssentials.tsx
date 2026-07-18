@@ -13,6 +13,16 @@ const EMERGENCY = [
 // Trip tips, incl. the "tips we got" from the traveller groups.
 const SECTIONS: { title: string; icon: string; items: string[] }[] = [
   {
+    title: 'Visit Japan Web (do before you fly)',
+    icon: '🛂',
+    items: [
+      'Register both travellers at vjw.digital.go.jp — fill in passport details plus the immigration and customs declarations online ahead of time.',
+      'Do this a few days before departure, not at the airport. It only unlocks 6 hours before arrival, but registering the passport/personal info early means there’s just the short declaration left to finish then.',
+      'One QR code now covers both immigration and customs — show it at the immigration counter, then again at the customs gate. Screenshot it or make sure you can log back in without a Japanese SIM.',
+      'Each traveller needs their own entry (you can manage a companion under one account) — double check both QR codes are ready before landing.',
+    ],
+  },
+  {
     title: 'Money',
     icon: '💴',
     items: [
@@ -114,6 +124,7 @@ const PHRASES: { romaji: string; meaning: string }[] = [
 
 const PACKING = [
   'Passports + travel insurance',
+  'Visit Japan Web done — immigration + customs QR ready for both of us',
   'IC card set up in phone wallet',
   'Power adapter (Type A, 100V) + portable charger',
   'Comfortable walking shoes',
@@ -227,7 +238,9 @@ export default function TripEssentials() {
                 >
                   {checked[item] ? '✓' : ''}
                 </span>
-                <span className={`text-sm ${checked[item] ? 'text-muted line-through' : ''}`}>{item}</span>
+                <span className={`text-sm ${checked[item] ? 'text-muted line-through' : ''}`}>
+                  {item}
+                </span>
               </button>
             </li>
           ))}
