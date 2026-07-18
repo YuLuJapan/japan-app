@@ -151,15 +151,6 @@ export function useDeleteStep() {
   })
 }
 
-export function useMoveStep() {
-  const invalidate = useStepInvalidation()
-  return useMutation({
-    mutationFn: ({ id, direction }: { id: string; direction: 'up' | 'down' }) =>
-      api.post<{ steps: JourneyStep[] }>(`/steps/${id}/move`, { direction }),
-    onSuccess: invalidate,
-  })
-}
-
 interface TipParent {
   zone_id?: string
   place_id?: string

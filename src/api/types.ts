@@ -40,16 +40,6 @@ export interface TripStep {
   zone: ZoneSummary | null
 }
 
-export interface Zone {
-  id: string
-  name: string
-  name_ja: string | null
-  summary: string | null
-  image_url?: string | null
-  lat?: number | null
-  lng?: number | null
-}
-
 export interface JourneyStep {
   id: string
   trip_id: string
@@ -60,7 +50,8 @@ export interface JourneyStep {
 }
 
 export interface JourneyStepInput {
-  zone_id: string
+  zone_id?: string
+  destination?: GeocodeResult
   start_date: string
   end_date: string
 }

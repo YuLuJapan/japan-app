@@ -2,11 +2,6 @@ import type { Category, DataStore } from '../lib/datastore.js'
 import { CATEGORIES } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
 
-// The trip's fixed zone catalog — used to pick a zone when adding a stop.
-export async function listAllZones(store: DataStore) {
-  return { zones: await store.listZones() }
-}
-
 export async function getZoneDetail(store: DataStore, zoneId: string) {
   const zone = await store.getZone(zoneId)
   if (!zone) throw notFound('Zone')

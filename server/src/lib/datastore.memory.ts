@@ -23,6 +23,7 @@ import type {
   TipInput,
   Trip,
   Zone,
+  ZoneInput,
 } from './datastore.js'
 import { CATEGORIES } from './datastore.js'
 
@@ -39,6 +40,14 @@ export interface MemoryData {
 function loadPlaceholderData(): MemoryData {
   const dataPath = fileURLToPath(new URL('../data/placeholder-data.json', import.meta.url))
   return JSON.parse(readFileSync(dataPath, 'utf-8')) as MemoryData
+}
+
+// Journey order follows arrival date, not manual position — a step added
+// with an earlier start_date sorts ahead of ones already in the list.
+function compareSteps(a: JourneyStep, b: JourneyStep): number {
+  if (a.start_date !== b.start_date) return a.start_date < b.start_date ? -1 : 1
+  if (a.position !== b.position) return a.position - b.position
+  return a.id < b.id ? -1 : 1
 }
 
 // Stable itinerary order: by day, then timed items (ascending) before untimed,
@@ -80,9 +89,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
     },
 
     async listSteps(tripId) {
-      return db.steps
-        .filter((s) => s.trip_id === tripId)
-        .sort((a, b) => a.position - b.position)
+      return db.steps.filter((s) => s.trip_id === tripId).sort(compareSteps)
     },
 
     async getStep(stepId) {
@@ -125,6 +132,20 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
 
     async getZone(zoneId) {
       return db.zones.find((z) => z.id === zoneId) ?? null
+    },
+
+    async createZone(input: ZoneInput) {
+      const zone: Zone = {
+        id: randomUUID(),
+        name: input.name,
+        name_ja: input.name_ja ?? null,
+        summary: input.summary ?? null,
+        image_url: input.image_url ?? null,
+        lat: input.lat ?? null,
+        lng: input.lng ?? null,
+      }
+      db.zones.push(zone)
+      return structuredClone(zone)
     },
 
     async countPlacesByCategory(zoneId) {
