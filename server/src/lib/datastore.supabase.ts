@@ -12,6 +12,7 @@ import type {
   ItineraryItem,
   ItineraryItemInput,
   JourneyStep,
+  JourneyStepInput,
   Place,
   PlaceInput,
   Tip,
@@ -88,6 +89,58 @@ export function createSupabaseStore(): DataStore {
         .eq('trip_id', tripId)
         .order('position', { ascending: true })
       return (data as JourneyStep[]) ?? []
+    },
+
+    async getStep(stepId) {
+      const { data } = await db
+        .from('journey_steps')
+        .select('id,trip_id,zone_id,position,start_date,end_date')
+        .eq('id', stepId)
+        .maybeSingle()
+      return (data as JourneyStep) ?? null
+    },
+
+    async createStep(input: JourneyStepInput) {
+      const row = {
+        id: randomUUID(),
+        trip_id: input.trip_id,
+        zone_id: input.zone_id,
+        position: input.position ?? 0,
+        start_date: input.start_date,
+        end_date: input.end_date,
+      }
+      const { data, error } = await db.from('journey_steps').insert(row).select().single()
+      if (error) throw new Error(error.message)
+      return data as JourneyStep
+    },
+
+    async updateStep(stepId, patch) {
+      const fields: Record<string, unknown> = {}
+      if (patch.zone_id !== undefined) fields.zone_id = patch.zone_id
+      if (patch.position !== undefined) fields.position = patch.position
+      if (patch.start_date !== undefined) fields.start_date = patch.start_date
+      if (patch.end_date !== undefined) fields.end_date = patch.end_date
+      const { data, error } = await db
+        .from('journey_steps')
+        .update(fields)
+        .eq('id', stepId)
+        .select()
+        .maybeSingle()
+      if (error) throw new Error(error.message)
+      return (data as JourneyStep) ?? null
+    },
+
+    async deleteStep(stepId) {
+      const { data } = await db.from('journey_steps').delete().eq('id', stepId).select('id')
+      return (data?.length ?? 0) > 0
+    },
+
+    async listZones() {
+      const { data } = await db
+        .from('zones')
+        .select('id,name,name_ja,summary,image_url,lat,lng')
+        .order('name', { ascending: true })
+      return (data as Zone[]) ?? []
     },
 
     async getZone(zoneId) {

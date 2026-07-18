@@ -16,6 +16,7 @@ import type {
   ItineraryItem,
   ItineraryItemInput,
   JourneyStep,
+  JourneyStepInput,
   Place,
   PlaceInput,
   Tip,
@@ -82,6 +83,44 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return db.steps
         .filter((s) => s.trip_id === tripId)
         .sort((a, b) => a.position - b.position)
+    },
+
+    async getStep(stepId) {
+      return db.steps.find((s) => s.id === stepId) ?? null
+    },
+
+    async createStep(input: JourneyStepInput) {
+      const step: JourneyStep = {
+        id: randomUUID(),
+        trip_id: input.trip_id,
+        zone_id: input.zone_id,
+        position: input.position ?? 0,
+        start_date: input.start_date,
+        end_date: input.end_date,
+      }
+      db.steps.push(step)
+      return structuredClone(step)
+    },
+
+    async updateStep(stepId, patch) {
+      const step = db.steps.find((s) => s.id === stepId)
+      if (!step) return null
+      if (patch.zone_id !== undefined) step.zone_id = patch.zone_id
+      if (patch.position !== undefined) step.position = patch.position
+      if (patch.start_date !== undefined) step.start_date = patch.start_date
+      if (patch.end_date !== undefined) step.end_date = patch.end_date
+      return structuredClone(step)
+    },
+
+    async deleteStep(stepId) {
+      const idx = db.steps.findIndex((s) => s.id === stepId)
+      if (idx === -1) return false
+      db.steps.splice(idx, 1)
+      return true
+    },
+
+    async listZones() {
+      return db.zones.map((z) => structuredClone(z))
     },
 
     async getZone(zoneId) {

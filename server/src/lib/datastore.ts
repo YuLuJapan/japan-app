@@ -21,6 +21,14 @@ export interface JourneyStep {
   end_date: string
 }
 
+export interface JourneyStepInput {
+  trip_id: string
+  zone_id: string
+  position?: number
+  start_date: string
+  end_date: string
+}
+
 export interface Zone {
   id: string
   name: string
@@ -139,7 +147,14 @@ export interface DataStore {
 
   getTrip(): Promise<Trip | null>
   listSteps(tripId: string): Promise<JourneyStep[]>
+  getStep(stepId: string): Promise<JourneyStep | null>
+  createStep(input: JourneyStepInput): Promise<JourneyStep>
+  updateStep(stepId: string, patch: Partial<JourneyStepInput>): Promise<JourneyStep | null>
+  /** Hard delete. Callers are responsible for compacting positions afterward. */
+  deleteStep(stepId: string): Promise<boolean>
 
+  /** Every zone in the trip's catalog (used to pick a zone when adding a stop). */
+  listZones(): Promise<Zone[]>
   getZone(zoneId: string): Promise<Zone | null>
   countPlacesByCategory(zoneId: string): Promise<Record<Category, number>>
 
