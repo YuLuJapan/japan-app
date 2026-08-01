@@ -1,7 +1,9 @@
 // Live countdown to the outbound departure, plus the booking reference and both
-// directions of the trip. Ticks every second; `now` is injectable for tests.
+// directions of the trip. The two directions share one slot: outbound shows first,
+// swipe (or tap the chevron) to reveal the return leg.
+// Ticks every second; `now` is injectable for tests.
 // Light card: white surface, dark numerals, coral accents.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type TouchEvent } from 'react'
 import type { FlightInfo, FlightItinerary } from '../api/types'
 import { timeUntil } from '../lib/countdown'
 
@@ -35,6 +37,24 @@ function PlaneIcon() {
   )
 }
 
+function ChevronIcon({ dir }: { dir: 'left' | 'right' }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d={dir === 'right' ? 'm9 18 6-6-6-6' : 'm15 18-6-6 6-6'} />
+    </svg>
+  )
+}
+
 function Unit({ value, label }: { value: number; label: string }) {
   return (
     <div className="flex flex-col items-center">
@@ -46,11 +66,41 @@ function Unit({ value, label }: { value: number; label: string }) {
   )
 }
 
-function Direction({ label, itinerary }: { label: string; itinerary: FlightItinerary }) {
+function Direction({
+  label,
+  itinerary,
+  navDir,
+  navLabel,
+  onNav,
+  active,
+}: {
+  label: string
+  itinerary: FlightItinerary
+  navDir: 'left' | 'right'
+  navLabel: string
+  onNav: () => void
+  active: boolean
+}) {
+  const nav = (
+    <button
+      type="button"
+      onClick={onNav}
+      aria-label={navLabel}
+      tabIndex={active ? 0 : -1}
+      className="rounded-full p-0.5 text-brand transition hover:bg-brand/10 active:scale-95"
+    >
+      <ChevronIcon dir={navDir} />
+    </button>
+  )
+
   return (
     <div>
-      <div className="flex items-baseline justify-between">
-        <span className="text-xs font-bold uppercase tracking-wide text-muted">{label}</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1">
+          {navDir === 'left' && nav}
+          <span className="text-xs font-bold uppercase tracking-wide text-muted">{label}</span>
+          {navDir === 'right' && nav}
+        </span>
         <span className="font-semibold text-ink">
           {fmtAt(itinerary.depart_at, itinerary.depart_tz)}
         </span>
@@ -74,6 +124,8 @@ function Direction({ label, itinerary }: { label: string; itinerary: FlightItine
 
 export function CountdownWidget({ flight, now }: { flight: FlightInfo; now?: Date }) {
   const [tick, setTick] = useState(() => now ?? new Date())
+  const [pane, setPane] = useState(0) // 0 = outbound, 1 = return
+  const touchStartX = useRef<number | null>(null)
 
   useEffect(() => {
     if (now) return // fixed clock (tests)
@@ -83,6 +135,19 @@ export function CountdownWidget({ flight, now }: { flight: FlightInfo; now?: Dat
 
   const target = new Date(flight.outbound.depart_at)
   const left = timeUntil(target, tick)
+
+  // Swipe: commit once the horizontal drag clears a small threshold.
+  const onTouchStart = (e: TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX
+  }
+  const onTouchEnd = (e: TouchEvent) => {
+    const start = touchStartX.current
+    touchStartX.current = null
+    if (start === null) return
+    const dx = e.changedTouches[0].clientX - start
+    if (Math.abs(dx) < 40) return
+    setPane(dx < 0 ? 1 : 0)
+  }
 
   return (
     <div className="relative overflow-hidden rounded-3xl bg-white p-5 shadow-card ring-1 ring-line">
@@ -115,8 +180,49 @@ export function CountdownWidget({ flight, now }: { flight: FlightInfo; now?: Dat
             <span className="text-muted">Booking ref</span>
             <span className="font-mono font-bold tracking-widest text-ink">{flight.booking_ref}</span>
           </div>
-          <Direction label="Outbound" itinerary={flight.outbound} />
-          <Direction label="Return" itinerary={flight.return_flight} />
+
+          <div className="overflow-hidden" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+            <div
+              className="flex items-start transition-transform duration-300 ease-out"
+              style={{ transform: `translateX(-${pane * 100}%)` }}
+            >
+              <div className="w-full shrink-0" aria-hidden={pane !== 0}>
+                <Direction
+                  label="Outbound"
+                  itinerary={flight.outbound}
+                  navDir="right"
+                  navLabel="Show return flight"
+                  onNav={() => setPane(1)}
+                  active={pane === 0}
+                />
+              </div>
+              <div className="w-full shrink-0" aria-hidden={pane !== 1}>
+                <Direction
+                  label="Return"
+                  itinerary={flight.return_flight}
+                  navDir="left"
+                  navLabel="Show outbound flight"
+                  onNav={() => setPane(0)}
+                  active={pane === 1}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-center gap-1.5">
+            {['Outbound', 'Return'].map((label, i) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => setPane(i)}
+                aria-label={`${label} flight`}
+                aria-current={pane === i}
+                className={`h-1.5 rounded-full transition-all ${
+                  pane === i ? 'w-4 bg-brand' : 'w-1.5 bg-line'
+                }`}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>

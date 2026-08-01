@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { CountdownWidget } from '../components/CountdownWidget'
 import type { FlightInfo } from '../api/types'
@@ -49,5 +49,46 @@ describe('CountdownWidget', () => {
     expect(screen.getByText(/Fri, Oct 16, 8:40 PM/)).toBeTruthy()
     expect(screen.getByText(/Lands Sat, Sep 19, 7:40 PM/)).toBeTruthy()
     expect(screen.getByText(/Lands Sat, Oct 17, 2:35 PM/)).toBeTruthy()
+  })
+
+  it('starts on the outbound pane and slides to the return one on demand', () => {
+    const { container } = render(
+      <CountdownWidget flight={flight} now={new Date('2026-09-16T13:35:00+03:00')} />
+    )
+    const track = () => container.querySelector('[style*="translateX"]') as HTMLElement
+
+    expect(track().style.transform).toBe('translateX(-0%)')
+
+    fireEvent.click(screen.getByLabelText('Show return flight'))
+    expect(track().style.transform).toBe('translateX(-100%)')
+
+    fireEvent.click(screen.getByLabelText('Show outbound flight'))
+    expect(track().style.transform).toBe('translateX(-0%)')
+
+    // the dots jump straight to a pane too
+    fireEvent.click(screen.getByLabelText('Return flight'))
+    expect(track().style.transform).toBe('translateX(-100%)')
+  })
+
+  it('swipes between the two directions', () => {
+    const { container } = render(
+      <CountdownWidget flight={flight} now={new Date('2026-09-16T13:35:00+03:00')} />
+    )
+    const track = () => container.querySelector('[style*="translateX"]') as HTMLElement
+    const viewport = track().parentElement as HTMLElement
+
+    const swipe = (from: number, to: number) => {
+      fireEvent.touchStart(viewport, { touches: [{ clientX: from }] })
+      fireEvent.touchEnd(viewport, { changedTouches: [{ clientX: to }] })
+    }
+
+    swipe(200, 60) // drag left → return
+    expect(track().style.transform).toBe('translateX(-100%)')
+
+    swipe(60, 200) // drag right → outbound
+    expect(track().style.transform).toBe('translateX(-0%)')
+
+    swipe(200, 180) // too short to count
+    expect(track().style.transform).toBe('translateX(-0%)')
   })
 })
