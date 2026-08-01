@@ -15,10 +15,16 @@ interface Props {
 export function DayStrip({ days, selected, onSelect, today, hasItems }: Props) {
   const ref = useRef<HTMLDivElement>(null)
 
-  // keep the selected chip in view when it changes (e.g. jump to today)
+  // Keep the selected chip in view when it changes (e.g. jump to today).
+  // Scroll the strip itself rather than calling scrollIntoView — that would also
+  // scroll the *page* down to the strip, so landing on the app would skip past
+  // the header and journey cards straight to "Day by day".
   useEffect(() => {
-    const el = ref.current?.querySelector<HTMLElement>('[data-selected="true"]')
-    el?.scrollIntoView({ inline: 'center', block: 'nearest' })
+    const strip = ref.current
+    const el = strip?.querySelector<HTMLElement>('[data-selected="true"]')
+    if (!strip || !el) return
+    const left = el.offsetLeft - strip.clientWidth / 2 + el.offsetWidth / 2
+    strip.scrollTo({ left: Math.max(0, left) })
   }, [selected])
 
   return (
