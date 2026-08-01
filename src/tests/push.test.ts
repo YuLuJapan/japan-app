@@ -30,14 +30,14 @@ describe('hasUnseenReminder', () => {
     expect(await hasUnseenReminder()).toBe(false)
   })
 
-  it('is true when a "reminder"-tagged notification is still in the tray', async () => {
+  it('is true when a notification is still in the tray', async () => {
     stubReady([{ close: vi.fn() }])
     expect(await hasUnseenReminder()).toBe(true)
     // @ts-expect-error test-only cleanup
     delete window.PushManager
   })
 
-  it('is false once the tray has nothing tagged "reminder"', async () => {
+  it('is false once the tray is empty', async () => {
     stubReady([])
     expect(await hasUnseenReminder()).toBe(false)
     // @ts-expect-error test-only cleanup
