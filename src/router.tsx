@@ -8,6 +8,7 @@ import JourneySteps from './pages/JourneySteps'
 import NotFound from './pages/NotFound'
 import PlaceDetail from './pages/PlaceDetail'
 import PlaceForm from './pages/PlaceForm'
+import Reminders from './pages/Reminders'
 import Search from './pages/Search'
 import TripEssentials from './pages/TripEssentials'
 import TripFiles from './pages/TripFiles'
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
       { path: '/places/:placeId', element: <PlaceDetail /> },
       { path: '/places/:placeId/edit', element: <PlaceForm /> },
       { path: '/search', element: <Search /> },
+      { path: '/reminders', element: <Reminders /> },
       { path: '/essentials', element: <TripEssentials /> },
       { path: '/files', element: <TripFiles /> },
       { path: '*', element: <NotFound /> },

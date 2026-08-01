@@ -43,7 +43,7 @@ All the code is written — schema, Supabase datastore, and seed scripts. Going
 live is just account setup + flipping one env var (no feature-code changes):
 
 1. **Create a free Supabase project.** Copy its **Project URL** and **secret API key** (`sb_secret_...`, Settings → API).
-2. **Run the schema:** paste [supabase/migrations/0001_init.sql](supabase/migrations/0001_init.sql) into the Supabase SQL editor and run it.
+2. **Run the schema:** paste each file in [supabase/migrations/](supabase/migrations/) into the Supabase SQL editor and run them in order (0001 → 0006).
 3. **Create a private Storage bucket** named `trip-files`.
 4. **Set env** in `.env.local`:
    ```
@@ -58,7 +58,57 @@ The database keys are server-only and never reach the browser; all data flows th
 
 **Cost**: $0 — Vercel Hobby and Supabase Free are hard-capped free tiers, no credit card. Budget ceiling for the whole project: $5.
 
+## Reminders & notifications
+
+Schedule a nudge ("book the sushi place, 12 Sep 09:00 Japan time") on the
+**Reminders** tab and it arrives as a phone notification at that moment, even
+with the app closed. Times are stored as absolute instants, and the chip in the
+form says whether the wall clock you typed means your phone's zone or Japan's —
+so a reminder set from Tel Aviv for "09:00 in Japan" fires at 09:00 in Japan.
+
+Reminders are saved with or without the setup below; they just aren't
+_delivered_ until it's done. The app says so on the Reminders screen rather than
+pretending.
+
+**All four steps are account/config work — no code changes:**
+
+1. **Persistence.** Reminders need the Supabase backend (see _Infrastructure
+   activation_ above, including migration `0006_reminders.sql`). Under
+   `DATA_BACKEND=memory` each serverless invocation starts with a blank store,
+   so a reminder saved now is gone minutes later.
+2. **VAPID keys** — the identity that signs push messages. Run `npm run push:keys`
+   once and set the three printed values (`VAPID_PUBLIC_KEY`,
+   `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`) in `.env.local` **and** in Vercel →
+   Settings → Environment Variables. Regenerating them invalidates every device
+   that already subscribed, so generate once and keep them.
+3. **A scheduler** to call `POST /api/reminders/dispatch` every few minutes.
+   Vercel Hobby only runs cron **once a day**, which is useless for
+   minute-accurate reminders — so use one of:
+   - **[cron-job.org](https://cron-job.org)** (free, 1-minute granularity): add a
+     job for `https://<your-app>.vercel.app/api/reminders/dispatch?key=<CRON_SECRET>`
+     every 5 minutes.
+   - **Supabase pg_cron + pg_net** (free, stays in the stack you already have):
+     uncomment the block at the bottom of
+     [supabase/migrations/0006_reminders.sql](supabase/migrations/0006_reminders.sql),
+     fill in your host and secret, and run it.
+
+   Either way set `CRON_SECRET` (any long random string) in Vercel — the dispatch
+   endpoint is the one route the access code doesn't guard, so it checks that
+   secret instead. Reminders fire on the first run _after_ their time, so the
+   ping interval is the worst-case delay: every 5 minutes → up to 5 minutes late.
+
+4. **On the phone**: open the app **from the Home Screen** (iOS only allows push
+   from an installed PWA, iOS 16.4+ — a Safari tab silently has no
+   notifications), go to **Reminders**, tap **Turn on**, accept the permission
+   prompt, then **Send a test notification** to confirm the whole chain. Do this
+   on both phones — each device subscribes separately and every device gets
+   every reminder.
+
+Still $0: web push goes through Apple/Google/Mozilla's own push services, and
+cron-job.org's free tier covers this comfortably.
+
 ## Notes
 
 - The access code is a convenience lock for a private two-person app, not serious security. Don't reuse a password you care about.
+- Reminders are sent at most once: the dispatcher marks one as sent as it claims it, so an overlapping run can't double-notify. The trade-off is that a push service outage means a missed nudge rather than a retry storm.
 - All API data flows through the Express backend; the browser never talks to the database directly.
