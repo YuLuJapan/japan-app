@@ -481,10 +481,10 @@
       "trip_id": "trip-japan",
       "zone_id": null,
       "place_id": null,
-      "display_name": "Flight booking (placeholder)",
-      "storage_path": "placeholder-files/flight-booking.pdf",
+      "display_name": "Flight booking — Ethiopian Airlines (AOXIUF)",
+      "storage_path": "trip-files/flight-booking-aoxiuf.pdf",
       "mime_type": "application/pdf",
-      "size_bytes": 948
+      "size_bytes": 181966
     },
     {
       "id": "file-kyoto-map",

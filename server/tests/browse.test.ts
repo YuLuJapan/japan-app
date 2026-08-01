@@ -26,7 +26,7 @@ describe('GET /api/trip', () => {
   it('includes the outbound flight (booking ref + legs) for the countdown', async () => {
     const res = await auth(request(app).get('/api/trip'))
     expect(res.body.flight.booking_ref).toBe('AOXIUF')
-    expect(res.body.flight.depart_at).toBe('2026-09-18T16:15:00+03:00')
+    expect(res.body.flight.depart_at).toBe('2026-09-18T15:35:00+03:00')
     expect(res.body.flight.legs.map((l: { flight_no: string }) => l.flight_no)).toEqual([
       'ET 419',
       'ET 672',

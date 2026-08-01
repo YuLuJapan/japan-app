@@ -11,7 +11,7 @@ export interface FlightLeg {
 export interface FlightInfo {
   airline: string
   booking_ref: string
-  /** First departure (ET 419 out of TLV), as an absolute instant. Israel is UTC+3 in September. */
+  /** First departure (ET 419 out of TLV, 3:35pm), as an absolute instant. Israel is UTC+3 in September. */
   depart_at: string
   legs: FlightLeg[]
 }
@@ -19,7 +19,7 @@ export interface FlightInfo {
 export const FLIGHT: FlightInfo = {
   airline: 'Ethiopian Airlines',
   booking_ref: 'AOXIUF',
-  depart_at: '2026-09-18T16:15:00+03:00',
+  depart_at: '2026-09-18T15:35:00+03:00',
   legs: [
     { flight_no: 'ET 419', from: 'Tel Aviv (TLV)', to: 'Addis Ababa (ADD)' },
     { flight_no: 'ET 672', from: 'Addis Ababa (ADD)', to: 'Narita (NRT)' },
