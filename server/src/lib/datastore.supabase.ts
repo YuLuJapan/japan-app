@@ -15,6 +15,10 @@ import type {
   JourneyStepInput,
   Place,
   PlaceInput,
+  PushSubscriptionInput,
+  PushSubscriptionRecord,
+  Reminder,
+  ReminderInput,
   Tip,
   TipInput,
   Trip,
@@ -39,6 +43,27 @@ const ITINERARY_COLS = `${ITINERARY_BASE_COLS},highlight,icon`
 // (they just have no pins until the migration is applied).
 const PLACE_BASE_COLS = 'id,zone_id,category,name,name_ja,description,address,links,image_url'
 const PLACE_COLS = `${PLACE_BASE_COLS},lat,lng`
+
+// Tables added in migration 0006 (scheduled reminders + push subscriptions).
+const REMINDER_COLS = 'id,trip_id,title,body,url,remind_at,time_zone,sent_at,created_at'
+const SUBSCRIPTION_COLS = 'id,endpoint,p256dh,auth,label,created_at'
+
+/** timestamptz comes back with an offset; normalize so the API always emits UTC. */
+function toIsoUtc(value: string | null): string | null {
+  if (!value) return null
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString()
+}
+
+function rowToReminder(row: Record<string, unknown>): Reminder {
+  const r = row as unknown as Reminder
+  return {
+    ...r,
+    remind_at: toIsoUtc(r.remind_at) ?? r.remind_at,
+    sent_at: toIsoUtc(r.sent_at),
+    created_at: toIsoUtc(r.created_at) ?? r.created_at,
+  }
+}
 
 function isMissingHighlightColumn(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false
@@ -282,7 +307,8 @@ export function createSupabaseStore(): DataStore {
           .order('start_time', { ascending: true, nullsFirst: false })
           .order('position', { ascending: true })
       let { data, error } = await run(ITINERARY_COLS)
-      if (error && isMissingHighlightColumn(error)) ({ data, error } = await run(ITINERARY_BASE_COLS))
+      if (error && isMissingHighlightColumn(error))
+        ({ data, error } = await run(ITINERARY_BASE_COLS))
       if (error) throw new Error(error.message)
       return (data ?? []).map((r) => withHighlightDefaults(r as unknown as Record<string, unknown>))
     },
@@ -375,7 +401,9 @@ export function createSupabaseStore(): DataStore {
     },
 
     async listFiles(parent) {
-      const q = db.from('files').select('id,trip_id,zone_id,place_id,display_name,storage_path,mime_type,size_bytes')
+      const q = db
+        .from('files')
+        .select('id,trip_id,zone_id,place_id,display_name,storage_path,mime_type,size_bytes')
       let res
       if ('trip_id' in parent) res = await q.eq('trip_id', parent.trip_id)
       else if ('zone_id' in parent) res = await q.eq('zone_id', parent.zone_id)
@@ -467,10 +495,130 @@ export function createSupabaseStore(): DataStore {
     },
 
     async saveRates(rates: ExchangeRates) {
-      await db.from('exchange_rates').upsert(
-        { base: rates.base, date: rates.date, usd: rates.usd, ils: rates.ils, fetched_at: new Date().toISOString() },
-        { onConflict: 'base' }
-      )
+      await db
+        .from('exchange_rates')
+        .upsert(
+          {
+            base: rates.base,
+            date: rates.date,
+            usd: rates.usd,
+            ils: rates.ils,
+            fetched_at: new Date().toISOString(),
+          },
+          { onConflict: 'base' }
+        )
+    },
+
+    async listReminders(tripId) {
+      const { data } = await db
+        .from('reminders')
+        .select(REMINDER_COLS)
+        .eq('trip_id', tripId)
+        .order('remind_at', { ascending: true })
+      return ((data as Record<string, unknown>[]) ?? []).map(rowToReminder)
+    },
+
+    async getReminder(reminderId) {
+      const { data } = await db
+        .from('reminders')
+        .select(REMINDER_COLS)
+        .eq('id', reminderId)
+        .maybeSingle()
+      return data ? rowToReminder(data as Record<string, unknown>) : null
+    },
+
+    async createReminder(input: ReminderInput) {
+      const row = {
+        id: randomUUID(),
+        trip_id: input.trip_id,
+        title: input.title,
+        body: input.body ?? null,
+        url: input.url ?? null,
+        remind_at: input.remind_at,
+        time_zone: input.time_zone ?? 'UTC',
+        sent_at: null,
+      }
+      const { data, error } = await db.from('reminders').insert(row).select(REMINDER_COLS).single()
+      if (error) throw new Error(error.message)
+      return rowToReminder(data as Record<string, unknown>)
+    },
+
+    async updateReminder(reminderId, patch) {
+      const fields: Record<string, unknown> = {}
+      if (patch.title !== undefined) fields.title = patch.title
+      if (patch.body !== undefined) fields.body = patch.body ?? null
+      if (patch.url !== undefined) fields.url = patch.url ?? null
+      if (patch.remind_at !== undefined) fields.remind_at = patch.remind_at
+      if (patch.time_zone !== undefined) fields.time_zone = patch.time_zone ?? 'UTC'
+      if (patch.sent_at !== undefined) fields.sent_at = patch.sent_at
+      if (!Object.keys(fields).length) {
+        const { data } = await db
+          .from('reminders')
+          .select(REMINDER_COLS)
+          .eq('id', reminderId)
+          .maybeSingle()
+        return data ? rowToReminder(data as Record<string, unknown>) : null
+      }
+      const { data, error } = await db
+        .from('reminders')
+        .update(fields)
+        .eq('id', reminderId)
+        .select(REMINDER_COLS)
+        .maybeSingle()
+      if (error) throw new Error(error.message)
+      return data ? rowToReminder(data as Record<string, unknown>) : null
+    },
+
+    async deleteReminder(reminderId) {
+      const { data } = await db.from('reminders').delete().eq('id', reminderId).select('id')
+      return (data?.length ?? 0) > 0
+    },
+
+    async claimDueReminders(nowIso) {
+      // One statement: only rows still unsent flip to sent, and only those come
+      // back — so two overlapping dispatch runs can't both claim a reminder.
+      const { data, error } = await db
+        .from('reminders')
+        .update({ sent_at: nowIso })
+        .lte('remind_at', nowIso)
+        .is('sent_at', null)
+        .select(REMINDER_COLS)
+      if (error) throw new Error(error.message)
+      return ((data as Record<string, unknown>[]) ?? []).map(rowToReminder)
+    },
+
+    async listPushSubscriptions() {
+      const { data } = await db
+        .from('push_subscriptions')
+        .select(SUBSCRIPTION_COLS)
+        .order('created_at', { ascending: true })
+      return (data as PushSubscriptionRecord[]) ?? []
+    },
+
+    async savePushSubscription(input: PushSubscriptionInput) {
+      const row = {
+        id: randomUUID(),
+        endpoint: input.endpoint,
+        p256dh: input.p256dh,
+        auth: input.auth,
+        label: input.label ?? null,
+      }
+      const { data, error } = await db
+        .from('push_subscriptions')
+        .upsert(row, { onConflict: 'endpoint' })
+        .select(SUBSCRIPTION_COLS)
+        .single()
+      if (error) throw new Error(error.message)
+      return data as PushSubscriptionRecord
+    },
+
+    async deletePushSubscription(endpoint) {
+      const { data } = await db
+        .from('push_subscriptions')
+        .delete()
+        .eq('endpoint', endpoint)
+        .select('id')
+      return (data?.length ?? 0) > 0
     },
 
     async search(query) {

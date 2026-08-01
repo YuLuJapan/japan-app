@@ -12,8 +12,11 @@ import type {
   JourneyStepInput,
   Place,
   PlaceInput,
+  Reminder,
+  ReminderInput,
   Tip,
 } from './types'
+import type { SubscriptionPayload } from '../lib/push'
 
 function usePlaceInvalidation() {
   const qc = useQueryClient()
@@ -49,8 +52,15 @@ export function useUpdatePlace(placeId: string) {
 export function useSetPlaceCoords(zoneId: string) {
   const invalidate = usePlaceInvalidation()
   return useMutation({
-    mutationFn: ({ placeId, lat, lng }: { placeId: string; lat: number | null; lng: number | null }) =>
-      api.patch<{ place: Place }>(`/places/${placeId}`, { lat, lng }),
+    mutationFn: ({
+      placeId,
+      lat,
+      lng,
+    }: {
+      placeId: string
+      lat: number | null
+      lng: number | null
+    }) => api.patch<{ place: Place }>(`/places/${placeId}`, { lat, lng }),
     onSuccess: (data) => invalidate(zoneId, data.place.id),
   })
 }
@@ -186,5 +196,60 @@ export function useDeleteTip(parent: TipParent) {
   return useMutation({
     mutationFn: (tipId: string) => api.delete<void>(`/tips/${tipId}`),
     onSuccess: invalidate,
+  })
+}
+
+function useReminderInvalidation() {
+  const qc = useQueryClient()
+  return () => qc.invalidateQueries({ queryKey: ['reminders'] })
+}
+
+export function useCreateReminder() {
+  const invalidate = useReminderInvalidation()
+  return useMutation({
+    mutationFn: (input: ReminderInput) => api.post<{ reminder: Reminder }>('/reminders', input),
+    onSuccess: invalidate,
+  })
+}
+
+export function useUpdateReminder() {
+  const invalidate = useReminderInvalidation()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<ReminderInput> }) =>
+      api.patch<{ reminder: Reminder }>(`/reminders/${id}`, patch),
+    onSuccess: invalidate,
+  })
+}
+
+export function useDeleteReminder() {
+  const invalidate = useReminderInvalidation()
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/reminders/${id}`),
+    onSuccess: invalidate,
+  })
+}
+
+// Push subscriptions — one row per device that turned notifications on.
+export function useRegisterPush() {
+  return useMutation({
+    mutationFn: (payload: SubscriptionPayload) =>
+      api.post<{ subscription: { id: string; label: string | null } }>(
+        '/push/subscriptions',
+        payload
+      ),
+  })
+}
+
+export function useUnregisterPush() {
+  return useMutation({
+    mutationFn: (endpoint: string) =>
+      api.delete<void>(`/push/subscriptions?endpoint=${encodeURIComponent(endpoint)}`),
+  })
+}
+
+export function useSendTestPush() {
+  return useMutation({
+    mutationFn: () =>
+      api.post<{ subscriptions: number; sent: number; failed: number }>('/push/test', {}),
   })
 }

@@ -7,7 +7,9 @@ import { geocodeRouter } from './routes/geocode.js'
 import { healthRouter } from './routes/health.js'
 import { itineraryRouter } from './routes/itinerary.js'
 import { placesRouter } from './routes/places.js'
+import { pushRouter } from './routes/push.js'
 import { ratesRouter } from './routes/rates.js'
+import { remindersRouter } from './routes/reminders.js'
 import { searchRouter } from './routes/search.js'
 import { stepsRouter } from './routes/steps.js'
 import { tipsRouter } from './routes/tips.js'
@@ -38,6 +40,8 @@ export function createApp() {
   app.use('/api', searchRouter)
   app.use('/api', ratesRouter)
   app.use('/api', geocodeRouter)
+  app.use('/api', remindersRouter)
+  app.use('/api', pushRouter)
 
   app.use('/api', (_req, _res, next) => next(notFound('Endpoint')))
   app.use(errorMiddleware)

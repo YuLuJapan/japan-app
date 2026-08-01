@@ -158,6 +158,46 @@ Short-lived signed URL for opening/downloading the blob.
 - 200: `{"url":"https://…signed…","expires_in":300}`
 - 404 `NOT_FOUND` (no such row) · 404 `FILE_MISSING` (row exists, blob gone — spec edge case, distinct code so the UI can explain).
 
+## Reminders & notifications
+
+Scheduled nudges ("book the ryokan") delivered as web push notifications. `remind_at` is always an absolute instant (ISO 8601, returned in UTC) so both phones fire together regardless of which zone they're set to; `time_zone` is the IANA zone the wall clock was typed in, kept for display only.
+
+### GET /api/reminders
+- 200: `{"reminders":[{"id":"…","trip_id":"…","title":"…","body":null,"url":null,"remind_at":"2026-09-12T00:00:00.000Z","time_zone":"Asia/Tokyo","sent_at":null,"created_at":"…"}]}` — soonest first.
+
+### POST /api/reminders
+- Request: `{"title":"…","remind_at":"2026-09-12T09:00:00+09:00","body?":"…","url?":"https://… | /places/…","time_zone?":"Asia/Tokyo"}`
+- 201: `{"reminder":{…}}` · 400 `VALIDATION` (missing title, unparseable `remind_at`, bad `url` scheme, unknown time zone).
+
+### PATCH /api/reminders/:reminderId
+- Request: any subset of the POST fields. Moving an already-sent reminder into the future clears `sent_at`, re-arming it.
+- 200: `{"reminder":{…}}` · 400 · 404.
+
+### DELETE /api/reminders/:reminderId
+- 204 · 404.
+
+### GET|POST /api/reminders/dispatch
+Called by the external scheduler, not by the app (see README "Reminders & notifications"). **Exempt from the access-code middleware**; authenticates with `CRON_SECRET` as `Authorization: Bearer …` or `?key=…`, falling back to the trip access code when `CRON_SECRET` is unset. Claims every unsent reminder whose time has passed — stamping `sent_at` in the same operation, so overlapping runs can't double-send — and pushes it to every subscribed device.
+
+- 200: `{"due":1,"subscriptions":2,"sent":2,"failed":0,"dropped":0}` · 401.
+
+### GET /api/push/key
+- 200: `{"public_key":"B…"}` — the VAPID public key the browser needs in order to subscribe, or `null` when the server has no keys configured (the UI then explains that nothing will be delivered).
+
+### POST /api/push/subscriptions
+One row per device; re-subscribing the same endpoint updates its keys.
+
+- Request: `{"endpoint":"https://…","p256dh":"…","auth":"…","label?":"iPhone"}`
+- 201: `{"subscription":{"id":"…","label":"iPhone"}}` — the endpoint is not echoed back · 400 `VALIDATION` · 503 when the server has no VAPID keys.
+
+### DELETE /api/push/subscriptions?endpoint=…
+- 204 · 400 (missing endpoint) · 404.
+
+### POST /api/push/test
+Sends "notifications are working" to every subscribed device.
+
+- 200: `{"subscriptions":1,"sent":1,"failed":0}` · 503 when unconfigured.
+
 ## Ops
 
 ### GET /api/health

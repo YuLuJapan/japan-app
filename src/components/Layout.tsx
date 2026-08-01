@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 
-type IconName = 'journey' | 'essentials' | 'docs'
+type IconName = 'journey' | 'reminders' | 'essentials' | 'docs'
 
 function TabIcon({ name, active }: { name: IconName; active: boolean }) {
   const s = active ? '#ff5a4d' : '#6b7280'
@@ -20,6 +20,13 @@ function TabIcon({ name, active }: { name: IconName; active: boolean }) {
       <svg {...common}>
         <path d="M12 21s-7-6.3-7-11a7 7 0 0 1 14 0c0 4.7-7 11-7 11Z" />
         <circle cx="12" cy="10" r="2.5" />
+      </svg>
+    )
+  if (name === 'reminders')
+    return (
+      <svg {...common}>
+        <path d="M18 8a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6" />
+        <path d="M10.5 20a2 2 0 0 0 3 0" />
       </svg>
     )
   if (name === 'essentials')
@@ -41,6 +48,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
   const journeyActive =
     pathname === '/' || pathname.startsWith('/zones') || pathname.startsWith('/places')
+  const remindersActive = pathname.startsWith('/reminders')
   const essentialsActive = pathname.startsWith('/essentials')
   const docsActive = pathname.startsWith('/files')
 
@@ -70,7 +78,16 @@ export function Layout({ children }: { children: ReactNode }) {
           aria-label="Search"
           className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-white text-ink active:scale-95"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <circle cx="11" cy="11" r="7" />
             <path d="m21 21-4.3-4.3" />
           </svg>
@@ -80,6 +97,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-app px-4">
           {tab('/', 'journey', 'Journey', journeyActive)}
+          {tab('/reminders', 'reminders', 'Reminders', remindersActive)}
           {tab('/essentials', 'essentials', 'Essentials', essentialsActive)}
           {tab('/files', 'docs', 'Documents', docsActive)}
         </div>

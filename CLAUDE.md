@@ -25,6 +25,7 @@ npm run format          # prettier --write .
 npm run build            # production bundle (vite build; currently ~86 KB gzip JS)
 npm run preview           # serve the production build locally
 
+npm run push:keys     # generate the VAPID key pair for web push (run once, see README)
 npm run seed          # seed Supabase rows (only relevant once DATA_BACKEND=supabase)
 npm run seed:files     # seed Supabase Storage blobs
 npm run check:db        # sanity-check the Supabase connection
@@ -37,16 +38,20 @@ There is no separate typecheck script; `tsc` runs implicitly via Vite/vitest. Ru
 ## Architecture
 
 **Two runtimes sharing one Express app.** `server/src/app.ts` assembles all routes/middleware and is imported by both entry points:
+
 - `server/dev.ts` — local dev, listens on `API_PORT` (3001), Vite proxies `/api` to it.
 - `api/index.ts` — the same app exported as a single Vercel serverless function (all `/api/*` traffic in production, routed by `vercel.json`). Relative imports here use explicit `.js` extensions because it's plain ESM run through Node's loader/Vercel's per-file transpile — keep that convention for any new file under `server/`.
 
 **Backend layering:** `routes/` (Express handlers, thin — just call a service and shape the response) → `services/` (validation + business logic, one file per entity) → a single `DataStore` interface (`server/src/lib/datastore.ts`). Every service takes the store as an argument; **never import a concrete backend (`datastore.memory.ts` / `datastore.supabase.ts`) directly** — always go through `getDataStore()`. This is what makes the backend swappable and the services unit-testable with a fixture store.
 
 **Swappable datastore, selected by `DATA_BACKEND` env var:**
+
 - `memory` (default, current state) — in-memory store seeded from `server/src/data/placeholder-data.json`; edits persist only until the process restarts. This JSON is real content, not throwaway fixture data — it's the source of truth for trip content today and will be seeded into Supabase later, so edit it directly when updating trip info (or edit through the running app).
 - `supabase` — Postgres + Storage, not yet activated. Schema lives in `supabase/migrations/*.sql` (numbered, sequential — add a new file rather than editing old ones). Activating it is pure config (env vars + running the SQL + `npm run seed`), no application code changes — see README.md "Infrastructure activation" for the exact steps if asked to do this.
 
 Tests override the store via `setDataStore()` (see `server/tests/fixture.ts` and the `beforeEach` in any `server/tests/*.test.ts`) rather than touching env vars.
+
+**Reminders & web push:** `Reminder` rows carry an absolute `remind_at` instant; nothing in the app polls them. An _external_ scheduler (cron-job.org or Supabase pg_cron — Vercel Hobby cron only fires daily) calls `POST /api/reminders/dispatch`, which claims due reminders (stamping `sent_at` in the same store operation, so overlapping runs can't double-send) and pushes them to every row in `push_subscriptions` via `server/src/lib/push.ts`. That dispatch route is the only one exempt from the access code besides `/api/health` — it checks `CRON_SECRET` itself. Push is entirely optional at runtime: with no `VAPID_*` env vars the API reports `public_key: null` and the UI explains that reminders won't be delivered, rather than failing. The browser half lives in `src/lib/push.ts` + `public/push-sw.js` (folded into the generated service worker via `workbox.importScripts`). Setup steps are in README "Reminders & notifications".
 
 **Auth:** one shared bearer access code (`TRIP_ACCESS_CODE`) for both travelers — not per-user auth. `authMiddleware` (`server/src/lib/auth.ts`) exempts only `/api/health` and `/api/auth/verify`. Frontend stores the code in `localStorage` (`src/api/client.ts`); a 401 anywhere clears it and redirects to `/gate`. This is a convenience lock, not real security (documented in README) — don't add stronger auth machinery unless asked.
 
@@ -60,7 +65,7 @@ Tests override the store via `setDataStore()` (see `server/tests/fixture.ts` and
 
 - No semicolons, single quotes, 100-char print width (`.prettierrc`); run `npm run format` rather than hand-wrapping lines.
 - ESLint flags unused vars/params as errors except when prefixed `_`.
-- Services validate input and collect *all* validation errors into one array (see `collectPlaceErrors` pattern in `server/src/services/places.ts`) rather than throwing on the first bad field — mirror this pattern for new entities.
+- Services validate input and collect _all_ validation errors into one array (see `collectPlaceErrors` pattern in `server/src/services/places.ts`) rather than throwing on the first bad field — mirror this pattern for new entities.
 - `Partial<...>Input` + a `partial: boolean` flag is the standard shape for validating both POST (full) and PATCH (partial) bodies with one function.
 - Deleting a place reparents its files to the trip first (`reparentFilesToTrip`) — "no silent file loss" is a deliberate product rule, not an oversight; keep that in mind for any other delete-cascade logic.
 - Vitest is configured as two projects in one run (`vitest.config.ts`): `web` (jsdom, `src/tests/**/*.test.tsx`) and `server` (node, `server/tests/**/*.test.ts`). Server tests use `supertest` against `createApp()` with a fixture datastore; web tests use React Testing Library with helpers in `src/tests/helpers.tsx`.

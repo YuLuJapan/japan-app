@@ -1,0 +1,352 @@
+// Reminders: schedule a nudge ("book the ryokan") that arrives as a phone
+// notification even when the app is closed. Times are stored as absolute
+// instants — the chip picks whether the wall clock you typed means your phone's
+// zone or Japan's, which matters before (and during) the flight.
+import { useState } from 'react'
+import { ApiError } from '../api/client'
+import { useReminders } from '../api/hooks'
+import { useCreateReminder, useDeleteReminder, useUpdateReminder } from '../api/mutations'
+import type { Reminder, ReminderInput } from '../api/types'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+import { ErrorState } from '../components/ErrorState'
+import { Loading } from '../components/Loading'
+import { NotificationSetup } from '../components/NotificationSetup'
+import {
+  TOKYO_TZ,
+  deviceTimeZone,
+  formatInTimeZone,
+  instantToWallClock,
+  relativeTime,
+  timeZoneLabel,
+  wallClockToInstant,
+} from '../lib/reminders'
+
+const errorText = (error: unknown) =>
+  error instanceof ApiError ? (error.details?.join(' · ') ?? error.message) : 'Something went wrong'
+
+export default function Reminders() {
+  const reminders = useReminders()
+  const [adding, setAdding] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const create = useCreateReminder()
+  const update = useUpdateReminder()
+  const remove = useDeleteReminder()
+
+  if (reminders.isPending) return <Loading label="Loading reminders…" />
+  if (reminders.isError)
+    return <ErrorState message="Could not load reminders." onRetry={() => reminders.refetch()} />
+
+  const now = new Date()
+  const all = reminders.data.reminders
+  const upcoming = all.filter((r) => !r.sent_at && new Date(r.remind_at) > now)
+  const past = all.filter((r) => r.sent_at || new Date(r.remind_at) <= now).reverse()
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="font-display text-2xl font-extrabold">Reminders</h1>
+        <p className="mt-1 text-sm text-muted">
+          Get a notification when it&apos;s time to book a restaurant, a bus seat or an activity.
+        </p>
+      </div>
+
+      <NotificationSetup />
+
+      {adding ? (
+        <div className="card p-4">
+          <ReminderForm
+            pending={create.isPending}
+            error={create.isError ? errorText(create.error) : null}
+            submitLabel="Add reminder"
+            onCancel={() => setAdding(false)}
+            onSubmit={(input) => create.mutate(input, { onSuccess: () => setAdding(false) })}
+          />
+        </div>
+      ) : (
+        <button type="button" className="btn-primary w-full" onClick={() => setAdding(true)}>
+          + New reminder
+        </button>
+      )}
+
+      <section className="space-y-2">
+        <h2 className="section-title">Upcoming</h2>
+        {upcoming.length === 0 && <p className="text-sm text-muted">Nothing scheduled yet.</p>}
+        {upcoming.map((reminder) =>
+          editingId === reminder.id ? (
+            <div key={reminder.id} className="card p-4">
+              <ReminderForm
+                initial={reminder}
+                pending={update.isPending}
+                error={update.isError ? errorText(update.error) : null}
+                submitLabel="Save"
+                onCancel={() => setEditingId(null)}
+                onSubmit={(patch) =>
+                  update.mutate({ id: reminder.id, patch }, { onSuccess: () => setEditingId(null) })
+                }
+              />
+            </div>
+          ) : (
+            <ReminderCard
+              key={reminder.id}
+              reminder={reminder}
+              now={now}
+              onEdit={() => setEditingId(reminder.id)}
+              onDelete={() => setDeletingId(reminder.id)}
+            />
+          )
+        )}
+      </section>
+
+      {past.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="section-title">Done</h2>
+          {past.map((reminder) => (
+            <ReminderCard
+              key={reminder.id}
+              reminder={reminder}
+              now={now}
+              onEdit={() => setEditingId(reminder.id)}
+              onDelete={() => setDeletingId(reminder.id)}
+            />
+          ))}
+        </section>
+      )}
+
+      <ConfirmDialog
+        open={deletingId !== null}
+        title="Delete this reminder?"
+        message="It won't be sent."
+        confirmLabel="Delete"
+        onCancel={() => setDeletingId(null)}
+        onConfirm={() => {
+          if (deletingId) remove.mutate(deletingId)
+          setDeletingId(null)
+        }}
+      />
+    </div>
+  )
+}
+
+function ReminderCard({
+  reminder,
+  now,
+  onEdit,
+  onDelete,
+}: {
+  reminder: Reminder
+  now: Date
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  const zone = reminder.time_zone || deviceTimeZone()
+  const done = Boolean(reminder.sent_at)
+  return (
+    <article className={`card p-4 ${done ? 'opacity-60' : ''}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="font-semibold leading-snug">{reminder.title}</h3>
+          <p className="mt-0.5 text-sm text-muted">
+            {formatInTimeZone(reminder.remind_at, zone)}{' '}
+            <span className="text-xs">({timeZoneLabel(zone)})</span>
+          </p>
+          <p className="text-xs text-muted">
+            {done ? 'Sent' : relativeTime(reminder.remind_at, now)}
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-1">
+          <button
+            type="button"
+            aria-label="Edit reminder"
+            className="rounded-full border border-line px-3 py-1 text-xs font-semibold"
+            onClick={onEdit}
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            aria-label="Delete reminder"
+            className="rounded-full border border-brand/30 px-3 py-1 text-xs font-semibold text-brand"
+            onClick={onDelete}
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+      {reminder.body && <p className="mt-2 text-sm text-ink/80">{reminder.body}</p>}
+      {reminder.url && (
+        <a
+          href={reminder.url}
+          target={reminder.url.startsWith('/') ? undefined : '_blank'}
+          rel="noreferrer"
+          className="mt-2 inline-block text-sm font-semibold text-brand"
+        >
+          Open link ›
+        </a>
+      )}
+    </article>
+  )
+}
+
+interface FormProps {
+  initial?: Reminder
+  pending: boolean
+  error: string | null
+  submitLabel: string
+  onCancel: () => void
+  onSubmit: (input: ReminderInput) => void
+}
+
+function ReminderForm({ initial, pending, error, submitLabel, onCancel, onSubmit }: FormProps) {
+  const device = deviceTimeZone()
+  const [zone, setZone] = useState(initial?.time_zone || device)
+  const [title, setTitle] = useState(initial?.title ?? '')
+  const [body, setBody] = useState(initial?.body ?? '')
+  const [url, setUrl] = useState(initial?.url ?? '')
+  const [date, setDate] = useState(() =>
+    initial ? instantToWallClock(initial.remind_at, zone).date : todayIn(device)
+  )
+  const [time, setTime] = useState(() =>
+    initial ? instantToWallClock(initial.remind_at, zone).time : '09:00'
+  )
+
+  // The chip says which zone the typed wall clock belongs to; the preview line
+  // below shows the same instant in the other zone so there's no guessing.
+  const preview = date && time ? wallClockToInstant(date, time, zone) : null
+  const otherZone = zone === TOKYO_TZ ? device : TOKYO_TZ
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!title.trim() || !date || !time) return
+    onSubmit({
+      title: title.trim(),
+      body: body.trim() || null,
+      url: url.trim() || null,
+      remind_at: wallClockToInstant(date, time, zone).toISOString(),
+      time_zone: zone,
+    })
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-3">
+      <div>
+        <label className="label" htmlFor="reminder-title">
+          What to do
+        </label>
+        <input
+          id="reminder-title"
+          className="field"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Book the sushi place in Kanazawa"
+          maxLength={120}
+          required
+        />
+      </div>
+
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <label className="label" htmlFor="reminder-date">
+            Date
+          </label>
+          <input
+            id="reminder-date"
+            type="date"
+            className="field"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            required
+          />
+        </div>
+        <div className="w-32">
+          <label className="label" htmlFor="reminder-time">
+            Time
+          </label>
+          <input
+            id="reminder-time"
+            type="time"
+            className="field"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            required
+          />
+        </div>
+      </div>
+
+      <div>
+        <span className="label">Time zone</span>
+        <div className="flex gap-2">
+          {[device, TOKYO_TZ]
+            .filter((tz, i, list) => list.indexOf(tz) === i)
+            .map((tz) => (
+              <button
+                key={tz}
+                type="button"
+                onClick={() => setZone(tz)}
+                className={`chip border ${
+                  zone === tz ? 'border-brand bg-brand/10 text-brand' : 'border-line bg-white'
+                }`}
+              >
+                {tz === TOKYO_TZ ? '🇯🇵 Japan' : `📍 ${timeZoneLabel(tz)}`}
+              </button>
+            ))}
+        </div>
+        {preview && (
+          <p className="mt-1.5 text-xs text-muted">
+            {formatInTimeZone(preview.toISOString(), otherZone)} in {timeZoneLabel(otherZone)}
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label className="label" htmlFor="reminder-body">
+          Note (optional)
+        </label>
+        <textarea
+          id="reminder-body"
+          className="field min-h-20"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder="Ask for the counter seats, 2 people"
+          maxLength={500}
+        />
+      </div>
+
+      <div>
+        <label className="label" htmlFor="reminder-url">
+          Link (optional)
+        </label>
+        <input
+          id="reminder-url"
+          className="field"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://…  (opens when you tap the notification)"
+          maxLength={500}
+        />
+      </div>
+
+      {error && <p className="text-sm font-semibold text-brand">{error}</p>}
+
+      <div className="flex gap-2">
+        <button type="button" className="btn-ghost flex-1" onClick={onCancel}>
+          Cancel
+        </button>
+        <button type="submit" className="btn-primary flex-1" disabled={pending}>
+          {pending ? 'Saving…' : submitLabel}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+/** Today's date (YYYY-MM-DD) as seen in `tz`, for the date input's default. */
+function todayIn(tz: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
