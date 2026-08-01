@@ -20,6 +20,10 @@ import type {
   JourneyStepInput,
   Place,
   PlaceInput,
+  PushSubscriptionInput,
+  PushSubscriptionRecord,
+  Reminder,
+  ReminderInput,
   Tip,
   TipInput,
   Trip,
@@ -36,6 +40,7 @@ export interface MemoryData {
   tips: Tip[]
   files: FileAttachment[]
   itinerary?: ItineraryItem[]
+  reminders?: Reminder[]
 }
 
 function loadPlaceholderData(): MemoryData {
@@ -68,6 +73,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
   // deep clone so mutations never touch the caller's fixture or the JSON module cache
   const db: MemoryData = structuredClone(initial ?? loadPlaceholderData())
   db.itinerary ??= [] // optional in older fixtures
+  db.reminders ??= []
   // backfill fields added after some fixtures/seed rows were written
   for (const i of db.itinerary) {
     i.highlight ??= false
@@ -76,6 +82,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
   // uploaded blobs live in memory only (dev/tests); seeded samples come from public/
   const blobs = new Map<string, { bytes: Buffer; mime: string }>()
   let latestRates: ExchangeRates | null = null
+  const subscriptions: PushSubscriptionRecord[] = []
 
   const emptyCounts = (): Record<Category, number> =>
     Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<Category, number>
@@ -364,6 +371,90 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
 
     async saveRates(rates: ExchangeRates) {
       latestRates = { ...rates }
+    },
+
+    async listReminders(tripId) {
+      return db
+        .reminders!.filter((r) => r.trip_id === tripId)
+        .sort((a, b) => (a.remind_at < b.remind_at ? -1 : a.remind_at > b.remind_at ? 1 : 0))
+        .map((r) => structuredClone(r))
+    },
+
+    async getReminder(reminderId) {
+      const found = db.reminders!.find((r) => r.id === reminderId)
+      return found ? structuredClone(found) : null
+    },
+
+    async createReminder(input: ReminderInput) {
+      const reminder: Reminder = {
+        id: randomUUID(),
+        trip_id: input.trip_id,
+        title: input.title,
+        body: input.body ?? null,
+        url: input.url ?? null,
+        remind_at: input.remind_at,
+        time_zone: input.time_zone ?? 'UTC',
+        sent_at: null,
+        created_at: new Date().toISOString(),
+      }
+      db.reminders!.push(reminder)
+      return structuredClone(reminder)
+    },
+
+    async updateReminder(reminderId, patch) {
+      const reminder = db.reminders!.find((r) => r.id === reminderId)
+      if (!reminder) return null
+      if (patch.title !== undefined) reminder.title = patch.title
+      if (patch.body !== undefined) reminder.body = patch.body ?? null
+      if (patch.url !== undefined) reminder.url = patch.url ?? null
+      if (patch.remind_at !== undefined) reminder.remind_at = patch.remind_at
+      if (patch.time_zone !== undefined) reminder.time_zone = patch.time_zone ?? 'UTC'
+      if (patch.sent_at !== undefined) reminder.sent_at = patch.sent_at
+      return structuredClone(reminder)
+    },
+
+    async deleteReminder(reminderId) {
+      const idx = db.reminders!.findIndex((r) => r.id === reminderId)
+      if (idx === -1) return false
+      db.reminders!.splice(idx, 1)
+      return true
+    },
+
+    async claimDueReminders(nowIso) {
+      const due = db.reminders!.filter((r) => r.sent_at === null && r.remind_at <= nowIso)
+      for (const r of due) r.sent_at = nowIso
+      return due.map((r) => structuredClone(r))
+    },
+
+    async listPushSubscriptions() {
+      return subscriptions.map((s) => ({ ...s }))
+    },
+
+    async savePushSubscription(input: PushSubscriptionInput) {
+      const existing = subscriptions.find((s) => s.endpoint === input.endpoint)
+      if (existing) {
+        existing.p256dh = input.p256dh
+        existing.auth = input.auth
+        if (input.label !== undefined) existing.label = input.label ?? null
+        return { ...existing }
+      }
+      const record: PushSubscriptionRecord = {
+        id: randomUUID(),
+        endpoint: input.endpoint,
+        p256dh: input.p256dh,
+        auth: input.auth,
+        label: input.label ?? null,
+        created_at: new Date().toISOString(),
+      }
+      subscriptions.push(record)
+      return { ...record }
+    },
+
+    async deletePushSubscription(endpoint) {
+      const idx = subscriptions.findIndex((s) => s.endpoint === endpoint)
+      if (idx === -1) return false
+      subscriptions.splice(idx, 1)
+      return true
     },
 
     async search(query) {

@@ -1,10 +1,11 @@
 // Shared-access-code auth (research R8): one code for both travelers, sent as
-// a bearer token on every API call. Exempt: /api/health (cron) and
-// /api/auth/verify (the gate screen itself).
+// a bearer token on every API call. Exempt: /api/health (cron),
+// /api/auth/verify (the gate screen itself) and /api/reminders/dispatch, which
+// is called by the external scheduler and checks CRON_SECRET itself.
 import type { NextFunction, Request, Response } from 'express'
 import { ApiError } from './errors.js'
 
-const EXEMPT_PATHS = new Set(['/api/health', '/api/auth/verify'])
+const EXEMPT_PATHS = new Set(['/api/health', '/api/auth/verify', '/api/reminders/dispatch'])
 
 export function accessCode(): string {
   const code = process.env.TRIP_ACCESS_CODE

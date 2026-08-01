@@ -304,7 +304,7 @@ export function ZoneMap({ zoneId, zoneName, center, places }: ZoneMapProps) {
         {/* the map */}
         <div
           ref={mapWrapRef}
-          className="relative h-72 w-full overflow-hidden rounded-3xl shadow-card ring-1 ring-line"
+          className="relative isolate h-72 w-full overflow-hidden rounded-3xl shadow-card ring-1 ring-line"
         >
           <MapContainer
             center={center}

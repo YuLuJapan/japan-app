@@ -114,8 +114,10 @@ export function TripMap({ cities }: { cities: MapCity[] }) {
 
   const center: [number, number] = cities.length ? [cities[0].lat, cities[0].lng] : [36.2, 138.0]
 
+  // isolate: keeps this map's stacking (Leaflet panes, the Re-center button)
+  // below the app header/nav instead of painting over them.
   return (
-    <div className="relative h-full w-full">
+    <div className="relative isolate h-full w-full">
       <MapContainer
         center={center}
         zoom={6}
@@ -152,7 +154,16 @@ export function TripMap({ cities }: { cities: MapCity[] }) {
           onClick={() => recenterRef.current?.()}
           className="absolute right-3 top-3 z-[1000] flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-card ring-1 ring-line backdrop-blur active:scale-95"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <circle cx="12" cy="12" r="3" />
             <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
           </svg>
