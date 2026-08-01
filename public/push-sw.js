@@ -14,15 +14,29 @@ self.addEventListener('push', (event) => {
 
   const title = data.title || 'Japan 旅'
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: data.body || '',
-      icon: '/icon-192.png',
-      badge: '/favicon-32.png',
-      // one notification per reminder — a re-send replaces rather than stacks
-      tag: data.tag || 'reminder',
-      renotify: true,
-      data: { url: data.url || '/reminders' },
-    })
+    (async () => {
+      await self.registration.showNotification(title, {
+        body: data.body || '',
+        icon: '/icon-192.png',
+        badge: '/favicon-32.png',
+        // one notification per reminder — a re-send replaces rather than stacks
+        tag: data.tag || 'reminder',
+        renotify: true,
+        data: { url: data.url || '/reminders' },
+      })
+
+      // Home Screen icon badge — best-effort, unsupported browsers no-op.
+      // A plain dot (no count): with renotify above there's only ever one
+      // live notification anyway, so a number would be misleading.
+      if ('setAppBadge' in navigator) {
+        await navigator.setAppBadge().catch(() => undefined)
+      }
+
+      // Tell any open tab to light up the in-app dot without waiting for a
+      // navigation — the Reminders tab is what clears both of these.
+      const openClients = await clients.matchAll({ type: 'window', includeUncontrolled: true })
+      for (const client of openClients) client.postMessage({ type: 'reminder-badge' })
+    })()
   )
 })
 

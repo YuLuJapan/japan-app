@@ -1,9 +1,19 @@
 import type { ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { clearReminderBadge, hasUnseenReminder } from '../lib/push'
 
 type IconName = 'journey' | 'shopping' | 'reminders' | 'essentials' | 'docs'
 
-function TabIcon({ name, active }: { name: IconName; active: boolean }) {
+function TabIcon({
+  name,
+  active,
+  dot = false,
+}: {
+  name: IconName
+  active: boolean
+  dot?: boolean
+}) {
   const s = active ? '#ff5a4d' : '#6b7280'
   const common = {
     width: 22,
@@ -15,39 +25,52 @@ function TabIcon({ name, active }: { name: IconName; active: boolean }) {
     strokeLinecap: 'round' as const,
     strokeLinejoin: 'round' as const,
   }
+  let icon: ReactNode
   if (name === 'journey')
-    return (
+    icon = (
       <svg {...common}>
         <path d="M12 21s-7-6.3-7-11a7 7 0 0 1 14 0c0 4.7-7 11-7 11Z" />
         <circle cx="12" cy="10" r="2.5" />
       </svg>
     )
-  if (name === 'shopping')
-    return (
+  else if (name === 'shopping')
+    icon = (
       <svg {...common}>
         <path d="M4 8h16l-1.2 11a2 2 0 0 1-2 1.8H7.2a2 2 0 0 1-2-1.8L4 8Z" />
         <path d="M9 11V6a3 3 0 0 1 6 0v5" />
       </svg>
     )
-  if (name === 'reminders')
-    return (
+  else if (name === 'reminders')
+    icon = (
       <svg {...common}>
         <path d="M18 8a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6" />
         <path d="M10.5 20a2 2 0 0 0 3 0" />
       </svg>
     )
-  if (name === 'essentials')
-    return (
+  else if (name === 'essentials')
+    icon = (
       <svg {...common}>
         <circle cx="12" cy="12" r="9" />
         <path d="M12 8h.01M11 12h1v4h1" />
       </svg>
     )
+  else
+    icon = (
+      <svg {...common}>
+        <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+        <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z" />
+      </svg>
+    )
   return (
-    <svg {...common}>
-      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-      <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z" />
-    </svg>
+    <span className="relative inline-flex">
+      {icon}
+      {dot && (
+        <span
+          aria-label="Unread reminder"
+          className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-white"
+        />
+      )}
+    </span>
   )
 }
 
@@ -60,16 +83,58 @@ export function Layout({ children }: { children: ReactNode }) {
   const essentialsActive = pathname.startsWith('/essentials')
   const docsActive = pathname.startsWith('/files')
 
+  // Red dot on the Reminders tab for a push nobody's looked at yet. Visiting
+  // the tab is what clears it (below); an open tab also lights up live via a
+  // message from the service worker, so you don't have to switch tabs and
+  // back to notice.
+  const [unseenReminder, setUnseenReminder] = useState(false)
+  const remindersActiveRef = useRef(remindersActive)
+  remindersActiveRef.current = remindersActive
+
+  useEffect(() => {
+    let active = true
+    if (remindersActive) {
+      clearReminderBadge().then(() => active && setUnseenReminder(false))
+    } else {
+      hasUnseenReminder()
+        .then((unseen) => active && setUnseenReminder(unseen))
+        .catch(() => undefined)
+    }
+    return () => {
+      active = false
+    }
+  }, [remindersActive])
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return
+    // Captured once so cleanup doesn't depend on the global still pointing at
+    // the same object by the time this effect tears down.
+    const container = navigator.serviceWorker
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'reminder-badge' && !remindersActiveRef.current) {
+        setUnseenReminder(true)
+      }
+    }
+    container.addEventListener('message', onMessage)
+    return () => container.removeEventListener('message', onMessage)
+  }, [])
+
   // Five tabs share a 360px phone, so the labels stay tight — otherwise
   // "Reminders"/"Essentials"/"Documents" run into each other.
-  const tab = (to: string, name: IconName, label: string, active: boolean) => (
+  const tab = (
+    to: string,
+    name: IconName,
+    label: string,
+    active: boolean,
+    dot: boolean = false
+  ) => (
     <Link
       to={to}
       className={`flex min-h-14 flex-1 flex-col items-center justify-center gap-1 px-0.5 text-[10px] font-semibold tracking-tight ${
         active ? 'text-brand' : 'text-muted'
       }`}
     >
-      <TabIcon name={name} active={active} />
+      <TabIcon name={name} active={active} dot={dot} />
       {label}
     </Link>
   )
@@ -108,7 +173,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="mx-auto flex max-w-app px-4">
           {tab('/', 'journey', 'Journey', journeyActive)}
           {tab('/shopping', 'shopping', 'Shopping', shoppingActive)}
-          {tab('/reminders', 'reminders', 'Reminders', remindersActive)}
+          {tab('/reminders', 'reminders', 'Reminders', remindersActive, unseenReminder)}
           {tab('/essentials', 'essentials', 'Essentials', essentialsActive)}
           {tab('/files', 'docs', 'Documents', docsActive)}
         </div>

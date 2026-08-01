@@ -97,6 +97,29 @@ export async function disablePush(): Promise<string | null> {
   return endpoint
 }
 
+/**
+ * Whether a push has arrived that nobody has looked at yet — drives the red
+ * dot on the Reminders tab. Backed by the notification tray itself (via the
+ * 'reminder' tag the service worker sends with) rather than separate storage,
+ * so it can never drift from what's actually showing.
+ */
+export async function hasUnseenReminder(): Promise<boolean> {
+  if (pushSupport() !== 'ready') return false
+  const registration = await navigator.serviceWorker.getRegistration()
+  if (!registration) return false
+  const notifications = await registration.getNotifications({ tag: 'reminder' })
+  return notifications.length > 0
+}
+
+/** Dismisses the tray notification and the Home Screen icon badge alike. */
+export async function clearReminderBadge(): Promise<void> {
+  const registration =
+    'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined
+  const notifications = (await registration?.getNotifications({ tag: 'reminder' })) ?? []
+  notifications.forEach((notification) => notification.close())
+  if ('clearAppBadge' in navigator) await navigator.clearAppBadge().catch(() => undefined)
+}
+
 /** A human name for this device, so the subscription list is readable. */
 export function deviceLabel(): string {
   const ua = navigator.userAgent
