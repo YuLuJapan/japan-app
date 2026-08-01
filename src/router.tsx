@@ -9,6 +9,8 @@ import NotFound from './pages/NotFound'
 import PlaceDetail from './pages/PlaceDetail'
 import PlaceForm from './pages/PlaceForm'
 import Search from './pages/Search'
+import ShoppingForm from './pages/ShoppingForm'
+import ShoppingList from './pages/ShoppingList'
 import TripEssentials from './pages/TripEssentials'
 import TripFiles from './pages/TripFiles'
 import Zone from './pages/Zone'
@@ -36,6 +38,9 @@ export const router = createBrowserRouter([
       { path: '/places/:placeId', element: <PlaceDetail /> },
       { path: '/places/:placeId/edit', element: <PlaceForm /> },
       { path: '/search', element: <Search /> },
+      { path: '/shopping', element: <ShoppingList /> },
+      { path: '/shopping/new', element: <ShoppingForm /> },
+      { path: '/shopping/:itemId/edit', element: <ShoppingForm /> },
       { path: '/essentials', element: <TripEssentials /> },
       { path: '/files', element: <TripFiles /> },
       { path: '*', element: <NotFound /> },

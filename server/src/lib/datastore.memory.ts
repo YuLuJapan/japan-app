@@ -19,6 +19,8 @@ import type {
   JourneyStepInput,
   Place,
   PlaceInput,
+  ShoppingItem,
+  ShoppingItemInput,
   Tip,
   TipInput,
   Trip,
@@ -35,6 +37,7 @@ export interface MemoryData {
   tips: Tip[]
   files: FileAttachment[]
   itinerary?: ItineraryItem[]
+  shopping?: ShoppingItem[]
 }
 
 function loadPlaceholderData(): MemoryData {
@@ -63,10 +66,19 @@ function compareItinerary(a: ItineraryItem, b: ItineraryItem): number {
   return a.id < b.id ? -1 : 1
 }
 
+// Shopping list order: unbought items first (that's the working list), then
+// manual position, then id — bought items sink to the bottom.
+function compareShopping(a: ShoppingItem, b: ShoppingItem): number {
+  if (a.bought !== b.bought) return a.bought ? 1 : -1
+  if (a.position !== b.position) return a.position - b.position
+  return a.id < b.id ? -1 : 1
+}
+
 export function createMemoryStore(initial?: MemoryData): DataStore {
   // deep clone so mutations never touch the caller's fixture or the JSON module cache
   const db: MemoryData = structuredClone(initial ?? loadPlaceholderData())
   db.itinerary ??= [] // optional in older fixtures
+  db.shopping ??= []
   // backfill fields added after some fixtures/seed rows were written
   for (const i of db.itinerary) {
     i.highlight ??= false
@@ -252,6 +264,52 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       const i = db.itinerary!.findIndex((x) => x.id === itemId)
       if (i === -1) return false
       db.itinerary!.splice(i, 1)
+      return true
+    },
+
+    async listShoppingItems(tripId) {
+      return db.shopping!.filter((s) => s.trip_id === tripId).sort(compareShopping)
+    },
+
+    async createShoppingItem(input: ShoppingItemInput) {
+      const item: ShoppingItem = {
+        id: randomUUID(),
+        trip_id: input.trip_id,
+        name: input.name,
+        category: input.category ?? 'other',
+        note: input.note ?? null,
+        shop: input.shop ?? null,
+        zone_id: input.zone_id ?? null,
+        price_yen: input.price_yen ?? null,
+        url: input.url ?? null,
+        image_url: input.image_url ?? null,
+        bought: input.bought ?? false,
+        position: input.position ?? 0,
+      }
+      db.shopping!.push(item)
+      return structuredClone(item)
+    },
+
+    async updateShoppingItem(itemId, patch) {
+      const item = db.shopping!.find((s) => s.id === itemId)
+      if (!item) return null
+      if (patch.name !== undefined) item.name = patch.name
+      if (patch.category !== undefined) item.category = patch.category ?? 'other'
+      if (patch.note !== undefined) item.note = patch.note ?? null
+      if (patch.shop !== undefined) item.shop = patch.shop ?? null
+      if (patch.zone_id !== undefined) item.zone_id = patch.zone_id ?? null
+      if (patch.price_yen !== undefined) item.price_yen = patch.price_yen ?? null
+      if (patch.url !== undefined) item.url = patch.url ?? null
+      if (patch.image_url !== undefined) item.image_url = patch.image_url ?? null
+      if (patch.bought !== undefined) item.bought = patch.bought ?? false
+      if (patch.position !== undefined) item.position = patch.position ?? 0
+      return structuredClone(item)
+    },
+
+    async deleteShoppingItem(itemId) {
+      const i = db.shopping!.findIndex((s) => s.id === itemId)
+      if (i === -1) return false
+      db.shopping!.splice(i, 1)
       return true
     },
 

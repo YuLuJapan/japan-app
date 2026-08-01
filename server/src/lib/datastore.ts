@@ -101,6 +101,47 @@ export interface ItineraryItemInput {
   icon?: string | null
 }
 
+// Shopping list ("things to buy in Japan") — trip-level, not tied to a zone.
+export const SHOPPING_CATEGORIES = [
+  'clothes',
+  'beauty',
+  'tech',
+  'snacks',
+  'home',
+  'souvenir',
+  'other',
+] as const
+export type ShoppingCategory = (typeof SHOPPING_CATEGORIES)[number]
+
+export interface ShoppingItem {
+  id: string
+  trip_id: string
+  name: string
+  category: ShoppingCategory
+  note: string | null // which model/size/colour, why we want it
+  shop: string | null // where to buy it ("Uniqlo Ginza", "Don Quijote")
+  zone_id: string | null // optional city the shop is in
+  price_yen: number | null // what it should cost, in yen
+  url: string | null // product/reference link
+  image_url: string | null
+  bought: boolean
+  position: number
+}
+
+export interface ShoppingItemInput {
+  trip_id: string
+  name: string
+  category?: ShoppingCategory
+  note?: string | null
+  shop?: string | null
+  zone_id?: string | null
+  price_yen?: number | null
+  url?: string | null
+  image_url?: string | null
+  bought?: boolean
+  position?: number
+}
+
 export interface FileAttachment {
   id: string
   trip_id: string | null
@@ -185,6 +226,14 @@ export interface DataStore {
     patch: Partial<ItineraryItemInput>
   ): Promise<ItineraryItem | null>
   deleteItineraryItem(itemId: string): Promise<boolean>
+
+  listShoppingItems(tripId: string): Promise<ShoppingItem[]>
+  createShoppingItem(input: ShoppingItemInput): Promise<ShoppingItem>
+  updateShoppingItem(
+    itemId: string,
+    patch: Partial<ShoppingItemInput>
+  ): Promise<ShoppingItem | null>
+  deleteShoppingItem(itemId: string): Promise<boolean>
 
   listTips(parent: { zone_id: string } | { place_id: string }): Promise<Tip[]>
   createTip(input: TipInput): Promise<Tip>

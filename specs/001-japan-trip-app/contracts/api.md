@@ -145,6 +145,25 @@ Full detail incl. tips and files (US1 AC2/AC3, US4 AC1).
 ### DELETE /api/tips/:tipId  (FR-017)
 - 204 · 404.
 
+## Shopping list
+
+Trip-level list of things to buy in Japan: what it is, where to buy it, what it should cost (yen), a photo, and whether it's been bought. Not tied to a zone, though an item may name the city its shop is in (`zone_id`). `category` is one of `clothes|beauty|tech|snacks|home|souvenir|other` (defaults to `other`).
+
+### GET /api/shopping
+- 200: `{"items":[{"id":"…","trip_id":"…","name":"Onitsuka Tiger Mexico 66","category":"clothes","note":"Size 42"|null,"shop":"ABC Mart"|null,"zone_id":"…"|null,"price_yen":12000|null,"url":"https://…"|null,"image_url":"https://…"|null,"bought":false,"position":0}]}`
+- Ordered **unbought first**, then `position`, then insertion order — bought items sink to the bottom of the list.
+
+### POST /api/shopping
+- Request: `{"name":"…","category?":"clothes","note?","shop?","zone_id?","price_yen?":12000,"url?","image_url?","bought?":false}`
+- 201: `{"item": {…}}` · 400 `VALIDATION` (missing name, unknown category, negative/non-numeric `price_yen`, non-http(s) `url`/`image_url`) · 404 unknown zone.
+
+### PATCH /api/shopping/:itemId
+- Request: any subset of the POST fields — `{"bought": true}` is the tick-off action. Last write wins.
+- 200: `{"item": {…updated…}}` · 400 · 404.
+
+### DELETE /api/shopping/:itemId
+- 204 · 404.
+
 ## Files
 
 ### GET /api/files

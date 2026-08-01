@@ -15,6 +15,8 @@ import type {
   JourneyStepInput,
   Place,
   PlaceInput,
+  ShoppingItem,
+  ShoppingItemInput,
   Tip,
   TipInput,
   Trip,
@@ -39,6 +41,10 @@ const ITINERARY_COLS = `${ITINERARY_BASE_COLS},highlight,icon`
 // (they just have no pins until the migration is applied).
 const PLACE_BASE_COLS = 'id,zone_id,category,name,name_ja,description,address,links,image_url'
 const PLACE_COLS = `${PLACE_BASE_COLS},lat,lng`
+
+// Shopping list (migration 0006).
+const SHOPPING_COLS =
+  'id,trip_id,name,category,note,shop,zone_id,price_yen,url,image_url,bought,position'
 
 function isMissingHighlightColumn(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false
@@ -340,6 +346,66 @@ export function createSupabaseStore(): DataStore {
 
     async deleteItineraryItem(itemId) {
       const { data } = await db.from('itinerary_items').delete().eq('id', itemId).select('id')
+      return (data?.length ?? 0) > 0
+    },
+
+    async listShoppingItems(tripId) {
+      // unbought first, then manual position — mirrors the memory store's order
+      const { data, error } = await db
+        .from('shopping_items')
+        .select(SHOPPING_COLS)
+        .eq('trip_id', tripId)
+        .order('bought', { ascending: true })
+        .order('position', { ascending: true })
+        .order('created_at', { ascending: true })
+      if (error) throw new Error(error.message)
+      return (data as unknown as ShoppingItem[]) ?? []
+    },
+
+    async createShoppingItem(input: ShoppingItemInput) {
+      const row = {
+        id: randomUUID(),
+        trip_id: input.trip_id,
+        name: input.name,
+        category: input.category ?? 'other',
+        note: input.note ?? null,
+        shop: input.shop ?? null,
+        zone_id: input.zone_id ?? null,
+        price_yen: input.price_yen ?? null,
+        url: input.url ?? null,
+        image_url: input.image_url ?? null,
+        bought: input.bought ?? false,
+        position: input.position ?? 0,
+      }
+      const { data, error } = await db.from('shopping_items').insert(row).select().single()
+      if (error) throw new Error(error.message)
+      return data as ShoppingItem
+    },
+
+    async updateShoppingItem(itemId, patch) {
+      const fields: Record<string, unknown> = {}
+      if (patch.name !== undefined) fields.name = patch.name
+      if (patch.category !== undefined) fields.category = patch.category ?? 'other'
+      if (patch.note !== undefined) fields.note = patch.note ?? null
+      if (patch.shop !== undefined) fields.shop = patch.shop ?? null
+      if (patch.zone_id !== undefined) fields.zone_id = patch.zone_id ?? null
+      if (patch.price_yen !== undefined) fields.price_yen = patch.price_yen ?? null
+      if (patch.url !== undefined) fields.url = patch.url ?? null
+      if (patch.image_url !== undefined) fields.image_url = patch.image_url ?? null
+      if (patch.bought !== undefined) fields.bought = patch.bought ?? false
+      if (patch.position !== undefined) fields.position = patch.position ?? 0
+      const { data, error } = await db
+        .from('shopping_items')
+        .update(fields)
+        .eq('id', itemId)
+        .select()
+        .maybeSingle()
+      if (error) throw new Error(error.message)
+      return (data as ShoppingItem) ?? null
+    },
+
+    async deleteShoppingItem(itemId) {
+      const { data } = await db.from('shopping_items').delete().eq('id', itemId).select('id')
       return (data?.length ?? 0) > 0
     },
 

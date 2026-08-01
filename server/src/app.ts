@@ -9,6 +9,7 @@ import { itineraryRouter } from './routes/itinerary.js'
 import { placesRouter } from './routes/places.js'
 import { ratesRouter } from './routes/rates.js'
 import { searchRouter } from './routes/search.js'
+import { shoppingRouter } from './routes/shopping.js'
 import { stepsRouter } from './routes/steps.js'
 import { tipsRouter } from './routes/tips.js'
 import { tripRouter } from './routes/trip.js'
@@ -34,6 +35,7 @@ export function createApp() {
   app.use('/api', zonesRouter)
   app.use('/api', placesRouter)
   app.use('/api', tipsRouter)
+  app.use('/api', shoppingRouter)
   app.use('/api', filesRouter)
   app.use('/api', searchRouter)
   app.use('/api', ratesRouter)
