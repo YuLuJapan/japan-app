@@ -3,6 +3,7 @@ import { getAccessCode } from './api/client'
 import { Layout } from './components/Layout'
 import AccessGate from './pages/AccessGate'
 import CategoryList from './pages/CategoryList'
+import DocumentPreview from './pages/DocumentPreview'
 import Journey from './pages/Journey'
 import JourneySteps from './pages/JourneySteps'
 import NotFound from './pages/NotFound'
@@ -38,6 +39,7 @@ export const router = createBrowserRouter([
       { path: '/search', element: <Search /> },
       { path: '/essentials', element: <TripEssentials /> },
       { path: '/files', element: <TripFiles /> },
+      { path: '/files/:fileId', element: <DocumentPreview /> },
       { path: '*', element: <NotFound /> },
     ],
   },
