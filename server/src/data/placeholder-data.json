@@ -290,7 +290,7 @@
       "category": "hotel",
       "name": "Hotel Gracery Shinjuku",
       "name_ja": "ホテルグレイスリー新宿",
-      "description": "Oct 12 – 16 · Tokyo (Shinjuku) · Booking.com, confirmed, free cancellation, ₪3,233. The Godzilla-head hotel in Kabukicho — this is the FINAL leg only, not the arrival leg (the Sep 19–25 Tokyo stay is a separate, still-unbooked hotel). Ask for a high floor away from the street; Kabukicho is loud until 3–4am.",
+      "description": "Sep 19 – 25 & Oct 12 – 16 · Tokyo (Shinjuku) · Booking.com, confirmed, free cancellation, ₪3,233. The Godzilla-head hotel in Kabukicho — covers both the arrival leg and the final leg. Ask for a high floor away from the street; Kabukicho is loud until 3–4am.",
       "address": "1-19-1 Kabukicho, Shinjuku-ku, Tokyo",
       "links": [
         {
@@ -573,23 +573,7 @@
       "category": "hotel",
       "name": "Atami Sekaie",
       "name_ja": "熱海 星海",
-      "description": "Oct 10 – 12 · Atami · Booking.com, ₪6,768 · ⚠️ DUPLICATE BOOKING — you also have Yuyado Ichibanchi booked for the same two nights. Sekaie is the premium ocean-view option and reads as the honeymoon-grade choice; keeping it costs ₪3,018 more than Ichibanchi. CANCEL ONE (both have free cancellation).",
-      "address": "Atami, Shizuoka",
-      "links": [
-        {
-          "label": "Booking.com reservations",
-          "url": "https://secure.booking.com/myreservations.html"
-        }
-      ],
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Atami_onsen_20211020.jpg/3840px-Atami_onsen_20211020.jpg"
-    },
-    {
-      "id": "hotel-atami-ichibanchi",
-      "zone_id": "zone-atami",
-      "category": "hotel",
-      "name": "Yuyado Ichibanchi",
-      "name_ja": "湯宿一番地",
-      "description": "Oct 10 – 12 · Atami · Booking.com, ₪3,750 · ⚠️ DUPLICATE BOOKING — the cheaper of two Atami bookings for the same two nights (see Atami Sekaie). CANCEL ONE (both have free cancellation).",
+      "description": "Oct 10 – 12 · Atami · Booking.com, confirmed, ₪6,768. Premium ocean-view ryokan — the pick for the Izu stop. A backup booking at Yuyado Ichibanchi (₪3,750, same dates) is still open — cancel it when you get a chance, both are free to cancel.",
       "address": "Atami, Shizuoka",
       "links": [
         {
@@ -764,12 +748,6 @@
       "body": "Download the official USJ app for wait times, show times and the map. You can exit any queue before boarding. Check the crowd forecast at usjreal.asumirai.info (A=empty, F=packed). Save tickets as PDF + QR screenshots — signal is bad near the park."
     },
     {
-      "id": "tip-tokyo-hotel-missing",
-      "zone_id": "zone-tokyo",
-      "place_id": null,
-      "body": "⚠️ No hotel is booked yet for the first Tokyo stay (Sep 19–25). Book this ASAP — you land at 19:40 with nowhere to sleep."
-    },
-    {
       "id": "tip-atami-typhoon",
       "zone_id": "zone-atami",
       "place_id": null,
@@ -782,10 +760,10 @@
       "body": "Choose a room with a private open-air bath facing the sea if the budget allows — this is the trip's wind-down stretch."
     },
     {
-      "id": "tip-atami-duplicate",
+      "id": "tip-atami-cancel-backup",
       "zone_id": "zone-atami",
       "place_id": null,
-      "body": "Two hotels are booked for the same Oct 10–12 dates (Atami Sekaie and Yuyado Ichibanchi) — cancel one, both are free to cancel."
+      "body": "Cancel the backup Yuyado Ichibanchi booking (Oct 10–12) when you get a chance — Atami Sekaie is the one you're keeping."
     }
   ],
   "itinerary": [
@@ -801,19 +779,6 @@
       "position": -1,
       "highlight": true,
       "icon": "🎂"
-    },
-    {
-      "id": "itin-hl-tokyo-hotel-missing",
-      "trip_id": "trip-japan",
-      "zone_id": "zone-tokyo",
-      "place_id": null,
-      "day": "2026-09-19",
-      "start_time": null,
-      "title": "⚠️ No hotel booked yet for tonight",
-      "note": "Book the Sep 19–25 Tokyo hotel now — you land at 19:40 with nowhere to sleep.",
-      "position": -1,
-      "highlight": true,
-      "icon": "⚠️"
     },
     {
       "id": "itin-hl-car-pickup",
@@ -848,11 +813,11 @@
       "place_id": null,
       "day": "2026-10-10",
       "start_time": null,
-      "title": "⚠️ Two Atami hotels booked — cancel one",
-      "note": "Atami Sekaie and Yuyado Ichibanchi are both booked for Oct 10–12. Both are free to cancel.",
+      "title": "Staying at Atami Sekaie",
+      "note": "Cancel the backup Yuyado Ichibanchi booking (same dates) when you get a chance.",
       "position": -1,
       "highlight": true,
-      "icon": "⚠️"
+      "icon": "🏨"
     },
     {
       "id": "itin-d-20260919-1",
