@@ -17,7 +17,7 @@ export const getAccessCode = () => localStorage.getItem(ACCESS_CODE_KEY)
 export const setAccessCode = (code: string) => localStorage.setItem(ACCESS_CODE_KEY, code)
 export const clearAccessCode = () => localStorage.removeItem(ACCESS_CODE_KEY)
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function send(path: string, init: RequestInit = {}): Promise<Response> {
   const code = getAccessCode()
   let res: Response
   try {
@@ -32,21 +32,27 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   } catch {
     throw new ApiError(0, 'NETWORK', 'No connection — check your internet and retry')
   }
-  if (res.status === 204) return undefined as T
-  const body = await res.json().catch(() => null)
   if (!res.ok) {
-    const err = body?.error ?? {}
+    const err = (await res.json().catch(() => null))?.error ?? {}
     if (res.status === 401 && !path.startsWith('/auth/')) {
       clearAccessCode()
       window.location.assign('/gate')
     }
     throw new ApiError(res.status, err.code ?? 'INTERNAL', err.message ?? 'Request failed', err.details)
   }
-  return body as T
+  return res
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await send(path, init)
+  if (res.status === 204) return undefined as T
+  return (await res.json().catch(() => null)) as T
 }
 
 export const api = {
   get: <T>(path: string) => request<T>(path),
+  /** Raw response body — used by the document preview, which needs the bytes, not JSON. */
+  blob: (path: string) => send(path).then((res) => res.blob()),
   post: <T>(path: string, data: unknown) =>
     request<T>(path, { method: 'POST', body: JSON.stringify(data) }),
   patch: <T>(path: string, data: unknown) =>

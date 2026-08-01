@@ -188,6 +188,7 @@ export interface PushSubscriptionInput {
 }
 
 export type FileUrlResult = { url: string; expires_in: number } | 'FILE_MISSING'
+export type FileBytesResult = { bytes: Buffer; mime_type: string } | 'FILE_MISSING'
 
 export interface DataStore {
   /** Trivial read used by /api/health (keep-alive). Throws if the backend is unreachable. */
@@ -245,6 +246,8 @@ export interface DataStore {
   reparentFilesToTrip(placeId: string, tripId: string): Promise<void>
   /** Resolve an openable URL for the blob, or FILE_MISSING when the row exists but the blob is gone. */
   getFileUrl(file: FileAttachment): Promise<FileUrlResult>
+  /** Raw bytes for the blob, streamed by GET /api/files/:id/content so the app can preview it inline. */
+  getFileBytes(file: FileAttachment): Promise<FileBytesResult>
 
   /** Free-text search across places, zones, and tips (case-insensitive). */
   search(query: string): Promise<{ places: Place[]; zones: Zone[]; tips: Tip[] }>

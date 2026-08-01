@@ -158,6 +158,15 @@ Short-lived signed URL for opening/downloading the blob.
 - 200: `{"url":"https://…signed…","expires_in":300}`
 - 404 `NOT_FOUND` (no such row) · 404 `FILE_MISSING` (row exists, blob gone — spec edge case, distinct code so the UI can explain).
 
+### GET /api/files/:fileId/content  (FR-008)
+The blob itself, streamed through the API so the app can render it in the preview
+screen (`/files/:fileId`) instead of handing it to the browser's downloader. Same
+response for both datastore backends, unlike `/url`.
+
+- 200: the raw bytes. `Content-Type` is the stored mime type; `Content-Disposition: inline; filename*=UTF-8''…` (the display name plus the extension its mime type implies); `X-Content-Type-Options: nosniff`; `Cache-Control: private, max-age=300`.
+- Query: `?download=1` switches the disposition to `attachment`.
+- 404 `NOT_FOUND` / 404 `FILE_MISSING` — same two variants as `/url`.
+
 ## Reminders & notifications
 
 Scheduled nudges ("book the ryokan") delivered as web push notifications. `remind_at` is always an absolute instant (ISO 8601, returned in UTC) so both phones fire together regardless of which zone they're set to; `time_zone` is the IANA zone the wall clock was typed in, kept for display only.

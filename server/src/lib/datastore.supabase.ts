@@ -7,6 +7,7 @@ import type {
   DataStore,
   ExchangeRates,
   FileAttachment,
+  FileBytesResult,
   FileInput,
   FileUrlResult,
   ItineraryItem,
@@ -483,6 +484,12 @@ export function createSupabaseStore(): DataStore {
       // row exists but the blob is gone → FILE_MISSING (contracts/api.md)
       if (error || !data?.signedUrl) return 'FILE_MISSING'
       return { url: data.signedUrl, expires_in: SIGNED_URL_TTL }
+    },
+
+    async getFileBytes(file): Promise<FileBytesResult> {
+      const { data, error } = await db.storage.from(FILES_BUCKET).download(file.storage_path)
+      if (error || !data) return 'FILE_MISSING'
+      return { bytes: Buffer.from(await data.arrayBuffer()), mime_type: file.mime_type }
     },
 
     async getLatestRates() {

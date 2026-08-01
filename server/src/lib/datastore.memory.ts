@@ -11,6 +11,7 @@ import type {
   DataStore,
   ExchangeRates,
   FileAttachment,
+  FileBytesResult,
   FileInput,
   FileUrlResult,
   ItineraryItem,
@@ -354,6 +355,14 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       const abs = path.join(process.cwd(), 'public', file.storage_path)
       if (!existsSync(abs)) return 'FILE_MISSING'
       return { url: `/${file.storage_path.replace(/\\/g, '/')}`, expires_in: 300 }
+    },
+
+    async getFileBytes(file): Promise<FileBytesResult> {
+      const blob = blobs.get(file.id)
+      if (blob) return { bytes: blob.bytes, mime_type: blob.mime }
+      const abs = path.join(process.cwd(), 'public', file.storage_path)
+      if (!existsSync(abs)) return 'FILE_MISSING'
+      return { bytes: readFileSync(abs), mime_type: file.mime_type }
     },
 
     async getLatestRates() {

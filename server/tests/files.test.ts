@@ -48,6 +48,53 @@ describe('files', () => {
     expect(unknown.body.error.code).toBe('NOT_FOUND')
   })
 
+  describe('content (preview)', () => {
+    it('GET /api/files/:id/content streams the blob inline for the preview screen', async () => {
+      const res = await auth(request(app).get('/api/files/file-place/content'))
+      expect(res.status).toBe(200)
+      expect(res.headers['content-type']).toMatch(/^image\/svg\+xml/)
+      expect(res.headers['content-disposition']).toMatch(/^inline; filename\*=UTF-8''Menu%20photo/)
+      expect(res.headers['x-content-type-options']).toBe('nosniff')
+      expect(res.body.length).toBeGreaterThan(0)
+    })
+
+    it('serves an uploaded document with its own bytes and name', async () => {
+      const created = await auth(request(app).post('/api/files')).send({
+        parent: { kind: 'trip' },
+        display_name: '搭乗券', // non-ASCII names survive the header encoding
+        mime_type: 'application/pdf',
+        data_base64: pdfBase64,
+      })
+      const res = await auth(request(app).get(`/api/files/${created.body.file.id}/content`))
+      expect(res.status).toBe(200)
+      expect(res.headers['content-type']).toMatch(/^application\/pdf/)
+      expect(res.headers['content-disposition']).toBe(
+        `inline; filename*=UTF-8''${encodeURIComponent('搭乗券.pdf')}`
+      )
+      expect(res.body.toString()).toBe('%PDF-1.4 tiny test file')
+    })
+
+    it('?download=1 switches the disposition to attachment', async () => {
+      const res = await auth(request(app).get('/api/files/file-trip/content?download=1'))
+      expect(res.status).toBe(200)
+      expect(res.headers['content-disposition']).toMatch(/^attachment;/)
+    })
+
+    it('reports FILE_MISSING and NOT_FOUND the same way as /url', async () => {
+      const missing = await auth(request(app).get('/api/files/file-gone/content'))
+      expect(missing.status).toBe(404)
+      expect(missing.body.error.code).toBe('FILE_MISSING')
+
+      const unknown = await auth(request(app).get('/api/files/file-nope/content'))
+      expect(unknown.status).toBe(404)
+      expect(unknown.body.error.code).toBe('NOT_FOUND')
+    })
+
+    it('requires auth', async () => {
+      expect((await request(app).get('/api/files/file-trip/content')).status).toBe(401)
+    })
+  })
+
   it('requires auth', async () => {
     expect((await request(app).get('/api/files')).status).toBe(401)
   })
