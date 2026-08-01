@@ -4,18 +4,89 @@
     "name": "Yuval & Luciana in Japan",
     "start_date": "2026-09-19",
     "end_date": "2026-10-16",
-    "description": "The real itinerary. Arrive Tokyo Sep 19, then the 9 Booking.com hotel stays. Attractions/food/shopping entries are starter suggestions per zone — edit freely in the app or in this file."
+    "description": "The real itinerary. Arrive Tokyo Sep 19, then 10 stops incl. Atami/Izu before the Tokyo finale. Attractions/food/shopping entries are starter suggestions per zone — edit freely in the app or in this file."
   },
   "steps": [
-    { "id": "step-0", "trip_id": "trip-japan", "zone_id": "zone-tokyo", "position": 1, "start_date": "2026-09-19", "end_date": "2026-09-25" },
-    { "id": "step-1", "trip_id": "trip-japan", "zone_id": "zone-hakone", "position": 2, "start_date": "2026-09-25", "end_date": "2026-09-27" },
-    { "id": "step-2", "trip_id": "trip-japan", "zone_id": "zone-fuji", "position": 3, "start_date": "2026-09-27", "end_date": "2026-09-28" },
-    { "id": "step-3", "trip_id": "trip-japan", "zone_id": "zone-matsumoto", "position": 4, "start_date": "2026-09-28", "end_date": "2026-09-29" },
-    { "id": "step-4", "trip_id": "trip-japan", "zone_id": "zone-takayama", "position": 5, "start_date": "2026-09-29", "end_date": "2026-10-01" },
-    { "id": "step-5", "trip_id": "trip-japan", "zone_id": "zone-kanazawa", "position": 6, "start_date": "2026-10-01", "end_date": "2026-10-03" },
-    { "id": "step-6", "trip_id": "trip-japan", "zone_id": "zone-kyoto", "position": 7, "start_date": "2026-10-03", "end_date": "2026-10-07" },
-    { "id": "step-7", "trip_id": "trip-japan", "zone_id": "zone-osaka", "position": 8, "start_date": "2026-10-07", "end_date": "2026-10-11" },
-    { "id": "step-8", "trip_id": "trip-japan", "zone_id": "zone-tokyo", "position": 9, "start_date": "2026-10-11", "end_date": "2026-10-16" }
+    {
+      "id": "step-0",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "position": 1,
+      "start_date": "2026-09-19",
+      "end_date": "2026-09-25"
+    },
+    {
+      "id": "step-1",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-hakone",
+      "position": 2,
+      "start_date": "2026-09-25",
+      "end_date": "2026-09-27"
+    },
+    {
+      "id": "step-2",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-fuji",
+      "position": 3,
+      "start_date": "2026-09-27",
+      "end_date": "2026-09-28"
+    },
+    {
+      "id": "step-3",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-matsumoto",
+      "position": 4,
+      "start_date": "2026-09-28",
+      "end_date": "2026-09-29"
+    },
+    {
+      "id": "step-4",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-takayama",
+      "position": 5,
+      "start_date": "2026-09-29",
+      "end_date": "2026-10-01"
+    },
+    {
+      "id": "step-5",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kanazawa",
+      "position": 6,
+      "start_date": "2026-10-01",
+      "end_date": "2026-10-03"
+    },
+    {
+      "id": "step-6",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "position": 7,
+      "start_date": "2026-10-03",
+      "end_date": "2026-10-07"
+    },
+    {
+      "id": "step-7",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-osaka",
+      "position": 8,
+      "start_date": "2026-10-07",
+      "end_date": "2026-10-10"
+    },
+    {
+      "id": "step-8",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-atami",
+      "position": 9,
+      "start_date": "2026-10-10",
+      "end_date": "2026-10-12"
+    },
+    {
+      "id": "step-9",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "position": 10,
+      "start_date": "2026-10-12",
+      "end_date": "2026-10-16"
+    }
   ],
   "zones": [
     {
@@ -89,6 +160,15 @@
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/b/b2/Skyscrapers_of_Shinjuku_2009_January.jpg",
       "lat": 35.6895,
       "lng": 139.6917
+    },
+    {
+      "id": "zone-atami",
+      "name": "Atami / Izu",
+      "name_ja": "熱海・伊豆",
+      "summary": "Seaside onsen town on the Izu peninsula — ocean-view hot springs, kaiseki dinners and a slow wind-down before the Tokyo finale.",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Atami_onsen_20211020.jpg/3840px-Atami_onsen_20211020.jpg",
+      "lat": 35.0956,
+      "lng": 139.0736
     }
   ],
   "places": [
@@ -98,9 +178,14 @@
       "category": "hotel",
       "name": "Hakone Yutowa",
       "name_ja": "箱根ゆとわ",
-      "description": "Sep 25 – 27 · Hakone · Booking.com, confirmed, free cancellation. Onsen resort with public baths. Option noted: upgrade to a superior room with private bath.",
+      "description": "Sep 25 – 27 · Hakone · Booking.com, confirmed, free cancellation, ₪1,920. Modern ryokan in Gora. Booking.com is offering an upgrade to a superior room WITH PRIVATE BATH, which implies the booked room may not have one — check and consider upgrading.",
       "address": "Hakone, Kanagawa",
-      "links": [{ "label": "Booking.com reservations", "url": "https://secure.booking.com/myreservations.html" }],
+      "links": [
+        {
+          "label": "Booking.com reservations",
+          "url": "https://secure.booking.com/myreservations.html"
+        }
+      ],
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/View_of_Mount_Fuji_from_Lake_Ashi.jpg/3840px-View_of_Mount_Fuji_from_Lake_Ashi.jpg"
     },
     {
@@ -109,9 +194,14 @@
       "category": "hotel",
       "name": "Mizno Hotel",
       "name_ja": null,
-      "description": "Sep 27 – 28 · Fujikawaguchiko · Booking.com, confirmed, free cancellation. Option noted: upgrade to a superior room with balcony (lake/Fuji view).",
+      "description": "Sep 27 – 28 · Fujikawaguchiko · Booking.com, confirmed, free cancellation, ₪810. One night before the Chureito sunrise. Upgrade offered to a superior room with balcony (lake/Fuji view). Confirm parking (you'll have the rental car) and ask about a very early checkout for the sunrise start.",
       "address": "Fujikawaguchiko, Yamanashi",
-      "links": [{ "label": "Booking.com reservations", "url": "https://secure.booking.com/myreservations.html" }],
+      "links": [
+        {
+          "label": "Booking.com reservations",
+          "url": "https://secure.booking.com/myreservations.html"
+        }
+      ],
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/5/50/Fujikawaguchiko_2013-11-13_%2810863157174%29.jpg"
     },
     {
@@ -120,9 +210,14 @@
       "category": "hotel",
       "name": "Onyado Nono Matsumoto Natural Hot Spring",
       "name_ja": "御宿野乃 松本",
-      "description": "Sep 28 – 29 · Matsumoto · Booking.com, confirmed, free cancellation. Natural hot spring baths; parking info available on the reservation.",
+      "description": "Sep 28 – 29 · Matsumoto · Booking.com, confirmed, free cancellation, ₪470. Natural hot spring baths, tatami-style, excellent value. Arrange takkyubin (luggage forwarding) here — bags go ahead to Takayama since you can't bring them into Kamikochi.",
       "address": "Matsumoto, Nagano",
-      "links": [{ "label": "Booking.com reservations", "url": "https://secure.booking.com/myreservations.html" }],
+      "links": [
+        {
+          "label": "Booking.com reservations",
+          "url": "https://secure.booking.com/myreservations.html"
+        }
+      ],
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/d/dd/Matsumoto_Montage.jpg"
     },
     {
@@ -131,9 +226,14 @@
       "category": "hotel",
       "name": "HOTEL WOOD TAKAYAMA",
       "name_ja": null,
-      "description": "Sep 29 – Oct 1 · Takayama · Booking.com, confirmed, free cancellation. Parking info available on the reservation.",
+      "description": "Sep 29 – Oct 1 · Takayama · Booking.com, confirmed, free cancellation, ₪935. You arrive here tired after the Kamikochi traverse. Confirm parking and whether dinner is included — you'll want it after that day.",
       "address": "Takayama, Gifu",
-      "links": [{ "label": "Booking.com reservations", "url": "https://secure.booking.com/myreservations.html" }],
+      "links": [
+        {
+          "label": "Booking.com reservations",
+          "url": "https://secure.booking.com/myreservations.html"
+        }
+      ],
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/f/f8/Takayama%27s_Early_Winter_Welcome_%28NE%29.jpg"
     },
     {
@@ -142,9 +242,14 @@
       "category": "hotel",
       "name": "The HOTEL SANRAKU KANAZAWA",
       "name_ja": "ホテル山楽 金沢",
-      "description": "Oct 1 – 3 · Kanazawa · Booking.com, confirmed, free cancellation. Parking info and invoice available on the reservation.",
+      "description": "Oct 1 – 3 · Kanazawa · Booking.com, confirmed, free cancellation, ₪1,664. Return the rental car THE DAY YOU ARRIVE (Oct 1), not the next day — Kanazawa is entirely walkable and parking costs money. Refuel before drop-off.",
       "address": "Kanazawa, Ishikawa",
-      "links": [{ "label": "Booking.com reservations", "url": "https://secure.booking.com/myreservations.html" }],
+      "links": [
+        {
+          "label": "Booking.com reservations",
+          "url": "https://secure.booking.com/myreservations.html"
+        }
+      ],
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/%E6%9C%9B%E6%B9%96%E5%8F%B0%EF%BC%92.jpg/3840px-%E6%9C%9B%E6%B9%96%E5%8F%B0%EF%BC%92.jpg"
     },
     {
@@ -153,9 +258,14 @@
       "category": "hotel",
       "name": "Mitsui Garden Hotel Kyoto Shinmachi Bettei",
       "name_ja": "三井ガーデンホテル京都新町別邸",
-      "description": "Oct 3 – 7 · Kyoto · Booking.com, confirmed, free cancellation. Machiya-style hotel on Shinmachi street, central Kyoto.",
+      "description": "Oct 3 – 7 · Kyoto · Booking.com, confirmed, free cancellation, ₪2,531. Machiya-style hotel on Shinmachi street, CENTRAL Kyoto — great for Nishiki, Gion and Pontocho, but a metro ride (not a 7-min walk) from teamLab Biovortex near the station.",
       "address": "Shinmachi-dori, Nakagyo-ku, Kyoto",
-      "links": [{ "label": "Booking.com reservations", "url": "https://secure.booking.com/myreservations.html" }],
+      "links": [
+        {
+          "label": "Booking.com reservations",
+          "url": "https://secure.booking.com/myreservations.html"
+        }
+      ],
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/3/3c/Kiyomizu.jpg"
     },
     {
@@ -164,9 +274,14 @@
       "category": "hotel",
       "name": "Candeo Hotels Osaka Shinsaibashi",
       "name_ja": "カンデオホテルズ大阪心斎橋",
-      "description": "Oct 7 – 11 · Osaka · Booking.com, confirmed. Rooftop sky spa; steps from Shinsaibashi shopping arcade and Dotonbori.",
+      "description": "Oct 7 – 10 · Osaka · Booking.com, confirmed, ₪2,056. Excellent Shinsaibashi location, steps from Dotonbori. Candeo's signature is a top-floor sky spa — check whether it's included. In-room washing machine, good for a laundry night.",
       "address": "Shinsaibashi, Chuo-ku, Osaka",
-      "links": [{ "label": "Booking.com reservations", "url": "https://secure.booking.com/myreservations.html" }],
+      "links": [
+        {
+          "label": "Booking.com reservations",
+          "url": "https://secure.booking.com/myreservations.html"
+        }
+      ],
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Osaka_Castle_02bs3200.jpg/3840px-Osaka_Castle_02bs3200.jpg"
     },
     {
@@ -175,9 +290,14 @@
       "category": "hotel",
       "name": "Hotel Gracery Shinjuku",
       "name_ja": "ホテルグレイスリー新宿",
-      "description": "Oct 11 – 16 · Tokyo (Shinjuku) · Booking.com, confirmed, free cancellation. Two reservations on file: Oct 11–16 and Oct 12–16. The Godzilla-head hotel in Kabukicho.",
+      "description": "Sep 19 – 25 & Oct 12 – 16 · Tokyo (Shinjuku) · Booking.com, confirmed, free cancellation, ₪3,233. The Godzilla-head hotel in Kabukicho — covers both the arrival leg and the final leg. Ask for a high floor away from the street; Kabukicho is loud until 3–4am.",
       "address": "1-19-1 Kabukicho, Shinjuku-ku, Tokyo",
-      "links": [{ "label": "Booking.com reservations", "url": "https://secure.booking.com/myreservations.html" }],
+      "links": [
+        {
+          "label": "Booking.com reservations",
+          "url": "https://secure.booking.com/myreservations.html"
+        }
+      ],
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/b/b2/Skyscrapers_of_Shinjuku_2009_January.jpg"
     },
     {
@@ -343,8 +463,14 @@
       "description": "Oct 8 — our full USJ day (Halloween season + the park's 25th anniversary). Tickets go on sale ~2 months ahead — expect Aug 8–14, 2026 — and you must buy the day they open: there are NO ticket booths at the park anymore (online only, via Klook). Get 2× Studio Pass + 2× Universal Express Pass Premium for Oct 8. The day-by-day plan is in the schedule; the complete guide we made is attached below.",
       "address": "2-1-33 Sakurajima, Konohana Ward, Osaka",
       "links": [
-        { "label": "Klook tickets", "url": "https://www.klook.com" },
-        { "label": "Official USJ site", "url": "https://www.usj.co.jp/en/" }
+        {
+          "label": "Klook tickets",
+          "url": "https://www.klook.com"
+        },
+        {
+          "label": "Official USJ site",
+          "url": "https://www.usj.co.jp/en/"
+        }
       ],
       "image_url": null
     },
@@ -411,7 +537,12 @@
       "name_ja": "チームラボプラネッツ",
       "description": "Immersive digital art in Toyosu. Book ~2 weeks ahead; you walk barefoot through water — wear shorts.",
       "address": "6-1-16 Toyosu, Koto-ku, Tokyo",
-      "links": [{ "label": "Tickets", "url": "https://www.teamlab.art/e/planets/" }],
+      "links": [
+        {
+          "label": "Tickets",
+          "url": "https://www.teamlab.art/e/planets/"
+        }
+      ],
       "image_url": null
     },
     {
@@ -435,45 +566,1921 @@
       "address": "Kabukicho, Shinjuku",
       "links": [],
       "image_url": null
+    },
+    {
+      "id": "hotel-atami-sekaie",
+      "zone_id": "zone-atami",
+      "category": "hotel",
+      "name": "Atami Sekaie",
+      "name_ja": "熱海 星海",
+      "description": "Oct 10 – 12 · Atami · Booking.com, confirmed, ₪6,768. Premium ocean-view ryokan — the pick for the Izu stop. A backup booking at Yuyado Ichibanchi (₪3,750, same dates) is still open — cancel it when you get a chance, both are free to cancel.",
+      "address": "Atami, Shizuoka",
+      "links": [
+        {
+          "label": "Booking.com reservations",
+          "url": "https://secure.booking.com/myreservations.html"
+        }
+      ],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Atami_onsen_20211020.jpg/3840px-Atami_onsen_20211020.jpg"
+    },
+    {
+      "id": "attr-kiunkaku",
+      "zone_id": "zone-atami",
+      "category": "attraction",
+      "name": "Kiunkaku",
+      "name_ja": "起雲閣",
+      "description": "A 1919 seaside villa turned ryokan, now open to the public — gorgeous gardens and a coffee salon. A calm morning stop on the Izu day.",
+      "address": "Atami, Shizuoka",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "attr-atami-beach",
+      "zone_id": "zone-atami",
+      "category": "attraction",
+      "name": "Atami Sun Beach & Ginza shotengai",
+      "name_ja": "熱海サンビーチ・熱海銀座",
+      "description": "Palm-lined beach and the old shopping street right in town — easy on foot from the ryokan, good for a sunset wander in yukata.",
+      "address": "Atami, Shizuoka",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "attr-moa-museum",
+      "zone_id": "zone-atami",
+      "category": "attraction",
+      "name": "MOA Museum of Art",
+      "name_ja": "MOA美術館",
+      "description": "Hilltop museum with sweeping sea views over Atami — one of three options for the Izu day (with the Jogasaki cliff walk and Shuzenji Onsen). Pick one.",
+      "address": "26-2 Momoyama, Atami, Shizuoka",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "attr-jogasaki",
+      "zone_id": "zone-atami",
+      "category": "attraction",
+      "name": "Jogasaki Coastal Cliff Walk",
+      "name_ja": "城ヶ崎海岸",
+      "description": "Dramatic volcanic coastline on the Izukyu line, with a suspension bridge over the cliffs. One of three options for the Izu day (with MOA Museum and Shuzenji Onsen). Pick one.",
+      "address": "Ito, Shizuoka",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "attr-shuzenji",
+      "zone_id": "zone-atami",
+      "category": "attraction",
+      "name": "Shuzenji Onsen",
+      "name_ja": "修善寺温泉",
+      "description": "Bamboo forest walk and a 1,200-year-old temple in one of Izu's oldest onsen towns. One of three options for the Izu day (with MOA Museum and the Jogasaki cliff walk). Pick one.",
+      "address": "Shuzenji, Izu, Shizuoka",
+      "links": [],
+      "image_url": null
+    },
+    {
+      "id": "food-atami-seafood",
+      "zone_id": "zone-atami",
+      "category": "food",
+      "name": "Kinmedai & ise-ebi kaiseki",
+      "name_ja": "金目鯛・伊勢海老",
+      "description": "The local specialties — kinmedai (golden eye snapper) and ise-ebi spiny lobster, in season from October. Fresh Izu wasabi and sakura-ebi (cherry blossom shrimp) from Suruga Bay too. Best had as the ryokan's kaiseki dinner.",
+      "address": "Atami, Shizuoka",
+      "links": [],
+      "image_url": null
     }
   ],
   "tips": [
-    { "id": "tip-hakone-pass", "zone_id": "zone-hakone", "place_id": null, "body": "Hakone Free Pass covers the whole loop (train, cable car, ropeway, pirate boat) and discounts many sights." },
-    { "id": "tip-hakone-luggage", "zone_id": "zone-hakone", "place_id": null, "body": "Use luggage forwarding (takkyubin) to send big bags ahead to a later hotel — travel the Fuji–Alps stretch light." },
-    { "id": "tip-fuji-weather", "zone_id": "zone-fuji", "place_id": null, "body": "Fuji hides in clouds by late morning — plan viewpoints for early morning and check a Fuji visibility forecast." },
-    { "id": "tip-matsumoto-walk", "zone_id": "zone-matsumoto", "place_id": null, "body": "Everything is walkable: station → Nakamachi street → castle in 20 minutes." },
-    { "id": "tip-takayama-beef", "zone_id": "zone-takayama", "place_id": null, "body": "Hida beef is the local specialty — beef sushi at the market stalls, or a proper grill dinner." },
-    { "id": "tip-kanazawa-bus", "zone_id": "zone-kanazawa", "place_id": null, "body": "The Kanazawa Loop Bus connects all the sights; day pass pays off with 3+ rides." },
-    { "id": "tip-kyoto-buses", "zone_id": "zone-kyoto", "place_id": null, "body": "Buses get packed — prefer subway + walking; taxis are reasonable for 2 people on short hops." },
-    { "id": "tip-osaka-escalator", "zone_id": "zone-osaka", "place_id": null, "body": "Stand on the RIGHT on escalators in Osaka (opposite of Tokyo)." },
-    { "id": "tip-tokyo-suica", "zone_id": "zone-tokyo", "place_id": null, "body": "Get a Suica/Pasmo in Apple/Google Wallet for all trains, metro and convenience stores." },
-    { "id": "tip-tokyo-trash", "zone_id": "zone-tokyo", "place_id": null, "body": "Trash cans are rare — carry a small bag for garbage." },
-    { "id": "tip-yutowa-onsen", "zone_id": null, "place_id": "hotel-hakone-yutowa", "body": "Onsen etiquette: wash sitting down before entering the bath; towels stay out of the water." },
-    { "id": "tip-gracery-godzilla", "zone_id": null, "place_id": "hotel-gracery", "body": "Ask for a high floor on the Godzilla side; the head 'roars' on schedule from the 8F terrace." },
-    { "id": "tip-fushimi-sunrise", "zone_id": null, "place_id": "attr-fushimi", "body": "Open 24h — sunrise or after 17:00 for photos without crowds." },
-    { "id": "tip-usj-tickets", "zone_id": null, "place_id": "attr-usj", "body": "Buy tickets the day they open (~Aug 8–14 for Oct 8). No booths at the park since May 2025 — online only, via Klook (foreign-card friendly). Premium Express passes sell out first, especially in Halloween season." },
-    { "id": "tip-usj-express", "zone_id": null, "place_id": "attr-usj", "body": "Express Pass Premium: if offered as P25 (incl. Space Fantasy) vs P29, prefer P25. With Premium, Nintendo World entry is guaranteed at any time. Passes are non-refundable, non-changeable and personal — no sharing." },
-    { "id": "tip-usj-app", "zone_id": null, "place_id": "attr-usj", "body": "Download the official USJ app for wait times, show times and the map. You can exit any queue before boarding. Check the crowd forecast at usjreal.asumirai.info (A=empty, F=packed). Save tickets as PDF + QR screenshots — signal is bad near the park." }
+    {
+      "id": "tip-hakone-pass",
+      "zone_id": "zone-hakone",
+      "place_id": null,
+      "body": "Hakone Free Pass covers the whole loop (train, cable car, ropeway, pirate boat) and discounts many sights."
+    },
+    {
+      "id": "tip-hakone-luggage",
+      "zone_id": "zone-hakone",
+      "place_id": null,
+      "body": "Use luggage forwarding (takkyubin) to send big bags ahead to a later hotel — travel the Fuji–Alps stretch light."
+    },
+    {
+      "id": "tip-fuji-weather",
+      "zone_id": "zone-fuji",
+      "place_id": null,
+      "body": "Fuji hides in clouds by late morning — plan viewpoints for early morning and check a Fuji visibility forecast."
+    },
+    {
+      "id": "tip-matsumoto-walk",
+      "zone_id": "zone-matsumoto",
+      "place_id": null,
+      "body": "Everything is walkable: station → Nakamachi street → castle in 20 minutes."
+    },
+    {
+      "id": "tip-takayama-beef",
+      "zone_id": "zone-takayama",
+      "place_id": null,
+      "body": "Hida beef is the local specialty — beef sushi at the market stalls, or a proper grill dinner."
+    },
+    {
+      "id": "tip-kanazawa-bus",
+      "zone_id": "zone-kanazawa",
+      "place_id": null,
+      "body": "The Kanazawa Loop Bus connects all the sights; day pass pays off with 3+ rides."
+    },
+    {
+      "id": "tip-kyoto-buses",
+      "zone_id": "zone-kyoto",
+      "place_id": null,
+      "body": "Buses get packed — prefer subway + walking; taxis are reasonable for 2 people on short hops."
+    },
+    {
+      "id": "tip-osaka-escalator",
+      "zone_id": "zone-osaka",
+      "place_id": null,
+      "body": "Stand on the RIGHT on escalators in Osaka (opposite of Tokyo)."
+    },
+    {
+      "id": "tip-tokyo-suica",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "body": "Get a Suica/Pasmo in Apple/Google Wallet for all trains, metro and convenience stores."
+    },
+    {
+      "id": "tip-tokyo-trash",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "body": "Trash cans are rare — carry a small bag for garbage."
+    },
+    {
+      "id": "tip-yutowa-onsen",
+      "zone_id": null,
+      "place_id": "hotel-hakone-yutowa",
+      "body": "Onsen etiquette: wash sitting down before entering the bath; towels stay out of the water."
+    },
+    {
+      "id": "tip-gracery-godzilla",
+      "zone_id": null,
+      "place_id": "hotel-gracery",
+      "body": "Ask for a high floor on the Godzilla side; the head 'roars' on schedule from the 8F terrace."
+    },
+    {
+      "id": "tip-fushimi-sunrise",
+      "zone_id": null,
+      "place_id": "attr-fushimi",
+      "body": "Open 24h — sunrise or after 17:00 for photos without crowds."
+    },
+    {
+      "id": "tip-usj-tickets",
+      "zone_id": null,
+      "place_id": "attr-usj",
+      "body": "Buy tickets the day they open (~Aug 8–14 for Oct 8). No booths at the park since May 2025 — online only, via Klook (foreign-card friendly). Premium Express passes sell out first, especially in Halloween season."
+    },
+    {
+      "id": "tip-usj-express",
+      "zone_id": null,
+      "place_id": "attr-usj",
+      "body": "Express Pass Premium: if offered as P25 (incl. Space Fantasy) vs P29, prefer P25. With Premium, Nintendo World entry is guaranteed at any time. Passes are non-refundable, non-changeable and personal — no sharing."
+    },
+    {
+      "id": "tip-usj-app",
+      "zone_id": null,
+      "place_id": "attr-usj",
+      "body": "Download the official USJ app for wait times, show times and the map. You can exit any queue before boarding. Check the crowd forecast at usjreal.asumirai.info (A=empty, F=packed). Save tickets as PDF + QR screenshots — signal is bad near the park."
+    },
+    {
+      "id": "tip-atami-typhoon",
+      "zone_id": "zone-atami",
+      "place_id": null,
+      "body": "Izu absorbs Pacific storms through October. If the forecast turns, stay north near Atami — Shimoda can get cut off."
+    },
+    {
+      "id": "tip-atami-onsen-room",
+      "zone_id": "zone-atami",
+      "place_id": null,
+      "body": "Choose a room with a private open-air bath facing the sea if the budget allows — this is the trip's wind-down stretch."
+    },
+    {
+      "id": "tip-atami-cancel-backup",
+      "zone_id": "zone-atami",
+      "place_id": null,
+      "body": "Cancel the backup Yuyado Ichibanchi booking (Oct 10–12) when you get a chance — Atami Sekaie is the one you're keeping."
+    }
   ],
   "itinerary": [
-    { "id": "itin-hl-birthday", "trip_id": "trip-japan", "zone_id": "zone-tokyo", "place_id": null, "day": "2026-09-20", "start_time": null, "title": "Today is Luciana's birthday!", "note": null, "position": 0, "highlight": true, "icon": "🎂" },
-    { "id": "itin-hl-car-pickup", "trip_id": "trip-japan", "zone_id": "zone-hakone", "place_id": null, "day": "2026-09-25", "start_time": null, "title": "Pick up the rental car at 11:00", "note": null, "position": 0, "highlight": true, "icon": "🚗" },
-    { "id": "itin-hl-car-return", "trip_id": "trip-japan", "zone_id": "zone-kyoto", "place_id": null, "day": "2026-10-03", "start_time": null, "title": "Return the rental car at 12:00", "note": null, "position": 0, "highlight": true, "icon": "🔑" },
-    { "id": "itin-hl-usj", "trip_id": "trip-japan", "zone_id": "zone-osaka", "place_id": null, "day": "2026-10-08", "start_time": null, "title": "Today you're going to Universal Studios!", "note": null, "position": 0, "highlight": true, "icon": "🎢" },
-    { "id": "itin-bday-marker", "trip_id": "trip-japan", "zone_id": "zone-tokyo", "place_id": null, "day": "2026-09-20", "start_time": null, "title": "🎂 Luciana's Birthday", "note": "Two treats in one day (spa + Maguro Mart) both benefit from advance booking — lock the spa time first, then pick a Maguro Mart slot that leaves comfortable travel time between them.", "position": 0 },
-    { "id": "itin-bday-spa", "trip_id": "trip-japan", "zone_id": "zone-tokyo", "place_id": null, "day": "2026-09-20", "start_time": null, "title": "★ The Head Spa — birthday treat", "note": "Branches in Shibuya (2 min from Shibuya Stn Exit C2) and Ebisu/Daikanyama; the Ebisu one is the exclusive, in-demand studio (only ~5 slots/day, book via Instagram DM). Book well ahead — these fill up 1–2 months out, and a birthday slot shouldn't be left to chance.", "position": 1 },
-    { "id": "itin-bday-lunch", "trip_id": "trip-japan", "zone_id": "zone-tokyo", "place_id": null, "day": "2026-09-20", "start_time": null, "title": "Relaxed lunch & neighbourhood wander", "note": "Keep the day soft and celebratory — a relaxed lunch, then wander a pretty neighbourhood (Daikanyama / Nakameguro cafés are lovely if you spa in that area).", "position": 2 },
-    { "id": "itin-bday-dinner", "trip_id": "trip-japan", "zone_id": "zone-tokyo", "place_id": null, "day": "2026-09-20", "start_time": null, "title": "★ Maguro Mart — birthday dinner", "note": "Evening. Tuna/seafood izakaya — a fun birthday dinner. Popular, so reserve or arrive early.", "position": 3 },
-    { "id": "itin-tokyo-ramen", "trip_id": "trip-japan", "zone_id": "zone-tokyo", "place_id": "food-tokyo-ramen", "day": "2026-09-21", "start_time": "20:00", "title": "Ramen night in Omoide Yokocho", "note": "Cash only.", "position": 0 },
-    { "id": "itin-kyoto-fushimi", "trip_id": "trip-japan", "zone_id": "zone-kyoto", "place_id": "attr-fushimi", "day": "2026-10-04", "start_time": "07:30", "title": "Fushimi Inari at sunrise", "note": "Beat the crowds — full loop ~2h.", "position": 0 },
-    { "id": "itin-kyoto-arashiyama", "trip_id": "trip-japan", "zone_id": "zone-kyoto", "place_id": "attr-arashiyama", "day": "2026-10-04", "start_time": "11:00", "title": "Arashiyama Bamboo Grove", "note": null, "position": 0 },
-    { "id": "itin-kyoto-free", "trip_id": "trip-japan", "zone_id": "zone-kyoto", "place_id": null, "day": "2026-10-04", "start_time": null, "title": "Coffee somewhere in Gion", "note": "No fixed time — wander.", "position": 0 },
-    { "id": "itin-usj-gates", "trip_id": "trip-japan", "zone_id": "zone-osaka", "place_id": "attr-usj", "day": "2026-10-08", "start_time": "07:30", "title": "🎢 Universal Studios — at the gates", "note": "Take the JR Yumesaki line to Universal City (~15 min from Osaka Stn). Gates usually open before the official time. Sleep in Osaka the night before, not Kyoto.", "position": 0 },
-    { "id": "itin-usj-nintendo", "trip_id": "trip-japan", "zone_id": "zone-osaka", "place_id": "attr-usj", "day": "2026-10-08", "start_time": "09:00", "title": "Super Nintendo World (morning)", "note": "Do it as one block: Mario Kart, Mine Cart Madness, Yoshi, Power Up Band games, Kinopio's Cafe. Leaving the area = no re-entry, so finish everything first.", "position": 1 },
-    { "id": "itin-usj-noon", "trip_id": "trip-japan", "zone_id": "zone-osaka", "place_id": "attr-usj", "day": "2026-10-08", "start_time": "12:00", "title": "Split, then Jurassic Park & JAWS", "note": "Yuval: Flying Dinosaur, Hollywood Dream + Backdrop. Luciana: break / shopping. Together: Jurassic Park (sit mid-boat — you get wet) and JAWS (day version).", "position": 2 },
-    { "id": "itin-usj-hp", "trip_id": "trip-japan", "zone_id": "zone-osaka", "place_id": "attr-usj", "day": "2026-10-08", "start_time": "15:00", "title": "Wizarding World of Harry Potter", "note": "Castle walk, wand ceremony at Ollivanders, butterbeer, Hippogriff / Forbidden Journey by feel. Then Minions + the Waterworld show.", "position": 3 },
-    { "id": "itin-usj-halloween", "trip_id": "trip-japan", "zone_id": "zone-osaka", "place_id": "attr-usj", "day": "2026-10-08", "start_time": "18:00", "title": "Halloween evening (together)", "note": "Street zombies, Zombie de Dance, Resident Evil: Requiem – The Dive (walkthrough), Sadako's Curse, and close with JAWS: Red Alert. Quiet zones if needed: Nintendo World and the family area.", "position": 4 },
-    { "id": "itin-usj-dinner", "trip_id": "trip-japan", "zone_id": "zone-osaka", "place_id": "attr-usj", "day": "2026-10-08", "start_time": null, "title": "Dinner at Universal CityWalk", "note": "After the park closes — grab dinner at CityWalk on the way back to the train.", "position": 5 }
+    {
+      "id": "itin-hl-birthday",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-20",
+      "start_time": null,
+      "title": "Today is Luciana's birthday!",
+      "note": null,
+      "position": -1,
+      "highlight": true,
+      "icon": "🎂"
+    },
+    {
+      "id": "itin-hl-car-pickup",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-fuji",
+      "place_id": null,
+      "day": "2026-09-27",
+      "start_time": null,
+      "title": "Pick up the rental car at Odawara",
+      "note": "Ask for an ETC card at the counter.",
+      "position": -1,
+      "highlight": true,
+      "icon": "🚗"
+    },
+    {
+      "id": "itin-hl-car-return",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kanazawa",
+      "place_id": null,
+      "day": "2026-10-01",
+      "start_time": null,
+      "title": "Return the rental car in Kanazawa",
+      "note": "Return the same day you arrive — the city is walkable and parking costs money. Refuel first.",
+      "position": -1,
+      "highlight": true,
+      "icon": "🔑"
+    },
+    {
+      "id": "itin-hl-atami-duplicate",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-atami",
+      "place_id": null,
+      "day": "2026-10-10",
+      "start_time": null,
+      "title": "Staying at Atami Sekaie",
+      "note": "Cancel the backup Yuyado Ichibanchi booking (same dates) when you get a chance.",
+      "position": -1,
+      "highlight": true,
+      "icon": "🏨"
+    },
+    {
+      "id": "itin-d-20260919-1",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-19",
+      "start_time": null,
+      "title": "In the air",
+      "note": "In the air. You left Tel Aviv 16:15 on Fri Sep 18 via Addis Ababa.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20260919-2",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-19",
+      "start_time": null,
+      "title": "Land at Narita 19:40",
+      "note": "Land at Narita 19:40. Scan your Visit Japan Web QR at the Joint Kiosk. Immigration, bags and customs realistically put you out around 20:30–21:00.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20260919-3",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-19",
+      "start_time": null,
+      "title": "Narita Express or Limousine Bus into the city",
+      "note": "Narita Express or Limousine Bus into the city — allow 60–90 min. You'll reach the hotel around 22:00. Konbini run for water, breakfast and snacks. Then sleep.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20260919-4",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": "food-tokyo-ramen",
+      "day": "2026-09-19",
+      "start_time": null,
+      "title": "Whatever the konbini has",
+      "note": "Whatever the konbini has. If you still have energy, Omoide Yokocho yakitori runs late — but there's no shame in going straight to bed.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20260919-5",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-19",
+      "start_time": null,
+      "title": "Arrival is 19:40",
+      "note": "Arrival is 19:40 — this is not a sightseeing day. Everything I'd previously put here is now on other days. Have the Visit Japan Web QR ready and your phone charged. Buy the Narita Express / bus ticket before you head to the platform.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20260920-6",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-20",
+      "start_time": null,
+      "title": "Sleep In. No alarm",
+      "note": "Sleep In. No alarm — that's the point of the 16:00 slot.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20260920-7",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-20",
+      "start_time": "10:30",
+      "title": "Meiji Shrine and Yoyogi Park",
+      "note": "~10:30 Meiji Shrine and Yoyogi Park. Still calm mid-morning on a Sunday.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20260920-8",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-20",
+      "start_time": "11:30",
+      "title": "Takeshita Street",
+      "note": "~11:30 Takeshita Street: Long!Longer!!Longest!!! at Cute Cube Harajuku 1F (tornado potato to 52cm, cotton candy to 60cm) and I'm Donut? for the mochi-textured ones.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20260920-9",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-20",
+      "start_time": "12:45",
+      "title": "Lunch in Harajuku",
+      "note": "~12:45 lunch in Harajuku — Afuri yuzu-shio ramen.",
+      "position": 3
+    },
+    {
+      "id": "itin-d-20260920-10",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-20",
+      "start_time": "14:00",
+      "title": "Omotesando, then Cat Street down toward Shibuya",
+      "note": "~14:00 Omotesando, then Cat Street down toward Shibuya: vintage shops, sneakers, quiet cafes.",
+      "position": 4
+    },
+    {
+      "id": "itin-d-20260920-11",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-20",
+      "start_time": "15:40",
+      "title": "Be in Shibuya, unhurried, near the spa",
+      "note": "~15:40 be in Shibuya, unhurried, near the spa.",
+      "position": 5
+    },
+    {
+      "id": "itin-d-20260920-12",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-20",
+      "start_time": "16:00",
+      "title": "The Head Spa Shibuya (90 min)",
+      "note": "16:00–17:30 the Head Spa Shibuya (90 min). Full scalp treatment, finishing with a wash and blow-dry — so you go to dinner looking good and feeling unwound.",
+      "position": 6
+    },
+    {
+      "id": "itin-d-20260920-13",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-20",
+      "start_time": "18:00",
+      "title": "Slow move to Ebisu (2 stops on the Yamanote)",
+      "note": "~18:00 slow move to Ebisu (2 stops on the Yamanote). A drink somewhere quiet first.",
+      "position": 7
+    },
+    {
+      "id": "itin-d-20260920-14",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-20",
+      "start_time": "19:00",
+      "title": "Birthday Dinner at Sushi Kenshin",
+      "note": "19:00 Birthday Dinner at Sushi Kenshin.",
+      "position": 8
+    },
+    {
+      "id": "itin-d-20260920-15",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-20",
+      "start_time": null,
+      "title": "Takeshita sweets late morning",
+      "note": "Takeshita sweets late morning. Afuri Harajuku for lunch. Birthday dinner: Sushi Kenshin, Ebisu. Cake: any Shibuya depachika (Shibuya Scramble Square, Tokyu Food Show) has serious patisserie.",
+      "position": 9,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20260920-16",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-20",
+      "start_time": null,
+      "title": "Shibuya Sky Moved to Oct 13",
+      "note": "Shibuya Sky Moved to Oct 13 — a 16:00 spa collides with the sunset slot, so it's better on a night you're free.\nNothing after dinner. You'll be deeply relaxed and that's the whole design of the day.\nTell the Restaurant It's A Birthday when you book — Japanese restaurants almost always do something.",
+      "position": 10,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20260921-17",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-21",
+      "start_time": null,
+      "title": "Ueno Park — Toshogu Shrine, the lotus pond, a museum if you feel like one",
+      "note": "Ueno Park — Toshogu Shrine, the lotus pond, a museum if you feel like one. Slow morning after the birthday.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20260921-18",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-21",
+      "start_time": null,
+      "title": "Ameyoko market under the JR tracks",
+      "note": "Ameyoko market under the JR tracks — street food, dried fruit, sneakers, bargains. Closes around 19:00. Then one stop to Akihabara.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20260921-19",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-21",
+      "start_time": null,
+      "title": "Akihabara Electric Town",
+      "note": "Akihabara Electric Town. Yodobashi (8 floors), Super Potato retro games, a round of pachinko, gachapon. Then Chuo line to Nakano for Maguro Mart.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20260921-20",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-21",
+      "start_time": null,
+      "title": "Maguro Mart",
+      "note": "Maguro Mart — ~8-course tuna set, 4,000–5,000 yen pp, plus the nakaochi: they bring a tuna backbone and you scrape it into your own temaki rolls.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20260921-21",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-21",
+      "start_time": null,
+      "title": "Book Maguro Mart",
+      "note": "Book Maguro Mart — opens Exactly 1 month ahead, phone only, Japanese only. Monday is deliberately chosen: weekend slots vanish in minutes. Ask the hotel concierge to call. Note: you lose Akihabara's Sunday pedestrian street by moving this — worth it for the birthday.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20260922-22",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-22",
+      "start_time": "09:00",
+      "title": "Kappabashi Dougugai",
+      "note": "09:00 Kappabashi Dougugai — 160+ shops, giant chef-head statue at the entrance. Knives, ceramics, chopstick rests, fake food samples. 10:30 Yae Kimono — get dressed for the day.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20260922-23",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": "attr-sensoji",
+      "day": "2026-09-22",
+      "start_time": "11:15",
+      "title": "Sensoji: Kaminarimon → Nakamise → main hall → Asakusa Shrine",
+      "note": "11:15 Sensoji: Kaminarimon → Nakamise → main hall → Asakusa Shrine. 12:30 Asakusa Nishi-Sando food street. 13:30 Suzukien matcha gelato. 14:15 Sumida River / Sumida Park — Skytree and the Asahi building across the water, best kimono photos of the trip. 15:00 Hatoya for a matcha latte. 16:00 return the kimono.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20260922-24",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-22",
+      "start_time": "16:30",
+      "title": "Ann Fragrance Asakusa",
+      "note": "16:30 Ann Fragrance Asakusa — build your own perfume together, ~50 min. 17:45 Seims Pharmacy for the drugstore haul. 18:30 Marugame Seimen udon. 19:30 Adores Asakusa arcade — purikura photo booth, claw machines.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20260922-25",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-22",
+      "start_time": null,
+      "title": "Nishi-Sando",
+      "note": "Nishi-Sando: Kagetsudo jumbo melonpan (~220 yen, they make ~2,000/day and sell out — go before 14:00), Hokkaido Milk Bar, Tokyo Curry Pan, Kaede Asakusa. Suzukien: matcha gelato in 7 intensity levels, No.7 is the strongest in the world. Dinner: Marugame Seimen, cheap fresh-made udon.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20260922-26",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-22",
+      "start_time": null,
+      "title": "This is Why It's Tuesday",
+      "note": "This is Why It's Tuesday — many Kappabashi shops shut on Sundays. Book Ann Fragrance (4,950 yen pp) and the kimono in advance. Suzukien queues; they may hand you a timed ticket. Hatoya has no seating and ~20 min waits.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20260923-27",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-23",
+      "start_time": null,
+      "title": "JR to Kamakura (~1 hr)",
+      "note": "JR to Kamakura (~1 hr). Tsurugaoka Hachimangu Shrine, then Komachi-dori for snacks on the way down.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20260923-28",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-23",
+      "start_time": null,
+      "title": "Great Buddha at Kotoku-in",
+      "note": "Great Buddha at Kotoku-in. Hasedera Temple with its sea views. Hokoku-ji bamboo temple — matcha served inside the grove.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20260923-29",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-23",
+      "start_time": null,
+      "title": "Enoden coastal train to Enoshima for sunset over the water",
+      "note": "Enoden coastal train to Enoshima for sunset over the water. Back to Tokyo (~1 hr).",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20260923-30",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-23",
+      "start_time": null,
+      "title": "Komachi-dori street food",
+      "note": "Komachi-dori street food. Shirasu-don (whitebait rice bowl) — the local dish. Matcha at Hokoku-ji.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20260923-31",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-23",
+      "start_time": null,
+      "title": "Slower, romantic day after the intensity of Asakusa",
+      "note": "Slower, romantic day after the intensity of Asakusa. Sit on the sea side of the Enoden.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20260924-32",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-24",
+      "start_time": "07:00",
+      "title": "Tsukiji Outer Market",
+      "note": "07:00 Tsukiji Outer Market — graze lightly, don't fill up: tamagoyaki, uni, a skewer, strawberry daifuku. Open Thursdays (it's shut Sundays and most Wednesdays, which is why today). Then Hama Rikyu Gardens next door, 300 yen.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20260924-33",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-24",
+      "start_time": null,
+      "title": "Ginza: collect the tourist discount card at the department store info counter First,…",
+      "note": "Ginza: collect the tourist discount card at the department store info counter First, then Mikimoto pearls, Itoya stationery (12 floors), Feiler flagship. Omakase Sushi Lunch — far better value than dinner.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20260924-34",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": "attr-teamlab",
+      "day": "2026-09-24",
+      "start_time": null,
+      "title": "Yurikamome to Toyosu",
+      "note": "Yurikamome to Toyosu. Toyosu Senkyaku Banrai — Edo-period food street, tuna skewers, then the Free 8F footbath garden over Tokyo Bay (9:00–22:00). Walk it off, then teamLab Planets right there in Toyosu — book an evening slot.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20260924-35",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-24",
+      "start_time": null,
+      "title": "Tsukiji breakfast grazing",
+      "note": "Tsukiji breakfast grazing. Omakase lunch in Ginza (Sushi M / Udatsu / Sushi Kenshin). Senkyaku Banrai: Soma Suisan tuna skewers, Fukagawa croquettes, unagi. Ben's Cookies Ginza.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20260924-36",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-09-24",
+      "start_time": null,
+      "title": "Book: omakase 1–2 months ahead",
+      "note": "Book: omakase 1–2 months ahead. teamLab Planets via Klook (Barandshanyklook). Whole day chains geographically: Tsukiji → Ginza → Toyosu. Wear something you can roll to the knee for Planets — you walk through water.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20260925-37",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-hakone",
+      "place_id": null,
+      "day": "2026-09-25",
+      "start_time": null,
+      "title": "Takkyubin: forward the big suitcases ahead (hotel front desk does it)",
+      "note": "Takkyubin: forward the big suitcases ahead (hotel front desk does it). Shinkansen Tokyo → Odawara, only ~35 min.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20260925-38",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-hakone",
+      "place_id": null,
+      "day": "2026-09-25",
+      "start_time": null,
+      "title": "Hotel Indigo shuttle up to Gora",
+      "note": "Hotel Indigo shuttle up to Gora. Check in, first soak in your in-room private onsen with river views.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20260925-39",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-hakone",
+      "place_id": "attr-hakone-openair",
+      "day": "2026-09-25",
+      "start_time": null,
+      "title": "Hakone Open Air Museum (sculptures + Picasso gallery, ~2 hrs",
+      "note": "Hakone Open Air Museum (sculptures + Picasso gallery, ~2 hrs — the best stop in Hakone). Dinner at Gora Brewery & Grill.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20260925-40",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-hakone",
+      "place_id": null,
+      "day": "2026-09-25",
+      "start_time": null,
+      "title": "Gora Brewery & Grill",
+      "note": "Gora Brewery & Grill. Or Tokyo Sushi, 5 min walk — Cash Only. Free wine on the hotel terrace 15:00–18:00 style perks.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20260925-41",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-hakone",
+      "place_id": null,
+      "day": "2026-09-25",
+      "start_time": null,
+      "title": "Book the shuttle in advance (runs ~10:00–18:00)",
+      "note": "Book the shuttle in advance (runs ~10:00–18:00). Request a River View room when booking.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20260926-42",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-hakone",
+      "place_id": "attr-owakudani",
+      "day": "2026-09-26",
+      "start_time": null,
+      "title": "The Hakone Loop",
+      "note": "The Hakone Loop: cable car Gora → Sounzan, then ropeway to Owakudani volcanic valley. Eat a black egg (+7 years of life, allegedly).",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20260926-43",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-hakone",
+      "place_id": null,
+      "day": "2026-09-26",
+      "start_time": null,
+      "title": "Ropeway down to Togendai",
+      "note": "Ropeway down to Togendai. Lake Ashi pirate ship cruise to Motohakone — Mt. Fuji across the water on a clear day.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20260926-44",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-hakone",
+      "place_id": null,
+      "day": "2026-09-26",
+      "start_time": null,
+      "title": "Hakone Shrine floating torii gate (queue for the photo)",
+      "note": "Hakone Shrine floating torii gate (queue for the photo). Bus back to Gora. Long onsen soak + drinks.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20260926-45",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-hakone",
+      "place_id": "attr-owakudani",
+      "day": "2026-09-26",
+      "start_time": null,
+      "title": "Black eggs at Owakudani",
+      "note": "Black eggs at Owakudani. Lakeside lunch at Motohakone. Hotel kaiseki-style dinner.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20260926-46",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-hakone",
+      "place_id": null,
+      "day": "2026-09-26",
+      "start_time": null,
+      "title": "Mornings are clearest for Fuji",
+      "note": "Mornings are clearest for Fuji. Buy the Hakone Free Pass for the loop. Motion sickness pills if you're sensitive.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20260927-47",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-fuji",
+      "place_id": null,
+      "day": "2026-09-27",
+      "start_time": null,
+      "title": "Check out of Indigo",
+      "note": "Check out of Indigo. Hotel shuttle down to Odawara and Pick Up the Car (most rental branches are at Odawara Station). Ask for an ETC card at the counter. Then drive to Gotemba — about 40 min.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20260927-48",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-fuji",
+      "place_id": null,
+      "day": "2026-09-27",
+      "start_time": null,
+      "title": "Gotemba Premium Outlets",
+      "note": "Gotemba Premium Outlets — 210+ brands at the foot of Fuji, and with a car the huge car park makes this painless. Grab the tourist coupon at the information counter with your passport.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20260927-49",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-fuji",
+      "place_id": "attr-kawaguchi",
+      "day": "2026-09-27",
+      "start_time": null,
+      "title": "Drive to Kawaguchiko (~1 hr)",
+      "note": "Drive to Kawaguchiko (~1 hr). Check in. Oishi Park on the north shore — flower beds with Fuji straight ahead. This is back on the table now you're driving. Lakeside sunset.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20260927-50",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-fuji",
+      "place_id": "attr-kawaguchi",
+      "day": "2026-09-27",
+      "start_time": null,
+      "title": "Outlet food court for lunch",
+      "note": "Outlet food court for lunch. Evening: houtou noodles, the thick miso-broth Kawaguchiko dish.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20260927-51",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-fuji",
+      "place_id": null,
+      "day": "2026-09-27",
+      "start_time": null,
+      "title": "The car changes everything here",
+      "note": "The car changes everything here — Oishi Park is back in, and you're no longer tied to the 3-a-day Gotemba bus. Confirm the Hotel Indigo shuttle time to Odawara the night before.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20260928-52",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-matsumoto",
+      "place_id": "attr-chureito",
+      "day": "2026-09-28",
+      "start_time": null,
+      "title": "Sunrise at Chureito Pagoda",
+      "note": "Sunrise at Chureito Pagoda — ~400 steps, the iconic Fuji shot. Park at the Arakura Sengen Shrine lot and go before breakfast.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20260928-53",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-matsumoto",
+      "place_id": "attr-kawaguchi",
+      "day": "2026-09-28",
+      "start_time": null,
+      "title": "Oshino Hakkai",
+      "note": "Oshino Hakkai — back in the plan thanks to the car. Eight crystal-clear spring ponds fed by Fuji snowmelt, thatched roofs, fresh spring-water tofu. About 20 min from Kawaguchiko. Then drive to Matsumoto (~2–2.5 hrs on the Chuo Expressway).",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20260928-54",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-matsumoto",
+      "place_id": "attr-matsumoto-castle",
+      "day": "2026-09-28",
+      "start_time": null,
+      "title": "Matsumoto Castle",
+      "note": "Matsumoto Castle — one of Japan's 5 National Treasure castles. Climb the original 400-year-old keep (steep stairs, socks required). Closes 17:00, last entry 16:30. Then Nawate-dori and Nakamachi in the evening.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20260928-55",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-matsumoto",
+      "place_id": null,
+      "day": "2026-09-28",
+      "start_time": null,
+      "title": "Matsumoto soba, the regional speciality",
+      "note": "Matsumoto soba, the regional speciality. Local sake. Basashi if you're brave.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20260928-56",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-matsumoto",
+      "place_id": null,
+      "day": "2026-09-28",
+      "start_time": null,
+      "title": "Everything fits now",
+      "note": "Everything fits now — this is the day the car pays for itself. Check your Matsumoto hotel has parking and what it costs.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20260929-57",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-takayama",
+      "place_id": null,
+      "day": "2026-09-29",
+      "start_time": null,
+      "title": "Critical: Private Cars Are Banned in Kamikochi",
+      "note": "Critical: Private Cars Are Banned in Kamikochi. Drive Matsumoto → Route 158 → through the Abo Tunnel → Akandana Parking near Hirayu (~1h30). Park there (¥600 per car) and take the shuttle straight in — no transfer needed from Akandana.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20260929-58",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-takayama",
+      "place_id": null,
+      "day": "2026-09-29",
+      "start_time": null,
+      "title": "Kamikochi, 1,500m, ringed by the Hotaka range",
+      "note": "Kamikochi, 1,500m, ringed by the Hotaka range. Flat riverside walk: Taisho Pond (morning mist over the water is the shot) → Kappa Bridge → Myojin Pond. 3–4 hours, no climbing.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20260929-59",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-takayama",
+      "place_id": null,
+      "day": "2026-09-29",
+      "start_time": null,
+      "title": "Shuttle back to Akandana, collect the car, drive on to Takayama (~1 hr)",
+      "note": "Shuttle back to Akandana, collect the car, drive on to Takayama (~1 hr). Check in to the ryokan, yukata, onsen, kaiseki dinner.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20260929-60",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-takayama",
+      "place_id": null,
+      "day": "2026-09-29",
+      "start_time": null,
+      "title": "Eat at one of the Kamikochi lodges",
+      "note": "Eat at one of the Kamikochi lodges — there is nothing between stops. Dinner at the ryokan.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20260929-61",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-takayama",
+      "place_id": null,
+      "day": "2026-09-29",
+      "start_time": null,
+      "title": "Parking at Akandana rather than Sawando is the smart move",
+      "note": "Parking at Akandana rather than Sawando is the smart move: it's on the Takayama side, so you finish the day already an hour from your ryokan. Free foot onsen at Hirayu terminal. No Bins in Kamikochi — carry everything out.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20260930-62",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-takayama",
+      "place_id": "attr-sanmachi",
+      "day": "2026-09-30",
+      "start_time": null,
+      "title": "Miyagawa morning market along the river (07:00–12:00)",
+      "note": "Miyagawa morning market along the river (07:00–12:00) — pickles, sarubobo dolls, crafts, coffee.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20260930-63",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-takayama",
+      "place_id": "attr-hakone-openair",
+      "day": "2026-09-30",
+      "start_time": null,
+      "title": "Takayama Jinya (old government house)",
+      "note": "Takayama Jinya (old government house). Sake brewery tastings in the old town. Hida Folk Village open-air museum.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20260930-64",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-takayama",
+      "place_id": null,
+      "day": "2026-09-30",
+      "start_time": null,
+      "title": "Free evening in the old town",
+      "note": "Free evening in the old town. Second onsen soak. Early night — big travel day tomorrow.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20260930-65",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-takayama",
+      "place_id": null,
+      "day": "2026-09-30",
+      "start_time": null,
+      "title": "Hida beef nigiri served on a rice cracker (street food, legendary)",
+      "note": "Hida beef nigiri served on a rice cracker (street food, legendary). Hida beef steak dinner. Local sake flights.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20260930-66",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-takayama",
+      "place_id": null,
+      "day": "2026-09-30",
+      "start_time": null,
+      "title": "Buy: sarubobo good-luck dolls, sake, Hida woodcraft",
+      "note": "Buy: sarubobo good-luck dolls, sake, Hida woodcraft. Great souvenir town.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20261001-67",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kanazawa",
+      "place_id": null,
+      "day": "2026-10-01",
+      "start_time": null,
+      "title": "Drive Takayama → Shirakawa-Go (~50 min on the Tokai-Hokuriku Expressway)",
+      "note": "Drive Takayama → Shirakawa-Go (~50 min on the Tokai-Hokuriku Expressway). Park at the village lot.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20261001-68",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kanazawa",
+      "place_id": null,
+      "day": "2026-10-01",
+      "start_time": null,
+      "title": "Shirakawa-Go",
+      "note": "Shirakawa-Go — UNESCO gassho-zukuri thatched village. Shiroyama viewpoint over the whole valley, inside the Wada House, walk out among the rice paddies. With the car you can stay as long as you like instead of watching the bus clock.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20261001-69",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kanazawa",
+      "place_id": "attr-higashichaya",
+      "day": "2026-10-01",
+      "start_time": null,
+      "title": "Drive to Kanazawa (~1h15)",
+      "note": "Drive to Kanazawa (~1h15). Return the Car — most branches close around 20:00, so build in buffer. Check in, then Higashi Chaya geisha district in the evening light.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20261001-70",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kanazawa",
+      "place_id": "attr-higashichaya",
+      "day": "2026-10-01",
+      "start_time": null,
+      "title": "Shirakawa-go",
+      "note": "Shirakawa-go: soba, grilled river fish, Hida beef skewers. Kanazawa dinner near Higashi Chaya.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20261001-71",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kanazawa",
+      "place_id": null,
+      "day": "2026-10-01",
+      "start_time": null,
+      "title": "Return the Car Today, not tomorrow",
+      "note": "Return the Car Today, not tomorrow — Kanazawa city is entirely walkable and parking costs money. Refuel before you drop off or they'll charge a premium. One-way drop-offs usually must be returned within business hours (roughly 08:00–20:00).",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20261002-72",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kanazawa",
+      "place_id": "attr-kenrokuen",
+      "day": "2026-10-02",
+      "start_time": null,
+      "title": "Kenrokuen Garden at opening",
+      "note": "Kenrokuen Garden at opening — one of the Three Great Gardens of Japan. Then Kanazawa Castle next door.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20261002-73",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kanazawa",
+      "place_id": "shop-omicho",
+      "day": "2026-10-02",
+      "start_time": null,
+      "title": "Omicho Market for a seafood lunch",
+      "note": "Omicho Market for a seafood lunch. Nagamachi samurai district (earthen walls, Nomura samurai house). 21st Century Museum of Contemporary Art — the swimming pool illusion.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20261002-74",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kanazawa",
+      "place_id": "attr-higashichaya",
+      "day": "2026-10-02",
+      "start_time": null,
+      "title": "Higashi Chaya teahouse district again for gold-leaf ice cream",
+      "note": "Higashi Chaya teahouse district again for gold-leaf ice cream. Optional gold-leaf craft workshop — make something together.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20261002-75",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kanazawa",
+      "place_id": "shop-omicho",
+      "day": "2026-10-02",
+      "start_time": null,
+      "title": "Omicho Market kaisendon (seafood rice bowl)",
+      "note": "Omicho Market kaisendon (seafood rice bowl) — Kanazawa's sushi rivals Tokyo's. Jibuni stew. Gold-leaf ice cream.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20261002-76",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kanazawa",
+      "place_id": null,
+      "day": "2026-10-02",
+      "start_time": null,
+      "title": "Kanazawa produces ~99% of Japan's gold leaf",
+      "note": "Kanazawa produces ~99% of Japan's gold leaf. Buy: gold-leaf cosmetics, Kutani ceramics, Kaga silk.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20261003-77",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": null,
+      "day": "2026-10-03",
+      "start_time": null,
+      "title": "Thunderbird limited express Kanazawa → Kyoto (~2 hr 15)",
+      "note": "Thunderbird limited express Kanazawa → Kyoto (~2 hr 15). Check in at Vischio, 2 min from the station.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20261003-78",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": null,
+      "day": "2026-10-03",
+      "start_time": null,
+      "title": "TeamLab Biovortex Kyoto",
+      "note": "teamLab Biovortex Kyoto — 7 min walk from the hotel. Japan's largest teamLab, 10,000 sqm, 50+ works. Wear sneakers, light colours, no short skirts (mirror floors).",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20261003-79",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": null,
+      "day": "2026-10-03",
+      "start_time": null,
+      "title": "Kyoto Station sky walkway",
+      "note": "Kyoto Station sky walkway. Then Pontocho alley along the Kamo River for your first Kyoto dinner.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20261003-80",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": null,
+      "day": "2026-10-03",
+      "start_time": null,
+      "title": "Pontocho riverside dinner",
+      "note": "Pontocho riverside dinner. Ganko Takasegawa for the full traditional setting. Rutubo small plates.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20261003-81",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": null,
+      "day": "2026-10-03",
+      "start_time": null,
+      "title": "Book teamLab Biovortex weeks ahead",
+      "note": "Book teamLab Biovortex weeks ahead — it sells out. Klook code Barandshanyklook. Totally different from Tokyo's Planets: 10,000 sqm, 4 floors, ball-pit storm, trampolines. Don Quijote is across the street from the hotel.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20261004-82",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": "attr-arashiyama",
+      "day": "2026-10-04",
+      "start_time": null,
+      "title": "Arashiyama Bamboo Grove at 07:30",
+      "note": "Arashiyama Bamboo Grove at 07:30 — genuinely empty before 09:00, and that changes everything. Tenryu-ji + Sogenchi Garden.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20261004-83",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": "attr-kinkakuji",
+      "day": "2026-10-04",
+      "start_time": null,
+      "title": "Togetsukyo Bridge, riverside walk, optional monkey park",
+      "note": "Togetsukyo Bridge, riverside walk, optional monkey park. Then across town to Kinkaku-ji (Golden Pavilion) and Ryoan-ji rock garden.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20261004-84",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": null,
+      "day": "2026-10-04",
+      "start_time": null,
+      "title": "Back to central Kyoto",
+      "note": "Back to central Kyoto. Kamo River evening stroll.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20261004-85",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": null,
+      "day": "2026-10-04",
+      "start_time": null,
+      "title": "Yudofu (hot tofu) lunch in Arashiyama",
+      "note": "Yudofu (hot tofu) lunch in Arashiyama. % Arabica Arashiyama coffee. Kichi Kichi omurice if you land a reservation.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20261004-86",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": null,
+      "day": "2026-10-04",
+      "start_time": null,
+      "title": "Omurice is A Must",
+      "note": "Omurice is A Must — Kichi Kichi is near-impossible to book, but try. Backup: any Kyoto yoshoku spot.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20261005-87",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": "attr-fushimi",
+      "day": "2026-10-05",
+      "start_time": null,
+      "title": "Fushimi Inari at sunrise",
+      "note": "Fushimi Inari at sunrise — thousands of torii gates. Climb past the first 20 min and the crowds vanish. Then Sanjusangen-do's 1,001 golden statues.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20261005-88",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": "shop-nishiki",
+      "day": "2026-10-05",
+      "start_time": null,
+      "title": "Nishiki Market",
+      "note": "Nishiki Market — graze the stalls. Aritsugu knives (since 1560): buy a knife and they engrave your names in kanji. Best souvenir of the trip.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20261005-89",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": null,
+      "day": "2026-10-05",
+      "start_time": null,
+      "title": "Kiyomizudera late afternoon → walk down Sanneizaka & Ninenzaka → Yasaka Pagoda → Gion…",
+      "note": "Kiyomizudera late afternoon → walk down Sanneizaka & Ninenzaka → Yasaka Pagoda → Gion Hanamikoji at dusk. The most beautiful walk in Japan.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20261005-90",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": "shop-nishiki",
+      "day": "2026-10-05",
+      "start_time": null,
+      "title": "Nishiki Market grazing",
+      "note": "Nishiki Market grazing. Enen wagyu Bbq dinner — you grill it yourself, order small, it's rich. Walden Woods coffee.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20261005-91",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": null,
+      "day": "2026-10-05",
+      "start_time": null,
+      "title": "Book Enen ahead",
+      "note": "Book Enen ahead. Consider Kimono Rental for this day — it's your best photo day by far.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20261006-92",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": null,
+      "day": "2026-10-06",
+      "start_time": null,
+      "title": "Train to Nara (~45 min)",
+      "note": "Train to Nara (~45 min). Nara Park — bow to the deer and they bow back. Buy shika senbei crackers.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20261006-93",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": null,
+      "day": "2026-10-06",
+      "start_time": null,
+      "title": "Todai-ji and the Great Buddha (built 728, still staggering)",
+      "note": "Todai-ji and the Great Buddha (built 728, still staggering). Kasuga Taisha's lantern paths. Isuien Garden. Naramachi old merchant lanes.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20261006-94",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": null,
+      "day": "2026-10-06",
+      "start_time": null,
+      "title": "Back to Kyoto",
+      "note": "Back to Kyoto. Farewell-to-Kyoto dinner in Gion or Pontocho.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20261006-95",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": null,
+      "day": "2026-10-06",
+      "start_time": null,
+      "title": "Nara: Maguro Noya sushi, kakinoha-zushi (persimmon-leaf sushi)",
+      "note": "Nara: Maguro Noya sushi, kakinoha-zushi (persimmon-leaf sushi). Kyoto dinner: Kappa Sushi or Sushitetsu.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20261006-96",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-kyoto",
+      "place_id": null,
+      "day": "2026-10-06",
+      "start_time": null,
+      "title": "If you'd rather slow down",
+      "note": "If you'd rather slow down: swap Nara for a tea ceremony + Philosopher's Path + Ginkaku-ji bike day.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20261007-97",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-osaka",
+      "place_id": null,
+      "day": "2026-10-07",
+      "start_time": null,
+      "title": "Slow morning in Kyoto",
+      "note": "Slow morning in Kyoto — tea ceremony, or Ginkaku-ji if you skipped it. Train to Osaka (~30 min).",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20261007-98",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-osaka",
+      "place_id": "attr-osaka-castle",
+      "day": "2026-10-07",
+      "start_time": null,
+      "title": "Check in at Mercure Namba (ask for a high floor + the Led mirror)",
+      "note": "Check in at Mercure Namba (ask for a high floor + the Led mirror). Osaka Castle and its park.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20261007-99",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-osaka",
+      "place_id": "attr-dotonbori",
+      "day": "2026-10-07",
+      "start_time": null,
+      "title": "Dotonbori after dark",
+      "note": "Dotonbori after dark — Glico Man, the canal, the giant crab. Loud, bright, wonderful. Shinsaibashi arcade next door.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20261007-100",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-osaka",
+      "place_id": null,
+      "day": "2026-10-07",
+      "start_time": null,
+      "title": "Street food crawl",
+      "note": "Street food crawl: takoyaki, okonomiyaki, kushikatsu. Late night: Noguchi Taro Ramen Shinsaibashi (17:00–04:00, 5 min from the hotel, no sign on the door).",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20261007-101",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-osaka",
+      "place_id": null,
+      "day": "2026-10-07",
+      "start_time": null,
+      "title": "Osaka is the loudest, friendliest city in Japan",
+      "note": "Osaka is the loudest, friendliest city in Japan. In-room washing machine — do laundry tonight.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20261008-102",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-osaka",
+      "place_id": null,
+      "day": "2026-10-08",
+      "start_time": null,
+      "title": "Kuromon Ichiba Market before noon",
+      "note": "Kuromon Ichiba Market before noon — wagyu skewers, uni, scallops, fresh fruit. Osaka's kitchen.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20261008-103",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-osaka",
+      "place_id": null,
+      "day": "2026-10-08",
+      "start_time": null,
+      "title": "Tennoji Park → Shinsekai",
+      "note": "Tennoji Park → Shinsekai: retro 1950s Osaka, Tsutenkaku Tower, kushikatsu alleys. Then Den Den Town and Amerika-mura vintage shops.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20261008-104",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-osaka",
+      "place_id": null,
+      "day": "2026-10-08",
+      "start_time": null,
+      "title": "Umeda Sky Building Floating Garden Observatory at sunset",
+      "note": "Umeda Sky Building Floating Garden Observatory at sunset — open-air rooftop ring, better than it sounds.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20261008-105",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-osaka",
+      "place_id": null,
+      "day": "2026-10-08",
+      "start_time": null,
+      "title": "Kuromon market breakfast",
+      "note": "Kuromon market breakfast. Kushikatsu in Shinsekai (Never double-dip the sauce — it's the one real rule).",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20261008-106",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-osaka",
+      "place_id": null,
+      "day": "2026-10-08",
+      "start_time": null,
+      "title": "Shopping: Shinsaibashi-suji arcade, Doguyasuji kitchen street, Don Quijote Dotonbori…",
+      "note": "Shopping: Shinsaibashi-suji arcade, Doguyasuji kitchen street, Don Quijote Dotonbori (use the coupon).",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20261009-107",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-osaka",
+      "place_id": null,
+      "day": "2026-10-09",
+      "start_time": null,
+      "title": "Flex day. Options",
+      "note": "Flex day. Options: Himeji Castle day trip (~1 hr, Japan's most beautiful castle) or Kobe for beef and the harbour.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20261009-108",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-osaka",
+      "place_id": null,
+      "day": "2026-10-09",
+      "start_time": null,
+      "title": "Staying local instead",
+      "note": "Staying local instead: Sumiyoshi Taisha shrine, Kaiyukan Aquarium, Namba Yasaka lion-head shrine, or Spa World.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20261009-109",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-osaka",
+      "place_id": "attr-dotonbori",
+      "day": "2026-10-09",
+      "start_time": null,
+      "title": "Last Osaka night",
+      "note": "Last Osaka night. Dotonbori round two, or a proper yakiniku dinner.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20261009-110",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-osaka",
+      "place_id": null,
+      "day": "2026-10-09",
+      "start_time": null,
+      "title": "Wagyu Burger Hirokiya",
+      "note": "Wagyu Burger Hirokiya. Yakiniku. Last takoyaki. 551 Horai pork buns for the train tomorrow.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20261009-111",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-osaka",
+      "place_id": null,
+      "day": "2026-10-09",
+      "start_time": null,
+      "title": "This is your buffer day",
+      "note": "This is your buffer day — if the trip has run you down, just sleep in and wander. That's allowed.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20261010-112",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-atami",
+      "place_id": null,
+      "day": "2026-10-10",
+      "start_time": null,
+      "title": "Takkyubin the big bags straight to the Tokyo hotel",
+      "note": "Takkyubin the big bags straight to the Tokyo hotel. Shinkansen Shin-Osaka → Atami (~2 hr 15, change at Shin-Yokohama or Odawara).",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20261010-113",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-atami",
+      "place_id": "attr-atami-beach",
+      "day": "2026-10-10",
+      "start_time": null,
+      "title": "Check in to the seaside ryokan",
+      "note": "Check in to the seaside ryokan. Yukata on. Atami Sun Beach and the Atami Ginza shotengai.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20261010-114",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-atami",
+      "place_id": null,
+      "day": "2026-10-10",
+      "start_time": null,
+      "title": "Ocean-view onsen at golden hour, then kaiseki dinner at the ryokan",
+      "note": "Ocean-view onsen at golden hour, then kaiseki dinner at the ryokan.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20261010-115",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-atami",
+      "place_id": null,
+      "day": "2026-10-10",
+      "start_time": null,
+      "title": "Kinmedai (golden eye snapper)",
+      "note": "Kinmedai (golden eye snapper) — the local fish. Ise-Ebi spiny lobster, in season from October. Fresh Izu wasabi.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20261010-116",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-atami",
+      "place_id": null,
+      "day": "2026-10-10",
+      "start_time": null,
+      "title": "Choose a room with a private open-air bath facing the sea if the budget allows",
+      "note": "Choose a room with a private open-air bath facing the sea if the budget allows. This is the wind-down.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20261011-117",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-atami",
+      "place_id": "attr-kiunkaku",
+      "day": "2026-10-11",
+      "start_time": null,
+      "title": "Kiunkaku — a 1919 villa-turned-ryokan, now open to the public",
+      "note": "Kiunkaku — a 1919 villa-turned-ryokan, now open to the public. Gorgeous gardens and a coffee salon.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20261011-118",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-atami",
+      "place_id": "attr-moa-museum",
+      "day": "2026-10-11",
+      "start_time": null,
+      "title": "Pick one: MOA Museum of Art (hilltop, sea views), the Jogasaki coastal cliff walk on…",
+      "note": "Pick one: MOA Museum of Art (hilltop, sea views), the Jogasaki coastal cliff walk on the Izukyu line, or Shuzenji Onsen's bamboo forest and 1,200-year-old temple.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20261011-119",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-atami",
+      "place_id": null,
+      "day": "2026-10-11",
+      "start_time": null,
+      "title": "Back to the ryokan",
+      "note": "Back to the ryokan. Long onsen. Second kaiseki dinner. Nothing scheduled.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20261011-120",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-atami",
+      "place_id": null,
+      "day": "2026-10-11",
+      "start_time": null,
+      "title": "Seafood, all day",
+      "note": "Seafood, all day. Sakura-ebi (cherry blossom shrimp) from Suruga Bay. Atami pudding.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20261011-121",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-atami",
+      "place_id": null,
+      "day": "2026-10-11",
+      "start_time": null,
+      "title": "Typhoon Note",
+      "note": "Typhoon Note: Izu absorbs Pacific storms through October. If the forecast turns, stay north near Atami — Shimoda can get cut off.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20261012-122",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-12",
+      "start_time": null,
+      "title": "Final onsen soak",
+      "note": "Final onsen soak. Shinkansen Atami → Tokyo — only 50 minutes.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20261012-123",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-12",
+      "start_time": null,
+      "title": "Check in at Remm Kyobashi (massage chairs in the rooms, two 7-Elevens next door)",
+      "note": "Check in at Remm Kyobashi (massage chairs in the rooms, two 7-Elevens next door). Ginza is walkable: Mikimoto and Itoya if you missed them.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20261012-124",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-12",
+      "start_time": null,
+      "title": "Tokyo Station Character Street + Ramen Street",
+      "note": "Tokyo Station Character Street + Ramen Street. Easy first-night-back dinner.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20261012-125",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-12",
+      "start_time": null,
+      "title": "Rokurinsha tsukemen",
+      "note": "Rokurinsha tsukemen. Nihonbashi Kaisen Don Tsujihan seafood bowl. Ichiran if you're craving it.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20261012-126",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-12",
+      "start_time": null,
+      "title": "You know this city now",
+      "note": "You know this city now. These last days are for revisiting, not discovering.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20261013-127",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-13",
+      "start_time": null,
+      "title": "Shopping Day",
+      "note": "Shopping Day. Start heavy and fragile. Ginza department stores — collect the tourist discount card at the info counter first. Feiler Ginza flagship for the Japan-exclusive chenille designs.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20261013-128",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-13",
+      "start_time": null,
+      "title": "Bic Camera for ReFa",
+      "note": "Bic Camera for ReFa — the Carat roller, and a hair dryer Only if it's the overseas-compatible 100–240V model. Open the Bic Camera coupon on your phone before you buy. Then Jins for prescription glasses (~30 min turnaround) and Alpen Tokyo in Shinjuku for sportswear.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20261013-129",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": "attr-shibuya",
+      "day": "2026-10-13",
+      "start_time": null,
+      "title": "Don Quijote with the coupon",
+      "note": "Don Quijote with the coupon: donki.com/en → Service → Coupon. Live link on the phone (no screenshots), physical passport, Tax-Free register only. Then end the day in Shibuya: Gentle Monster for the statement sunglasses, and Shibuya Sky at sunset — book entry ~1 hr before the ~17:05 mid-October sunset. This is the slot you gave up on the birthday.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20261013-130",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-13",
+      "start_time": null,
+      "title": "Wagyu Burger Hirokiya",
+      "note": "Wagyu Burger Hirokiya. Chermside Sandwich. Panel Coffee style fluffy pancakes — Flipper's or Happy Pancake.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20261013-131",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-13",
+      "start_time": null,
+      "title": "Stack everything",
+      "note": "Stack everything: tax-free (5,000 yen min) + Bic Camera coupon (5–7%) + Donki coupon (10,000 / 30,000 yen tiers) + department store tourist card (~5%). Buy drugstore consumables Today — they get sealed until you leave.\nShibuya Sky needs a clear evening. If Oct 13 looks grey, shift it to Oct 14 — you have that day free.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20261014-132",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-14",
+      "start_time": null,
+      "title": "Pick one: Yokohama (Chinatown, Cup Noodles Museum, Red Brick Warehouse)",
+      "note": "Pick one: Yokohama (Chinatown, Cup Noodles Museum, Red Brick Warehouse) — 30 min away.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20261014-133",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-14",
+      "start_time": null,
+      "title": "Or hidden Tokyo",
+      "note": "Or hidden Tokyo: Shimokitazawa vintage shops, Yanaka's old-Tokyo lanes, Kagurazaka's French-Japanese quarter.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20261014-134",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-14",
+      "start_time": null,
+      "title": "Or Nikko if you still want the temples and waterfalls",
+      "note": "Or Nikko if you still want the temples and waterfalls — but it's 2 hrs each way, so commit early.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20261014-135",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-14",
+      "start_time": null,
+      "title": "Yokohama Chinatown xiaolongbao",
+      "note": "Yokohama Chinatown xiaolongbao. Shimokitazawa curry. Yanaka Ginza traditional sweets.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20261014-136",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-14",
+      "start_time": null,
+      "title": "Whichever you choose, keep tomorrow light",
+      "note": "Whichever you choose, keep tomorrow light. You'll want the energy for the last dinner.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20261015-137",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-15",
+      "start_time": null,
+      "title": "Sleep in. Last konbini breakfast",
+      "note": "Sleep in. Last konbini breakfast — you'll miss these more than you expect.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20261015-138",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-15",
+      "start_time": null,
+      "title": "Final souvenirs and a proper snack haul for home",
+      "note": "Final souvenirs and a proper snack haul for home. Pack. Takkyubin can send luggage straight to the airport.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20261015-139",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-15",
+      "start_time": null,
+      "title": "Farewell Japan Dinner",
+      "note": "Farewell Japan Dinner. Top choices, in booking-difficulty order: Hakkoku (Ginza, elite edomae omakase, book the moment the month opens), Aramaki (Michelin), Yoroniku (A5 wagyu yakiniku), or Nobu Tokyo if you want something less traditional.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20261015-140",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-15",
+      "start_time": null,
+      "title": "Whatever you loved most",
+      "note": "Whatever you loved most. Or splurge on the one you couldn't get a table at earlier.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20261015-141",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-15",
+      "start_time": null,
+      "title": "Book This Months Ago",
+      "note": "Book This Months Ago. Hakkoku and Aramaki open 30–60 days out and fill in minutes — set a calendar alarm now. Nobu is the easiest of the four to get and still feels like an occasion.",
+      "position": 4,
+      "icon": "📌"
+    },
+    {
+      "id": "itin-d-20261016-142",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-16",
+      "start_time": null,
+      "title": "Your Flight is 20:40",
+      "note": "Your Flight is 20:40 — you have a Full Final Day. Check out of Gracery (usually 11:00) and leave the bags at the hotel.",
+      "position": 0
+    },
+    {
+      "id": "itin-d-20261016-143",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-16",
+      "start_time": null,
+      "title": "Use it properly",
+      "note": "Use it properly: last shopping in Shinjuku, anything you missed, a proper final lunch. Or a calm morning — Shinjuku Gyoen is 10 min away and is the nicest place in the city to do nothing.",
+      "position": 1
+    },
+    {
+      "id": "itin-d-20261016-144",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-16",
+      "start_time": "16:30",
+      "title": "Collect bags and head to Narita",
+      "note": "~16:30–17:00 collect bags and head to Narita. Limousine Bus goes direct from Shinjuku (~85–120 min) or Narita Express (~80 min). Aim to be at the airport by 18:00 for a 20:40 flight.",
+      "position": 2
+    },
+    {
+      "id": "itin-d-20261016-145",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-16",
+      "start_time": null,
+      "title": "One last proper meal",
+      "note": "One last proper meal. Stock up on konbini snacks and Kit-Kats for home — you'll want them.",
+      "position": 3,
+      "icon": "🍜"
+    },
+    {
+      "id": "itin-d-20261016-146",
+      "trip_id": "trip-japan",
+      "zone_id": "zone-tokyo",
+      "place_id": null,
+      "day": "2026-10-16",
+      "start_time": null,
+      "title": "This is a Bonus Day we didn't have before",
+      "note": "This is a Bonus Day we didn't have before. Don't waste it sitting at Narita. Book the Limousine Bus seat in advance at the hotel desk. Build in traffic buffer — Friday evening.",
+      "position": 4,
+      "icon": "📌"
+    }
   ],
   "files": [
     {
