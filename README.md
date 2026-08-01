@@ -43,7 +43,7 @@ All the code is written — schema, Supabase datastore, and seed scripts. Going
 live is just account setup + flipping one env var (no feature-code changes):
 
 1. **Create a free Supabase project.** Copy its **Project URL** and **secret API key** (`sb_secret_...`, Settings → API).
-2. **Run the schema:** paste each file in [supabase/migrations/](supabase/migrations/) into the Supabase SQL editor and run them in order (0001 → 0006).
+2. **Run the schema:** paste each file in [supabase/migrations/](supabase/migrations/) into the Supabase SQL editor and run them in order (0001 → 0007).
 3. **Create a private Storage bucket** named `trip-files`.
 4. **Set env** in `.env.local`:
    ```

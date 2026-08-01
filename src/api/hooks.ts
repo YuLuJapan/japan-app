@@ -9,6 +9,7 @@ import type {
   Rates,
   Reminder,
   SearchResult,
+  ShoppingItem,
   TripBundle,
   TripDocument,
   ZoneDetail,
@@ -45,6 +46,12 @@ export const usePlace = (placeId: string) =>
     queryKey: ['place', placeId],
     queryFn: () => api.get<PlaceDetail>(`/places/${placeId}`),
     enabled: placeId !== '', // PlaceForm in add mode has no place to fetch
+  })
+
+export const useShoppingList = () =>
+  useQuery({
+    queryKey: ['shopping'],
+    queryFn: () => api.get<{ items: ShoppingItem[] }>('/shopping'),
   })
 
 export const useTripFiles = () =>

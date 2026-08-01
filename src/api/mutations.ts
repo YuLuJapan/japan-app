@@ -14,6 +14,8 @@ import type {
   PlaceInput,
   Reminder,
   ReminderInput,
+  ShoppingItem,
+  ShoppingItemInput,
   Tip,
 } from './types'
 import type { SubscriptionPayload } from '../lib/push'
@@ -75,6 +77,36 @@ export function useDeletePlace(zoneId: string | undefined) {
       invalidate(zoneId)
       qc.invalidateQueries({ queryKey: ['trip-files'] }) // deleted place's files re-parent to trip
     },
+  })
+}
+
+function useShoppingInvalidation() {
+  const qc = useQueryClient()
+  return () => qc.invalidateQueries({ queryKey: ['shopping'] })
+}
+
+export function useCreateShoppingItem() {
+  const invalidate = useShoppingInvalidation()
+  return useMutation({
+    mutationFn: (input: ShoppingItemInput) => api.post<{ item: ShoppingItem }>('/shopping', input),
+    onSuccess: invalidate,
+  })
+}
+
+export function useUpdateShoppingItem() {
+  const invalidate = useShoppingInvalidation()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<ShoppingItemInput> }) =>
+      api.patch<{ item: ShoppingItem }>(`/shopping/${id}`, patch),
+    onSuccess: invalidate,
+  })
+}
+
+export function useDeleteShoppingItem() {
+  const invalidate = useShoppingInvalidation()
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/shopping/${id}`),
+    onSuccess: invalidate,
   })
 }
 

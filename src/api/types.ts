@@ -220,6 +220,56 @@ export interface ItineraryItemInput {
   icon?: string | null
 }
 
+// Shopping list — things to buy in Japan (photo, where, how much, bought yet).
+export const SHOPPING_CATEGORIES = [
+  'clothes',
+  'beauty',
+  'tech',
+  'snacks',
+  'home',
+  'souvenir',
+  'other',
+] as const
+export type ShoppingCategory = (typeof SHOPPING_CATEGORIES)[number]
+
+export const SHOPPING_CATEGORY_META: Record<ShoppingCategory, { label: string; icon: string }> = {
+  clothes: { label: 'Clothes & shoes', icon: '👟' },
+  beauty: { label: 'Beauty & hair', icon: '🧴' },
+  tech: { label: 'Tech & stationery', icon: '🎧' },
+  snacks: { label: 'Snacks & drinks', icon: '🍫' },
+  home: { label: 'Home & kitchen', icon: '🍵' },
+  souvenir: { label: 'Gifts & souvenirs', icon: '🎁' },
+  other: { label: 'Other', icon: '🛍️' },
+}
+
+export interface ShoppingItem {
+  id: string
+  trip_id: string
+  name: string
+  category: ShoppingCategory
+  note: string | null
+  shop: string | null
+  zone_id: string | null
+  price_yen: number | null
+  url: string | null
+  image_url: string | null
+  bought: boolean
+  position: number
+}
+
+export interface ShoppingItemInput {
+  name: string
+  category?: ShoppingCategory
+  note?: string | null
+  shop?: string | null
+  zone_id?: string | null
+  price_yen?: number | null
+  url?: string | null
+  image_url?: string | null
+  bought?: boolean
+  position?: number
+}
+
 export interface Rates {
   base: 'JPY'
   date: string

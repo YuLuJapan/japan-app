@@ -22,6 +22,7 @@ async function main() {
     ['places', data.places],
     ['tips', data.tips],
     ['itinerary_items', data.itinerary ?? []],
+    ['shopping_items', data.shopping ?? []],
     ['files', data.files],
   ]
 
