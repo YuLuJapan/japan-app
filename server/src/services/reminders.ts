@@ -6,6 +6,9 @@ import type { DataStore, Reminder, ReminderInput } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
 import { sendPush, type PushSender } from '../lib/push.js'
 
+// Reminders are planned in Israel time unless the client says otherwise (the
+// app's zone chip always sends one explicitly; this is the fallback).
+const DEFAULT_TIME_ZONE = 'Asia/Jerusalem'
 const MAX_TITLE = 120
 const MAX_BODY = 500
 const MAX_URL = 500
@@ -95,7 +98,7 @@ export async function createReminder(store: DataStore, body: unknown) {
     body: normalized.body ?? null,
     url: normalized.url ?? null,
     remind_at: normalized.remind_at!,
-    time_zone: normalized.time_zone ?? 'UTC',
+    time_zone: normalized.time_zone ?? DEFAULT_TIME_ZONE,
   })
   return { reminder }
 }

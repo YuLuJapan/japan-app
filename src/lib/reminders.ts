@@ -1,7 +1,13 @@
 // Pure date/timezone math for reminders, kept out of the component so it can be
-// tested. Reminders are stored as absolute instants; the UI lets you pick the
-// wall clock in either the phone's zone or Japan's, which is the whole point —
-// "9am in Japan" must mean the same moment from Tel Aviv.
+// tested. Reminders are stored as absolute instants; the UI picks which wall
+// clock you mean, which is the whole point — "9am in Japan" must mean the same
+// moment from Tel Aviv.
+//
+// Home time is the default and is pinned to Asia/Jerusalem rather than read
+// from the phone: booking deadlines are planned in Israeli time, and once a
+// phone switches to Japan time mid-trip a device-relative default would quietly
+// move an already-typed date onto the wrong day.
+export const HOME_TZ = 'Asia/Jerusalem'
 export const TOKYO_TZ = 'Asia/Tokyo'
 
 export const deviceTimeZone = (): string =>

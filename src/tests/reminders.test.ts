@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  HOME_TZ,
   TOKYO_TZ,
   formatInTimeZone,
   instantToWallClock,
@@ -16,14 +17,23 @@ describe('wallClockToInstant', () => {
   })
 
   it('reads a wall clock in Israel time, both sides of the DST switch', () => {
+    expect(HOME_TZ).toBe('Asia/Jerusalem')
     // IDT (UTC+3) in September
-    expect(wallClockToInstant('2026-09-12', '09:00', 'Asia/Jerusalem').toISOString()).toBe(
+    expect(wallClockToInstant('2026-09-12', '09:00', HOME_TZ).toISOString()).toBe(
       '2026-09-12T06:00:00.000Z'
     )
     // IST (UTC+2) in December
-    expect(wallClockToInstant('2026-12-12', '09:00', 'Asia/Jerusalem').toISOString()).toBe(
+    expect(wallClockToInstant('2026-12-12', '09:00', HOME_TZ).toISOString()).toBe(
       '2026-12-12T07:00:00.000Z'
     )
+  })
+
+  it('keeps an Israel-time reminder on the day it was typed', () => {
+    // the failure this guards: an early-morning wall clock read in the wrong
+    // zone lands the notification on the previous day
+    const instant = wallClockToInstant('2026-08-19', '09:00', HOME_TZ)
+    expect(instantToWallClock(instant.toISOString(), HOME_TZ).date).toBe('2026-08-19')
+    expect(formatInTimeZone(instant.toISOString(), HOME_TZ)).toMatch(/19 Aug/)
   })
 
   it('handles midnight (the hour Intl renders as 24)', () => {

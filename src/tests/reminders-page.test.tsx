@@ -67,17 +67,37 @@ describe('Reminders page', () => {
     expect(await screen.findByText('Nothing scheduled yet.')).toBeInTheDocument()
   })
 
+  async function fillForm(title: string, date: string, time: string) {
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /new reminder/i }))
+    await user.type(screen.getByLabelText(/what to do/i), title)
+    await user.clear(screen.getByLabelText(/date/i))
+    await user.type(screen.getByLabelText(/date/i), date)
+    await user.clear(screen.getByLabelText(/^time$/i))
+    await user.type(screen.getByLabelText(/^time$/i), time)
+    return user
+  }
+
+  it('reads the typed date as Israel time by default, whatever the phone is set to', async () => {
+    stubApi([])
+    render()
+    const user = await fillForm('Book the sushi place for 20 September', '2026-08-19', '09:00')
+    await user.click(screen.getByRole('button', { name: /add reminder/i }))
+
+    await waitFor(() => expect(mocks.post).toHaveBeenCalled())
+    expect(mocks.post).toHaveBeenCalledWith('/reminders', {
+      title: 'Book the sushi place for 20 September',
+      body: null,
+      url: null,
+      remind_at: '2026-08-19T06:00:00.000Z', // 09:00 Jerusalem (IDT, UTC+3)
+      time_zone: 'Asia/Jerusalem',
+    })
+  })
+
   it('posts a new reminder as an absolute instant in the chosen zone', async () => {
     stubApi([])
     render()
-    const user = userEvent.setup()
-
-    await user.click(await screen.findByRole('button', { name: /new reminder/i }))
-    await user.type(screen.getByLabelText(/what to do/i), 'Book the bus seats')
-    await user.clear(screen.getByLabelText(/date/i))
-    await user.type(screen.getByLabelText(/date/i), '2026-09-12')
-    await user.clear(screen.getByLabelText(/^time$/i))
-    await user.type(screen.getByLabelText(/^time$/i), '09:00')
+    const user = await fillForm('Book the bus seats', '2026-09-12', '09:00')
     await user.click(screen.getByRole('button', { name: /japan/i }))
     await user.click(screen.getByRole('button', { name: /add reminder/i }))
 

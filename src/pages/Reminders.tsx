@@ -1,7 +1,7 @@
 // Reminders: schedule a nudge ("book the ryokan") that arrives as a phone
 // notification even when the app is closed. Times are stored as absolute
-// instants — the chip picks whether the wall clock you typed means your phone's
-// zone or Japan's, which matters before (and during) the flight.
+// instants and typed in Israel time by default — the chip switches to Japan
+// time for anything planned around the trip's own clock.
 import { useState } from 'react'
 import { ApiError } from '../api/client'
 import { useReminders } from '../api/hooks'
@@ -12,6 +12,7 @@ import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
 import { NotificationSetup } from '../components/NotificationSetup'
 import {
+  HOME_TZ,
   TOKYO_TZ,
   deviceTimeZone,
   formatInTimeZone,
@@ -140,7 +141,7 @@ function ReminderCard({
   onEdit: () => void
   onDelete: () => void
 }) {
-  const zone = reminder.time_zone || deviceTimeZone()
+  const zone = reminder.time_zone || HOME_TZ
   const done = Boolean(reminder.sent_at)
   return (
     <article className={`card p-4 ${done ? 'opacity-60' : ''}`}>
@@ -199,22 +200,25 @@ interface FormProps {
 }
 
 function ReminderForm({ initial, pending, error, submitLabel, onCancel, onSubmit }: FormProps) {
-  const device = deviceTimeZone()
-  const [zone, setZone] = useState(initial?.time_zone || device)
+  const [zone, setZone] = useState(initial?.time_zone || HOME_TZ)
   const [title, setTitle] = useState(initial?.title ?? '')
   const [body, setBody] = useState(initial?.body ?? '')
   const [url, setUrl] = useState(initial?.url ?? '')
   const [date, setDate] = useState(() =>
-    initial ? instantToWallClock(initial.remind_at, zone).date : todayIn(device)
+    initial ? instantToWallClock(initial.remind_at, zone).date : todayIn(HOME_TZ)
   )
   const [time, setTime] = useState(() =>
     initial ? instantToWallClock(initial.remind_at, zone).time : '09:00'
   )
 
-  // The chip says which zone the typed wall clock belongs to; the preview line
-  // below shows the same instant in the other zone so there's no guessing.
+  // Israel time by default; Japan (and the phone's own zone, once it is neither)
+  // are one tap away. The lines under the chips show the same instant in the
+  // zones you did not pick, so a date can't silently land on the wrong day.
+  const zones = [HOME_TZ, TOKYO_TZ, deviceTimeZone()].filter(
+    (tz, i, list) => list.indexOf(tz) === i
+  )
   const preview = date && time ? wallClockToInstant(date, time, zone) : null
-  const otherZone = zone === TOKYO_TZ ? device : TOKYO_TZ
+  const otherZones = zones.filter((tz) => tz !== zone)
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault()
@@ -277,26 +281,25 @@ function ReminderForm({ initial, pending, error, submitLabel, onCancel, onSubmit
       <div>
         <span className="label">Time zone</span>
         <div className="flex gap-2">
-          {[device, TOKYO_TZ]
-            .filter((tz, i, list) => list.indexOf(tz) === i)
-            .map((tz) => (
-              <button
-                key={tz}
-                type="button"
-                onClick={() => setZone(tz)}
-                className={`chip border ${
-                  zone === tz ? 'border-brand bg-brand/10 text-brand' : 'border-line bg-white'
-                }`}
-              >
-                {tz === TOKYO_TZ ? '🇯🇵 Japan' : `📍 ${timeZoneLabel(tz)}`}
-              </button>
-            ))}
+          {zones.map((tz) => (
+            <button
+              key={tz}
+              type="button"
+              onClick={() => setZone(tz)}
+              className={`chip border ${
+                zone === tz ? 'border-brand bg-brand/10 text-brand' : 'border-line bg-white'
+              }`}
+            >
+              {zoneChipLabel(tz)}
+            </button>
+          ))}
         </div>
-        {preview && (
-          <p className="mt-1.5 text-xs text-muted">
-            {formatInTimeZone(preview.toISOString(), otherZone)} in {timeZoneLabel(otherZone)}
-          </p>
-        )}
+        {preview &&
+          otherZones.map((tz) => (
+            <p key={tz} className="mt-1.5 text-xs text-muted">
+              {formatInTimeZone(preview.toISOString(), tz)} in {timeZoneLabel(tz)}
+            </p>
+          ))}
       </div>
 
       <div>
@@ -339,6 +342,12 @@ function ReminderForm({ initial, pending, error, submitLabel, onCancel, onSubmit
       </div>
     </form>
   )
+}
+
+function zoneChipLabel(tz: string): string {
+  if (tz === HOME_TZ) return '🇮🇱 Israel'
+  if (tz === TOKYO_TZ) return '🇯🇵 Japan'
+  return `📍 ${timeZoneLabel(tz)}`
 }
 
 /** Today's date (YYYY-MM-DD) as seen in `tz`, for the date input's default. */
