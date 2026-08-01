@@ -56,6 +56,24 @@ live is just account setup + flipping one env var (no feature-code changes):
 
 The database keys are server-only and never reach the browser; all data flows through the Node backend.
 
+### Managing Supabase from Claude Code (MCP)
+
+[.mcp.json](.mcp.json) registers the official [Supabase MCP server](https://github.com/supabase-community/supabase-mcp)
+so Claude Code can list tables, run SQL, apply migrations, and read logs directly.
+It reads two environment variables (neither is checked in):
+
+```
+SUPABASE_PROJECT_REF=...     # the project ref from the dashboard URL / Project URL subdomain
+SUPABASE_ACCESS_TOKEN=sbp_...  # personal access token, https://supabase.com/dashboard/account/tokens
+```
+
+Set them in your shell (local) or in the Claude Code environment settings (web),
+then start a new session — MCP servers are loaded at session start. Add
+`--read-only` to the args in `.mcp.json` if you want to prevent writes.
+
+This token is account-wide and separate from the app's `SUPABASE_SECRET_KEY`;
+it is only used by the MCP tooling, never by the running app.
+
 **Cost**: $0 — Vercel Hobby and Supabase Free are hard-capped free tiers, no credit card. Budget ceiling for the whole project: $5.
 
 ## Notes
