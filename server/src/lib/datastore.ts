@@ -189,7 +189,47 @@ export interface ExchangeRates {
   ils: number // 1 JPY in ILS
 }
 
+/** A scheduled nudge ("book the ryokan") delivered as a web push notification. */
+export interface Reminder {
+  id: string
+  trip_id: string
+  title: string
+  body: string | null
+  url: string | null
+  remind_at: string // absolute instant (ISO 8601, UTC) — timezone-proof
+  time_zone: string // IANA zone the wall-clock time was entered in (display only)
+  sent_at: string | null // set when the dispatcher claimed it; null = still pending
+  created_at: string
+}
+
+export interface ReminderInput {
+  trip_id: string
+  title: string
+  body?: string | null
+  url?: string | null
+  remind_at: string
+  time_zone?: string | null
+}
+
+/** One browser's push endpoint (one row per installed app / device). */
+export interface PushSubscriptionRecord {
+  id: string
+  endpoint: string
+  p256dh: string
+  auth: string
+  label: string | null
+  created_at: string
+}
+
+export interface PushSubscriptionInput {
+  endpoint: string
+  p256dh: string
+  auth: string
+  label?: string | null
+}
+
 export type FileUrlResult = { url: string; expires_in: number } | 'FILE_MISSING'
+export type FileBytesResult = { bytes: Buffer; mime_type: string } | 'FILE_MISSING'
 
 export interface DataStore {
   /** Trivial read used by /api/health (keep-alive). Throws if the backend is unreachable. */
@@ -255,6 +295,8 @@ export interface DataStore {
   reparentFilesToTrip(placeId: string, tripId: string): Promise<void>
   /** Resolve an openable URL for the blob, or FILE_MISSING when the row exists but the blob is gone. */
   getFileUrl(file: FileAttachment): Promise<FileUrlResult>
+  /** Raw bytes for the blob, streamed by GET /api/files/:id/content so the app can preview it inline. */
+  getFileBytes(file: FileAttachment): Promise<FileBytesResult>
 
   /** Free-text search across places, zones, and tips (case-insensitive). */
   search(query: string): Promise<{ places: Place[]; zones: Zone[]; tips: Tip[] }>
@@ -263,6 +305,29 @@ export interface DataStore {
   getLatestRates(): Promise<ExchangeRates | null>
   /** Persist the latest fetched exchange rate (one row per base currency). */
   saveRates(rates: ExchangeRates): Promise<void>
+
+  /** Every reminder for the trip, soonest first. */
+  listReminders(tripId: string): Promise<Reminder[]>
+  getReminder(reminderId: string): Promise<Reminder | null>
+  createReminder(input: ReminderInput): Promise<Reminder>
+  updateReminder(
+    reminderId: string,
+    patch: Partial<ReminderInput> & { sent_at?: string | null }
+  ): Promise<Reminder | null>
+  deleteReminder(reminderId: string): Promise<boolean>
+  /**
+   * Atomically hand out every unsent reminder whose time has come, stamping
+   * `sent_at` in the same operation. Claim-then-send means a reminder is sent
+   * at most once even if two dispatch runs overlap (at-most-once, by design:
+   * a duplicate notification is worse than a missed retry here).
+   */
+  claimDueReminders(nowIso: string): Promise<Reminder[]>
+
+  listPushSubscriptions(): Promise<PushSubscriptionRecord[]>
+  /** Upsert by endpoint — re-subscribing the same device refreshes its keys. */
+  savePushSubscription(input: PushSubscriptionInput): Promise<PushSubscriptionRecord>
+  /** Drop a device (user disabled notifications, or the push service said 410 Gone). */
+  deletePushSubscription(endpoint: string): Promise<boolean>
 }
 
 let store: DataStore | null = null

@@ -3,11 +3,13 @@ import { getAccessCode } from './api/client'
 import { Layout } from './components/Layout'
 import AccessGate from './pages/AccessGate'
 import CategoryList from './pages/CategoryList'
+import DocumentPreview from './pages/DocumentPreview'
 import Journey from './pages/Journey'
 import JourneySteps from './pages/JourneySteps'
 import NotFound from './pages/NotFound'
 import PlaceDetail from './pages/PlaceDetail'
 import PlaceForm from './pages/PlaceForm'
+import Reminders from './pages/Reminders'
 import Search from './pages/Search'
 import ShoppingForm from './pages/ShoppingForm'
 import ShoppingList from './pages/ShoppingList'
@@ -41,8 +43,10 @@ export const router = createBrowserRouter([
       { path: '/shopping', element: <ShoppingList /> },
       { path: '/shopping/new', element: <ShoppingForm /> },
       { path: '/shopping/:itemId/edit', element: <ShoppingForm /> },
+      { path: '/reminders', element: <Reminders /> },
       { path: '/essentials', element: <TripEssentials /> },
       { path: '/files', element: <TripFiles /> },
+      { path: '/files/:fileId', element: <DocumentPreview /> },
       { path: '*', element: <NotFound /> },
     ],
   },

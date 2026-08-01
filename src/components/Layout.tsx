@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 
-type IconName = 'journey' | 'shopping' | 'essentials' | 'docs'
+type IconName = 'journey' | 'shopping' | 'reminders' | 'essentials' | 'docs'
 
 function TabIcon({ name, active }: { name: IconName; active: boolean }) {
   const s = active ? '#ff5a4d' : '#6b7280'
@@ -29,6 +29,13 @@ function TabIcon({ name, active }: { name: IconName; active: boolean }) {
         <path d="M9 11V6a3 3 0 0 1 6 0v5" />
       </svg>
     )
+  if (name === 'reminders')
+    return (
+      <svg {...common}>
+        <path d="M18 8a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6" />
+        <path d="M10.5 20a2 2 0 0 0 3 0" />
+      </svg>
+    )
   if (name === 'essentials')
     return (
       <svg {...common}>
@@ -49,13 +56,16 @@ export function Layout({ children }: { children: ReactNode }) {
   const journeyActive =
     pathname === '/' || pathname.startsWith('/zones') || pathname.startsWith('/places')
   const shoppingActive = pathname.startsWith('/shopping')
+  const remindersActive = pathname.startsWith('/reminders')
   const essentialsActive = pathname.startsWith('/essentials')
   const docsActive = pathname.startsWith('/files')
 
+  // Five tabs share a 360px phone, so the labels stay tight — otherwise
+  // "Reminders"/"Essentials"/"Documents" run into each other.
   const tab = (to: string, name: IconName, label: string, active: boolean) => (
     <Link
       to={to}
-      className={`flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
+      className={`flex min-h-14 flex-1 flex-col items-center justify-center gap-1 px-0.5 text-[10px] font-semibold tracking-tight ${
         active ? 'text-brand' : 'text-muted'
       }`}
     >
@@ -78,7 +88,16 @@ export function Layout({ children }: { children: ReactNode }) {
           aria-label="Search"
           className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-white text-ink active:scale-95"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <circle cx="11" cy="11" r="7" />
             <path d="m21 21-4.3-4.3" />
           </svg>
@@ -89,6 +108,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="mx-auto flex max-w-app px-4">
           {tab('/', 'journey', 'Journey', journeyActive)}
           {tab('/shopping', 'shopping', 'Shopping', shoppingActive)}
+          {tab('/reminders', 'reminders', 'Reminders', remindersActive)}
           {tab('/essentials', 'essentials', 'Essentials', essentialsActive)}
           {tab('/files', 'docs', 'Documents', docsActive)}
         </div>

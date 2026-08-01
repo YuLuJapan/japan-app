@@ -21,6 +21,19 @@ const meta = ({ id, display_name, mime_type, size_bytes }: FileAttachment) => ({
   size_bytes,
 })
 
+// row exists but the blob is gone → distinct code (contracts/api.md) so the UI
+// can explain instead of showing a blank screen
+const fileMissing = () =>
+  new ApiError(404, 'FILE_MISSING', 'The stored file is missing or no longer available')
+
+/** display_name with the extension its mime type implies, for Content-Disposition. */
+export function downloadName(file: FileAttachment) {
+  const ext = EXT_BY_MIME[file.mime_type] ?? file.storage_path.split('.').pop() ?? 'bin'
+  // strip characters that would break the header or escape a directory
+  const base = file.display_name.replace(/[\\/"\p{Cc}]/gu, '').trim() || 'document'
+  return base.toLowerCase().endsWith(`.${ext}`) ? base : `${base}.${ext}`
+}
+
 export async function listTripDocuments(store: DataStore) {
   const trip = await store.getTrip()
   if (!trip) throw notFound('Trip')
@@ -52,12 +65,17 @@ export async function getFileUrl(store: DataStore, fileId: string) {
   const file = await store.getFile(fileId)
   if (!file) throw notFound('File')
   const result = await store.getFileUrl(file)
-  if (result === 'FILE_MISSING') {
-    // distinct code (contracts/api.md): row exists but the blob is gone, so the
-    // UI can explain instead of showing a blank screen
-    throw new ApiError(404, 'FILE_MISSING', 'The stored file is missing or no longer available')
-  }
+  if (result === 'FILE_MISSING') throw fileMissing()
   return result
+}
+
+/** Raw bytes + metadata for the in-app preview screen (GET /api/files/:id/content). */
+export async function getFileContent(store: DataStore, fileId: string) {
+  const file = await store.getFile(fileId)
+  if (!file) throw notFound('File')
+  const result = await store.getFileBytes(file)
+  if (result === 'FILE_MISSING') throw fileMissing()
+  return { file, ...result }
 }
 
 interface UploadBody {

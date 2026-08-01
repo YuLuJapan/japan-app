@@ -7,8 +7,18 @@ export const CATEGORY_META: Record<
   { label: string; singular: string; icon: string; color: string }
 > = {
   hotel: { label: 'Stays', singular: 'Stay', icon: '🛏️', color: 'bg-violet-100 text-violet-700' },
-  attraction: { label: 'Things to do', singular: 'Attraction', icon: '📸', color: 'bg-sky-100 text-sky-700' },
-  food: { label: 'Food & Cafés', singular: 'Food spot', icon: '🍜', color: 'bg-amber-100 text-amber-700' },
+  attraction: {
+    label: 'Things to do',
+    singular: 'Attraction',
+    icon: '📸',
+    color: 'bg-sky-100 text-sky-700',
+  },
+  food: {
+    label: 'Food & Cafés',
+    singular: 'Food spot',
+    icon: '🍜',
+    color: 'bg-amber-100 text-amber-700',
+  },
   shopping: { label: 'Shopping', singular: 'Shop', icon: '🛍️', color: 'bg-pink-100 text-pink-700' },
   other: { label: 'More', singular: 'Place', icon: '📍', color: 'bg-emerald-100 text-emerald-700' },
 }
@@ -99,9 +109,7 @@ export interface FileMeta {
 }
 
 export type FileParent =
-  | { kind: 'trip' }
-  | { kind: 'zone'; id: string }
-  | { kind: 'place'; id: string }
+  { kind: 'trip' } | { kind: 'zone'; id: string } | { kind: 'place'; id: string }
 
 export interface TripDocument extends FileMeta {
   attached_to: { kind: 'trip' | 'zone' | 'place'; id: string; name: string }
@@ -267,6 +275,26 @@ export interface Rates {
   date: string
   usd: number // 1 JPY in USD
   ils: number // 1 JPY in ILS
+}
+
+export interface Reminder {
+  id: string
+  trip_id: string
+  title: string
+  body: string | null
+  url: string | null
+  remind_at: string // absolute instant (ISO, UTC)
+  time_zone: string // IANA zone the time was entered in
+  sent_at: string | null
+  created_at: string
+}
+
+export interface ReminderInput {
+  title: string
+  body?: string | null
+  url?: string | null
+  remind_at: string
+  time_zone?: string | null
 }
 
 export interface SearchResult {

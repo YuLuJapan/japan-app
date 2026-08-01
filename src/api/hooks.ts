@@ -7,6 +7,7 @@ import type {
   PlaceDetail,
   PlaceListItem,
   Rates,
+  Reminder,
   SearchResult,
   ShoppingItem,
   TripBundle,
@@ -54,7 +55,10 @@ export const useShoppingList = () =>
   })
 
 export const useTripFiles = () =>
-  useQuery({ queryKey: ['trip-files'], queryFn: () => api.get<{ files: TripDocument[] }>('/files') })
+  useQuery({
+    queryKey: ['trip-files'],
+    queryFn: () => api.get<{ files: TripDocument[] }>('/files'),
+  })
 
 export const useRates = () =>
   useQuery({
@@ -73,6 +77,21 @@ export const geocode = (query: string, bias?: { lat: number; lng: number }) => {
   }
   return api.get<{ results: GeocodeResult[] }>(`/geocode?${params}`)
 }
+
+export const useReminders = () =>
+  useQuery({
+    queryKey: ['reminders'],
+    queryFn: () => api.get<{ reminders: Reminder[] }>('/reminders'),
+  })
+
+// null public_key = the server has no VAPID keys yet, so notifications can't
+// be turned on (the Reminders screen explains what's missing).
+export const usePushKey = () =>
+  useQuery({
+    queryKey: ['push-key'],
+    queryFn: () => api.get<{ public_key: string | null }>('/push/key'),
+    staleTime: Infinity,
+  })
 
 export const useSearch = (query: string) =>
   useQuery({
