@@ -62,11 +62,19 @@ export interface FlightLeg {
   to: string
 }
 
+export interface FlightItinerary {
+  depart_at: string // ISO instant of this direction's first departure
+  depart_tz: string // IANA zone of the departure airport
+  arrive_at: string // ISO instant of this direction's final arrival
+  arrive_tz: string // IANA zone of the arrival airport
+  legs: FlightLeg[]
+}
+
 export interface FlightInfo {
   airline: string
   booking_ref: string
-  depart_at: string // ISO instant of first departure
-  legs: FlightLeg[]
+  outbound: FlightItinerary
+  return_flight: FlightItinerary
 }
 
 export interface TripBundle {

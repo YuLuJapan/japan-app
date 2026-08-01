@@ -1,17 +1,19 @@
-// Live countdown to the first flight's departure, plus the booking reference
-// and flight numbers. Ticks every second; `now` is injectable for tests.
+// Live countdown to the outbound departure, plus the booking reference and both
+// directions of the trip. Ticks every second; `now` is injectable for tests.
 // Light card: white surface, dark numerals, coral accents.
 import { useEffect, useState } from 'react'
-import type { FlightInfo } from '../api/types'
+import type { FlightInfo, FlightItinerary } from '../api/types'
 import { timeUntil } from '../lib/countdown'
 
-const fmtDepart = (iso: string) =>
+// Always render the ticket's local time, whatever zone the phone is in.
+const fmtAt = (iso: string, tz: string) =>
   new Date(iso).toLocaleString('en', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    timeZone: tz,
   })
 
 function PlaneIcon() {
@@ -44,6 +46,32 @@ function Unit({ value, label }: { value: number; label: string }) {
   )
 }
 
+function Direction({ label, itinerary }: { label: string; itinerary: FlightItinerary }) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between">
+        <span className="text-xs font-bold uppercase tracking-wide text-muted">{label}</span>
+        <span className="font-semibold text-ink">
+          {fmtAt(itinerary.depart_at, itinerary.depart_tz)}
+        </span>
+      </div>
+      <div className="mt-1">
+        {itinerary.legs.map((leg) => (
+          <div key={leg.flight_no} className="flex items-center gap-2 py-0.5">
+            <span className="rounded-md bg-brand/10 px-1.5 py-0.5 text-xs font-bold text-brand">
+              {leg.flight_no}
+            </span>
+            <span className="text-ink">
+              {leg.from} → {leg.to}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-muted">Lands {fmtAt(itinerary.arrive_at, itinerary.arrive_tz)}</p>
+    </div>
+  )
+}
+
 export function CountdownWidget({ flight, now }: { flight: FlightInfo; now?: Date }) {
   const [tick, setTick] = useState(() => now ?? new Date())
 
@@ -53,7 +81,7 @@ export function CountdownWidget({ flight, now }: { flight: FlightInfo; now?: Dat
     return () => clearInterval(id)
   }, [now])
 
-  const target = new Date(flight.depart_at)
+  const target = new Date(flight.outbound.depart_at)
   const left = timeUntil(target, tick)
 
   return (
@@ -82,27 +110,13 @@ export function CountdownWidget({ flight, now }: { flight: FlightInfo; now?: Dat
           </div>
         )}
 
-        <div className="mt-4 space-y-1.5 border-t border-line pt-3 text-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-muted">Departs</span>
-            <span className="font-semibold text-ink">{fmtDepart(flight.depart_at)}</span>
-          </div>
+        <div className="mt-4 space-y-3 border-t border-line pt-3 text-sm">
           <div className="flex items-center justify-between">
             <span className="text-muted">Booking ref</span>
             <span className="font-mono font-bold tracking-widest text-ink">{flight.booking_ref}</span>
           </div>
-          <div className="pt-1">
-            {flight.legs.map((leg) => (
-              <div key={leg.flight_no} className="flex items-center gap-2 py-0.5">
-                <span className="rounded-md bg-brand/10 px-1.5 py-0.5 text-xs font-bold text-brand">
-                  {leg.flight_no}
-                </span>
-                <span className="text-ink">
-                  {leg.from} → {leg.to}
-                </span>
-              </div>
-            ))}
-          </div>
+          <Direction label="Outbound" itinerary={flight.outbound} />
+          <Direction label="Return" itinerary={flight.return_flight} />
         </div>
       </div>
     </div>

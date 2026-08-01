@@ -34,10 +34,20 @@ The whole journey skeleton in one call — powers the Journey (home) view and of
      "zone": {"id":"…","name":"Tokyo","name_ja":"東京","summary":"…",
               "place_counts": {"hotel":1,"attraction":8,"food":6,"shopping":3,"other":2}}}
   ],
-  "trip_files_count": 4
+  "trip_files_count": 4,
+  "flight": {
+    "airline":"Ethiopian Airlines","booking_ref":"AOXIUF",
+    "outbound": {"depart_at":"2026-09-18T15:35:00+03:00","depart_tz":"Asia/Jerusalem",
+                 "arrive_at":"2026-09-19T19:40:00+09:00","arrive_tz":"Asia/Tokyo",
+                 "legs":[{"flight_no":"ET 419","from":"Tel Aviv (TLV)","to":"Addis Ababa (ADD)"}]},
+    "return_flight": {"depart_at":"2026-10-16T20:40:00+09:00","depart_tz":"Asia/Tokyo",
+                      "arrive_at":"2026-10-17T14:35:00+03:00","arrive_tz":"Asia/Jerusalem",
+                      "legs":[{"flight_no":"ET 673","from":"Narita (NRT)","to":"Addis Ababa (ADD)"}]}
+  }
 }
 ```
 - Current/past/future step status is **computed client-side** from device date (FR-006).
+- `flight` is trip-level metadata held in code (`server/src/lib/flight.ts`), not the DB, so the booking reference is only served behind auth. `outbound.depart_at` is the countdown target; the `*_tz` fields are IANA zones so ticket times render the same on a phone set to Israel or to Japan.
 
 ## Journey steps
 

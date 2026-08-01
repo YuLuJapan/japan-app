@@ -23,14 +23,18 @@ describe('GET /api/trip', () => {
     expect(res.body.trip_files_count).toBe(1)
   })
 
-  it('includes the outbound flight (booking ref + legs) for the countdown', async () => {
+  it('includes both flight directions (booking ref + legs) for the countdown', async () => {
     const res = await auth(request(app).get('/api/trip'))
+    const nos = (legs: { flight_no: string }[]) => legs.map((l) => l.flight_no)
     expect(res.body.flight.booking_ref).toBe('AOXIUF')
-    expect(res.body.flight.depart_at).toBe('2026-09-18T15:35:00+03:00')
-    expect(res.body.flight.legs.map((l: { flight_no: string }) => l.flight_no)).toEqual([
-      'ET 419',
-      'ET 672',
-    ])
+
+    expect(res.body.flight.outbound.depart_at).toBe('2026-09-18T15:35:00+03:00')
+    expect(res.body.flight.outbound.arrive_at).toBe('2026-09-19T19:40:00+09:00')
+    expect(nos(res.body.flight.outbound.legs)).toEqual(['ET 419', 'ET 672'])
+
+    expect(res.body.flight.return_flight.depart_at).toBe('2026-10-16T20:40:00+09:00')
+    expect(res.body.flight.return_flight.arrive_at).toBe('2026-10-17T14:35:00+03:00')
+    expect(nos(res.body.flight.return_flight.legs)).toEqual(['ET 673', 'ET 418'])
   })
 })
 
