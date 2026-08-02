@@ -411,6 +411,22 @@
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Torii_path_with_lantern_at_Fushimi_Inari_Taisha_Shrine%2C_Kyoto%2C_Japan.jpg/3840px-Torii_path_with_lantern_at_Fushimi_Inari_Taisha_Shrine%2C_Kyoto%2C_Japan.jpg"
     },
     {
+      "id": "attr-teamlab-biovortex",
+      "zone_id": "zone-kyoto",
+      "category": "attraction",
+      "name": "teamLab Biovortex Kyoto",
+      "name_ja": "チームラボバイオヴォルテックス京都",
+      "description": "Booked: Mon 6 Oct, 09:30. Japan's largest digital art museum — 10,000 m² over four floors, 50+ works, maze-like. Budget 4 hours, not 2, and go down to the basement on entry to hit the smaller rooms first. No café inside, so eat before. Free lockers, no bags over 50 cm. Sneakers (there's an athletics area), plain light clothing for photos, no short skirts because of the mirrored floors.",
+      "address": "21-5 Higashikujo Higashi-Iwamotocho, Minami-ku, Kyoto — 7 min on foot from the Hachijo East exit of Kyoto Station",
+      "links": [
+        {
+          "label": "Tickets & hours",
+          "url": "https://www.teamlab.art/e/kyoto/"
+        }
+      ],
+      "image_url": null
+    },
+    {
       "id": "attr-arashiyama",
       "zone_id": "zone-kyoto",
       "category": "attraction",
@@ -2093,7 +2109,7 @@
       "id": "itin-20261006-1",
       "trip_id": "trip-japan",
       "zone_id": "zone-kyoto",
-      "place_id": null,
+      "place_id": "attr-teamlab-biovortex",
       "day": "2026-10-06",
       "start_time": "09:30",
       "title": "teamLab BIOVORTEX",
