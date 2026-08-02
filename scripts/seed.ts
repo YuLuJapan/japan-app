@@ -1,7 +1,7 @@
 // Seed the Supabase database from server/src/data/placeholder-data.json.
 // Idempotent: upserts by primary key, so re-running syncs the current file.
 // Usage: DATA_BACKEND=supabase in .env.local, then `npm run seed`.
-// FK-safe order: trips → zones → journey_steps → places → tips → files.
+// FK-safe order: trips → zones → journey_steps → places → tips → reminders → files.
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { loadEnv } from './loadEnv'
@@ -23,6 +23,7 @@ async function main() {
     ['tips', data.tips],
     ['itinerary_items', data.itinerary ?? []],
     ['shopping_items', data.shopping ?? []],
+    ['reminders', data.reminders ?? []],
     ['files', data.files],
   ]
 
