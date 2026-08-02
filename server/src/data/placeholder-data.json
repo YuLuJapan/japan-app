@@ -1245,8 +1245,8 @@
       "place_id": null,
       "day": "2026-09-25",
       "start_time": null,
-      "title": "Hotel Indigo shuttle up to Gora",
-      "note": "Hotel Indigo shuttle up to Gora. Check in, first soak in your in-room private onsen with river views.",
+      "title": "Hakone Tozan Line up to Gora",
+      "note": "Hakone Tozan Line up to Gora — the switchback railway from Hakone-Yumoto, ~40 min and a ride worth doing in daylight. Hakone Yutowa is a flat 5-min walk from Gora Station (rare up here — most of Gora is hill). Check in, then first soak.",
       "position": 1
     },
     {
@@ -1268,7 +1268,7 @@
       "day": "2026-09-25",
       "start_time": null,
       "title": "Gora Brewery & Grill",
-      "note": "Gora Brewery & Grill. Or Tokyo Sushi, 5 min walk — Cash Only. Free wine on the hotel terrace 15:00–18:00 style perks.",
+      "note": "Gora Brewery & Grill. Or Tokyo Sushi, 5 min walk — Cash Only. Yutowa's lounge does free drinks in the afternoon — check the hours at check-in.",
       "position": 3,
       "icon": "🍜"
     },
@@ -1279,8 +1279,8 @@
       "place_id": null,
       "day": "2026-09-25",
       "start_time": null,
-      "title": "Book the shuttle in advance (runs ~10:00–18:00)",
-      "note": "Book the shuttle in advance (runs ~10:00–18:00). Request a River View room when booking.",
+      "title": "No shuttle here — it's the train up",
+      "note": "No shuttle here — it's the train up, so a Hakone Freepass covers the Tozan Line, the ropeway and the pirate ship tomorrow. Chase the Booking.com upgrade to the superior room with the private bath before you arrive. Yutowa also has communal onsen baths, a courtyard foot bath and a library — leave time to actually use them.",
       "position": 4,
       "icon": "📌"
     },
@@ -1348,8 +1348,8 @@
       "place_id": null,
       "day": "2026-09-27",
       "start_time": null,
-      "title": "Check out of Indigo",
-      "note": "Check out of Indigo. Hotel shuttle down to Odawara and Pick Up the Car (most rental branches are at Odawara Station). Ask for an ETC card at the counter. Then drive to Gotemba — about 40 min.",
+      "title": "Check out of Yutowa",
+      "note": "Check out of Yutowa. Tozan Line back down to Odawara — allow ~1 hr with the change at Hakone-Yumoto — and Pick Up the Car (most rental branches are at Odawara Station). Ask for an ETC card at the counter. Then drive to Gotemba — about 40 min.",
       "position": 0
     },
     {
@@ -1394,7 +1394,7 @@
       "day": "2026-09-27",
       "start_time": null,
       "title": "The car changes everything here",
-      "note": "The car changes everything here — Oishi Park is back in, and you're no longer tied to the 3-a-day Gotemba bus. Confirm the Hotel Indigo shuttle time to Odawara the night before.",
+      "note": "The car changes everything here — Oishi Park is back in, and you're no longer tied to the 3-a-day Gotemba bus. Check the Tozan Line times down to Odawara the night before and leave slack — the descent is slow, and the car pickup is the thing the whole day hangs on.",
       "position": 4,
       "icon": "📌"
     },
@@ -1929,8 +1929,8 @@
       "place_id": "attr-osaka-castle",
       "day": "2026-10-07",
       "start_time": null,
-      "title": "Check in at Mercure Namba (ask for a high floor + the Led mirror)",
-      "note": "Check in at Mercure Namba (ask for a high floor + the Led mirror). Osaka Castle and its park.",
+      "title": "Check in at Candeo Shinsaibashi",
+      "note": "Check in at Candeo Shinsaibashi — steps from Dotonbori, and the rooftop sky spa opens at 15:00. Then Osaka Castle and its park.",
       "position": 1
     },
     {
@@ -1964,7 +1964,7 @@
       "day": "2026-10-07",
       "start_time": null,
       "title": "Osaka is the loudest, friendliest city in Japan",
-      "note": "Osaka is the loudest, friendliest city in Japan. In-room washing machine — do laundry tonight.",
+      "note": "Osaka is the loudest, friendliest city in Japan. In-room washing machine — do laundry tonight. The sky spa (open-air bath + sauna) runs 15:00 through 11:00 the next morning, so a soak after Dotonbori is on the table.",
       "position": 4,
       "icon": "📌"
     },
@@ -2090,7 +2090,7 @@
       "day": "2026-10-10",
       "start_time": null,
       "title": "Takkyubin the big bags straight to the Tokyo hotel",
-      "note": "Takkyubin the big bags straight to the Tokyo hotel. Shinkansen Shin-Osaka → Atami (~2 hr 15, change at Shin-Yokohama or Odawara).",
+      "note": "Takkyubin the big bags straight to Gracery Shinjuku — they'll be waiting when you get back on the 12th. Shinkansen Shin-Osaka → Atami (~2 hr 15, change at Shin-Yokohama or Odawara).",
       "position": 0
     },
     {
@@ -2214,9 +2214,9 @@
       "place_id": null,
       "day": "2026-10-12",
       "start_time": null,
-      "title": "Check in at Remm Kyobashi (massage chairs in the rooms, two 7-Elevens next door)",
-      "note": "Check in at Remm Kyobashi (massage chairs in the rooms, two 7-Elevens next door). Ginza is walkable: Mikimoto and Itoya if you missed them.",
-      "position": 1
+      "title": "Back to Gracery Shinjuku for the last four nights",
+      "note": "Chuo Line across to Shinjuku (~15 min) and back to Gracery for the last four nights — same hotel as the arrival leg, so you already know the walk from the station. Ask again for a high floor away from the street. Evening: Kabukicho and Omoide Yokocho are on the doorstep.",
+      "position": 2
     },
     {
       "id": "itin-d-20261012-124",
@@ -2226,8 +2226,8 @@
       "day": "2026-10-12",
       "start_time": null,
       "title": "Tokyo Station Character Street + Ramen Street",
-      "note": "Tokyo Station Character Street + Ramen Street. Easy first-night-back dinner.",
-      "position": 2
+      "note": "Tokyo Station Character Street + Ramen Street — both in the basement where the shinkansen drops you, so do them on the way through rather than coming back out from Shinjuku later.",
+      "position": 1
     },
     {
       "id": "itin-d-20261012-125",
@@ -2237,7 +2237,7 @@
       "day": "2026-10-12",
       "start_time": null,
       "title": "Rokurinsha tsukemen",
-      "note": "Rokurinsha tsukemen. Nihonbashi Kaisen Don Tsujihan seafood bowl. Ichiran if you're craving it.",
+      "note": "Rokurinsha tsukemen, on Tokyo Ramen Street itself. Nihonbashi Kaisen Don Tsujihan seafood bowl. Or save it and eat in Omoide Yokocho once you've dropped the bags.",
       "position": 3,
       "icon": "🍜"
     },
@@ -2261,7 +2261,7 @@
       "day": "2026-10-13",
       "start_time": null,
       "title": "Shopping Day",
-      "note": "Shopping Day. Start heavy and fragile. Ginza department stores — collect the tourist discount card at the info counter first. Feiler Ginza flagship for the Japan-exclusive chenille designs.",
+      "note": "Shopping Day. Start heavy and fragile. Ginza department stores — collect the tourist discount card at the info counter first. Feiler Ginza flagship for the Japan-exclusive chenille designs, and Mikimoto and Itoya on the same stretch if you missed them.",
       "position": 0
     },
     {
