@@ -36,7 +36,7 @@ const SECTIONS: { title: string; icon: string; items: string[] }[] = [
     title: 'Trains & tickets',
     icon: '🚆',
     items: [
-      'Skip the JR Pass — after the price hike it no longer pays off for most routes. Ours has only two long JR rides (Kanazawa→Kyoto Thunderbird, Osaka→Tokyo Shinkansen); buy those per-journey (run it through a JR fare calculator if unsure).',
+      'Skip the JR Pass — after the price hike it no longer pays off for most routes. Ours has a handful of long rides (Tokyo→Odawara, Kanazawa→Tsuruga→Kyoto, Shin-Osaka→Atami, Atami→Tokyo); buy those per-journey (run it through a JR fare calculator if unsure). Kyoto→Nara→Osaka is Kintetsu, not JR.',
       'Load a Suica / PASMO into Apple or Google Wallet — tap for every train, metro, bus and konbini. On iPhone no app is needed; top up with your card. You can add both our cards to one phone.',
       'For the few reserved long-distance trains, buy those seats separately (station machines, or SmartEX / the JR sites).',
       'Mountain buses (Takayama, Shirakawa-go, Kamikochi, Kanazawa — Nohi / Alpico) need advance seat reservations. Book early on their sites.',
@@ -104,9 +104,45 @@ const SECTIONS: { title: string; icon: string; items: string[] }[] = [
     icon: '✨',
     items: [
       'Carry a small bag/pouch — street bins are rare; you’ll hold your own trash.',
-      'Tattoos: several onsen restrict them. Our private in-room baths (Hakone ryokan, hotel onsen) sidestep this.',
+      'Tattoos: several onsen restrict them. A private in-room bath sidesteps it — worth confirming which of our rooms actually have one.',
       'Keep phone calls off and voices low on trains.',
       'Take shoes off where you see a step up or slippers waiting; don’t eat while walking.',
+    ],
+  },
+  {
+    title: 'Apps to download before flying',
+    icon: '📱',
+    items: [
+      'Suica in Apple Wallet — one each, Express Transit switched on.',
+      'Google Maps, with the offline map of each city downloaded.',
+      'Tabelog (restaurants) and GO (taxis).',
+      'Airalo for the eSIM, and LINE.',
+      'Payke (scan a product, read the label in English), ChargeSpot, Japan Travel by Navitime.',
+      'The teamLab app — we have two of their venues booked.',
+    ],
+  },
+  {
+    title: 'Things not to forget',
+    icon: '❗',
+    items: [
+      'Passport on you, always. No passport, no tax-free and no Donki coupon.',
+      'Takkyubin at every city change where we don’t have the car: ~¥1,500–2,000 per suitcase, arrives next day. Arrange it at reception the night before.',
+      'There are no rubbish bins. Carry a small bag in the daypack.',
+      'No tipping. Ever. Anywhere.',
+      'Don’t eat while walking — stand next to the stall.',
+      '7-Eleven for cash withdrawals, not the airport exchange counters.',
+    ],
+  },
+  {
+    title: 'Open items — still to sort',
+    icon: '📝',
+    items: [
+      'Cancel one of the two Atami hotels. Both are booked for the same nights, both with free cancellation.',
+      'Hakone Yutowa: is there a private bath? Booking is offering an upgrade to a superior room with one, which suggests the current room doesn’t have it — and that was the point of Hakone.',
+      'Confirm parking at Mizno (Kawaguchiko), Onyado Nono (Matsumoto) and Hotel Wood (Takayama).',
+      'Verify the out-of-prefecture drop-off fee on the car rental.',
+      'International Driving Permit: 1949 Geneva Convention booklet format, issued by MEMSI. Valid 1 year from issue — check the date.',
+      'Visit Japan Web: register 2 weeks ahead, complete everything at least 6 hours before landing. One QR per person.',
     ],
   },
 ]
