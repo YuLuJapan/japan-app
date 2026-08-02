@@ -9,10 +9,10 @@ Built from the spec in [specs/001-japan-trip-app/](specs/001-japan-trip-app/) (s
 - **Frontend**: React 18 + Vite + TypeScript, Tailwind CSS (Japanese-inspired design system), React Router, TanStack Query
 - **Backend**: Node.js + Express — served locally via `server/dev.ts`, in production as one Vercel serverless function ([api/index.ts](api/index.ts))
 - **Data**: swappable datastore behind [server/src/lib/datastore.ts](server/src/lib/datastore.ts)
-  - `DATA_BACKEND=memory` (**current**): placeholder data from [server/src/data/placeholder-data.json](server/src/data/placeholder-data.json), sample files from `public/placeholder-files/`. Edits work but reset when the server restarts.
-  - `DATA_BACKEND=supabase` (**Phase 8, not yet configured**): Supabase Postgres + Storage, free tier, $0.
+  - `DATA_BACKEND=supabase` (**what production runs on**): Supabase Postgres + Storage, free tier, $0. Edits in the deployed app persist.
+  - `DATA_BACKEND=memory` (the code default — local dev and tests): seed data from [server/src/data/placeholder-data.json](server/src/data/placeholder-data.json), sample files from `public/placeholder-files/`. Edits work but reset when the server restarts.
 
-## Run it (placeholder mode — no accounts, no infra)
+## Run it locally (memory store — no accounts, no infra)
 
 ```
 npm install
@@ -22,25 +22,37 @@ npm run dev        # frontend on http://localhost:3000, API on :3001
 Access code: whatever `TRIP_ACCESS_CODE` is in `.env.local` (default dev fallback: `japan2026`). Both travelers use the same code.
 
 ```
-npm test           # 40 tests: API routes (supertest) + UI components (RTL)
+npm test           # 169 tests: API routes (supertest) + UI components (RTL)
 npm run lint       # ESLint
-npm run build      # production bundle (~86 KB gzip JS)
+npm run build      # production bundle (~157 KB gzip JS)
 ```
 
 ## Editing the trip content
 
-- **In the app**: add/edit/delete places and tips from any screen (persists until server restart while in placeholder mode).
-- **The source of truth for now**: edit [server/src/data/placeholder-data.json](server/src/data/placeholder-data.json) — replace the PLACEHOLDER entries with the real plan. This same file will be seeded into Supabase in Phase 8, so curating it is not throwaway work.
+- **In the app**: add/edit/delete places and tips from any screen. In the deployed app these persist (Supabase); running locally on the memory store they last until the server restarts.
+- **The seed**: [server/src/data/placeholder-data.json](server/src/data/placeholder-data.json) is what the live database was built from and what local dev loads. Editing it does **not** change the deployed data — re-run `npm run seed` against Supabase for that, or just edit in the app.
 - Sample files live in `public/placeholder-files/`; regenerate the PDFs with `node scripts/make-placeholder-files.mjs`.
 
 ## English map labels (optional)
 
 The city maps (Leaflet + free CARTO tiles) label streets in Japanese by default. For English labels, get a free [MapTiler](https://cloud.maptiler.com/account/keys/) API key (no credit card) and set `VITE_MAPTILER_KEY` in `.env.local`. Small streets that OpenStreetMap hasn't tagged with an English name may still show Japanese or nothing.
 
-## Infrastructure activation (Phase 8)
+## Infrastructure (Supabase — live)
 
-All the code is written — schema, Supabase datastore, and seed scripts. Going
-live is just account setup + flipping one env var (no feature-code changes):
+**Status: activated.** The deployed app runs on Supabase (`DATA_BACKEND=supabase`
+in the Vercel project), so edits made in the app persist. Local dev and the test
+suite still default to the in-memory store unless you set the env vars below.
+
+### Adding a table later
+
+There is no migration runner: **committing a new `supabase/migrations/*.sql`
+file does not apply it.** After merging a change that adds a table or column,
+run that file against the live project (Supabase SQL editor, or the Supabase MCP
+`apply_migration`) and seed any rows it needs — otherwise the deployed feature
+fails on its first request even though every test passes locally, because tests
+use the memory store. Name the file with the next number free **on `main`**.
+
+### First-time setup (already done for this project)
 
 1. **Create a free Supabase project.** Copy its **Project URL** and **secret API key** (`sb_secret_...`, Settings → API).
 2. **Run the schema:** paste each file in [supabase/migrations/](supabase/migrations/) into the Supabase SQL editor and run them in order (0001 → 0007).

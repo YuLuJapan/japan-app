@@ -14,7 +14,7 @@ npm run dev          # frontend on :3000 (Vite), API on :3001 (Express), run con
 npm run dev:web       # frontend only
 npm run dev:api       # API only (tsx watch server/dev.ts)
 
-npm test              # vitest run — both projects (web + server), 40+ tests
+npm test              # vitest run — both projects (web + server), 169 tests
 npm run test:watch    # vitest watch mode
 npx vitest run server/tests/browse.test.ts        # single server test file
 npx vitest run src/tests/browse.test.tsx          # single web test file
@@ -22,7 +22,7 @@ npx vitest run -t "returns the journey skeleton"  # by test name
 
 npm run lint           # ESLint (flat config, typescript-eslint recommended)
 npm run format          # prettier --write .
-npm run build            # production bundle (vite build; currently ~86 KB gzip JS)
+npm run build            # production bundle (vite build; currently ~157 KB gzip JS)
 npm run preview           # serve the production build locally
 
 npm run push:keys     # generate the VAPID key pair for web push (run once, see README)
@@ -46,8 +46,10 @@ There is no separate typecheck script; `tsc` runs implicitly via Vite/vitest. Ru
 
 **Swappable datastore, selected by `DATA_BACKEND` env var:**
 
-- `memory` (default, current state) — in-memory store seeded from `server/src/data/placeholder-data.json`; edits persist only until the process restarts. This JSON is real content, not throwaway fixture data — it's the source of truth for trip content today and will be seeded into Supabase later, so edit it directly when updating trip info (or edit through the running app).
-- `supabase` — Postgres + Storage, not yet activated. Schema lives in `supabase/migrations/*.sql` (numbered, sequential — add a new file rather than editing old ones). Activating it is pure config (env vars + running the SQL + `npm run seed`), no application code changes — see README.md "Infrastructure activation" for the exact steps if asked to do this.
+- `memory` (the code default, and what local dev + tests use unless you set the env var) — in-memory store seeded from `server/src/data/placeholder-data.json`; edits persist only until the process restarts. This JSON is real content, not throwaway fixture data — it's the seed the deployed database was built from, so edit it directly when updating trip info (or edit through the running app).
+- `supabase` — Postgres + Storage. **This is what production runs on** (`DATA_BACKEND=supabase` is set in the Vercel project), so edits made in the deployed app persist. Schema lives in `supabase/migrations/*.sql` (numbered, sequential — add a new file rather than editing old ones).
+
+> **Adding an entity? Committing the migration is not deploying it.** The Supabase project is live and has no migration runner — a new `supabase/migrations/*.sql` file does nothing until someone runs it against the project (Supabase SQL editor, or the Supabase MCP `apply_migration`). Ship a new table without that step and the deployed feature 500s on its very first request while every test still passes, because tests use the memory store. Seed rows for the new table too (`npm run seed` covers the tables listed in `scripts/seed.ts`). Also check the highest migration number **on `main`** before naming yours — parallel branches otherwise both claim the same number.
 
 Tests override the store via `setDataStore()` (see `server/tests/fixture.ts` and the `beforeEach` in any `server/tests/*.test.ts`) rather than touching env vars.
 
