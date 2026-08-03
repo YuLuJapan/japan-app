@@ -3,6 +3,7 @@ import { api } from './client'
 import type {
   Category,
   GeocodeResult,
+  ImageResult,
   ItineraryItem,
   PlaceDetail,
   PlaceListItem,
@@ -91,6 +92,17 @@ export const usePushKey = () =>
     queryKey: ['push-key'],
     queryFn: () => api.get<{ public_key: string | null }>('/push/key'),
     staleTime: Infinity,
+  })
+
+// Web photo search for items with no picture (Wikimedia-backed, see
+// server/src/services/images.ts). Enabled only once the caller asks, so opening
+// a form doesn't fire a lookup.
+export const useImageSearch = (query: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ['images', query],
+    queryFn: () => api.get<{ results: ImageResult[] }>(`/images?q=${encodeURIComponent(query)}`),
+    enabled: enabled && query.trim().length >= 2,
+    staleTime: 1000 * 60 * 30,
   })
 
 export const useSearch = (query: string) =>

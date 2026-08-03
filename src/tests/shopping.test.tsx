@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ShoppingCategoryPage from '../pages/ShoppingCategory'
@@ -19,6 +19,10 @@ vi.mock('../api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/client')>()),
   api: mocks,
 }))
+
+// The api mock is module-level, so call history would otherwise carry across
+// tests — which matters for the "nothing is searched until asked" assertion.
+beforeEach(() => vi.clearAllMocks())
 
 const item = (over: Partial<ShoppingItem> = {}): ShoppingItem => ({
   id: 'buy-1',
@@ -235,6 +239,38 @@ describe('Shopping item detail', () => {
     await waitFor(() => expect(mocks.delete).toHaveBeenCalledWith('/shopping/buy-1'))
   })
 
+  it('offers a web photo search for an item that has none, and saves the pick', async () => {
+    mocks.get.mockImplementation((path: string) => {
+      if (path.startsWith('/images'))
+        return Promise.resolve({
+          results: [
+            {
+              url: 'https://upload.wikimedia.org/found.jpg',
+              thumb_url: 'https://upload.wikimedia.org/found-thumb.jpg',
+              title: 'Kit Kat',
+              source: 'commons',
+              source_url: null,
+              credit: 'CC BY 2.0',
+            },
+          ],
+        })
+      if (path === '/shopping')
+        return Promise.resolve({ items: [item({ name: 'Kit Kat', image_url: null })] })
+      return Promise.resolve({ items: [], steps: [] })
+    })
+    mocks.patch.mockResolvedValue({ item: item({ image_url: 'https://upload.wikimedia.org/found.jpg' }) })
+    renderAt('/shopping/buy-1', [{ path: '/shopping/:itemId', element: <ShoppingItemDetail /> }])
+
+    await userEvent.click(await screen.findByRole('button', { name: /Find a photo on the web/ }))
+    await userEvent.click(await screen.findByRole('img', { name: 'Kit Kat' }))
+
+    await waitFor(() =>
+      expect(mocks.patch).toHaveBeenCalledWith('/shopping/buy-1', {
+        image_url: 'https://upload.wikimedia.org/found.jpg',
+      })
+    )
+  })
+
   it('explains itself when the item is gone', async () => {
     mockApi([])
     renderAt('/shopping/buy-gone', [{ path: '/shopping/:itemId', element: <ShoppingItemDetail /> }])
@@ -280,6 +316,53 @@ describe('ShoppingForm', () => {
     ])
 
     expect(screen.getByLabelText('Category')).toHaveValue('skincare')
+  })
+
+  it('finds a photo on the web and fills the field with the one you tap', async () => {
+    mockApi([])
+    mocks.get.mockImplementation((path: string) => {
+      if (path.startsWith('/images'))
+        return Promise.resolve({
+          results: [
+            {
+              url: 'https://upload.wikimedia.org/full.jpg',
+              thumb_url: 'https://upload.wikimedia.org/thumb.jpg',
+              title: 'Onitsuka Tiger',
+              source: 'wikipedia',
+              source_url: null,
+              credit: 'Wikipedia',
+            },
+          ],
+        })
+      return Promise.resolve({ items: [] })
+    })
+    renderAt('/shopping/new', [{ path: '/shopping/new', element: <ShoppingForm /> }])
+
+    // nothing is searched until asked
+    expect(mocks.get).not.toHaveBeenCalledWith(expect.stringContaining('/images'))
+
+    await userEvent.type(screen.getByLabelText('What is it? *'), 'Onitsuka Tiger')
+    await userEvent.click(screen.getByRole('button', { name: /Find a photo on the web/ }))
+
+    const thumb = await screen.findByRole('img', { name: 'Onitsuka Tiger' })
+    await userEvent.click(thumb)
+
+    expect(screen.getByLabelText('Photo URL')).toHaveValue('https://upload.wikimedia.org/full.jpg')
+  })
+
+  it('says so when the web search comes back empty', async () => {
+    mockApi([])
+    mocks.get.mockImplementation((path: string) =>
+      path.startsWith('/images')
+        ? Promise.resolve({ results: [] })
+        : Promise.resolve({ items: [] })
+    )
+    renderAt('/shopping/new', [{ path: '/shopping/new', element: <ShoppingForm /> }])
+
+    await userEvent.type(screen.getByLabelText('What is it? *'), 'Very obscure thing')
+    await userEvent.click(screen.getByRole('button', { name: /Find a photo on the web/ }))
+
+    expect(await screen.findByText(/Nothing found for this one/)).toBeInTheDocument()
   })
 
   it('keeps the entered text and offers retry when the save fails (FR-019)', async () => {

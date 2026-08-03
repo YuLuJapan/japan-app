@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
 import { setDataStore } from '../src/lib/datastore.js'
@@ -9,7 +9,17 @@ process.env.TRIP_ACCESS_CODE = TEST_CODE
 const app = createApp()
 const auth = (r: request.Test) => r.set('Authorization', `Bearer ${TEST_CODE}`)
 
-beforeEach(() => setDataStore(createMemoryStore(fixture())))
+beforeEach(() => {
+  setDataStore(createMemoryStore(fixture()))
+  // Creating an item without a photo triggers a web lookup (services/images.ts).
+  // Stub it to "found nothing" so these tests never touch the network — the
+  // lookup itself is covered in images.test.ts.
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ query: { pages: {} } }) }))
+  )
+})
+afterEach(() => vi.unstubAllGlobals())
 
 describe('GET /api/shopping', () => {
   it('returns the trip shopping list with unbought items first', async () => {

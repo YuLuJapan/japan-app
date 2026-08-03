@@ -5,6 +5,7 @@ import { authRouter } from './routes/auth.js'
 import { filesRouter } from './routes/files.js'
 import { geocodeRouter } from './routes/geocode.js'
 import { healthRouter } from './routes/health.js'
+import { imagesRouter } from './routes/images.js'
 import { itineraryRouter } from './routes/itinerary.js'
 import { placesRouter } from './routes/places.js'
 import { pushRouter } from './routes/push.js'
@@ -42,6 +43,7 @@ export function createApp() {
   app.use('/api', searchRouter)
   app.use('/api', ratesRouter)
   app.use('/api', geocodeRouter)
+  app.use('/api', imagesRouter)
   app.use('/api', remindersRouter)
   app.use('/api', pushRouter)
 

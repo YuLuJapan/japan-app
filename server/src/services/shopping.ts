@@ -3,6 +3,7 @@
 import type { DataStore, ShoppingCategory, ShoppingItemInput } from '../lib/datastore.js'
 import { SHOPPING_CATEGORIES } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
+import { findImageUrl } from './images.js'
 
 const MAX_PRICE_YEN = 10_000_000
 const isHttpUrl = (u: string) => /^https?:\/\/.+/.test(u)
@@ -70,11 +71,24 @@ export async function createShoppingItem(store: DataStore, input: ShoppingItemIn
   if (input.zone_id) {
     if (!(await store.getZone(input.zone_id))) throw notFound('Zone')
   }
-  const item = await store.createShoppingItem({
-    ...clean(input),
-    trip_id: trip.id,
-  } as ShoppingItemInput)
+  const fields = clean(input)
+  // No photo given? Find one on the web so the list never shows a blank tile.
+  // Best-effort: findImageUrl swallows its own failures and returns null, so a
+  // slow or unreachable image API costs a few seconds at most, never the save.
+  if (!fields.image_url) {
+    fields.image_url = await findImageUrl(imageQueryFor(fields))
+  }
+  const item = await store.createShoppingItem({ ...fields, trip_id: trip.id } as ShoppingItemInput)
   return { item }
+}
+
+/** What to look a photo up by: the product, plus the shop when it adds context. */
+export function imageQueryFor(item: { name?: string; shop?: string | null }): string {
+  const name = (item.name ?? '').trim()
+  const shop = (item.shop ?? '').trim()
+  // A shop name already inside the product name ("Uniqlo HEATTECH") adds nothing.
+  if (!shop || name.toLowerCase().includes(shop.toLowerCase().split(/[ (/]/)[0] ?? '')) return name
+  return `${name} ${shop}`
 }
 
 export async function updateShoppingItem(

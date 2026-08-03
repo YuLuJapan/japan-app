@@ -274,6 +274,16 @@ export interface ShoppingItemInput {
   position?: number
 }
 
+// A photo found on the web for an item that has none (GET /api/images).
+export interface ImageResult {
+  url: string
+  thumb_url: string
+  title: string
+  source: 'wikipedia' | 'commons'
+  source_url: string | null
+  credit: string | null
+}
+
 export interface Rates {
   base: 'JPY'
   date: string

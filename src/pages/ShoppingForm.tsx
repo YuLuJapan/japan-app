@@ -6,6 +6,7 @@ import { useShoppingList, useTrip } from '../api/hooks'
 import { useCreateShoppingItem, useUpdateShoppingItem } from '../api/mutations'
 import type { ShoppingCategory, ShoppingItemInput } from '../api/types'
 import { SHOPPING_CATEGORIES, SHOPPING_CATEGORY_META } from '../api/types'
+import { ImagePicker } from '../components/ImagePicker'
 import { Loading } from '../components/Loading'
 import { ZoneImage } from '../components/ZoneImage'
 
@@ -200,7 +201,7 @@ export default function ShoppingForm() {
           value={imageUrl}
           onChange={(e) => setImageUrl(e.target.value)}
         />
-        {imageUrl.trim() !== '' && (
+        {imageUrl.trim() !== '' ? (
           <div className="mt-2 overflow-hidden rounded-2xl border border-line">
             <ZoneImage
               src={imageUrl.trim()}
@@ -209,7 +210,17 @@ export default function ShoppingForm() {
               className="h-40 w-full"
             />
           </div>
+        ) : (
+          !editing && (
+            <p className="mt-1 text-xs text-muted">
+              Leave this blank and we’ll look a photo up for you when you save.
+            </p>
+          )
         )}
+        <ImagePicker
+          query={[name.trim(), shop.trim()].filter(Boolean).join(' ')}
+          onPick={setImageUrl}
+        />
       </div>
 
       <div>

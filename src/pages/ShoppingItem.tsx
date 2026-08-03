@@ -8,6 +8,7 @@ import { useDeleteShoppingItem } from '../api/mutations'
 import { SHOPPING_CATEGORY_META } from '../api/types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorState } from '../components/ErrorState'
+import { ImagePicker } from '../components/ImagePicker'
 import { Loading } from '../components/Loading'
 import { ZoneImage } from '../components/ZoneImage'
 import { placeMapsUrl } from '../lib/maps'
@@ -54,6 +55,14 @@ export default function ShoppingItemDetail() {
         <div className="mt-3 overflow-hidden rounded-3xl shadow-card">
           <ZoneImage src={item.image_url} alt={item.name} icon={meta.icon} className="h-52 w-full" />
         </div>
+        {/* Items saved before the web lookup existed (or whose search came up
+            empty) can get a photo here without a trip through the edit form. */}
+        {!item.image_url && (
+          <ImagePicker
+            query={[item.name, item.shop ?? ''].filter(Boolean).join(' ')}
+            onPick={(url) => update.mutate({ id: item.id, patch: { image_url: url } })}
+          />
+        )}
         {/* title gets the full width — the chip sits under it, so long product
             names don't get squeezed into a narrow column */}
         <h1

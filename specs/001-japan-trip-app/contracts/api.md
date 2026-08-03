@@ -164,6 +164,18 @@ Trip-level list of things to buy in Japan: what it is, where to buy it, what it 
 ### DELETE /api/shopping/:itemId
 - 204 · 404.
 
+## Photos
+
+### GET /api/images?q=Onitsuka+Tiger
+Web photo lookup for items with no picture of their own, so a list never shows blank tiles. Backed by the Wikimedia APIs (Wikipedia article images + Commons files) — keyless and free, matching the project's $0 constraint. Results are cached in-process for an hour.
+
+- `q` required, ≥ 2 characters → else 400 `VALIDATION`. `limit` optional (default 8, max 12).
+- 200: `{"results":[{"url":"https://…full.jpg","thumb_url":"https://…600px.jpg","title":"…","source":"wikipedia|commons","source_url":"https://…"|null,"credit":"Jane Doe · CC BY-SA 4.0"|null}]}`
+- **Never fails on the upstream's behalf**: an unreachable, slow (>4s) or rate-limited Wikimedia returns `{"results":[]}`, not a 5xx.
+- Files a browser can't render as a photo (`.svg`, video, TIFF) are filtered out.
+
+`POST /api/shopping` uses the same lookup: an item created **without** `image_url` gets the top hit stamped in automatically (searching the item name, plus the shop when it adds context, then falling back to just the brand words). That lookup is best-effort — if it finds nothing or the API is down, the item saves with `image_url: null`. Supplying `image_url` yourself skips the search entirely.
+
 ## Files
 
 ### GET /api/files
