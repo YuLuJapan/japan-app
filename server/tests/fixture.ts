@@ -93,7 +93,7 @@ export function fixture(): MemoryData {
         id: 'shop-shampoo',
         trip_id: 'trip-1',
         name: 'Ichikami shampoo',
-        category: 'beauty',
+        category: 'haircare',
         note: null,
         shop: 'Don Quijote',
         zone_id: null,

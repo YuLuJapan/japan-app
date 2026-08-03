@@ -147,7 +147,7 @@ Full detail incl. tips and files (US1 AC2/AC3, US4 AC1).
 
 ## Shopping list
 
-Trip-level list of things to buy in Japan: what it is, where to buy it, what it should cost (yen), a photo, and whether it's been bought. Not tied to a zone, though an item may name the city its shop is in (`zone_id`). `category` is one of `clothes|beauty|tech|snacks|home|souvenir|other` (defaults to `other`).
+Trip-level list of things to buy in Japan: what it is, where to buy it, what it should cost (yen), a photo, and whether it's been bought. Not tied to a zone, though an item may name the city its shop is in (`zone_id`). `category` is one of `clothes|haircare|skincare|health|snacks|tech|home|souvenir|other` (defaults to `other`) — the client groups the list into one carousel per category (migration 0008 split the original `beauty` bucket).
 
 ### GET /api/shopping
 - 200: `{"items":[{"id":"…","trip_id":"…","name":"Onitsuka Tiger Mexico 66","category":"clothes","note":"Size 42"|null,"shop":"ABC Mart"|null,"zone_id":"…"|null,"price_yen":12000|null,"url":"https://…"|null,"image_url":"https://…"|null,"bought":false,"position":0}]}`

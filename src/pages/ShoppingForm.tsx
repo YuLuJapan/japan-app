@@ -1,21 +1,17 @@
 // Add/edit a shopping-list item. Same failure contract as PlaceForm (FR-019):
 // on a failed save the entered text stays put and a retry is offered.
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useShoppingList, useTrip } from '../api/hooks'
-import {
-  useCreateShoppingItem,
-  useDeleteShoppingItem,
-  useUpdateShoppingItem,
-} from '../api/mutations'
+import { useCreateShoppingItem, useUpdateShoppingItem } from '../api/mutations'
 import type { ShoppingCategory, ShoppingItemInput } from '../api/types'
 import { SHOPPING_CATEGORIES, SHOPPING_CATEGORY_META } from '../api/types'
-import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Loading } from '../components/Loading'
 import { ZoneImage } from '../components/ZoneImage'
 
 export default function ShoppingForm() {
   const { itemId } = useParams()
+  const [params] = useSearchParams()
   const navigate = useNavigate()
   const editing = Boolean(itemId)
 
@@ -23,11 +19,13 @@ export default function ShoppingForm() {
   const trip = useTrip()
   const create = useCreateShoppingItem()
   const update = useUpdateShoppingItem()
-  const remove = useDeleteShoppingItem()
   const mutation = editing ? update : create
 
   const [name, setName] = useState('')
-  const [category, setCategory] = useState<ShoppingCategory>('clothes')
+  // adding from a category page starts you in that category
+  const [category, setCategory] = useState<ShoppingCategory>(
+    (params.get('category') as ShoppingCategory) || 'clothes'
+  )
   const [note, setNote] = useState('')
   const [shop, setShop] = useState('')
   const [zoneId, setZoneId] = useState('')
@@ -35,7 +33,6 @@ export default function ShoppingForm() {
   const [imageUrl, setImageUrl] = useState('')
   const [url, setUrl] = useState('')
   const [bought, setBought] = useState(false)
-  const [confirming, setConfirming] = useState(false)
 
   const existing = editing ? list.data?.items.find((i) => i.id === itemId) : undefined
 
@@ -76,15 +73,25 @@ export default function ShoppingForm() {
       url: url.trim() || null,
       bought,
     }
-    const onSuccess = () => navigate('/shopping', { replace: true })
-    if (editing && itemId) update.mutate({ id: itemId, patch: input }, { onSuccess })
-    else create.mutate(input, { onSuccess })
+    // land on the item's page either way, so you see what you just saved
+    if (editing && itemId)
+      update.mutate(
+        { id: itemId, patch: input },
+        { onSuccess: () => navigate(`/shopping/${itemId}`, { replace: true }) }
+      )
+    else
+      create.mutate(input, {
+        onSuccess: (data) => navigate(`/shopping/${data.item.id}`, { replace: true }),
+      })
   }
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <Link to="/shopping" className="text-sm font-semibold text-muted">
-        ‹ Shopping
+      <Link
+        to={editing ? `/shopping/${itemId}` : '/shopping'}
+        className="text-sm font-semibold text-muted"
+      >
+        ‹ {editing ? 'Item' : 'Shopping'}
       </Link>
       <h1 className="font-display text-2xl font-extrabold">
         {editing ? 'Edit item' : 'Add something to buy'}
@@ -254,24 +261,6 @@ export default function ShoppingForm() {
               : 'Add to list'}
       </button>
 
-      {editing && (
-        <>
-          <button type="button" className="btn-danger w-full" onClick={() => setConfirming(true)}>
-            Delete
-          </button>
-          <ConfirmDialog
-            open={confirming}
-            title="Delete this item?"
-            message="It will be removed from the shopping list."
-            confirmLabel="Delete"
-            onCancel={() => setConfirming(false)}
-            onConfirm={() =>
-              itemId &&
-              remove.mutate(itemId, { onSuccess: () => navigate('/shopping', { replace: true }) })
-            }
-          />
-        </>
-      )}
     </form>
   )
 }

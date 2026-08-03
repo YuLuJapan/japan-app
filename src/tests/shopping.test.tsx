@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import ShoppingCategoryPage from '../pages/ShoppingCategory'
 import ShoppingForm from '../pages/ShoppingForm'
+import ShoppingItemDetail from '../pages/ShoppingItem'
 import ShoppingList from '../pages/ShoppingList'
 import type { ShoppingItem } from '../api/types'
 import { renderAt } from './helpers'
@@ -32,6 +34,16 @@ const item = (over: Partial<ShoppingItem> = {}): ShoppingItem => ({
   bought: false,
   position: 0,
   ...over,
+})
+
+const shampoo = item({
+  id: 'buy-2',
+  name: 'Ichikami shampoo',
+  category: 'haircare',
+  note: null,
+  shop: 'Don Quijote',
+  zone_id: null,
+  price_yen: 900,
 })
 
 /** One fetch mock for every query the shopping pages make. */
@@ -70,19 +82,50 @@ function mockApi(items: ShoppingItem[]) {
   })
 }
 
-describe('ShoppingList', () => {
-  it('shows what to buy, where, and the price in yen with a shekel estimate', async () => {
+describe('Shopping home (category carousels)', () => {
+  it('groups items into one section per category, each linking to its own page', async () => {
+    mockApi([item(), shampoo])
+    renderAt('/shopping', [{ path: '/shopping', element: <ShoppingList /> }])
+
+    const clothes = (await screen.findByRole('heading', { name: /Clothes & shoes/ })).closest(
+      'section'
+    )!
+    const hair = screen.getByRole('heading', { name: /Hair care/ }).closest('section')!
+
+    // each item sits under its own category, not in one flat list
+    expect(within(clothes).getByText('Onitsuka Tiger Mexico 66')).toBeInTheDocument()
+    expect(within(clothes).queryByText('Ichikami shampoo')).not.toBeInTheDocument()
+    expect(within(hair).getByText('Ichikami shampoo')).toBeInTheDocument()
+
+    expect(within(clothes).getByRole('link', { name: /See all 1/ })).toHaveAttribute(
+      'href',
+      '/shopping/c/clothes'
+    )
+    expect(within(hair).getByRole('link', { name: /See all 1/ })).toHaveAttribute(
+      'href',
+      '/shopping/c/haircare'
+    )
+  })
+
+  it('opens the item detail page — not the edit form — when a tile is tapped', async () => {
     mockApi([item()])
     renderAt('/shopping', [{ path: '/shopping', element: <ShoppingList /> }])
 
-    expect(await screen.findByText('Onitsuka Tiger Mexico 66')).toBeInTheDocument()
-    expect(screen.getByText('Size 42')).toBeInTheDocument()
-    expect(await screen.findByText(/ABC Mart · Tokyo/)).toBeInTheDocument()
-    // once on the card, once in the "still to spend" header total
-    expect(await screen.findAllByText(/¥12,000 ≈ ₪300/)).toHaveLength(2)
+    expect(await screen.findByRole('link', { name: /Onitsuka Tiger/ })).toHaveAttribute(
+      'href',
+      '/shopping/buy-1'
+    )
   })
 
-  it('marks an item as bought', async () => {
+  it('shows progress and what is left to spend', async () => {
+    mockApi([item(), item({ id: 'buy-3', name: 'Kit Kats', price_yen: 600, bought: true })])
+    renderAt('/shopping', [{ path: '/shopping', element: <ShoppingList /> }])
+
+    expect(await screen.findByText(/1\/2 bought/)).toBeInTheDocument()
+    expect(screen.getByText(/still to spend ¥12,000 ≈ ₪300/)).toBeInTheDocument()
+  })
+
+  it('ticks an item off straight from the carousel', async () => {
     mockApi([item()])
     mocks.patch.mockResolvedValue({ item: item({ bought: true }) })
     renderAt('/shopping', [{ path: '/shopping', element: <ShoppingList /> }])
@@ -95,15 +138,6 @@ describe('ShoppingList', () => {
     )
   })
 
-  it('separates bought items and counts progress', async () => {
-    mockApi([item(), item({ id: 'buy-2', name: 'Ichikami shampoo', bought: true, price_yen: 900 })])
-    renderAt('/shopping', [{ path: '/shopping', element: <ShoppingList /> }])
-
-    expect(await screen.findByText(/1\/2 bought/)).toBeInTheDocument()
-    expect(screen.getByText('To buy · 1')).toBeInTheDocument()
-    expect(screen.getByText('Bought · 1')).toBeInTheDocument()
-  })
-
   it('renders an empty state with nothing on the list', async () => {
     mockApi([])
     renderAt('/shopping', [{ path: '/shopping', element: <ShoppingList /> }])
@@ -112,13 +146,110 @@ describe('ShoppingList', () => {
   })
 })
 
-describe('ShoppingForm', () => {
-  it('creates an item with shop, price and photo', async () => {
+describe('Shopping category page', () => {
+  it('lists every item in the category and nothing else, bought ones separated', async () => {
+    mockApi([
+      item(),
+      item({ id: 'buy-3', name: 'Uniqlo HEATTECH', price_yen: 1500, bought: true }),
+      shampoo,
+    ])
+    renderAt('/shopping/c/clothes', [
+      { path: '/shopping/c/:category', element: <ShoppingCategoryPage /> },
+    ])
+
+    expect(await screen.findByRole('heading', { name: /Clothes & shoes/ })).toBeInTheDocument()
+    expect(screen.getByText('Onitsuka Tiger Mexico 66')).toBeInTheDocument()
+    expect(screen.getByText('Uniqlo HEATTECH')).toBeInTheDocument()
+    expect(screen.queryByText('Ichikami shampoo')).not.toBeInTheDocument() // other category
+
+    expect(screen.getByText('To buy · 1')).toBeInTheDocument()
+    expect(screen.getByText('Bought · 1')).toBeInTheDocument()
+    expect(screen.getByText(/1\/2 bought/)).toBeInTheDocument()
+  })
+
+  it('adds into the category you are looking at', async () => {
+    mockApi([shampoo])
+    renderAt('/shopping/c/haircare', [
+      { path: '/shopping/c/:category', element: <ShoppingCategoryPage /> },
+    ])
+
+    expect(await screen.findByRole('link', { name: '+ Add' })).toHaveAttribute(
+      'href',
+      '/shopping/new?category=haircare'
+    )
+  })
+})
+
+describe('Shopping item detail', () => {
+  it('shows the price, where to buy it and the notes', async () => {
+    mockApi([item()])
+    renderAt('/shopping/buy-1', [{ path: '/shopping/:itemId', element: <ShoppingItemDetail /> }])
+
+    expect(await screen.findByRole('heading', { name: 'Onitsuka Tiger Mexico 66' })).toBeInTheDocument()
+    expect(screen.getByText('¥12,000')).toBeInTheDocument()
+    expect(screen.getByText(/≈ ₪300.00 ≈ \$80.40/)).toBeInTheDocument()
+    expect(screen.getByText(/ABC Mart/)).toBeInTheDocument()
+    expect(screen.getByText(/Tokyo/)).toBeInTheDocument()
+    expect(screen.getByText('Size 42')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Edit' })).toHaveAttribute(
+      'href',
+      '/shopping/buy-1/edit'
+    )
+  })
+
+  it('marks the item bought from the detail page', async () => {
+    mockApi([item()])
+    mocks.patch.mockResolvedValue({ item: item({ bought: true }) })
+    renderAt('/shopping/buy-1', [{ path: '/shopping/:itemId', element: <ShoppingItemDetail /> }])
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Mark as bought' }))
+    await waitFor(() =>
+      expect(mocks.patch).toHaveBeenCalledWith('/shopping/buy-1', { bought: true })
+    )
+  })
+
+  it('offers to put a bought item back on the list', async () => {
+    mockApi([item({ bought: true })])
+    renderAt('/shopping/buy-1', [{ path: '/shopping/:itemId', element: <ShoppingItemDetail /> }])
+
+    expect(await screen.findByRole('button', { name: 'Put back on the list' })).toBeInTheDocument()
+    expect(screen.getByText('✓ Already bought')).toBeInTheDocument()
+  })
+
+  it('asks for confirmation before deleting', async () => {
+    mockApi([item()])
+    mocks.delete.mockResolvedValue(undefined)
+    renderAt('/shopping/buy-1', [
+      { path: '/shopping/:itemId', element: <ShoppingItemDetail /> },
+      { path: '/shopping', element: <p>list</p> },
+    ])
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+    expect(mocks.delete).not.toHaveBeenCalled() // dialog first
+
+    const dialog = screen.getByRole('dialog')
+    const confirm = Array.from(dialog.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Delete'
+    )!
+    await userEvent.click(confirm)
+    await waitFor(() => expect(mocks.delete).toHaveBeenCalledWith('/shopping/buy-1'))
+  })
+
+  it('explains itself when the item is gone', async () => {
     mockApi([])
-    mocks.post.mockResolvedValue({ item: item() })
+    renderAt('/shopping/buy-gone', [{ path: '/shopping/:itemId', element: <ShoppingItemDetail /> }])
+
+    expect(await screen.findByText(/no longer on the list/)).toBeInTheDocument()
+  })
+})
+
+describe('ShoppingForm', () => {
+  it('creates an item with shop, price and photo, then opens its page', async () => {
+    mockApi([])
+    mocks.post.mockResolvedValue({ item: item({ id: 'buy-new' }) })
     renderAt('/shopping/new', [
       { path: '/shopping/new', element: <ShoppingForm /> },
-      { path: '/shopping', element: <p>list</p> },
+      { path: '/shopping/:itemId', element: <p>detail page</p> },
     ])
 
     await userEvent.type(screen.getByLabelText('What is it? *'), 'Uniqlo HEATTECH')
@@ -139,6 +270,16 @@ describe('ShoppingForm', () => {
         })
       )
     )
+    expect(await screen.findByText('detail page')).toBeInTheDocument()
+  })
+
+  it('starts in the category you added from', async () => {
+    mockApi([])
+    renderAt('/shopping/new?category=skincare', [
+      { path: '/shopping/new', element: <ShoppingForm /> },
+    ])
+
+    expect(screen.getByLabelText('Category')).toHaveValue('skincare')
   })
 
   it('keeps the entered text and offers retry when the save fails (FR-019)', async () => {
@@ -155,27 +296,16 @@ describe('ShoppingForm', () => {
     expect(screen.getByRole('button', { name: 'Retry save' })).toBeInTheDocument()
   })
 
-  it('prefills when editing and asks before deleting', async () => {
+  it('prefills when editing', async () => {
     mockApi([item()])
-    mocks.delete.mockResolvedValue(undefined)
     renderAt('/shopping/buy-1/edit', [
       { path: '/shopping/:itemId/edit', element: <ShoppingForm /> },
-      { path: '/shopping', element: <p>list</p> },
     ])
 
     await waitFor(() =>
       expect(screen.getByLabelText('What is it? *')).toHaveValue('Onitsuka Tiger Mexico 66')
     )
     expect(screen.getByLabelText('Expected price (yen)')).toHaveValue('12000')
-
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    expect(mocks.delete).not.toHaveBeenCalled() // confirmation first
-
-    const dialog = screen.getByRole('dialog')
-    const confirm = Array.from(dialog.querySelectorAll('button')).find(
-      (b) => b.textContent === 'Delete'
-    )!
-    await userEvent.click(confirm)
-    await waitFor(() => expect(mocks.delete).toHaveBeenCalledWith('/shopping/buy-1'))
+    expect(screen.getByLabelText('Category')).toHaveValue('clothes')
   })
 })
