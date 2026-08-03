@@ -1,17 +1,23 @@
 // Every item in one shopping category, in one place — the "See all" target from
 // the Shopping home. Unbought first (the working list), bought collected below.
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useRates, useShoppingList } from '../api/hooks'
+import { useDeleteShoppingItem } from '../api/mutations'
 import type { ShoppingCategory as Category, ShoppingItem } from '../api/types'
 import { SHOPPING_CATEGORY_META } from '../api/types'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ShoppingRow, priceLabel } from '../components/ShoppingCards'
+import { SwipeRow } from '../components/SwipeRow'
 import { useShoppingActions } from '../lib/shopping'
 
 export default function ShoppingCategoryPage() {
   const { category = '' } = useParams()
+  const [pendingDelete, setPendingDelete] = useState<ShoppingItem | null>(null)
+  const remove = useDeleteShoppingItem()
   const cat = category as Category
   const meta = SHOPPING_CATEGORY_META[cat] ?? { label: category, icon: '🛍️' }
   const { data, isPending, isError, refetch } = useShoppingList()
@@ -27,15 +33,26 @@ export default function ShoppingCategoryPage() {
   const bought = items.filter((i) => i.bought)
   const budget = toBuy.reduce((sum, i) => sum + (i.price_yen ?? 0), 0)
 
+  // Swipe right ticks an item off (undo is one more swipe); swipe left asks
+  // before deleting — the swipe is easy to trigger by accident and a delete
+  // can't be undone (FR-017).
   const row = (item: ShoppingItem) => (
-    <ShoppingRow
-      key={item.id}
-      item={item}
-      zoneName={zoneName(item.zone_id)}
-      rates={rates}
-      busy={isToggling(item.id)}
-      onToggle={() => toggleBought(item)}
-    />
+    <li key={item.id}>
+      <SwipeRow
+        rightLabel={item.bought ? 'Not bought' : 'Bought'}
+        leftLabel="Delete"
+        onSwipeRight={() => toggleBought(item)}
+        onSwipeLeft={() => setPendingDelete(item)}
+      >
+        <ShoppingRow
+          item={item}
+          zoneName={zoneName(item.zone_id)}
+          rates={rates}
+          busy={isToggling(item.id)}
+          onToggle={() => toggleBought(item)}
+        />
+      </SwipeRow>
+    </li>
   )
 
   return (
@@ -82,6 +99,24 @@ export default function ShoppingCategoryPage() {
           )}
         </>
       )}
+
+      {items.length > 0 && (
+        <p className="text-center text-xs text-muted">
+          Swipe a row right to tick it off, left to delete it.
+        </p>
+      )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={pendingDelete ? `Delete ${pendingDelete.name}?` : 'Delete this item?'}
+        message="It will be removed from the shopping list."
+        confirmLabel="Delete"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (pendingDelete) remove.mutate(pendingDelete.id)
+          setPendingDelete(null)
+        }}
+      />
     </div>
   )
 }

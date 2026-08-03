@@ -99,32 +99,40 @@ export function ShoppingTile({ item, onToggle, busy }: CardProps) {
   )
 }
 
-/** List row: photo left, details right, tick on the far right. */
+/**
+ * List row: photo left, details right, tick on the far right.
+ *
+ * Fixed height on purpose. Letting the row size itself meant a portrait photo
+ * made a tall row and a landscape one a short row, so a list of items rendered
+ * as a ragged column. The photo fills a fixed box instead, and the text is
+ * clamped to fit — the full note lives on the item's page.
+ */
 export function ShoppingRow({ item, zoneName, rates, onToggle, busy }: CardProps) {
   const where = [item.shop, zoneName].filter(Boolean).join(' · ')
 
   return (
-    <li
-      className={`card flex items-stretch gap-3 overflow-hidden ${item.bought ? 'opacity-60' : ''}`}
+    // a div, not an li: the caller wraps this in the <li> (and, on the category
+    // page, in the swipe container between the two)
+    <div
+      className={`card flex h-28 items-stretch gap-3 overflow-hidden ${
+        item.bought ? 'opacity-60' : ''
+      }`}
     >
       <Link to={`/shopping/${item.id}`} className="flex min-w-0 flex-1 items-stretch gap-3">
-        {/* no fixed height: the photo stretches to whatever the row needs, so a
-            card with more text doesn't leave a blank strip under its picture */}
         <ZoneImage
           src={item.image_url}
           alt={item.name}
           icon={categoryIcon(item)}
           fit="contain"
-          className="w-28 shrink-0 self-stretch"
+          className="h-full w-28 shrink-0"
         />
-        <div className="min-w-0 flex-1 py-3">
+        <div className="flex min-w-0 flex-1 flex-col justify-center py-2.5">
           <p className={`line-clamp-2 font-bold leading-snug ${item.bought ? 'line-through' : ''}`}>
             {item.name}
           </p>
-          {item.note && <p className="mt-0.5 line-clamp-2 text-sm text-muted">{item.note}</p>}
           {where && <p className="mt-1 truncate text-xs font-semibold text-muted">📍 {where}</p>}
           {item.price_yen != null && (
-            <p className="mt-1 font-display text-sm font-extrabold text-brand">
+            <p className="mt-1 truncate font-display text-sm font-extrabold text-brand">
               {priceLabel(item.price_yen, rates)}
             </p>
           )}
@@ -136,6 +144,6 @@ export function ShoppingRow({ item, zoneName, rates, onToggle, busy }: CardProps
         busy={busy}
         className="flex w-14 shrink-0 items-center justify-center border-l border-line active:scale-95"
       />
-    </li>
+    </div>
   )
 }

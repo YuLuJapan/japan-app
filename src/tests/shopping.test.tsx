@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ShoppingCategoryPage from '../pages/ShoppingCategory'
 import ShoppingForm from '../pages/ShoppingForm'
@@ -150,6 +150,22 @@ describe('Shopping home (category carousels)', () => {
   })
 })
 
+/** The swipe surface for an item — the element carrying the touch handlers. */
+async function rowFor(name: string) {
+  const link = await screen.findByRole('link', { name: new RegExp(name.slice(0, 12)) })
+  return link.closest('[style*="translateX"]') as HTMLElement
+}
+
+/** Drag a row by (dx, dy) in a few steps, like a finger would. */
+function swipe(el: HTMLElement, dx: number, dy = 0) {
+  const point = (x: number, y: number) => ({ touches: [{ clientX: x, clientY: y }] })
+  fireEvent.touchStart(el, point(0, 0))
+  for (const step of [0.34, 0.67, 1]) {
+    fireEvent.touchMove(el, point(dx * step, dy * step))
+  }
+  fireEvent.touchEnd(el, { changedTouches: [{ clientX: dx, clientY: dy }] })
+}
+
 describe('Shopping category page', () => {
   it('lists every item in the category and nothing else, bought ones separated', async () => {
     mockApi([
@@ -169,6 +185,55 @@ describe('Shopping category page', () => {
     expect(screen.getByText('To buy · 1')).toBeInTheDocument()
     expect(screen.getByText('Bought · 1')).toBeInTheDocument()
     expect(screen.getByText(/1\/2 bought/)).toBeInTheDocument()
+  })
+
+  it('ticks an item off when the row is swiped right', async () => {
+    mockApi([item()])
+    mocks.patch.mockResolvedValue({ item: item({ bought: true }) })
+    renderAt('/shopping/c/clothes', [
+      { path: '/shopping/c/:category', element: <ShoppingCategoryPage /> },
+    ])
+
+    swipe(await rowFor('Onitsuka Tiger Mexico 66'), 120)
+
+    await waitFor(() =>
+      expect(mocks.patch).toHaveBeenCalledWith('/shopping/buy-1', { bought: true })
+    )
+  })
+
+  it('asks before deleting when the row is swiped left', async () => {
+    mockApi([item()])
+    mocks.delete.mockResolvedValue(undefined)
+    renderAt('/shopping/c/clothes', [
+      { path: '/shopping/c/:category', element: <ShoppingCategoryPage /> },
+    ])
+
+    swipe(await rowFor('Onitsuka Tiger Mexico 66'), -120)
+
+    // the swipe alone must not delete anything
+    expect(mocks.delete).not.toHaveBeenCalled()
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveAccessibleName(/Delete Onitsuka Tiger Mexico 66/)
+
+    await userEvent.click(
+      Array.from(dialog.querySelectorAll('button')).find((b) => b.textContent === 'Delete')!
+    )
+    await waitFor(() => expect(mocks.delete).toHaveBeenCalledWith('/shopping/buy-1'))
+  })
+
+  it('ignores a short sideways nudge and a vertical scroll', async () => {
+    mockApi([item()])
+    renderAt('/shopping/c/clothes', [
+      { path: '/shopping/c/:category', element: <ShoppingCategoryPage /> },
+    ])
+    const row = await rowFor('Onitsuka Tiger Mexico 66')
+
+    swipe(row, 40) // too short to count
+    swipe(row, 0, 150) // scrolling down the page
+
+    expect(mocks.patch).not.toHaveBeenCalled()
+    expect(mocks.delete).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('adds into the category you are looking at', async () => {
