@@ -8,9 +8,15 @@ interface Props {
   alt: string
   icon?: string
   className?: string
+  /**
+   * 'cover' fills the box and crops — right for scenery (zones, places).
+   * 'contain' shows the whole picture on a plain background — right for
+   * products, whose shape gets mangled by cropping.
+   */
+  fit?: 'cover' | 'contain'
 }
 
-export function ZoneImage({ src, alt, icon = '📍', className = '' }: Props) {
+export function ZoneImage({ src, alt, icon = '📍', className = '', fit = 'cover' }: Props) {
   const [failed, setFailed] = useState(false)
 
   if (!src || failed) {
@@ -29,7 +35,7 @@ export function ZoneImage({ src, alt, icon = '📍', className = '' }: Props) {
       alt={alt}
       loading="lazy"
       onError={() => setFailed(true)}
-      className={`object-cover ${className}`}
+      className={`${fit === 'contain' ? 'bg-white object-contain' : 'object-cover'} ${className}`}
     />
   )
 }

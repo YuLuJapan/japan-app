@@ -54,18 +54,27 @@ function TickButton({
   )
 }
 
-/** Carousel tile: photo on top, name + price under it (yen only — it's a shelf). */
+/**
+ * Carousel tile: photo on top, name + price under it (yen only — it's a shelf).
+ * Every tile is the same size whether its name runs to one line or two, so a
+ * shelf reads as a row of equal cards: fixed box, fixed photo, price pinned to
+ * the bottom by the flex-1 name block above it.
+ */
 export function ShoppingTile({ item, onToggle, busy }: CardProps) {
   return (
-    <li className={`relative w-36 shrink-0 ${item.bought ? 'opacity-60' : ''}`}>
-      <Link to={`/shopping/${item.id}`} className="card block overflow-hidden active:scale-[0.98]">
+    <li className={`relative h-48 w-36 shrink-0 ${item.bought ? 'opacity-60' : ''}`}>
+      <Link
+        to={`/shopping/${item.id}`}
+        className="card flex h-full flex-col overflow-hidden active:scale-[0.98]"
+      >
         <ZoneImage
           src={item.image_url}
           alt={item.name}
           icon={categoryIcon(item)}
-          className="h-28 w-full"
+          fit="contain"
+          className="h-28 w-full shrink-0"
         />
-        <div className="px-2.5 pb-2.5 pt-2">
+        <div className="flex flex-1 flex-col px-2.5 pb-2.5 pt-2">
           <p
             className={`line-clamp-2 text-sm font-bold leading-snug ${
               item.bought ? 'line-through' : ''
@@ -74,7 +83,7 @@ export function ShoppingTile({ item, onToggle, busy }: CardProps) {
             {item.name}
           </p>
           {item.price_yen != null && (
-            <p className="mt-1 font-display text-sm font-extrabold text-brand">
+            <p className="mt-auto pt-1 font-display text-sm font-extrabold text-brand">
               ¥{yen.format(item.price_yen)}
             </p>
           )}
@@ -99,11 +108,14 @@ export function ShoppingRow({ item, zoneName, rates, onToggle, busy }: CardProps
       className={`card flex items-stretch gap-3 overflow-hidden ${item.bought ? 'opacity-60' : ''}`}
     >
       <Link to={`/shopping/${item.id}`} className="flex min-w-0 flex-1 items-stretch gap-3">
+        {/* no fixed height: the photo stretches to whatever the row needs, so a
+            card with more text doesn't leave a blank strip under its picture */}
         <ZoneImage
           src={item.image_url}
           alt={item.name}
           icon={categoryIcon(item)}
-          className="h-24 w-24 shrink-0"
+          fit="contain"
+          className="w-28 shrink-0 self-stretch"
         />
         <div className="min-w-0 flex-1 py-3">
           <p className={`line-clamp-2 font-bold leading-snug ${item.bought ? 'line-through' : ''}`}>

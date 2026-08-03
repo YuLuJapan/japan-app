@@ -53,7 +53,13 @@ export default function ShoppingItemDetail() {
           ‹ {meta.label}
         </Link>
         <div className="mt-3 overflow-hidden rounded-3xl shadow-card">
-          <ZoneImage src={item.image_url} alt={item.name} icon={meta.icon} className="h-52 w-full" />
+          <ZoneImage
+            src={item.image_url}
+            alt={item.name}
+            icon={meta.icon}
+            fit="contain"
+            className="h-52 w-full"
+          />
         </div>
         {/* Items saved before the web lookup existed (or whose search came up
             empty) can get a photo here without a trip through the edit form. */}

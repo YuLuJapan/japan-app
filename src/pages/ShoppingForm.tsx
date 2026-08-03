@@ -290,6 +290,7 @@ export default function ShoppingForm() {
               src={imageUrl.trim()}
               alt="Preview"
               icon={SHOPPING_CATEGORY_META[category].icon}
+              fit="contain"
               className="h-40 w-full"
             />
           </div>
