@@ -7,6 +7,7 @@ import type {
   ItineraryItem,
   PlaceDetail,
   PlaceListItem,
+  ProductPreview,
   Rates,
   Reminder,
   SearchResult,
@@ -104,6 +105,11 @@ export const useImageSearch = (query: string, enabled: boolean) =>
     enabled: enabled && query.trim().length >= 2,
     staleTime: 1000 * 60 * 30,
   })
+
+// Read a product page's own metadata so pasting a shop link fills the form.
+// Called on demand from the form, not as a standing query.
+export const fetchProductPreview = (url: string) =>
+  api.get<ProductPreview>(`/product-preview?url=${encodeURIComponent(url)}`)
 
 export const useSearch = (query: string) =>
   useQuery({

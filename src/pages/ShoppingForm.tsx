@@ -2,7 +2,7 @@
 // on a failed save the entered text stays put and a retry is offered.
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { useShoppingList, useTrip } from '../api/hooks'
+import { fetchProductPreview, useShoppingList, useTrip } from '../api/hooks'
 import { useCreateShoppingItem, useUpdateShoppingItem } from '../api/mutations'
 import type { ShoppingCategory, ShoppingItemInput } from '../api/types'
 import { SHOPPING_CATEGORIES, SHOPPING_CATEGORY_META } from '../api/types'
@@ -34,6 +34,55 @@ export default function ShoppingForm() {
   const [imageUrl, setImageUrl] = useState('')
   const [url, setUrl] = useState('')
   const [bought, setBought] = useState(false)
+  const [pastedUrl, setPastedUrl] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importNote, setImportNote] = useState<string | null>(null)
+
+  /**
+   * Fill the form from a product page's own metadata. Only ever *adds* — a
+   * field you already typed is never overwritten, so re-reading a link can't
+   * wipe your edits.
+   */
+  async function importFromUrl() {
+    const link = pastedUrl.trim()
+    if (!link || importing) return
+    setImporting(true)
+    setImportNote(null)
+    try {
+      const preview = await fetchProductPreview(link)
+      const filled: string[] = []
+      if (preview.name && !name.trim()) {
+        setName(preview.name)
+        filled.push('name')
+      }
+      if (preview.image_url && !imageUrl.trim()) {
+        setImageUrl(preview.image_url)
+        filled.push('photo')
+      }
+      if (preview.shop && !shop.trim()) {
+        setShop(preview.shop)
+        filled.push('shop')
+      }
+      if (preview.price_yen != null && price.trim() === '') {
+        setPrice(String(preview.price_yen))
+        filled.push('price')
+      }
+      if (!url.trim()) setUrl(preview.url)
+
+      setImportNote(
+        filled.length > 0
+          ? `Filled in the ${filled.join(', ')} — check it over and edit anything.${
+              preview.price_note ? ` ${preview.price_note}` : ''
+            }`
+          : preview.price_note ??
+              'Could not read that page — fill the details in yourself (the link is saved).'
+      )
+    } catch {
+      setImportNote('Could not read that link. Check it, or fill the details in yourself.')
+    } finally {
+      setImporting(false)
+    }
+  }
 
   const existing = editing ? list.data?.items.find((i) => i.id === itemId) : undefined
 
@@ -97,6 +146,40 @@ export default function ShoppingForm() {
       <h1 className="font-display text-2xl font-extrabold">
         {editing ? 'Edit item' : 'Add something to buy'}
       </h1>
+
+      {!editing && (
+        <div className="rounded-2xl border border-line bg-white p-3">
+          <label className="label" htmlFor="product-link">
+            Have a link? Paste it
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="product-link"
+              className="field flex-1"
+              inputMode="url"
+              placeholder="https://… product page"
+              value={pastedUrl}
+              onChange={(e) => setPastedUrl(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter inside this field means "read it", not "submit the form"
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  void importFromUrl()
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="btn-ghost px-4"
+              disabled={importing || pastedUrl.trim() === ''}
+              onClick={() => void importFromUrl()}
+            >
+              {importing ? '…' : 'Read link'}
+            </button>
+          </div>
+          {importNote && <p className="mt-2 text-xs text-muted">{importNote}</p>}
+        </div>
+      )}
 
       <div>
         <label className="label" htmlFor="name">

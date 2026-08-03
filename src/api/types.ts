@@ -274,6 +274,16 @@ export interface ShoppingItemInput {
   position?: number
 }
 
+// What a shop's product page told us about it (GET /api/product-preview).
+export interface ProductPreview {
+  url: string
+  name: string | null
+  image_url: string | null
+  shop: string | null
+  price_yen: number | null
+  price_note: string | null
+}
+
 // A photo found on the web for an item that has none (GET /api/images).
 export interface ImageResult {
   url: string

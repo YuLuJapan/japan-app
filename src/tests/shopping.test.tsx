@@ -318,6 +318,83 @@ describe('ShoppingForm', () => {
     expect(screen.getByLabelText('Category')).toHaveValue('skincare')
   })
 
+  it('fills the form from a pasted product link', async () => {
+    mockApi([])
+    mocks.get.mockImplementation((path: string) => {
+      if (path.startsWith('/product-preview'))
+        return Promise.resolve({
+          url: 'https://www.uniqlo.com/jp/en/products/E123',
+          name: 'HEATTECH Crew Neck T-Shirt',
+          image_url: 'https://www.uniqlo.com/img/heattech.jpg',
+          shop: 'UNIQLO',
+          price_yen: 1500,
+          price_note: null,
+        })
+      return Promise.resolve({ items: [], steps: [] })
+    })
+    renderAt('/shopping/new', [{ path: '/shopping/new', element: <ShoppingForm /> }])
+
+    await userEvent.type(
+      screen.getByLabelText('Have a link? Paste it'),
+      'https://www.uniqlo.com/jp/en/products/E123'
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Read link' }))
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('What is it? *')).toHaveValue('HEATTECH Crew Neck T-Shirt')
+    )
+    expect(screen.getByLabelText('Where to buy it')).toHaveValue('UNIQLO')
+    expect(screen.getByLabelText('Expected price (yen)')).toHaveValue('1500')
+    expect(screen.getByLabelText('Photo URL')).toHaveValue(
+      'https://www.uniqlo.com/img/heattech.jpg'
+    )
+    expect(screen.getByLabelText('Product link')).toHaveValue(
+      'https://www.uniqlo.com/jp/en/products/E123'
+    )
+  })
+
+  it('does not overwrite what you already typed when reading a link', async () => {
+    mockApi([])
+    mocks.get.mockImplementation((path: string) =>
+      path.startsWith('/product-preview')
+        ? Promise.resolve({
+            url: 'https://shop.example.jp/p/1',
+            name: 'Shop name for it',
+            image_url: null,
+            shop: 'Example',
+            price_yen: 900,
+            price_note: null,
+          })
+        : Promise.resolve({ items: [], steps: [] })
+    )
+    renderAt('/shopping/new', [{ path: '/shopping/new', element: <ShoppingForm /> }])
+
+    await userEvent.type(screen.getByLabelText('What is it? *'), 'My own name')
+    await userEvent.type(
+      screen.getByLabelText('Have a link? Paste it'),
+      'https://shop.example.jp/p/1'
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Read link' }))
+
+    await waitFor(() => expect(screen.getByLabelText('Where to buy it')).toHaveValue('Example'))
+    expect(screen.getByLabelText('What is it? *')).toHaveValue('My own name') // kept
+  })
+
+  it('says so when the link cannot be read', async () => {
+    mockApi([])
+    mocks.get.mockImplementation((path: string) =>
+      path.startsWith('/product-preview')
+        ? Promise.reject(new Error('offline'))
+        : Promise.resolve({ items: [], steps: [] })
+    )
+    renderAt('/shopping/new', [{ path: '/shopping/new', element: <ShoppingForm /> }])
+
+    await userEvent.type(screen.getByLabelText('Have a link? Paste it'), 'https://nope.example')
+    await userEvent.click(screen.getByRole('button', { name: 'Read link' }))
+
+    expect(await screen.findByText(/Could not read that link/)).toBeInTheDocument()
+  })
+
   it('finds a photo on the web and fills the field with the one you tap', async () => {
     mockApi([])
     mocks.get.mockImplementation((path: string) => {
