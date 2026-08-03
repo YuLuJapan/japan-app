@@ -13,6 +13,7 @@
 import type { DataStore } from '../lib/datastore.js'
 import { validation } from '../lib/errors.js'
 import { getRates } from './rates.js'
+import { containsJapanese, translateJaToEn } from './translate.js'
 
 const TIMEOUT_MS = 6000
 const MAX_BYTES = 512 * 1024 // metadata lives in <head>; no need for the whole page
@@ -27,6 +28,9 @@ export interface ProductPreview {
   price_yen: number | null
   /** Set when a price was found in a currency we could not convert. */
   price_note: string | null
+  /** The Japanese name, when `name` is its English translation — worth keeping:
+   *  it's what you show staff in the shop. */
+  name_ja: string | null
 }
 
 /** True when an IP literal belongs to a network we must not reach into. */
@@ -92,7 +96,13 @@ async function fetchHtml(start: URL): Promise<{ html: string; finalUrl: URL } | 
     try {
       res = await fetch(current, {
         redirect: 'manual',
-        headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml' },
+        headers: {
+          'User-Agent': USER_AGENT,
+          Accept: 'text/html,application/xhtml+xml',
+          // ask for English first — international shops often honour it, which
+          // saves a translation round trip
+          'Accept-Language': 'en-US,en;q=0.9,ja;q=0.5',
+        },
         signal: AbortSignal.timeout(TIMEOUT_MS),
       })
     } catch {
@@ -227,6 +237,45 @@ function findOffer(node: unknown, depth = 0): { amount: number; currency: string
   return null
 }
 
+/**
+ * Shops that render in the browser (Uniqlo among them) publish no price meta
+ * tag, but the page they ship still carries the number: either in an embedded
+ * JSON blob — "price":1500, "basePrice":{"value":1500} — or as visible yen text.
+ * Both are last resorts, applied only when the tags and JSON-LD came up empty.
+ */
+function embeddedJsonPrice(html: string): { amount: number; currency: string | null } | null {
+  // "<price-ish key>": 1500  |  "<price-ish key>": "1,500"
+  const re = /"(?:[a-z]*price[a-z]*|amount|value)"\s*:\s*"?([0-9][0-9,]*(?:\.[0-9]+)?)"?/gi
+  const seen: number[] = []
+  for (const m of html.matchAll(re)) {
+    const amount = Number(m[1]!.replace(/,/g, ''))
+    if (Number.isFinite(amount) && amount >= 100 && amount <= 1_000_000) seen.push(amount)
+  }
+  if (!seen.length) return null
+  // a product page repeats its price (base, display, tax-inc); the most common
+  // number is a better guess than the first one it happens to mention
+  const counts = new Map<number, number>()
+  for (const n of seen) counts.set(n, (counts.get(n) ?? 0) + 1)
+  const best = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]!
+  return { amount: best[0], currency: null }
+}
+
+/** Visible yen text: "¥1,500" or "1,500円". */
+function yenTextPrice(html: string): { amount: number; currency: string | null } | null {
+  const text = html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<[^>]+>/g, ' ')
+  const amounts: number[] = []
+  for (const m of text.matchAll(/(?:[¥￥]\s*([0-9][0-9,]*)|([0-9][0-9,]*)\s*円)/g)) {
+    const raw = m[1] ?? m[2]!
+    const amount = Number(raw.replace(/,/g, ''))
+    // skip free-shipping thresholds and the like ("¥5,000以上で送料無料")
+    const after = text.slice((m.index ?? 0) + m[0].length, (m.index ?? 0) + m[0].length + 12)
+    if (/以上|超|送料|off|OFF/.test(after)) continue
+    if (Number.isFinite(amount) && amount >= 100 && amount <= 1_000_000) amounts.push(amount)
+  }
+  if (!amounts.length) return null
+  return { amount: amounts[0]!, currency: 'JPY' }
+}
+
 /** Shop name: og:site_name if given, else a tidied hostname ("uniqlo.com" → "Uniqlo"). */
 function shopName(html: string, url: URL): string | null {
   const site = metaContent(html, 'og:site_name')
@@ -236,10 +285,32 @@ function shopName(html: string, url: URL): string | null {
   return host.charAt(0).toUpperCase() + host.slice(1)
 }
 
-/** A shop's title is often "Product | Brand Online Store" — keep the product. */
-function tidyTitle(title: string): string {
-  const [first] = title.split(/\s+[|–—]\s+/)
-  return (first ?? title).trim().slice(0, 120)
+/**
+ * Shop titles pack the brand in beside the product, and the order varies by
+ * locale: "Product | UNIQLO" on the English site, "ユニクロ公式 | Product" on the
+ * Japanese one. Taking the first segment picks the brand half the time (which
+ * is how an import came back named "ユニクロ公式" — "UNIQLO official"), so drop
+ * any segment that is just the shop name and keep the most descriptive rest.
+ */
+function tidyTitle(title: string, shop: string | null): string {
+  const segments = title
+    .split(/\s*[|｜–—>»·]\s*|\s+-\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (segments.length <= 1) return title.trim().slice(0, 120)
+
+  const shopish = (s: string) => {
+    if (!shop) return false
+    const a = s.toLowerCase().replace(/\s+/g, '')
+    const b = shop.toLowerCase().replace(/\s+/g, '')
+    return a === b || a.includes(b) || b.includes(a)
+  }
+  // "公式" = "official", "オンラインストア"/"online store" — storefront boilerplate
+  const boilerplate = /^(公式|.*公式(サイト|通販|オンラインストア)?|online ?store|official( site)?|通販|オンラインストア)$/i
+
+  const meaty = segments.filter((s) => !shopish(s) && !boilerplate.test(s))
+  const best = (meaty.length ? meaty : segments).reduce((a, b) => (b.length > a.length ? b : a))
+  return best.slice(0, 120)
 }
 
 export async function previewProductUrl(
@@ -253,7 +324,15 @@ export async function previewProductUrl(
   if (!fetched) {
     // Reachability is the shop's problem, not a client error — hand back the
     // link so the form can still use it, with nothing else filled in.
-    return { url: url.toString(), name: null, image_url: null, shop: null, price_yen: null, price_note: null }
+    return {
+      url: url.toString(),
+      name: null,
+      image_url: null,
+      shop: null,
+      price_yen: null,
+      price_note: null,
+      name_ja: null,
+    }
   }
   const { html, finalUrl } = fetched
 
@@ -290,17 +369,55 @@ export async function previewProductUrl(
       price = { amount, currency: metaCurrency?.toUpperCase() ?? null }
   }
   price ??= jsonLdPrice(html)
+  // shops that price client-side (Uniqlo among them) publish neither
+  price ??= embeddedJsonPrice(html)
+  price ??= yenTextPrice(html)
 
   const { price_yen, price_note } = await toYen(store, price)
 
+  const shop = shopName(html, finalUrl)
+  const cleaned = rawName ? tidyTitle(rawName, shop) : null
+  const { name, name_ja } = await toEnglish(cleaned, finalUrl)
+
   return {
     url: finalUrl.toString(),
-    name: rawName ? tidyTitle(rawName) : null,
+    name,
     image_url,
-    shop: shopName(html, finalUrl),
+    shop,
     price_yen,
     price_note,
+    name_ja,
   }
+}
+
+/**
+ * Make the name readable for someone who doesn't read Japanese. Two steps, in
+ * order of quality: ask the shop for its own English page (most Japanese chains
+ * have one at the same path under /en/), and failing that, translate. The
+ * Japanese original comes back too — it's what you point at in the shop.
+ */
+async function toEnglish(
+  name: string | null,
+  url: URL
+): Promise<{ name: string | null; name_ja: string | null }> {
+  if (!name || !containsJapanese(name)) return { name, name_ja: null }
+
+  // /jp/ja/products/… → /jp/en/products/…
+  if (/\/ja(\/|$)/.test(url.pathname)) {
+    const englishUrl = new URL(url.toString())
+    englishUrl.pathname = url.pathname.replace(/\/ja(\/|$)/, '/en$1')
+    const englishPage = await fetchHtml(englishUrl)
+    if (englishPage) {
+      const raw =
+        metaContent(englishPage.html, 'og:title') ?? titleTag(englishPage.html) ?? null
+      const shop = shopName(englishPage.html, englishPage.finalUrl)
+      const candidate = raw ? tidyTitle(raw, shop) : null
+      if (candidate && !containsJapanese(candidate)) return { name: candidate, name_ja: name }
+    }
+  }
+
+  const translated = await translateJaToEn(name)
+  return translated ? { name: translated, name_ja: name } : { name, name_ja: null }
 }
 
 /** Convert a found price into yen when we can, else explain why we didn't. */

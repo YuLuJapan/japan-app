@@ -2,7 +2,13 @@
 // on a failed save the entered text stays put and a retry is offered.
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { fetchProductPreview, useShoppingList, useTrip } from '../api/hooks'
+import {
+  containsJapanese,
+  fetchProductPreview,
+  fetchTranslation,
+  useShoppingList,
+  useTrip,
+} from '../api/hooks'
 import { useCreateShoppingItem, useUpdateShoppingItem } from '../api/mutations'
 import type { ShoppingCategory, ShoppingItemInput } from '../api/types'
 import { SHOPPING_CATEGORIES, SHOPPING_CATEGORY_META } from '../api/types'
@@ -37,6 +43,30 @@ export default function ShoppingForm() {
   const [pastedUrl, setPastedUrl] = useState('')
   const [importing, setImporting] = useState(false)
   const [importNote, setImportNote] = useState<string | null>(null)
+  const [translating, setTranslating] = useState(false)
+  const [translateNote, setTranslateNote] = useState<string | null>(null)
+
+  /** Swap a Japanese name for English, parking the original in the details. */
+  async function translateName() {
+    const original = name.trim()
+    if (!original || translating) return
+    setTranslating(true)
+    setTranslateNote(null)
+    try {
+      const result = await fetchTranslation(original)
+      if (result.translated) {
+        setName(result.translated)
+        if (!note.trim()) setNote(`Japanese name: ${original}`)
+        setTranslateNote('Translated — the Japanese name is saved in the details.')
+      } else {
+        setTranslateNote('Could not translate that one — leaving it as it is.')
+      }
+    } catch {
+      setTranslateNote('Translation is unavailable right now.')
+    } finally {
+      setTranslating(false)
+    }
+  }
 
   /**
    * Fill the form from a product page's own metadata. Only ever *adds* — a
@@ -54,6 +84,9 @@ export default function ShoppingForm() {
       if (preview.name && !name.trim()) {
         setName(preview.name)
         filled.push('name')
+        // keep the Japanese original in the details — it's what you point at
+        // in the shop when nobody speaks English
+        if (preview.name_ja && !note.trim()) setNote(`Japanese name: ${preview.name_ja}`)
       }
       if (preview.image_url && !imageUrl.trim()) {
         setImageUrl(preview.image_url)
@@ -193,6 +226,19 @@ export default function ShoppingForm() {
           onChange={(e) => setName(e.target.value)}
           required
         />
+        {/* A name in Japanese is unreadable for us — offer to swap it for
+            English, keeping the original in the details for the shop. */}
+        {containsJapanese(name) && (
+          <button
+            type="button"
+            className="btn-ghost mt-2 w-full"
+            disabled={translating}
+            onClick={() => void translateName()}
+          >
+            {translating ? 'Translating…' : '🌐 Translate to English'}
+          </button>
+        )}
+        {translateNote && <p className="mt-1 text-xs text-muted">{translateNote}</p>}
       </div>
 
       <div>

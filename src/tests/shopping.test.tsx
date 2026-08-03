@@ -353,6 +353,55 @@ describe('ShoppingForm', () => {
     )
   })
 
+  it('shows the English name from a Japanese page and keeps the Japanese in the details', async () => {
+    mockApi([])
+    mocks.get.mockImplementation((path: string) =>
+      path.startsWith('/product-preview')
+        ? Promise.resolve({
+            url: 'https://www.uniqlo.com/jp/ja/products/E1',
+            name: 'Crew Neck T-Shirt',
+            name_ja: 'クルーネックT（半袖）',
+            image_url: null,
+            shop: 'UNIQLO',
+            price_yen: 1500,
+            price_note: null,
+          })
+        : Promise.resolve({ items: [], steps: [] })
+    )
+    renderAt('/shopping/new', [{ path: '/shopping/new', element: <ShoppingForm /> }])
+
+    await userEvent.type(
+      screen.getByLabelText('Have a link? Paste it'),
+      'https://www.uniqlo.com/jp/ja/products/E1'
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Read link' }))
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('What is it? *')).toHaveValue('Crew Neck T-Shirt')
+    )
+    expect(screen.getByLabelText('Details')).toHaveValue('Japanese name: クルーネックT（半袖）')
+    expect(screen.getByLabelText('Expected price (yen)')).toHaveValue('1500')
+  })
+
+  it('offers to translate a name typed in Japanese', async () => {
+    mockApi([])
+    mocks.get.mockImplementation((path: string) =>
+      path.startsWith('/translate')
+        ? Promise.resolve({ text: 'ヘアマスク', is_japanese: true, translated: 'Hair mask' })
+        : Promise.resolve({ items: [], steps: [] })
+    )
+    renderAt('/shopping/new', [{ path: '/shopping/new', element: <ShoppingForm /> }])
+
+    const name = screen.getByLabelText('What is it? *')
+    expect(screen.queryByRole('button', { name: /Translate to English/ })).not.toBeInTheDocument()
+
+    await userEvent.type(name, 'ヘアマスク')
+    await userEvent.click(await screen.findByRole('button', { name: /Translate to English/ }))
+
+    await waitFor(() => expect(name).toHaveValue('Hair mask'))
+    expect(screen.getByLabelText('Details')).toHaveValue('Japanese name: ヘアマスク')
+  })
+
   it('does not overwrite what you already typed when reading a link', async () => {
     mockApi([])
     mocks.get.mockImplementation((path: string) =>

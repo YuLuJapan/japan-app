@@ -16,6 +16,7 @@ import { searchRouter } from './routes/search.js'
 import { shoppingRouter } from './routes/shopping.js'
 import { stepsRouter } from './routes/steps.js'
 import { tipsRouter } from './routes/tips.js'
+import { translateRouter } from './routes/translate.js'
 import { tripRouter } from './routes/trip.js'
 import { zonesRouter } from './routes/zones.js'
 
@@ -46,6 +47,7 @@ export function createApp() {
   app.use('/api', geocodeRouter)
   app.use('/api', imagesRouter)
   app.use('/api', productUrlRouter)
+  app.use('/api', translateRouter)
   app.use('/api', remindersRouter)
   app.use('/api', pushRouter)
 

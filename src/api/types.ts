@@ -282,6 +282,14 @@ export interface ProductPreview {
   shop: string | null
   price_yen: number | null
   price_note: string | null
+  /** The Japanese original, when `name` is its English translation. */
+  name_ja: string | null
+}
+
+export interface Translation {
+  text: string
+  is_japanese: boolean
+  translated: string | null
 }
 
 // A photo found on the web for an item that has none (GET /api/images).

@@ -4,6 +4,7 @@ import { createApp } from '../src/app.js'
 import { setDataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
 import { __resetRatesCache } from '../src/services/rates.js'
+import { __resetTranslateCache } from '../src/services/translate.js'
 import { TEST_CODE, fixture } from './fixture.js'
 
 process.env.TRIP_ACCESS_CODE = TEST_CODE
@@ -58,6 +59,9 @@ const productHtml = `
 beforeEach(() => {
   setDataStore(createMemoryStore(fixture()))
   __resetRatesCache()
+  // both caches are module-level: without this, one test's "couldn't translate"
+  // answers the next test's lookup of the same string
+  __resetTranslateCache()
 })
 afterEach(() => vi.unstubAllGlobals())
 
@@ -200,6 +204,161 @@ describe('GET /api/product-preview', () => {
       request(app).get('/api/product-preview?url=https://shop.example.jp/file.pdf')
     )
     expect(res.body.name).toBeNull()
+  })
+})
+
+describe('GET /api/product-preview on a Japanese shop page', () => {
+  // The real failure: uniqlo.com/jp/ja titles its pages "brand | product", so
+  // taking the first segment imported an item called "ユニクロ公式".
+  const japaneseHtml = `<html><head>
+    <title>ユニクロ公式 | クルーネックT（半袖）| 商品詳細</title>
+    <meta property="og:title" content="ユニクロ公式 | クルーネックT（半袖）">
+    <meta property="og:site_name" content="ユニクロ公式">
+    </head><body><span>¥1,500</span></body></html>`
+
+  it('keeps the product half of the title, not the brand half', async () => {
+    mockPages({ 'https://www.uniqlo.com/jp/ja/products/E1': { html: japaneseHtml } })
+    // no English page, no translation service
+    const res = await auth(
+      request(app).get('/api/product-preview?url=https://www.uniqlo.com/jp/ja/products/E1')
+    )
+    expect(res.body.name).not.toBe('ユニクロ公式')
+    expect(res.body.name).toContain('クルーネックT')
+  })
+
+  it('prefers the shop own English page over translating', async () => {
+    mockPages({
+      'https://www.uniqlo.com/jp/ja/products/E1': { html: japaneseHtml },
+      'https://www.uniqlo.com/jp/en/products/E1': {
+        html: `<html><head><meta property="og:title" content="Crew Neck T-Shirt | UNIQLO">
+               <meta property="og:site_name" content="UNIQLO"></head></html>`,
+      },
+    })
+
+    const res = await auth(
+      request(app).get('/api/product-preview?url=https://www.uniqlo.com/jp/ja/products/E1')
+    )
+    expect(res.body.name).toBe('Crew Neck T-Shirt')
+    expect(res.body.name_ja).toContain('クルーネックT') // kept for showing staff
+  })
+
+  it('translates when the shop has no English page', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL) => {
+        const url = String(input)
+        if (url.includes('mymemory'))
+          return {
+            ok: true,
+            json: async () => ({
+              responseStatus: 200,
+              responseData: { translatedText: 'Crew Neck T-Shirt (Short Sleeve)' },
+            }),
+          } as Response
+        if (url.includes('/jp/ja/'))
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'text/html' }),
+            body: null,
+            text: async () => japaneseHtml,
+          } as unknown as Response
+        return { ok: false, status: 404, headers: new Headers() } as Response // no /en/ page
+      })
+    )
+
+    const res = await auth(
+      request(app).get('/api/product-preview?url=https://www.uniqlo.com/jp/ja/products/E2')
+    )
+    expect(res.body.name).toBe('Crew Neck T-Shirt (Short Sleeve)')
+    expect(res.body.name_ja).toContain('クルーネックT')
+  })
+
+  it('keeps the Japanese name when translation is unavailable', async () => {
+    mockPages({ 'https://shop.example.jp/p/9': { html: japaneseHtml } })
+
+    const res = await auth(request(app).get('/api/product-preview?url=https://shop.example.jp/p/9'))
+    expect(res.body.name).toContain('クルーネックT')
+    expect(res.body.name_ja).toBeNull() // nothing was translated, so nothing to keep twice
+  })
+
+  it('reads a price the page only shows as yen text', async () => {
+    mockPages({ 'https://www.uniqlo.com/jp/ja/products/E3': { html: japaneseHtml } })
+
+    const res = await auth(
+      request(app).get('/api/product-preview?url=https://www.uniqlo.com/jp/ja/products/E3')
+    )
+    expect(res.body.price_yen).toBe(1500)
+  })
+
+  it('reads a price out of an embedded JSON blob', async () => {
+    mockPages({
+      'https://shop.example.jp/p/10': {
+        html: `<html><head></head><body><script>
+          window.__DATA__ = {"product":{"name":"x","prices":{"base":{"value":1500},"promo":{"value":1500}}}}
+        </script></body></html>`,
+      },
+    })
+
+    const res = await auth(request(app).get('/api/product-preview?url=https://shop.example.jp/p/10'))
+    expect(res.body.price_yen).toBe(1500)
+  })
+
+  it('ignores a free-shipping threshold masquerading as the price', async () => {
+    mockPages({
+      'https://shop.example.jp/p/11': {
+        html: `<html><head></head><body><p>¥5,000以上で送料無料</p><p>¥1,500</p></body></html>`,
+      },
+    })
+
+    const res = await auth(request(app).get('/api/product-preview?url=https://shop.example.jp/p/11'))
+    expect(res.body.price_yen).toBe(1500)
+  })
+})
+
+describe('GET /api/translate', () => {
+  it('translates Japanese to English', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          responseStatus: 200,
+          responseData: { translatedText: 'Hair mask' },
+        }),
+      }))
+    )
+
+    const res = await auth(request(app).get('/api/translate?q=ヘアマスク'))
+    expect(res.status).toBe(200)
+    expect(res.body).toMatchObject({ is_japanese: true, translated: 'Hair mask' })
+  })
+
+  it('leaves English text alone without calling out', async () => {
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const res = await auth(request(app).get('/api/translate?q=Hair%20mask'))
+    expect(res.body).toMatchObject({ is_japanese: false, translated: null })
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('returns null rather than failing when the translator is down', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('offline')
+      })
+    )
+
+    const res = await auth(request(app).get('/api/translate?q=ヘアマスク'))
+    expect(res.status).toBe(200)
+    expect(res.body.translated).toBeNull()
+  })
+
+  it('400 without a query', async () => {
+    const res = await auth(request(app).get('/api/translate?q='))
+    expect(res.status).toBe(400)
   })
 })
 

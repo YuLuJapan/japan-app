@@ -12,6 +12,7 @@ import type {
   Reminder,
   SearchResult,
   ShoppingItem,
+  Translation,
   TripBundle,
   TripDocument,
   ZoneDetail,
@@ -110,6 +111,14 @@ export const useImageSearch = (query: string, enabled: boolean) =>
 // Called on demand from the form, not as a standing query.
 export const fetchProductPreview = (url: string) =>
   api.get<ProductPreview>(`/product-preview?url=${encodeURIComponent(url)}`)
+
+// Japanese → English for anything typed or pasted in Japanese.
+export const fetchTranslation = (text: string) =>
+  api.get<Translation>(`/translate?q=${encodeURIComponent(text)}`)
+
+/** Kana, kanji or full-width punctuation — mirrors the server's check. */
+export const containsJapanese = (text: string) =>
+  /[぀-ゟ゠-ヿ㐀-䶿一-鿿＀-ﾟ]/.test(text)
 
 export const useSearch = (query: string) =>
   useQuery({
