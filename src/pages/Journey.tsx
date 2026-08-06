@@ -6,6 +6,7 @@ import { ErrorState } from '../components/ErrorState'
 import { JourneyStepsSlider, stepStatus } from '../components/JourneyStepsSlider'
 import { Loading } from '../components/Loading'
 import { Schedule } from '../components/Schedule'
+import { SushiSequence } from '../components/SushiSequence'
 import { TripMap } from '../components/TripMap'
 import { enumerateDays, toISODate } from '../lib/schedule'
 
@@ -39,13 +40,10 @@ export default function Journey() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="section-title text-brand">Our trip</p>
-        <h1 className="mt-1 font-display text-3xl font-extrabold tracking-tight">{data.trip.name}</h1>
-        <p className="mt-1 text-sm text-muted">
-          {fmt(data.trip.start_date)} – {fmt(data.trip.end_date)} · {data.steps.length} stops
-        </p>
-      </div>
+      <SushiSequence
+        title={data.trip.name}
+        meta={`${fmt(data.trip.start_date)} – ${fmt(data.trip.end_date)} · ${data.steps.length} stops`}
+      />
 
       {data.flight && <CountdownWidget flight={data.flight} />}
 

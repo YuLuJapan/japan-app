@@ -48,6 +48,19 @@ export default defineConfig({
             },
           },
           {
+            // Homepage sushi frames: immutable, and 161 of them — cache once
+            // rather than re-fetching ~1 MB every time the app is opened.
+            // (Not precached: Workbox's glob doesn't include .jpg, so the
+            // install stays small and these fill in on first visit.)
+            urlPattern: ({ url }) => url.pathname.startsWith('/sushi/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'sushi-frames',
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 90 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             urlPattern: ({ url }) => url.hostname === 'upload.wikimedia.org',
             handler: 'CacheFirst',
             options: {
