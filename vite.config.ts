@@ -48,6 +48,19 @@ export default defineConfig({
             },
           },
           {
+            // Homepage sushi frames: immutable, and 161 of them — cache once
+            // rather than re-fetching ~1 MB every time the app is opened.
+            // (Not precached: Workbox's glob doesn't include .jpg, so the
+            // install stays small and these fill in on first visit.)
+            urlPattern: ({ url }) => url.pathname.startsWith('/sushi/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'sushi-frames',
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 90 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             urlPattern: ({ url }) => url.hostname === 'upload.wikimedia.org',
             handler: 'CacheFirst',
             options: {
@@ -78,7 +91,10 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      '/api': 'http://localhost:3001',
+      // 127.0.0.1, not localhost: Node resolves "localhost" to ::1 first, so
+      // anything else already holding [::1]:3001 silently swallows every /api
+      // call even though our server is up on 0.0.0.0:3001.
+      '/api': 'http://127.0.0.1:3001',
     },
   },
 })
