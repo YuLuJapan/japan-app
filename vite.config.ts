@@ -66,7 +66,7 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'sushi-frames',
-              expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 90 },
+              expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },
