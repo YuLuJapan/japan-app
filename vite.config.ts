@@ -91,7 +91,10 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      '/api': 'http://localhost:3001',
+      // 127.0.0.1, not localhost: Node resolves "localhost" to ::1 first, so
+      // anything else already holding [::1]:3001 silently swallows every /api
+      // call even though our server is up on 0.0.0.0:3001.
+      '/api': 'http://127.0.0.1:3001',
     },
   },
 })
