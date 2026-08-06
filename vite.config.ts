@@ -48,15 +48,25 @@ export default defineConfig({
             },
           },
           {
-            // Homepage sushi frames: immutable, and 161 of them — cache once
-            // rather than re-fetching ~1 MB every time the app is opened.
-            // (Not precached: Workbox's glob doesn't include .jpg, so the
-            // install stays small and these fill in on first visit.)
+            // Homepage sushi frames: cache once rather than re-fetching several
+            // MB every time the app is opened. (Not precached: Workbox's glob
+            // doesn't include .jpg, so the install stays small and these fill
+            // in on first visit.)
+            //
+            // Safe under CacheFirst only because each URL carries the asset
+            // build's content hash (src/generated/sushi-frames.ts). With plain
+            // filenames this rule silently mixed a stale generation with a
+            // fresh one and the animation jumped mid-scroll.
+            //
+            // maxEntries must stay comfortably above the frame count, or the
+            // LRU evicts frames that are still part of the current sequence and
+            // they get re-fetched on every scroll. The headroom is what lets
+            // the previous generation age out.
             urlPattern: ({ url }) => url.pathname.startsWith('/sushi/'),
             handler: 'CacheFirst',
             options: {
               cacheName: 'sushi-frames',
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 90 },
+              expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },

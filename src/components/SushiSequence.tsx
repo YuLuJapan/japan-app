@@ -10,16 +10,19 @@
 // Reduced motion gets no pin and no scrub: just the first frame, cut once to
 // the last frame when the hero reaches the middle of the screen.
 import { useEffect, useRef, useState } from 'react'
+import { ASSET_VERSION, FRAME_COUNT, FRAME_HEIGHT, FRAME_WIDTH } from '../generated/sushi-frames'
 
 const DIR = '/sushi/'
 const FIRST = 1
-const LAST = 322
+// Count, size and cache-busting version all come from the asset build, so they
+// cannot drift from what is actually in public/sushi.
+const LAST = FRAME_COUNT
 
 // Intrinsic size of the generated frames — kept at the source's native width.
 // The hero crops to roughly the middle 40% of each frame, so downscaling the
 // files first would just mean upscaling that crop back on screen.
-const IW = 1280
-const IH = 720
+const IW = FRAME_WIDTH
+const IH = FRAME_HEIGHT
 
 // The part of the frame that must stay on screen, in source pixels: the
 // nigiri plus a little air. Framing is computed from this rather than from the
@@ -34,7 +37,10 @@ const MAX_DPR = 2
 // so nothing jumps on the first scroll.
 const HEADER = 72
 
-const frameUrl = (n: number) => `${DIR}frame-${String(n).padStart(3, '0')}.jpg`
+// The version query is what keeps a regenerated sequence from being served as
+// a mix of old cached frames and new network ones by the CacheFirst rule in
+// vite.config.ts. Without it the animation replays its second half mid-scroll.
+const frameUrl = (n: number) => `${DIR}frame-${String(n).padStart(3, '0')}.jpg?v=${ASSET_VERSION}`
 
 /**
  * Every Nth frame. The source is ~60fps; a phone sampling every 2nd frame
