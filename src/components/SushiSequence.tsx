@@ -2,7 +2,7 @@
 // comes apart as you scroll, with the trip title sitting on top of it.
 //
 // Frames live in `public/sushi/` (see scripts/build-sushi-frames.mjs) and are
-// drawn to a canvas — 161 <img> tags would be far heavier than one canvas we
+// drawn to a canvas — 322 <img> tags would be far heavier than one canvas we
 // repaint. GSAP + ScrollTrigger are loaded dynamically so they land in their
 // own chunk instead of the main bundle; the hero renders a still frame while
 // that chunk arrives, so nothing pops in.
@@ -13,17 +13,19 @@ import { useEffect, useRef, useState } from 'react'
 
 const DIR = '/sushi/'
 const FIRST = 1
-const LAST = 161
+const LAST = 322
 
-// Intrinsic size of the generated frames.
-const IW = 960
-const IH = 540
+// Intrinsic size of the generated frames — kept at the source's native width.
+// The hero crops to roughly the middle 40% of each frame, so downscaling the
+// files first would just mean upscaling that crop back on screen.
+const IW = 1280
+const IH = 720
 
 // The part of the frame that must stay on screen, in source pixels: the
 // nigiri plus a little air. Framing is computed from this rather than from the
 // whole image, so the food stays large on a phone instead of floating in the
 // middle of the studio backdrop.
-const SAFE = { cx: 480, cy: 266, w: 400, h: 460 }
+const SAFE = { cx: 640, cy: 355, w: 533, h: 613 }
 
 const MAX_DPR = 2
 
@@ -34,7 +36,11 @@ const HEADER = 72
 
 const frameUrl = (n: number) => `${DIR}frame-${String(n).padStart(3, '0')}.jpg`
 
-/** Every Nth frame — phones don't need all 161, and it halves the download. */
+/**
+ * Every Nth frame. The source is ~60fps; a phone sampling every 2nd frame
+ * still gets ~6px of scroll per frame, which is finer than the eye resolves,
+ * for half the bytes.
+ */
 function frameUrls(step: number) {
   const urls: string[] = []
   for (let i = FIRST; i <= LAST; i += step) urls.push(frameUrl(i))
