@@ -11,7 +11,9 @@ import PlaceDetail from './pages/PlaceDetail'
 import PlaceForm from './pages/PlaceForm'
 import Reminders from './pages/Reminders'
 import Search from './pages/Search'
+import ShoppingCategoryPage from './pages/ShoppingCategory'
 import ShoppingForm from './pages/ShoppingForm'
+import ShoppingItemDetail from './pages/ShoppingItem'
 import ShoppingList from './pages/ShoppingList'
 import TripEssentials from './pages/TripEssentials'
 import TripFiles from './pages/TripFiles'
@@ -42,6 +44,8 @@ export const router = createBrowserRouter([
       { path: '/search', element: <Search /> },
       { path: '/shopping', element: <ShoppingList /> },
       { path: '/shopping/new', element: <ShoppingForm /> },
+      { path: '/shopping/c/:category', element: <ShoppingCategoryPage /> },
+      { path: '/shopping/:itemId', element: <ShoppingItemDetail /> },
       { path: '/shopping/:itemId/edit', element: <ShoppingForm /> },
       { path: '/reminders', element: <Reminders /> },
       { path: '/essentials', element: <TripEssentials /> },

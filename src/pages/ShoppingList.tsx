@@ -1,122 +1,45 @@
-// Shopping list: the things we want to buy in Japan. Each item shows its photo,
-// where to buy it and what it should cost (yen, with a live ≈ conversion from
-// /api/rates), and can be ticked off as bought. Bought items sink to the bottom.
-import { useState } from 'react'
+// Shopping home: one section per category, each a swipeable carousel of items.
+// "See all" opens the category's own page; tapping an item opens its detail.
 import { Link } from 'react-router-dom'
-import { useRates, useShoppingList, useTrip } from '../api/hooks'
-import { useUpdateShoppingItem } from '../api/mutations'
-import type { Rates, ShoppingCategory, ShoppingItem } from '../api/types'
+import { useRates, useShoppingList } from '../api/hooks'
+import type { ShoppingCategory, ShoppingItem } from '../api/types'
 import { SHOPPING_CATEGORIES, SHOPPING_CATEGORY_META } from '../api/types'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
-import { ZoneImage } from '../components/ZoneImage'
-
-const yen = new Intl.NumberFormat('en-US')
-const ilsFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'ILS' })
-
-/** "¥1,500 ≈ ₪36" — the second half only once today's rate has loaded. */
-function priceLabel(priceYen: number, rates?: Rates): string {
-  const base = `¥${yen.format(priceYen)}`
-  return rates ? `${base} ≈ ${ilsFmt.format(priceYen * rates.ils)}` : base
-}
-
-function ItemCard({
-  item,
-  zoneName,
-  rates,
-  onToggle,
-  busy,
-}: {
-  item: ShoppingItem
-  zoneName?: string
-  rates?: Rates
-  onToggle: () => void
-  busy: boolean
-}) {
-  const meta = SHOPPING_CATEGORY_META[item.category] ?? SHOPPING_CATEGORY_META.other
-  const where = [item.shop, zoneName].filter(Boolean).join(' · ')
-
-  return (
-    <li
-      className={`card flex items-stretch gap-3 overflow-hidden ${item.bought ? 'opacity-60' : ''}`}
-    >
-      <Link to={`/shopping/${item.id}/edit`} className="flex min-w-0 flex-1 items-stretch gap-3">
-        <ZoneImage
-          src={item.image_url}
-          alt={item.name}
-          icon={meta.icon}
-          className="h-24 w-24 shrink-0"
-        />
-        <div className="min-w-0 flex-1 py-3">
-          <p className={`line-clamp-2 font-bold leading-snug ${item.bought ? 'line-through' : ''}`}>
-            {item.name}
-          </p>
-          {item.note && <p className="mt-0.5 line-clamp-2 text-sm text-muted">{item.note}</p>}
-          {where && <p className="mt-1 truncate text-xs font-semibold text-muted">📍 {where}</p>}
-          {item.price_yen != null && (
-            <p className="mt-1 font-display text-sm font-extrabold text-brand">
-              {priceLabel(item.price_yen, rates)}
-            </p>
-          )}
-        </div>
-      </Link>
-      <button
-        type="button"
-        onClick={onToggle}
-        disabled={busy}
-        aria-pressed={item.bought}
-        aria-label={item.bought ? `Mark ${item.name} as not bought` : `Mark ${item.name} as bought`}
-        className="flex w-14 shrink-0 items-center justify-center border-l border-line active:scale-95"
-      >
-        <span
-          className={`flex h-7 w-7 items-center justify-center rounded-full border text-sm font-bold text-white ${
-            item.bought ? 'border-brand bg-brand' : 'border-line'
-          }`}
-          aria-hidden
-        >
-          {item.bought ? '✓' : ''}
-        </span>
-      </button>
-    </li>
-  )
-}
+import { ShoppingTile, priceLabel } from '../components/ShoppingCards'
+import { useShoppingActions } from '../lib/shopping'
 
 export default function ShoppingList() {
   const { data, isPending, isError, refetch } = useShoppingList()
-  const trip = useTrip()
   const { data: rates } = useRates()
-  const update = useUpdateShoppingItem()
-  const [filter, setFilter] = useState<ShoppingCategory | 'all'>('all')
+  const { update, toggleBought, isToggling } = useShoppingActions()
 
   if (isPending) return <Loading />
   if (isError)
     return <ErrorState message="Could not load the shopping list." onRetry={() => refetch()} />
 
   const items = data.items
-  const zoneName = (zoneId: string | null) =>
-    trip.data?.steps.find((s) => s.zone?.id === zoneId)?.zone?.name
+  const budget = items.filter((i) => !i.bought).reduce((sum, i) => sum + (i.price_yen ?? 0), 0)
 
-  // only offer filters for categories that actually have something in them
-  const usedCategories = SHOPPING_CATEGORIES.filter((c) => items.some((i) => i.category === c))
-  const shown = filter === 'all' ? items : items.filter((i) => i.category === filter)
-  const toBuy = shown.filter((i) => !i.bought)
-  const bought = shown.filter((i) => i.bought)
-  const budget = toBuy.reduce((sum, i) => sum + (i.price_yen ?? 0), 0)
+  // only sections that actually hold something, in the canonical category order
+  const sections = SHOPPING_CATEGORIES.map((category) => ({
+    category,
+    items: items.filter((i) => i.category === category),
+  })).filter((s) => s.items.length > 0)
 
-  const card = (item: ShoppingItem) => (
-    <ItemCard
+  const tile = (item: ShoppingItem) => (
+    <ShoppingTile
       key={item.id}
       item={item}
-      zoneName={zoneName(item.zone_id)}
       rates={rates}
-      busy={update.isPending && update.variables?.id === item.id}
-      onToggle={() => update.mutate({ id: item.id, patch: { bought: !item.bought } })}
+      busy={isToggling(item.id)}
+      onToggle={() => toggleBought(item)}
     />
   )
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="section-title text-brand">Shopping</p>
@@ -137,58 +60,51 @@ export default function ShoppingList() {
         <ErrorState message="Could not save that change." onRetry={() => update.reset()} />
       )}
 
-      {usedCategories.length > 1 && (
-        <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5">
-          <button
-            type="button"
-            onClick={() => setFilter('all')}
-            className={`chip shrink-0 border ${
-              filter === 'all'
-                ? 'border-brand bg-brand text-white'
-                : 'border-line bg-white text-ink'
-            }`}
-          >
-            All
-          </button>
-          {usedCategories.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setFilter(c)}
-              className={`chip shrink-0 border ${
-                filter === c ? 'border-brand bg-brand text-white' : 'border-line bg-white text-ink'
-              }`}
-            >
-              {SHOPPING_CATEGORY_META[c].icon} {SHOPPING_CATEGORY_META[c].label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {shown.length === 0 ? (
-        <EmptyState
-          message={
-            items.length === 0
-              ? 'Add the shoes, the Uniqlo must-haves, the hair products — everything you want to bring home.'
-              : 'Nothing in this category yet.'
-          }
-        />
+      {items.length === 0 ? (
+        <EmptyState message="Add the shoes, the Uniqlo must-haves, the hair products — everything you want to bring home." />
       ) : (
-        <>
-          {toBuy.length > 0 && (
-            <section>
-              <h2 className="section-title mb-2">To buy · {toBuy.length}</h2>
-              <ul className="space-y-3">{toBuy.map(card)}</ul>
-            </section>
-          )}
-          {bought.length > 0 && (
-            <section>
-              <h2 className="section-title mb-2">Bought · {bought.length}</h2>
-              <ul className="space-y-3">{bought.map(card)}</ul>
-            </section>
-          )}
-        </>
+        sections.map(({ category, items: inCategory }) => (
+          <CategorySection
+            key={category}
+            category={category}
+            count={inCategory.length}
+            left={inCategory.filter((i) => !i.bought).length}
+          >
+            {inCategory.map(tile)}
+          </CategorySection>
+        ))
       )}
     </div>
+  )
+}
+
+function CategorySection({
+  category,
+  count,
+  left,
+  children,
+}: {
+  category: ShoppingCategory
+  count: number
+  left: number
+  children: React.ReactNode
+}) {
+  const meta = SHOPPING_CATEGORY_META[category]
+  return (
+    <section>
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <h2 className="font-display text-lg font-extrabold">
+          {meta.icon} {meta.label}
+        </h2>
+        <Link to={`/shopping/c/${category}`} className="shrink-0 text-sm font-bold text-brand">
+          See all {count} ›
+        </Link>
+      </div>
+      <p className="mb-2 text-xs font-semibold text-muted">
+        {left === 0 ? 'All bought 🎉' : `${left} still to buy`}
+      </p>
+      {/* full-bleed so the carousel runs to the screen edge, like a shelf */}
+      <ul className="no-scrollbar -mx-5 flex gap-3 overflow-x-auto px-5 pb-1">{children}</ul>
+    </section>
   )
 }

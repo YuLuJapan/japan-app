@@ -147,7 +147,7 @@ Full detail incl. tips and files (US1 AC2/AC3, US4 AC1).
 
 ## Shopping list
 
-Trip-level list of things to buy in Japan: what it is, where to buy it, what it should cost (yen), a photo, and whether it's been bought. Not tied to a zone, though an item may name the city its shop is in (`zone_id`). `category` is one of `clothes|beauty|tech|snacks|home|souvenir|other` (defaults to `other`).
+Trip-level list of things to buy in Japan: what it is, where to buy it, what it should cost (yen), a photo, and whether it's been bought. Not tied to a zone, though an item may name the city its shop is in (`zone_id`). `category` is one of `clothes|haircare|skincare|health|snacks|tech|home|souvenir|other` (defaults to `other`) — the client groups the list into one carousel per category (migration 0008 split the original `beauty` bucket).
 
 ### GET /api/shopping
 - 200: `{"items":[{"id":"…","trip_id":"…","name":"Onitsuka Tiger Mexico 66","category":"clothes","note":"Size 42"|null,"shop":"ABC Mart"|null,"zone_id":"…"|null,"price_yen":12000|null,"url":"https://…"|null,"image_url":"https://…"|null,"bought":false,"position":0}]}`
@@ -163,6 +163,36 @@ Trip-level list of things to buy in Japan: what it is, where to buy it, what it 
 
 ### DELETE /api/shopping/:itemId
 - 204 · 404.
+
+## Photos
+
+### GET /api/images?q=Onitsuka+Tiger
+Web photo lookup for items with no picture of their own, so a list never shows blank tiles. Backed by the Wikimedia APIs (Wikipedia article images + Commons files) — keyless and free, matching the project's $0 constraint. Results are cached in-process for an hour.
+
+- `q` required, ≥ 2 characters → else 400 `VALIDATION`. `limit` optional (default 8, max 12).
+- 200: `{"results":[{"url":"https://…full.jpg","thumb_url":"https://…600px.jpg","title":"…","source":"wikipedia|commons","source_url":"https://…"|null,"credit":"Jane Doe · CC BY-SA 4.0"|null}]}`
+- **Never fails on the upstream's behalf**: an unreachable, slow (>4s) or rate-limited Wikimedia returns `{"results":[]}`, not a 5xx.
+- Files a browser can't render as a photo (`.svg`, video, TIFF) are filtered out.
+
+`POST /api/shopping` uses the same lookup: an item created **without** `image_url` gets the top hit stamped in automatically (searching the item name, plus the shop when it adds context, then falling back to just the brand words). That lookup is best-effort — if it finds nothing or the API is down, the item saves with `image_url: null`. Supplying `image_url` yourself skips the search entirely.
+
+### GET /api/product-preview?url=https://shop.example.jp/p/123
+Reads a shop's own product page so an item can be added by pasting its link. Parses the metadata shops already publish for social previews — Open Graph tags, then schema.org JSON-LD — with no HTML-parsing dependency.
+
+- 200: `{"url":"https://…(where the redirects landed)","name":"…"|null,"name_ja":"クルーネックT"|null,"image_url":"https://…"|null,"shop":"UNIQLO"|null,"price_yen":1500|null,"price_note":"Listed at 49 EUR — set the yen price yourself."|null}`
+- **Names come back in English.** Shop titles mix the brand in on both sides of the separator depending on locale ("Product | UNIQLO" vs "ユニクロ公式 | Product"), so segments matching the shop name or storefront boilerplate ("公式", "online store") are dropped and the most descriptive one kept. If the result is still Japanese, the shop's own English page is tried (`/jp/ja/…` → `/jp/en/…`), then `GET /api/translate`. `name_ja` carries the Japanese original whenever `name` is a translation — worth keeping to show staff in the shop.
+- **Prices** are looked for in four places, in descending order of trust: OG/product meta, schema.org JSON-LD, numbers under price-ish keys in embedded JSON (shops that price client-side, Uniqlo among them, publish no meta tag but ship the number in the page), and finally visible `¥1,500` / `1,500円` text with free-shipping thresholds ("¥5,000以上…") filtered out.
+- 400 `VALIDATION` for a non-http(s) scheme, an unparseable URL, or an address inside our own network (see below).
+- **A page it can't read is not an error**: unreachable host, non-HTML response, or no useful tags → 200 with the fields it couldn't fill set to `null`, so the form still keeps the link.
+- **Prices**: JPY is taken as-is; USD and ILS are converted with `GET /api/rates`; any other currency comes back as `price_yen: null` plus a `price_note` rather than a guess. A price with no stated currency on a Japanese shop is treated as yen.
+- **Fetching a URL the client chose is guarded** (this runs inside our own network): http(s) only; hostnames and resolved addresses in loopback/private/link-local ranges are refused (which covers names like `localtest.me` that resolve to `127.0.0.1`, and the `169.254.169.254` cloud-metadata address); redirects are followed manually, max 3, each hop re-checked; 6s timeout; the read stops after 512 KB. Only parsed fields are returned — never the page body.
+
+### GET /api/translate?q=クルーネックT
+Japanese → English, for product names read off Japanese shop pages and for anything typed in Japanese. Backed by MyMemory's free keyless endpoint (no account, inside the $0 constraint); results are cached in-process.
+
+- `q` required → else 400 `VALIDATION`.
+- 200: `{"text":"…(as given)","is_japanese":true,"translated":"Crew Neck T-Shirt"|null}`
+- `translated` is `null` — never an error — when the text isn't Japanese, the service is down or over quota, or it echoed the input back. Callers keep the original in that case.
 
 ## Files
 

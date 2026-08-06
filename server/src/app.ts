@@ -5,8 +5,10 @@ import { authRouter } from './routes/auth.js'
 import { filesRouter } from './routes/files.js'
 import { geocodeRouter } from './routes/geocode.js'
 import { healthRouter } from './routes/health.js'
+import { imagesRouter } from './routes/images.js'
 import { itineraryRouter } from './routes/itinerary.js'
 import { placesRouter } from './routes/places.js'
+import { productUrlRouter } from './routes/producturl.js'
 import { pushRouter } from './routes/push.js'
 import { ratesRouter } from './routes/rates.js'
 import { remindersRouter } from './routes/reminders.js'
@@ -14,6 +16,7 @@ import { searchRouter } from './routes/search.js'
 import { shoppingRouter } from './routes/shopping.js'
 import { stepsRouter } from './routes/steps.js'
 import { tipsRouter } from './routes/tips.js'
+import { translateRouter } from './routes/translate.js'
 import { tripRouter } from './routes/trip.js'
 import { zonesRouter } from './routes/zones.js'
 
@@ -42,6 +45,9 @@ export function createApp() {
   app.use('/api', searchRouter)
   app.use('/api', ratesRouter)
   app.use('/api', geocodeRouter)
+  app.use('/api', imagesRouter)
+  app.use('/api', productUrlRouter)
+  app.use('/api', translateRouter)
   app.use('/api', remindersRouter)
   app.use('/api', pushRouter)
 

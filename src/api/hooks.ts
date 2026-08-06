@@ -3,13 +3,16 @@ import { api } from './client'
 import type {
   Category,
   GeocodeResult,
+  ImageResult,
   ItineraryItem,
   PlaceDetail,
   PlaceListItem,
+  ProductPreview,
   Rates,
   Reminder,
   SearchResult,
   ShoppingItem,
+  Translation,
   TripBundle,
   TripDocument,
   ZoneDetail,
@@ -92,6 +95,30 @@ export const usePushKey = () =>
     queryFn: () => api.get<{ public_key: string | null }>('/push/key'),
     staleTime: Infinity,
   })
+
+// Web photo search for items with no picture (Wikimedia-backed, see
+// server/src/services/images.ts). Enabled only once the caller asks, so opening
+// a form doesn't fire a lookup.
+export const useImageSearch = (query: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ['images', query],
+    queryFn: () => api.get<{ results: ImageResult[] }>(`/images?q=${encodeURIComponent(query)}`),
+    enabled: enabled && query.trim().length >= 2,
+    staleTime: 1000 * 60 * 30,
+  })
+
+// Read a product page's own metadata so pasting a shop link fills the form.
+// Called on demand from the form, not as a standing query.
+export const fetchProductPreview = (url: string) =>
+  api.get<ProductPreview>(`/product-preview?url=${encodeURIComponent(url)}`)
+
+// Japanese → English for anything typed or pasted in Japanese.
+export const fetchTranslation = (text: string) =>
+  api.get<Translation>(`/translate?q=${encodeURIComponent(text)}`)
+
+/** Kana, kanji or full-width punctuation — mirrors the server's check. */
+export const containsJapanese = (text: string) =>
+  /[぀-ゟ゠-ヿ㐀-䶿一-鿿＀-ﾟ]/.test(text)
 
 export const useSearch = (query: string) =>
   useQuery({

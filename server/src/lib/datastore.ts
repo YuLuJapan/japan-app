@@ -104,9 +104,11 @@ export interface ItineraryItemInput {
 // Shopping list ("things to buy in Japan") — trip-level, not tied to a zone.
 export const SHOPPING_CATEGORIES = [
   'clothes',
-  'beauty',
-  'tech',
+  'haircare',
+  'skincare',
+  'health',
   'snacks',
+  'tech',
   'home',
   'souvenir',
   'other',
