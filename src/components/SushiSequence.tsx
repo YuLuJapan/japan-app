@@ -23,9 +23,14 @@ const IH = 540
 // nigiri plus a little air. Framing is computed from this rather than from the
 // whole image, so the food stays large on a phone instead of floating in the
 // middle of the studio backdrop.
-const SAFE = { cx: 480, cy: 266, w: 465, h: 495 }
+const SAFE = { cx: 480, cy: 266, w: 400, h: 460 }
 
 const MAX_DPR = 2
+
+// Height of the sticky app header (Layout.tsx: py-4 around a 40px control).
+// The hero fills everything below it, and pins exactly where it already sits
+// so nothing jumps on the first scroll.
+const HEADER = 72
 
 const frameUrl = (n: number) => `${DIR}frame-${String(n).padStart(3, '0')}.jpg`
 
@@ -126,6 +131,9 @@ export function SushiSequence({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [progress, setProgress] = useState(0)
   const [ready, setReady] = useState(false)
+  // The hero fills the screen, so the countdown below it is out of sight until
+  // the pin releases — the hint says there's more down there.
+  const [cueVisible, setCueVisible] = useState(true)
 
   useEffect(() => {
     const stage = stageRef.current
@@ -252,7 +260,7 @@ export function SushiSequence({
             scrollTrigger: {
               trigger: stage,
               // Pin below the sticky app header rather than under it.
-              start: 'top 84px',
+              start: `top ${HEADER}px`,
               end: scrollLength,
               pin: stage,
               pinSpacing: true,
@@ -265,6 +273,10 @@ export function SushiSequence({
               if (i !== index) {
                 index = i
                 dirty = true
+                // Hide the "keep scrolling" hint once the sequence is moving.
+                // React bails out when the boolean is unchanged, so this is a
+                // no-op on all but the two frames where it flips.
+                setCueVisible(i < images.length * 0.1)
               }
             },
           })
@@ -308,32 +320,61 @@ export function SushiSequence({
   }, [scrollLength])
 
   return (
-    <div
-      ref={stageRef}
-      className="relative isolate min-h-[17rem] h-[min(52svh,24rem)] overflow-hidden rounded-3xl bg-[#e9ebec] shadow-card ring-1 ring-line"
-    >
-      <canvas ref={canvasRef} aria-hidden className="absolute inset-0 h-full w-full" />
+    // Full-bleed: -mx-5 cancels the padding on <main>, -mt-1 its top padding,
+    // so the hero runs edge to edge and fills the screen under the header.
+    // The margins live on this wrapper rather than on the stage itself —
+    // ScrollTrigger copies a pinned element's margins onto its pin-spacer, and
+    // negative ones would then be applied twice and drag the hero off-screen.
+    <div className="-mx-5 -mt-1">
+      <div
+        ref={stageRef}
+        // Height must stay in step with HEADER above.
+        className="relative isolate h-[calc(100svh-72px)] overflow-hidden bg-[#e9ebec]"
+      >
+        <canvas ref={canvasRef} aria-hidden className="absolute inset-0 h-full w-full" />
 
-      {/* Keeps the title readable over the lighter part of the backdrop. */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-2/5 bg-gradient-to-b from-white/70 to-transparent" />
+        {/* Keeps the title readable over the lighter part of the backdrop. */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-2/5 bg-gradient-to-b from-white/75 to-transparent" />
 
-      <div className="relative flex h-full flex-col p-5">
-        <p className="section-title text-brand">{eyebrow}</p>
-        <h1 className="mt-1 max-w-[9ch] font-display text-3xl font-extrabold leading-[1.05] tracking-tight drop-shadow-[0_1px_0_rgba(255,255,255,0.6)]">
-          {title}
-        </h1>
-        {meta && <p className="mt-1 text-sm font-medium text-muted">{meta}</p>}
-      </div>
-
-      {/* Quiet progress hairline while the frames arrive. */}
-      {!ready && (
-        <div className="absolute inset-x-0 bottom-0 h-0.5 bg-black/5">
-          <div
-            className="h-full bg-brand/70 transition-[width] duration-200 ease-out"
-            style={{ width: `${Math.round(progress * 100)}%` }}
-          />
+        <div className="relative flex h-full flex-col p-5">
+          <p className="section-title text-brand">{eyebrow}</p>
+          <h1 className="mt-1 max-w-[9ch] font-display text-4xl font-extrabold leading-[1.03] tracking-tight drop-shadow-[0_1px_0_rgba(255,255,255,0.6)]">
+            {title}
+          </h1>
+          {meta && <p className="mt-1.5 text-sm font-medium text-muted">{meta}</p>}
         </div>
-      )}
+
+        <div
+          aria-hidden
+          className={`pointer-events-none absolute inset-x-0 bottom-6 flex flex-col items-center gap-1 text-muted transition-opacity duration-500 ${
+            cueVisible && ready ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Scroll</span>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+
+        {/* Quiet progress hairline while the frames arrive. */}
+        {!ready && (
+          <div className="absolute inset-x-0 bottom-0 h-0.5 bg-black/5">
+            <div
+              className="h-full bg-brand/70 transition-[width] duration-200 ease-out"
+              style={{ width: `${Math.round(progress * 100)}%` }}
+            />
+          </div>
+        )}
+      </div>
     </div>
   )
 }
