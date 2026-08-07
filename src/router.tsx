@@ -1,6 +1,8 @@
 import { Navigate, Outlet, createBrowserRouter } from 'react-router-dom'
 import { getAccessCode } from './api/client'
 import { Layout } from './components/Layout'
+import { Loading } from './components/Loading'
+import { RoleProvider, useCanEdit } from './lib/session'
 import AccessGate from './pages/AccessGate'
 import CategoryList from './pages/CategoryList'
 import DocumentPreview from './pages/DocumentPreview'
@@ -23,10 +25,21 @@ import Zone from './pages/Zone'
 function RequireAccess() {
   if (!getAccessCode()) return <Navigate to="/gate" replace />
   return (
-    <Layout>
-      <Outlet />
-    </Layout>
+    <RoleProvider fallback={<Loading />}>
+      <Layout>
+        <Outlet />
+      </Layout>
+    </RoleProvider>
   )
+}
+
+/**
+ * Screens that only exist to change things, plus the documents section. A guest
+ * who lands on one (a shared link, a stale bookmark) goes to the journey rather
+ * than to a form that could not save anyway.
+ */
+function RequireOwner() {
+  return useCanEdit() ? <Outlet /> : <Navigate to="/" replace />
 }
 
 export const router = createBrowserRouter([
@@ -35,22 +48,27 @@ export const router = createBrowserRouter([
     element: <RequireAccess />,
     children: [
       { path: '/', element: <Journey /> },
-      { path: '/journey/edit', element: <JourneySteps /> },
       { path: '/zones/:zoneId', element: <Zone /> },
       { path: '/zones/:zoneId/c/:category', element: <CategoryList /> },
-      { path: '/zones/:zoneId/places/new', element: <PlaceForm /> },
       { path: '/places/:placeId', element: <PlaceDetail /> },
-      { path: '/places/:placeId/edit', element: <PlaceForm /> },
       { path: '/search', element: <Search /> },
       { path: '/shopping', element: <ShoppingList /> },
-      { path: '/shopping/new', element: <ShoppingForm /> },
       { path: '/shopping/c/:category', element: <ShoppingCategoryPage /> },
       { path: '/shopping/:itemId', element: <ShoppingItemDetail /> },
-      { path: '/shopping/:itemId/edit', element: <ShoppingForm /> },
       { path: '/reminders', element: <Reminders /> },
       { path: '/essentials', element: <TripEssentials /> },
-      { path: '/files', element: <TripFiles /> },
-      { path: '/files/:fileId', element: <DocumentPreview /> },
+      {
+        element: <RequireOwner />,
+        children: [
+          { path: '/journey/edit', element: <JourneySteps /> },
+          { path: '/zones/:zoneId/places/new', element: <PlaceForm /> },
+          { path: '/places/:placeId/edit', element: <PlaceForm /> },
+          { path: '/shopping/new', element: <ShoppingForm /> },
+          { path: '/shopping/:itemId/edit', element: <ShoppingForm /> },
+          { path: '/files', element: <TripFiles /> },
+          { path: '/files/:fileId', element: <DocumentPreview /> },
+        ],
+      },
       { path: '*', element: <NotFound /> },
     ],
   },

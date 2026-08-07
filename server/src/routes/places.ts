@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { isGuest } from '../lib/auth.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import { createPlace, deletePlace, getPlaceDetail, updatePlace } from '../services/places.js'
@@ -8,7 +9,11 @@ export const placesRouter = Router()
 placesRouter.get(
   '/places/:placeId',
   asyncHandler(async (req, res) => {
-    res.json(await getPlaceDetail(await getDataStore(), req.params.placeId))
+    res.json(
+      await getPlaceDetail(await getDataStore(), req.params.placeId, {
+        includeFiles: !isGuest(req),
+      })
+    )
   })
 )
 

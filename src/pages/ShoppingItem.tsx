@@ -13,6 +13,7 @@ import { Loading } from '../components/Loading'
 import { ZoneImage } from '../components/ZoneImage'
 import { placeMapsUrl } from '../lib/maps'
 import { useShoppingActions } from '../lib/shopping'
+import { useCanEdit } from '../lib/session'
 
 const yen = new Intl.NumberFormat('en-US')
 const usdFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
@@ -20,6 +21,7 @@ const ilsFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'IL
 
 export default function ShoppingItemDetail() {
   const { itemId = '' } = useParams()
+  const canEdit = useCanEdit()
   const navigate = useNavigate()
   const { data, isPending, isError, refetch } = useShoppingList()
   const { data: rates } = useRates()
@@ -28,8 +30,7 @@ export default function ShoppingItemDetail() {
   const [confirming, setConfirming] = useState(false)
 
   if (isPending) return <Loading />
-  if (isError)
-    return <ErrorState message="Could not load this item." onRetry={() => refetch()} />
+  if (isError) return <ErrorState message="Could not load this item." onRetry={() => refetch()} />
 
   const item = data.items.find((i) => i.id === itemId)
   if (!item) {
@@ -63,7 +64,7 @@ export default function ShoppingItemDetail() {
         </div>
         {/* Items saved before the web lookup existed (or whose search came up
             empty) can get a photo here without a trip through the edit form. */}
-        {!item.image_url && (
+        {canEdit && !item.image_url && (
           <ImagePicker
             query={[item.name, item.shop ?? ''].filter(Boolean).join(' ')}
             onPick={(url) => update.mutate({ id: item.id, patch: { image_url: url } })}
@@ -87,7 +88,9 @@ export default function ShoppingItemDetail() {
       {item.price_yen != null && (
         <section className="rounded-3xl border border-brand/20 bg-brand/5 px-4 py-3">
           <h2 className="section-title">Should cost about</h2>
-          <p className="mt-0.5 font-display text-2xl font-extrabold">¥{yen.format(item.price_yen)}</p>
+          <p className="mt-0.5 font-display text-2xl font-extrabold">
+            ¥{yen.format(item.price_yen)}
+          </p>
           {rates && (
             <p className="mt-0.5 text-sm text-muted">
               ≈ {ilsFmt.format(item.price_yen * rates.ils)} ≈{' '}
@@ -134,28 +137,30 @@ export default function ShoppingItemDetail() {
         <ErrorState message="Could not save that change." onRetry={() => update.reset()} />
       )}
 
-      <div className="space-y-3">
-        <button
-          type="button"
-          className="btn-primary w-full"
-          disabled={isToggling(item.id)}
-          onClick={() => toggleBought(item)}
-        >
-          {isToggling(item.id)
-            ? 'Saving…'
-            : item.bought
-              ? 'Put back on the list'
-              : 'Mark as bought'}
-        </button>
-        <div className="flex gap-3">
-          <Link to={`/shopping/${item.id}/edit`} className="btn-ghost flex-1">
-            Edit
-          </Link>
-          <button type="button" className="btn-danger flex-1" onClick={() => setConfirming(true)}>
-            Delete
+      {canEdit && (
+        <div className="space-y-3">
+          <button
+            type="button"
+            className="btn-primary w-full"
+            disabled={isToggling(item.id)}
+            onClick={() => toggleBought(item)}
+          >
+            {isToggling(item.id)
+              ? 'Saving…'
+              : item.bought
+                ? 'Put back on the list'
+                : 'Mark as bought'}
           </button>
+          <div className="flex gap-3">
+            <Link to={`/shopping/${item.id}/edit`} className="btn-ghost flex-1">
+              Edit
+            </Link>
+            <button type="button" className="btn-danger flex-1" onClick={() => setConfirming(true)}>
+              Delete
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <ConfirmDialog
         open={confirming}

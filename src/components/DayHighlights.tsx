@@ -10,6 +10,7 @@ import {
   useUpdateItineraryItem,
 } from '../api/mutations'
 import type { ItineraryItem } from '../api/types'
+import { useCanEdit } from '../lib/session'
 import { ConfirmDialog } from './ConfirmDialog'
 
 const DEFAULT_ICON = '⭐'
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export function DayHighlights({ day, highlights, zoneId = null }: Props) {
+  const canEdit = useCanEdit()
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -54,14 +56,24 @@ export function DayHighlights({ day, highlights, zoneId = null }: Props) {
             <p className="min-w-0 flex-1 font-display text-sm font-extrabold text-brand-700">
               {h.title}
             </p>
-            <div className="flex shrink-0 gap-3 text-xs font-semibold">
-              <button type="button" className="text-brand-700/70" onClick={() => setEditingId(h.id)}>
-                Edit
-              </button>
-              <button type="button" className="text-brand-700" onClick={() => setDeletingId(h.id)}>
-                Remove
-              </button>
-            </div>
+            {canEdit && (
+              <div className="flex shrink-0 gap-3 text-xs font-semibold">
+                <button
+                  type="button"
+                  className="text-brand-700/70"
+                  onClick={() => setEditingId(h.id)}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  className="text-brand-700"
+                  onClick={() => setDeletingId(h.id)}
+                >
+                  Remove
+                </button>
+              </div>
+            )}
           </div>
         )
       )}
@@ -82,13 +94,15 @@ export function DayHighlights({ day, highlights, zoneId = null }: Props) {
           />
         </div>
       ) : (
-        <button
-          type="button"
-          className="text-xs font-bold text-brand"
-          onClick={() => setAdding(true)}
-        >
-          + Add featured note
-        </button>
+        canEdit && (
+          <button
+            type="button"
+            className="text-xs font-bold text-brand"
+            onClick={() => setAdding(true)}
+          >
+            + Add featured note
+          </button>
+        )
       )}
 
       <ConfirmDialog
@@ -154,7 +168,9 @@ function HighlightForm({
           autoFocus
         />
       </div>
-      {error && <p className="text-sm text-brand-700">Save failed — your text is kept, try again.</p>}
+      {error && (
+        <p className="text-sm text-brand-700">Save failed — your text is kept, try again.</p>
+      )}
       <div className="flex gap-2">
         <button type="button" className="btn-primary flex-1" onClick={submit} disabled={pending}>
           {pending ? 'Saving…' : error ? 'Retry' : submitLabel}

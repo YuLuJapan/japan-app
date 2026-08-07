@@ -12,9 +12,11 @@ import { Loading } from '../components/Loading'
 import { TipEditor } from '../components/TipEditor'
 import { ZoneImage } from '../components/ZoneImage'
 import { placeMapsUrl } from '../lib/maps'
+import { useCanEdit } from '../lib/session'
 
 export default function PlaceDetail() {
   const { placeId = '' } = useParams()
+  const canEdit = useCanEdit()
   const navigate = useNavigate()
   const { data, isPending, isError, refetch } = usePlace(placeId)
   const [confirming, setConfirming] = useState(false)
@@ -29,12 +31,20 @@ export default function PlaceDetail() {
   return (
     <div className="space-y-8">
       <div>
-        <Link to={`/zones/${place.zone_id}/c/${place.category}`} className="text-sm font-semibold text-muted">
+        <Link
+          to={`/zones/${place.zone_id}/c/${place.category}`}
+          className="text-sm font-semibold text-muted"
+        >
           ‹ {meta.label}
         </Link>
         {place.image_url && (
           <div className="mt-3 overflow-hidden rounded-3xl shadow-card">
-            <ZoneImage src={place.image_url} alt={place.name} icon={meta.icon} className="h-52 w-full" />
+            <ZoneImage
+              src={place.image_url}
+              alt={place.name}
+              icon={meta.icon}
+              className="h-52 w-full"
+            />
           </div>
         )}
         <div className="mt-3 flex items-start justify-between gap-3">
@@ -60,7 +70,16 @@ export default function PlaceDetail() {
           rel="noreferrer noopener"
           className="btn-primary mt-3 w-full"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M12 21s-7-6.3-7-11a7 7 0 0 1 14 0c0 4.7-7 11-7 11Z" />
             <circle cx="12" cy="10" r="2.5" />
           </svg>
@@ -93,26 +112,35 @@ export default function PlaceDetail() {
 
       <TipEditor tips={tips} parent={{ place_id: placeId }} title="Tips" />
 
-      <section>
-        <h2 className="mb-3 section-title">Files</h2>
-        {files.length > 0 && (
-          <div className="mb-3">
-            <FileList files={files} deletable={{ kind: 'place', id: placeId }} />
-          </div>
-        )}
-        <FileUploader parent={{ kind: 'place', id: placeId }} label="Attach a file" />
-      </section>
+      {canEdit && (
+        <section>
+          <h2 className="mb-3 section-title">Files</h2>
+          {files.length > 0 && (
+            <div className="mb-3">
+              <FileList files={files} deletable={{ kind: 'place', id: placeId }} />
+            </div>
+          )}
+          <FileUploader parent={{ kind: 'place', id: placeId }} label="Attach a file" />
+        </section>
+      )}
 
-      <div className="flex gap-3 border-t border-line pt-6">
-        <Link to={`/places/${placeId}/edit`} className="btn-ghost flex-1">
-          Edit
-        </Link>
-        <button type="button" className="btn-danger flex-1" onClick={() => setConfirming(true)}>
-          Delete
-        </button>
-      </div>
-      {deletePlace.isError && (
-        <ErrorState message="Delete failed — try again." onRetry={() => deletePlace.mutate(placeId)} />
+      {canEdit && (
+        <>
+          <div className="flex gap-3 border-t border-line pt-6">
+            <Link to={`/places/${placeId}/edit`} className="btn-ghost flex-1">
+              Edit
+            </Link>
+            <button type="button" className="btn-danger flex-1" onClick={() => setConfirming(true)}>
+              Delete
+            </button>
+          </div>
+          {deletePlace.isError && (
+            <ErrorState
+              message="Delete failed — try again."
+              onRetry={() => deletePlace.mutate(placeId)}
+            />
+          )}
+        </>
       )}
 
       <ConfirmDialog
@@ -123,7 +151,8 @@ export default function PlaceDetail() {
         onConfirm={() => {
           setConfirming(false)
           deletePlace.mutate(placeId, {
-            onSuccess: () => navigate(`/zones/${place.zone_id}/c/${place.category}`, { replace: true }),
+            onSuccess: () =>
+              navigate(`/zones/${place.zone_id}/c/${place.category}`, { replace: true }),
           })
         }}
         onCancel={() => setConfirming(false)}

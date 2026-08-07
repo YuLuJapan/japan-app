@@ -11,9 +11,11 @@ import { TipEditor } from '../components/TipEditor'
 import { ZoneImage } from '../components/ZoneImage'
 import { ZoneMap } from '../components/ZoneMap'
 import { enumerateDays, toISODate, zoneDays } from '../lib/schedule'
+import { useCanEdit } from '../lib/session'
 
 export default function Zone() {
   const { zoneId = '' } = useParams()
+  const canEdit = useCanEdit()
   const { data, isPending, isError, refetch } = useZone(zoneId)
   const trip = useTrip()
   const itinerary = useItinerary()
@@ -41,7 +43,9 @@ export default function Zone() {
         <div className="relative mt-3 overflow-hidden rounded-3xl shadow-card">
           <ZoneImage src={zone.image_url} alt={zone.name} className="h-52 w-full" />
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-5 pb-4 pt-10">
-            <h1 className="font-display text-3xl font-extrabold text-white drop-shadow">{zone.name}</h1>
+            <h1 className="font-display text-3xl font-extrabold text-white drop-shadow">
+              {zone.name}
+            </h1>
           </div>
         </div>
         {zone.summary && <p className="mt-3 text-sm leading-relaxed text-muted">{zone.summary}</p>}
@@ -76,12 +80,18 @@ export default function Zone() {
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-display text-lg font-extrabold">Explore</h2>
-          <Link to={`/zones/${zoneId}/places/new`} className="text-sm font-bold text-brand">
-            + Add place
-          </Link>
+          {canEdit && (
+            <Link to={`/zones/${zoneId}/places/new`} className="text-sm font-bold text-brand">
+              + Add place
+            </Link>
+          )}
         </div>
         {visible.length === 0 ? (
-          <EmptyState message="Nothing saved here yet — add the first place." />
+          <EmptyState
+            message={
+              canEdit ? 'Nothing saved here yet — add the first place.' : 'Nothing saved here yet.'
+            }
+          />
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {visible.map((c) => {
@@ -93,7 +103,9 @@ export default function Zone() {
                   data-testid={`category-${c}`}
                   className="card flex items-center gap-3 p-4 active:scale-[0.98]"
                 >
-                  <span className={`chip h-10 w-10 justify-center rounded-2xl text-lg ${meta.color}`}>
+                  <span
+                    className={`chip h-10 w-10 justify-center rounded-2xl text-lg ${meta.color}`}
+                  >
                     {meta.icon}
                   </span>
                   <span>
@@ -109,15 +121,17 @@ export default function Zone() {
 
       <TipEditor tips={tips} parent={{ zone_id: zoneId }} title="Local tips" />
 
-      <section>
-        <h2 className="mb-3 font-display text-lg font-extrabold">Files</h2>
-        {files.length > 0 && (
-          <div className="mb-3">
-            <FileList files={files} deletable={{ kind: 'zone', id: zoneId }} />
-          </div>
-        )}
-        <FileUploader parent={{ kind: 'zone', id: zoneId }} label="Attach a file" />
-      </section>
+      {canEdit && (
+        <section>
+          <h2 className="mb-3 font-display text-lg font-extrabold">Files</h2>
+          {files.length > 0 && (
+            <div className="mb-3">
+              <FileList files={files} deletable={{ kind: 'zone', id: zoneId }} />
+            </div>
+          )}
+          <FileUploader parent={{ kind: 'zone', id: zoneId }} label="Attach a file" />
+        </section>
+      )}
     </div>
   )
 }

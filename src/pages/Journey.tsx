@@ -9,11 +9,13 @@ import { Schedule } from '../components/Schedule'
 import { SushiSequence } from '../components/SushiSequence'
 import { TripMap } from '../components/TripMap'
 import { enumerateDays, toISODate } from '../lib/schedule'
+import { useCanEdit } from '../lib/session'
 
 const fmt = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString('en', { month: 'short', day: 'numeric' })
 
 export default function Journey() {
+  const canEdit = useCanEdit()
   const { data, isPending, isError, refetch } = useTrip()
   const itinerary = useItinerary()
 
@@ -56,9 +58,11 @@ export default function Journey() {
           <h2 className="font-display text-lg font-extrabold">The journey</h2>
           <div className="flex items-center gap-3">
             <span className="text-xs text-muted">swipe →</span>
-            <Link to="/journey/edit" className="text-sm font-bold text-brand">
-              Edit
-            </Link>
+            {canEdit && (
+              <Link to="/journey/edit" className="text-sm font-bold text-brand">
+                Edit
+              </Link>
+            )}
           </div>
         </div>
         <JourneyStepsSlider steps={data.steps} today={today} />

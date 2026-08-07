@@ -1,7 +1,9 @@
 // Tips list with inline add/edit/delete (FR-016), deletes confirmed (FR-017).
+// Guests read the same tips without the add/edit/delete affordances.
 import { useState } from 'react'
 import { useCreateTip, useDeleteTip, useUpdateTip } from '../api/mutations'
 import type { Tip } from '../api/types'
+import { useCanEdit } from '../lib/session'
 import { ConfirmDialog } from './ConfirmDialog'
 
 interface Props {
@@ -11,6 +13,7 @@ interface Props {
 }
 
 export function TipEditor({ tips, parent, title = 'Tips' }: Props) {
+  const canEdit = useCanEdit()
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -43,8 +46,12 @@ export function TipEditor({ tips, parent, title = 'Tips' }: Props) {
     <section>
       <div className="flex items-center justify-between">
         <h2 className="font-display text-lg font-extrabold">{title}</h2>
-        {!adding && (
-          <button type="button" className="text-sm font-bold text-brand" onClick={() => setAdding(true)}>
+        {canEdit && !adding && (
+          <button
+            type="button"
+            className="text-sm font-bold text-brand"
+            onClick={() => setAdding(true)}
+          >
             + Add tip
           </button>
         )}
@@ -67,7 +74,12 @@ export function TipEditor({ tips, parent, title = 'Tips' }: Props) {
                   <p className="text-sm text-brand">Save failed — your text is kept, try again.</p>
                 )}
                 <div className="flex gap-2">
-                  <button type="button" className="btn-primary flex-1" onClick={saveEdit} disabled={updateTip.isPending}>
+                  <button
+                    type="button"
+                    className="btn-primary flex-1"
+                    onClick={saveEdit}
+                    disabled={updateTip.isPending}
+                  >
                     {updateTip.isPending ? 'Saving…' : updateTip.isError ? 'Retry' : 'Save'}
                   </button>
                   <button type="button" className="btn-ghost" onClick={() => setEditingId(null)}>
@@ -78,21 +90,27 @@ export function TipEditor({ tips, parent, title = 'Tips' }: Props) {
             ) : (
               <div className="flex items-start justify-between gap-3">
                 <p className="text-sm leading-relaxed">{tip.body}</p>
-                <span className="flex shrink-0 gap-3 text-xs font-semibold">
-                  <button
-                    type="button"
-                    className="text-muted"
-                    onClick={() => {
-                      setEditingId(tip.id)
-                      setEditDraft(tip.body)
-                    }}
-                  >
-                    Edit
-                  </button>
-                  <button type="button" className="text-brand" onClick={() => setDeletingId(tip.id)}>
-                    Delete
-                  </button>
-                </span>
+                {canEdit && (
+                  <span className="flex shrink-0 gap-3 text-xs font-semibold">
+                    <button
+                      type="button"
+                      className="text-muted"
+                      onClick={() => {
+                        setEditingId(tip.id)
+                        setEditDraft(tip.body)
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="text-brand"
+                      onClick={() => setDeletingId(tip.id)}
+                    >
+                      Delete
+                    </button>
+                  </span>
+                )}
               </div>
             )}
           </li>
@@ -112,7 +130,12 @@ export function TipEditor({ tips, parent, title = 'Tips' }: Props) {
             <p className="text-sm text-brand">Save failed — your text is kept, try again.</p>
           )}
           <div className="flex gap-2">
-            <button type="button" className="btn-primary flex-1" onClick={saveNew} disabled={createTip.isPending}>
+            <button
+              type="button"
+              className="btn-primary flex-1"
+              onClick={saveNew}
+              disabled={createTip.isPending}
+            >
               {createTip.isPending ? 'Saving…' : createTip.isError ? 'Retry' : 'Save tip'}
             </button>
             <button

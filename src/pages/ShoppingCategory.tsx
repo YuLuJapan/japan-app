@@ -13,9 +13,11 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ShoppingRow, priceLabel } from '../components/ShoppingCards'
 import { SwipeRow } from '../components/SwipeRow'
 import { useShoppingActions } from '../lib/shopping'
+import { useCanEdit } from '../lib/session'
 
 export default function ShoppingCategoryPage() {
   const { category = '' } = useParams()
+  const canEdit = useCanEdit()
   const [pendingDelete, setPendingDelete] = useState<ShoppingItem | null>(null)
   const remove = useDeleteShoppingItem()
   const cat = category as Category
@@ -36,24 +38,33 @@ export default function ShoppingCategoryPage() {
   // Swipe right ticks an item off (undo is one more swipe); swipe left asks
   // before deleting — the swipe is easy to trigger by accident and a delete
   // can't be undone (FR-017).
-  const row = (item: ShoppingItem) => (
-    <li key={item.id}>
-      <SwipeRow
-        rightLabel={item.bought ? 'Not bought' : 'Bought'}
-        leftLabel="Delete"
-        onSwipeRight={() => toggleBought(item)}
-        onSwipeLeft={() => setPendingDelete(item)}
-      >
-        <ShoppingRow
-          item={item}
-          zoneName={zoneName(item.zone_id)}
-          rates={rates}
-          busy={isToggling(item.id)}
-          onToggle={() => toggleBought(item)}
-        />
-      </SwipeRow>
-    </li>
-  )
+  const row = (item: ShoppingItem) => {
+    const card = (
+      <ShoppingRow
+        item={item}
+        zoneName={zoneName(item.zone_id)}
+        rates={rates}
+        busy={isToggling(item.id)}
+        onToggle={() => toggleBought(item)}
+      />
+    )
+    return (
+      <li key={item.id}>
+        {canEdit ? (
+          <SwipeRow
+            rightLabel={item.bought ? 'Not bought' : 'Bought'}
+            leftLabel="Delete"
+            onSwipeRight={() => toggleBought(item)}
+            onSwipeLeft={() => setPendingDelete(item)}
+          >
+            {card}
+          </SwipeRow>
+        ) : (
+          card
+        )}
+      </li>
+    )
+  }
 
   return (
     <div className="space-y-5">
@@ -72,9 +83,11 @@ export default function ShoppingCategoryPage() {
             {budget > 0 && ` · ${priceLabel(budget, rates)} to go`}
           </p>
         </div>
-        <Link to={`/shopping/new?category=${cat}`} className="btn-primary shrink-0 px-4">
-          + Add
-        </Link>
+        {canEdit && (
+          <Link to={`/shopping/new?category=${cat}`} className="btn-primary shrink-0 px-4">
+            + Add
+          </Link>
+        )}
       </div>
 
       {update.isError && (
@@ -100,7 +113,7 @@ export default function ShoppingCategoryPage() {
         </>
       )}
 
-      {items.length > 0 && (
+      {canEdit && items.length > 0 && (
         <p className="text-center text-xs text-muted">
           Swipe a row right to tick it off, left to delete it.
         </p>

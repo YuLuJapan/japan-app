@@ -19,13 +19,26 @@ npm install
 npm run dev        # frontend on http://localhost:3000, API on :3001
 ```
 
-Access code: whatever `TRIP_ACCESS_CODE` is in `.env.local` (default dev fallback: `japan2026`). Both travelers use the same code.
+Access code: whatever `TRIP_ACCESS_CODE` is in `.env.local` (default dev fallback: `japan2026`). Both travelers use the same code. Set `TRIP_GUEST_CODE` too and that second code opens the read-only guest view (below).
 
 ```
-npm test           # 169 tests: API routes (supertest) + UI components (RTL)
+npm test           # API routes (supertest) + UI components (RTL)
 npm run lint       # ESLint
 npm run build      # production bundle (~157 KB gzip JS)
 ```
+
+## Guest access (read-only)
+
+Two codes, two views. `TRIP_ACCESS_CODE` is ours; `TRIP_GUEST_CODE` is the one to hand to friends who just want to look. A guest sees the whole trip — journey, cities, places, tips, schedule, shopping list, reminders, essentials — and:
+
+- **cannot change anything.** Every add/edit/delete button is gone, and the API answers `403 FORBIDDEN` to any non-`GET` request from the guest code, so nothing gets deleted by mistake even from a stale tab.
+- **never sees trip documents.** No Documents tab, no files attached to a place or city. `/api/files` is `403` for guests (reads included), and the `files` array in zone/place responses comes back empty — so passports, bookings and tickets are not just hidden, they are never sent.
+
+Both rules live in `authMiddleware` (`server/src/lib/auth.ts`), ahead of every route. The frontend only hides buttons; it is not what enforces this.
+
+**Already gave the shared code to friends?** Don't ask them to re-enter anything: move the code they already have to `TRIP_GUEST_CODE`, and set `TRIP_ACCESS_CODE` to a new one that only the two of you know. Their phones keep working and silently become read-only; you two re-enter the new code once. (Sessions signed in before this existed resolve their role on next load via `GET /api/auth/session`, so nobody is bounced back to the gate.)
+
+Leave `TRIP_GUEST_CODE` unset and there is no guest view — the app behaves exactly as before.
 
 ## Editing the trip content
 

@@ -4,6 +4,7 @@
 import { Link } from 'react-router-dom'
 import type { Rates, ShoppingItem } from '../api/types'
 import { SHOPPING_CATEGORY_META } from '../api/types'
+import { useCanEdit } from '../lib/session'
 import { ZoneImage } from './ZoneImage'
 
 const yen = new Intl.NumberFormat('en-US')
@@ -33,6 +34,9 @@ function TickButton({
   busy,
   className,
 }: Pick<CardProps, 'item' | 'onToggle' | 'busy'> & { className: string }) {
+  // Ticking an item off saves it for both travelers — read-only for guests.
+  const canEdit = useCanEdit()
+  if (!canEdit) return null
   return (
     <button
       type="button"

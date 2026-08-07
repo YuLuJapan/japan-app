@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, setAccessCode } from '../api/client'
+import { api, clearAccessCode, setAccessCode, setStoredRole, type Role } from '../api/client'
 
 export default function AccessGate() {
   const [code, setCode] = useState('')
@@ -15,10 +15,15 @@ export default function AccessGate() {
     setError(null)
     try {
       setAccessCode(code.trim())
-      await api.post('/auth/verify', { code: code.trim() })
+      // The code decides the role: the travelers' code unlocks editing, the
+      // guest code gives a read-only view.
+      const { role } = await api.post<{ ok: true; role: Role }>('/auth/verify', {
+        code: code.trim(),
+      })
+      setStoredRole(role === 'owner' ? 'owner' : 'guest')
       navigate('/', { replace: true })
     } catch {
-      localStorage.removeItem('trip_access_code')
+      clearAccessCode()
       setError('Wrong code — try again.')
     } finally {
       setBusy(false)
@@ -33,7 +38,9 @@ export default function AccessGate() {
         <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-white/95 text-4xl font-extrabold text-brand shadow-pop">
           旅
         </span>
-        <h1 className="mt-6 font-display text-4xl font-extrabold tracking-tight text-white">Japan</h1>
+        <h1 className="mt-6 font-display text-4xl font-extrabold tracking-tight text-white">
+          Japan
+        </h1>
         <p className="mt-2 text-white/85">Yuval &amp; Luciana · our trip companion</p>
 
         <form onSubmit={submit} className="mt-10 flex w-full flex-col gap-3 text-left">

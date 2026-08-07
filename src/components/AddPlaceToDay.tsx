@@ -5,8 +5,10 @@ import { useItinerary, useTrip } from '../api/hooks'
 import { useCreateItineraryItem } from '../api/mutations'
 import type { Place } from '../api/types'
 import { enumerateDays, fmtDayLong, zoneDays } from '../lib/schedule'
+import { useCanEdit } from '../lib/session'
 
 export function AddPlaceToDay({ place }: { place: Place }) {
+  const canEdit = useCanEdit()
   const trip = useTrip()
   const itinerary = useItinerary()
   const create = useCreateItineraryItem()
@@ -21,7 +23,7 @@ export function AddPlaceToDay({ place }: { place: Place }) {
     return zoneDays(trip.data.steps, place.zone_id, all)
   }, [trip.data, place.zone_id])
 
-  if (!trip.data?.trip || days.length === 0) return null
+  if (!canEdit || !trip.data?.trip || days.length === 0) return null
 
   const alreadyOn = new Set(
     (itinerary.data?.items ?? []).filter((i) => i.place_id === place.id).map((i) => i.day)
@@ -55,9 +57,7 @@ export function AddPlaceToDay({ place }: { place: Place }) {
           <button type="button" className="btn-ghost w-full" onClick={() => setOpen(true)}>
             + Add to a day
           </button>
-          {addedDay && (
-            <p className="text-sm text-muted">Added to {fmtDayLong(addedDay)}. ✓</p>
-          )}
+          {addedDay && <p className="text-sm text-muted">Added to {fmtDayLong(addedDay)}. ✓</p>}
         </div>
       ) : (
         <div className="mt-2 space-y-2">
@@ -85,7 +85,12 @@ export function AddPlaceToDay({ place }: { place: Place }) {
           </div>
           {create.isError && <p className="text-sm text-brand">Couldn't add — try again.</p>}
           <div className="flex gap-2">
-            <button type="button" className="btn-primary flex-1" onClick={submit} disabled={create.isPending}>
+            <button
+              type="button"
+              className="btn-primary flex-1"
+              onClick={submit}
+              disabled={create.isPending}
+            >
               {create.isPending ? 'Adding…' : create.isError ? 'Retry' : 'Add to day'}
             </button>
             <button type="button" className="btn-ghost" onClick={() => setOpen(false)}>

@@ -21,11 +21,13 @@ import {
   timeZoneLabel,
   wallClockToInstant,
 } from '../lib/reminders'
+import { useCanEdit } from '../lib/session'
 
 const errorText = (error: unknown) =>
   error instanceof ApiError ? (error.details?.join(' · ') ?? error.message) : 'Something went wrong'
 
 export default function Reminders() {
+  const canEdit = useCanEdit()
   const reminders = useReminders()
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -49,13 +51,15 @@ export default function Reminders() {
       <div>
         <h1 className="font-display text-2xl font-extrabold">Reminders</h1>
         <p className="mt-1 text-sm text-muted">
-          Get a notification when it&apos;s time to book a restaurant, a bus seat or an activity.
+          {canEdit
+            ? "Get a notification when it's time to book a restaurant, a bus seat or an activity."
+            : 'What Yuval & Luciana have lined up to book or sort out.'}
         </p>
       </div>
 
-      <NotificationSetup />
+      {canEdit && <NotificationSetup />}
 
-      {adding ? (
+      {!canEdit ? null : adding ? (
         <div className="card p-4">
           <ReminderForm
             pending={create.isPending}
@@ -93,6 +97,7 @@ export default function Reminders() {
               key={reminder.id}
               reminder={reminder}
               now={now}
+              canEdit={canEdit}
               onEdit={() => setEditingId(reminder.id)}
               onDelete={() => setDeletingId(reminder.id)}
             />
@@ -108,6 +113,7 @@ export default function Reminders() {
               key={reminder.id}
               reminder={reminder}
               now={now}
+              canEdit={canEdit}
               onEdit={() => setEditingId(reminder.id)}
               onDelete={() => setDeletingId(reminder.id)}
             />
@@ -133,11 +139,13 @@ export default function Reminders() {
 function ReminderCard({
   reminder,
   now,
+  canEdit,
   onEdit,
   onDelete,
 }: {
   reminder: Reminder
   now: Date
+  canEdit: boolean
   onEdit: () => void
   onDelete: () => void
 }) {
@@ -156,24 +164,26 @@ function ReminderCard({
             {done ? 'Sent' : relativeTime(reminder.remind_at, now)}
           </p>
         </div>
-        <div className="flex shrink-0 gap-1">
-          <button
-            type="button"
-            aria-label="Edit reminder"
-            className="rounded-full border border-line px-3 py-1 text-xs font-semibold"
-            onClick={onEdit}
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            aria-label="Delete reminder"
-            className="rounded-full border border-brand/30 px-3 py-1 text-xs font-semibold text-brand"
-            onClick={onDelete}
-          >
-            Delete
-          </button>
-        </div>
+        {canEdit && (
+          <div className="flex shrink-0 gap-1">
+            <button
+              type="button"
+              aria-label="Edit reminder"
+              className="rounded-full border border-line px-3 py-1 text-xs font-semibold"
+              onClick={onEdit}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              aria-label="Delete reminder"
+              className="rounded-full border border-brand/30 px-3 py-1 text-xs font-semibold text-brand"
+              onClick={onDelete}
+            >
+              Delete
+            </button>
+          </div>
+        )}
       </div>
       {reminder.body && <p className="mt-2 text-sm text-ink/80">{reminder.body}</p>}
       {reminder.url && (

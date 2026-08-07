@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDeleteFile } from '../api/mutations'
 import type { FileMeta, FileParent } from '../api/types'
+import { useCanEdit } from '../lib/session'
 import { ConfirmDialog } from './ConfirmDialog'
 
 const icon = (mime: string) => {
@@ -23,6 +24,7 @@ const size = (bytes: number) => {
 }
 
 export function FileList({ files, deletable }: { files: FileMeta[]; deletable?: FileParent }) {
+  const canDelete = useCanEdit() && deletable
   const [deleting, setDeleting] = useState<FileMeta | null>(null)
   const remove = useDeleteFile(deletable)
 
@@ -44,14 +46,23 @@ export function FileList({ files, deletable }: { files: FileMeta[]; deletable?: 
                 <span className="flex-1 text-sm font-semibold">{file.display_name}</span>
                 <span className="text-xs text-muted">{size(file.size_bytes)}</span>
               </Link>
-              {deletable && (
+              {canDelete && (
                 <button
                   type="button"
                   aria-label={`Delete ${file.display_name}`}
                   onClick={() => setDeleting(file)}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted active:scale-90"
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
                   </svg>
                 </button>
