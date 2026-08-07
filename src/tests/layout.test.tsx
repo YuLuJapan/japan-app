@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { Layout } from '../components/Layout'
 
@@ -24,13 +25,17 @@ afterEach(() => {
   delete navigator.serviceWorker
 })
 
+// Layout's sign-out button clears the query cache, so it needs the provider it
+// always has in the app.
 const renderLayoutAt = (path: string) =>
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <Layout>
-        <div>page content</div>
-      </Layout>
-    </MemoryRouter>
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={[path]}>
+        <Layout>
+          <div>page content</div>
+        </Layout>
+      </MemoryRouter>
+    </QueryClientProvider>
   )
 
 describe('Layout reminders badge', () => {

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { clearReminderBadge, hasUnseenReminder } from '../lib/push'
 import { useCanEdit } from '../lib/session'
+import { SignOutButton } from './SignOutButton'
 
 type IconName = 'journey' | 'shopping' | 'reminders' | 'essentials' | 'docs'
 
@@ -145,36 +146,41 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="mx-auto flex min-h-dvh max-w-app flex-col bg-canvas">
       <header className="sticky top-0 z-20 flex items-center justify-between bg-canvas/85 px-5 py-4 backdrop-blur">
-        <Link to="/" className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-brand text-lg font-extrabold text-white shadow-card">
+        {/* min-w-0 + truncate: the search and sign-out buttons keep their size
+            on a narrow phone, and the guest chip gives up width instead. */}
+        <Link to="/" className="flex min-w-0 items-center gap-2">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-brand text-lg font-extrabold text-white shadow-card">
             旅
           </span>
           <span className="font-display text-lg font-extrabold tracking-tight">Japan</span>
           {!canEdit && (
-            <span className="chip bg-canvas text-[10px] font-bold text-muted">
+            <span className="chip truncate bg-canvas text-[10px] font-bold text-muted">
               Guest · view only
             </span>
           )}
         </Link>
-        <Link
-          to="/search"
-          aria-label="Search"
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-white text-ink active:scale-95"
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            to="/search"
+            aria-label="Search"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-white text-ink active:scale-95"
           >
-            <circle cx="11" cy="11" r="7" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
-        </Link>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+          </Link>
+          <SignOutButton />
+        </div>
       </header>
       <main className="flex-1 px-5 pb-28 pt-1">{children}</main>
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-white/95 backdrop-blur">
