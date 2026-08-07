@@ -2,8 +2,9 @@
 // documents anywhere. (The server enforces all of this independently — see
 // server/tests/guest.test.ts. These check that a guest is never *offered* an
 // action that would just fail.)
-import { describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { Layout } from '../components/Layout'
 import CategoryList from '../pages/CategoryList'
 import PlaceDetail from '../pages/PlaceDetail'
@@ -185,5 +186,51 @@ describe('guest view — navigation', () => {
 
     expect(screen.getByRole('link', { name: /Documents/ })).toBeInTheDocument()
     expect(screen.queryByText('Guest · view only')).not.toBeInTheDocument()
+  })
+})
+
+describe('signing out', () => {
+  const routes = [
+    { path: '/', element: <Layout>content</Layout> },
+    { path: '/gate', element: <p>gate screen</p> },
+  ]
+
+  beforeEach(() => localStorage.clear())
+
+  it('lets a guest drop the code and go back to the gate to enter another', async () => {
+    localStorage.setItem('trip_access_code', 'guest-code')
+    localStorage.setItem('trip_role', 'guest')
+    renderAt('/', routes, guest)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+    // confirmed, not instant — the header button is easy to catch by accident
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveAccessibleName('Sign out?')
+    expect(screen.getByText(/travelers’ code next to be able to edit/)).toBeInTheDocument()
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Sign out' }))
+
+    expect(await screen.findByText('gate screen')).toBeInTheDocument()
+    expect(localStorage.getItem('trip_access_code')).toBeNull()
+    expect(localStorage.getItem('trip_role')).toBeNull()
+  })
+
+  it('keeps the session when the confirmation is cancelled', async () => {
+    localStorage.setItem('trip_access_code', 'guest-code')
+    renderAt('/', routes, guest)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByText('gate screen')).not.toBeInTheDocument()
+    expect(localStorage.getItem('trip_access_code')).toBe('guest-code')
+  })
+
+  it('is offered to the travelers too', async () => {
+    localStorage.setItem('trip_access_code', 'owner-code')
+    renderAt('/', routes)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+    expect(screen.getByText(/need the access code to get back in/)).toBeInTheDocument()
   })
 })

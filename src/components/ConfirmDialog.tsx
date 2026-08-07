@@ -1,4 +1,12 @@
 // Explicit confirmation before destructive actions (FR-017).
+//
+// Rendered through a portal on purpose: `position: fixed` resolves against the
+// nearest ancestor that has a transform/filter/backdrop-filter rather than the
+// viewport, so a dialog opened from inside the blurred sticky header came out
+// clipped to the header strip. Going straight to <body> keeps it a real
+// full-screen overlay wherever it is opened from.
+import { createPortal } from 'react-dom'
+
 interface Props {
   open: boolean
   title: string
@@ -8,9 +16,16 @@ interface Props {
   onCancel: () => void
 }
 
-export function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', onConfirm, onCancel }: Props) {
+export function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel = 'Confirm',
+  onConfirm,
+  onCancel,
+}: Props) {
   if (!open) return null
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-ink/50 p-4 backdrop-blur-sm sm:items-center"
       role="dialog"
@@ -33,6 +48,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', 
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

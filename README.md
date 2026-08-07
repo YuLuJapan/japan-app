@@ -38,6 +38,8 @@ Both rules live in `authMiddleware` (`server/src/lib/auth.ts`), ahead of every r
 
 **Already gave the shared code to friends?** Don't ask them to re-enter anything: move the code they already have to `TRIP_GUEST_CODE`, and set `TRIP_ACCESS_CODE` to a new one that only the two of you know. Their phones keep working and silently become read-only; you two re-enter the new code once. (Sessions signed in before this existed resolve their role on next load via `GET /api/auth/session`, so nobody is bounced back to the gate.)
 
+**Switching codes on a phone:** the sign-out button in the header (next to search) drops the stored code and the cached data and returns to the gate, so you can come back in with the other code. It's how you leave the guest view for the travelers' one on a phone that's already signed in.
+
 Leave `TRIP_GUEST_CODE` unset and there is no guest view — the app behaves exactly as before.
 
 ## Editing the trip content
