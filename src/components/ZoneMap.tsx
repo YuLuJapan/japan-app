@@ -15,6 +15,7 @@ import { useCreatePlace, useSetPlaceCoords } from '../api/mutations'
 import type { Category, GeocodeResult, PlaceListItem } from '../api/types'
 import { CATEGORY_META } from '../api/types'
 import { placeMapsUrl } from '../lib/maps'
+import { useCanEdit } from '../lib/session'
 import { tileLayer } from '../lib/tiles'
 
 // Map filter set — the user's requested filters mapped onto the existing
@@ -152,6 +153,7 @@ export function ZoneMap({ zoneId, zoneName, center, places }: ZoneMapProps) {
   const [results, setResults] = useState<GeocodeResult[]>([])
   const [searching, setSearching] = useState(false)
   const [pending, setPending] = useState<GeocodeResult | null>(null)
+  const canEdit = useCanEdit()
   const create = useCreatePlace()
   const locate = useSetPlaceCoords(zoneId)
 
@@ -389,77 +391,81 @@ export function ZoneMap({ zoneId, zoneName, center, places }: ZoneMapProps) {
           </MapContainer>
         </div>
 
-        {/* search-to-pin */}
-        <div>
-          <input
-            className="field"
-            placeholder={`Search a place to pin in ${zoneName}…`}
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value)
-              setPending(null)
-            }}
-          />
+        {/* search-to-pin — creating places is an owner action */}
+        {canEdit && (
+          <div>
+            <input
+              className="field"
+              placeholder={`Search a place to pin in ${zoneName}…`}
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value)
+                setPending(null)
+              }}
+            />
 
-          {pending ? (
-            <div className="mt-2 rounded-2xl border border-brand/20 bg-brand/5 p-3">
-              <p className="text-sm font-bold">{pending.name}</p>
-              {pending.address && <p className="mt-0.5 text-xs text-muted">{pending.address}</p>}
-              <p className="mt-2 text-xs font-semibold text-muted">Pin as…</p>
-              <div className="mt-1.5 flex flex-wrap gap-2">
-                {MAP_CATS.map((c) => (
+            {pending ? (
+              <div className="mt-2 rounded-2xl border border-brand/20 bg-brand/5 p-3">
+                <p className="text-sm font-bold">{pending.name}</p>
+                {pending.address && <p className="mt-0.5 text-xs text-muted">{pending.address}</p>}
+                <p className="mt-2 text-xs font-semibold text-muted">Pin as…</p>
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  {MAP_CATS.map((c) => (
+                    <button
+                      key={c.key}
+                      type="button"
+                      disabled={create.isPending}
+                      onClick={() => addPin(c.key)}
+                      className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-white active:scale-95 disabled:opacity-60"
+                      style={{ background: c.color }}
+                    >
+                      <span>{CATEGORY_META[c.key].icon}</span>
+                      {c.label}
+                    </button>
+                  ))}
                   <button
-                    key={c.key}
                     type="button"
-                    disabled={create.isPending}
-                    onClick={() => addPin(c.key)}
-                    className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-white active:scale-95 disabled:opacity-60"
-                    style={{ background: c.color }}
+                    className="rounded-full px-3 py-1.5 text-xs font-bold text-muted ring-1 ring-line active:scale-95"
+                    onClick={() => setPending(null)}
                   >
-                    <span>{CATEGORY_META[c.key].icon}</span>
-                    {c.label}
+                    Cancel
                   </button>
-                ))}
-                <button
-                  type="button"
-                  className="rounded-full px-3 py-1.5 text-xs font-bold text-muted ring-1 ring-line active:scale-95"
-                  onClick={() => setPending(null)}
-                >
-                  Cancel
-                </button>
-              </div>
-              {create.isError && (
-                <p className="mt-2 text-xs text-brand">
-                  Couldn’t save — check your connection and retry.
-                </p>
-              )}
-            </div>
-          ) : (
-            query.trim().length >= 2 && (
-              <div className="mt-2 overflow-hidden rounded-2xl ring-1 ring-line">
-                {searching && <p className="px-3 py-2 text-sm text-muted">Searching…</p>}
-                {!searching && results.length === 0 && (
-                  <p className="px-3 py-2 text-sm text-muted">No matches — try a different name.</p>
+                </div>
+                {create.isError && (
+                  <p className="mt-2 text-xs text-brand">
+                    Couldn’t save — check your connection and retry.
+                  </p>
                 )}
-                {results.map((r, i) => (
-                  <button
-                    key={`${r.lat},${r.lng},${i}`}
-                    type="button"
-                    onClick={() => setPending(r)}
-                    className="flex w-full flex-col items-start border-b border-line px-3 py-2 text-left last:border-0 hover:bg-line/40 active:bg-line/60"
-                  >
-                    <span className="text-sm font-semibold">{r.name}</span>
-                    {r.address && (
-                      <span className="line-clamp-1 text-xs text-muted">{r.address}</span>
-                    )}
-                  </button>
-                ))}
               </div>
-            )
-          )}
-        </div>
+            ) : (
+              query.trim().length >= 2 && (
+                <div className="mt-2 overflow-hidden rounded-2xl ring-1 ring-line">
+                  {searching && <p className="px-3 py-2 text-sm text-muted">Searching…</p>}
+                  {!searching && results.length === 0 && (
+                    <p className="px-3 py-2 text-sm text-muted">
+                      No matches — try a different name.
+                    </p>
+                  )}
+                  {results.map((r, i) => (
+                    <button
+                      key={`${r.lat},${r.lng},${i}`}
+                      type="button"
+                      onClick={() => setPending(r)}
+                      className="flex w-full flex-col items-start border-b border-line px-3 py-2 text-left last:border-0 hover:bg-line/40 active:bg-line/60"
+                    >
+                      <span className="text-sm font-semibold">{r.name}</span>
+                      {r.address && (
+                        <span className="line-clamp-1 text-xs text-muted">{r.address}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )
+            )}
+          </div>
+        )}
 
-        {/* every saved place, with a pin/unpin toggle wired to the map above */}
+        {/* every saved place; owners also get the pin/unpin toggle */}
         {places.length > 0 && (
           <div className="rounded-2xl bg-line/40 p-3">
             <p className="text-xs font-bold text-muted">Places in this zone ({places.length})</p>
@@ -473,21 +479,23 @@ export function ZoneMap({ zoneId, zoneName, center, places }: ZoneMapProps) {
                       <span className="mr-1">{CATEGORY_META[p.category].icon}</span>
                       {p.name}
                     </span>
-                    <button
-                      type="button"
-                      disabled={locate.isPending || !!placing}
-                      aria-pressed={isPinned}
-                      onClick={() => (isPinned ? unpinPlace(p) : startPlacing(p))}
-                      className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ring-1 active:scale-95 disabled:opacity-60 ${
-                        isPlacingThis
-                          ? 'bg-brand text-white ring-transparent'
-                          : isPinned
-                            ? 'bg-white text-muted ring-line'
-                            : 'bg-white text-brand ring-line'
-                      }`}
-                    >
-                      {isPlacingThis ? 'Placing…' : isPinned ? 'Unpin' : 'Pin it'}
-                    </button>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        disabled={locate.isPending || !!placing}
+                        aria-pressed={isPinned}
+                        onClick={() => (isPinned ? unpinPlace(p) : startPlacing(p))}
+                        className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ring-1 active:scale-95 disabled:opacity-60 ${
+                          isPlacingThis
+                            ? 'bg-brand text-white ring-transparent'
+                            : isPinned
+                              ? 'bg-white text-muted ring-line'
+                              : 'bg-white text-brand ring-line'
+                        }`}
+                      >
+                        {isPlacingThis ? 'Placing…' : isPinned ? 'Unpin' : 'Pin it'}
+                      </button>
+                    )}
                   </li>
                 )
               })}

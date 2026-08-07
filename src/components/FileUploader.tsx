@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { useUploadFile } from '../api/mutations'
 import type { FileParent } from '../api/types'
+import { useCanEdit } from '../lib/session'
 
 const MAX_BYTES = 3 * 1024 * 1024
 const ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp,image/gif,image/heic'
@@ -18,7 +19,14 @@ function readBase64(file: File): Promise<string> {
   })
 }
 
-export function FileUploader({ parent, label = 'Upload file' }: { parent: FileParent; label?: string }) {
+export function FileUploader({
+  parent,
+  label = 'Upload file',
+}: {
+  parent: FileParent
+  label?: string
+}) {
+  const canEdit = useCanEdit()
   const inputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [name, setName] = useState('')
@@ -56,6 +64,8 @@ export function FileUploader({ parent, label = 'Upload file' }: { parent: FilePa
     }
   }
 
+  if (!canEdit) return null
+
   return (
     <div>
       <input
@@ -68,8 +78,21 @@ export function FileUploader({ parent, label = 'Upload file' }: { parent: FilePa
       />
 
       {!file ? (
-        <button type="button" className="btn-ghost w-full" onClick={() => inputRef.current?.click()}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <button
+          type="button"
+          className="btn-ghost w-full"
+          onClick={() => inputRef.current?.click()}
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M12 5v14M5 12h14" />
           </svg>
           {label}
@@ -87,7 +110,12 @@ export function FileUploader({ parent, label = 'Upload file' }: { parent: FilePa
           />
           {upload.isError && <p className="text-sm text-brand">Upload failed — try again.</p>}
           <div className="flex gap-2">
-            <button type="button" className="btn-primary flex-1" onClick={submit} disabled={upload.isPending}>
+            <button
+              type="button"
+              className="btn-primary flex-1"
+              onClick={submit}
+              disabled={upload.isPending}
+            >
               {upload.isPending ? 'Uploading…' : upload.isError ? 'Retry' : 'Upload'}
             </button>
             <button type="button" className="btn-ghost" onClick={reset} disabled={upload.isPending}>

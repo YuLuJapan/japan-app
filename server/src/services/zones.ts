@@ -2,12 +2,17 @@ import type { Category, DataStore } from '../lib/datastore.js'
 import { CATEGORIES } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
 
-export async function getZoneDetail(store: DataStore, zoneId: string) {
+/** `includeFiles: false` is the guest view — attachments never leave the server. */
+export async function getZoneDetail(
+  store: DataStore,
+  zoneId: string,
+  { includeFiles = true }: { includeFiles?: boolean } = {}
+) {
   const zone = await store.getZone(zoneId)
   if (!zone) throw notFound('Zone')
   const [tips, files, place_counts] = await Promise.all([
     store.listTips({ zone_id: zoneId }),
-    store.listFiles({ zone_id: zoneId }),
+    includeFiles ? store.listFiles({ zone_id: zoneId }) : [],
     store.countPlacesByCategory(zoneId),
   ])
   return {

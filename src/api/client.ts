@@ -1,6 +1,10 @@
 // Typed API client: bearer access code on every call, error-envelope
 // normalization, 401 → back to the gate.
 export const ACCESS_CODE_KEY = 'trip_access_code'
+export const ROLE_KEY = 'trip_role'
+
+/** 'owner' can change things; 'guest' is a read-only view with no documents. */
+export type Role = 'owner' | 'guest'
 
 export class ApiError extends Error {
   constructor(
@@ -15,7 +19,19 @@ export class ApiError extends Error {
 
 export const getAccessCode = () => localStorage.getItem(ACCESS_CODE_KEY)
 export const setAccessCode = (code: string) => localStorage.setItem(ACCESS_CODE_KEY, code)
-export const clearAccessCode = () => localStorage.removeItem(ACCESS_CODE_KEY)
+export const clearAccessCode = () => {
+  localStorage.removeItem(ACCESS_CODE_KEY)
+  localStorage.removeItem(ROLE_KEY)
+}
+
+// Cached so the app doesn't flash a read-only shell at the travelers on every
+// cold start. It is a UI hint only — a guest who edits this by hand still gets
+// a 403 from the API on anything that writes.
+export const getStoredRole = (): Role | null => {
+  const role = localStorage.getItem(ROLE_KEY)
+  return role === 'owner' || role === 'guest' ? role : null
+}
+export const setStoredRole = (role: Role) => localStorage.setItem(ROLE_KEY, role)
 
 async function send(path: string, init: RequestInit = {}): Promise<Response> {
   const code = getAccessCode()
@@ -38,7 +54,12 @@ async function send(path: string, init: RequestInit = {}): Promise<Response> {
       clearAccessCode()
       window.location.assign('/gate')
     }
-    throw new ApiError(res.status, err.code ?? 'INTERNAL', err.message ?? 'Request failed', err.details)
+    throw new ApiError(
+      res.status,
+      err.code ?? 'INTERNAL',
+      err.message ?? 'Request failed',
+      err.details
+    )
   }
   return res
 }

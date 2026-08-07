@@ -2,12 +2,17 @@ import type { Category, DataStore, PlaceInput, PlaceLink } from '../lib/datastor
 import { CATEGORIES } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
 
-export async function getPlaceDetail(store: DataStore, placeId: string) {
+/** `includeFiles: false` is the guest view — attachments never leave the server. */
+export async function getPlaceDetail(
+  store: DataStore,
+  placeId: string,
+  { includeFiles = true }: { includeFiles?: boolean } = {}
+) {
   const place = await store.getPlace(placeId)
   if (!place) throw notFound('Place')
   const [tips, files] = await Promise.all([
     store.listTips({ place_id: placeId }),
-    store.listFiles({ place_id: placeId }),
+    includeFiles ? store.listFiles({ place_id: placeId }) : [],
   ])
   return {
     place,
@@ -42,17 +47,31 @@ function collectPlaceErrors(input: Partial<PlaceInput>, partial: boolean): strin
     else {
       for (const link of input.links as PlaceLink[]) {
         if (!link?.label?.trim()) errors.push('every link needs a label')
-        if (!link?.url || !isHttpUrl(link.url)) errors.push('every link url must start with http(s)://')
+        if (!link?.url || !isHttpUrl(link.url))
+          errors.push('every link url must start with http(s)://')
       }
     }
   }
   if (has('description') && (input.description ?? '').length > 5000)
     errors.push('description must be at most 5000 characters')
-  if (has('image_url') && input.image_url != null && input.image_url !== '' && !isHttpUrl(input.image_url))
+  if (
+    has('image_url') &&
+    input.image_url != null &&
+    input.image_url !== '' &&
+    !isHttpUrl(input.image_url)
+  )
     errors.push('image_url must start with http(s)://')
-  if (has('lat') && input.lat != null && (typeof input.lat !== 'number' || input.lat < -90 || input.lat > 90))
+  if (
+    has('lat') &&
+    input.lat != null &&
+    (typeof input.lat !== 'number' || input.lat < -90 || input.lat > 90)
+  )
     errors.push('lat must be a number between -90 and 90')
-  if (has('lng') && input.lng != null && (typeof input.lng !== 'number' || input.lng < -180 || input.lng > 180))
+  if (
+    has('lng') &&
+    input.lng != null &&
+    (typeof input.lng !== 'number' || input.lng < -180 || input.lng > 180)
+  )
     errors.push('lng must be a number between -180 and 180')
   return errors
 }

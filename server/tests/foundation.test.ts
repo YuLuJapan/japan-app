@@ -20,7 +20,7 @@ describe('foundation', () => {
   it('POST /api/auth/verify accepts the right code', async () => {
     const res = await request(app).post('/api/auth/verify').send({ code: TEST_CODE })
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ ok: true })
+    expect(res.body).toEqual({ ok: true, role: 'owner' })
   })
 
   it('POST /api/auth/verify rejects a wrong code', async () => {

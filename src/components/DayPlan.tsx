@@ -9,6 +9,7 @@ import {
   useUpdateItineraryItem,
 } from '../api/mutations'
 import type { ItineraryItem } from '../api/types'
+import { useCanEdit } from '../lib/session'
 import { ConfirmDialog } from './ConfirmDialog'
 import { EmptyState } from './EmptyState'
 
@@ -30,6 +31,7 @@ interface Props {
 }
 
 export function DayPlan({ day, items, zoneId = null }: Props) {
+  const canEdit = useCanEdit()
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -42,8 +44,12 @@ export function DayPlan({ day, items, zoneId = null }: Props) {
     <section>
       <div className="mb-2 flex items-center justify-between">
         <h3 className="section-title">Plan</h3>
-        {!adding && (
-          <button type="button" className="text-sm font-bold text-brand" onClick={() => setAdding(true)}>
+        {canEdit && !adding && (
+          <button
+            type="button"
+            className="text-sm font-bold text-brand"
+            onClick={() => setAdding(true)}
+          >
             + Add activity
           </button>
         )}
@@ -63,10 +69,7 @@ export function DayPlan({ day, items, zoneId = null }: Props) {
                   submitLabel="Save"
                   onCancel={() => setEditingId(null)}
                   onSubmit={(patch) =>
-                    update.mutate(
-                      { id: item.id, patch },
-                      { onSuccess: () => setEditingId(null) }
-                    )
+                    update.mutate({ id: item.id, patch }, { onSuccess: () => setEditingId(null) })
                   }
                 />
               </li>
@@ -74,7 +77,9 @@ export function DayPlan({ day, items, zoneId = null }: Props) {
               <li key={item.id} className="flex gap-3 rounded-2xl border border-line bg-white p-3">
                 <div className="w-16 shrink-0 pt-0.5">
                   {item.start_time ? (
-                    <span className="text-sm font-extrabold text-brand">{fmtTime(item.start_time)}</span>
+                    <span className="text-sm font-extrabold text-brand">
+                      {fmtTime(item.start_time)}
+                    </span>
                   ) : (
                     <span className="text-xs font-semibold text-muted">Anytime</span>
                   )}
@@ -83,18 +88,31 @@ export function DayPlan({ day, items, zoneId = null }: Props) {
                   <p className="font-bold leading-snug">{item.title}</p>
                   {item.note && <p className="mt-0.5 text-sm text-muted">{item.note}</p>}
                   {item.place_id && (
-                    <Link to={`/places/${item.place_id}`} className="mt-1 inline-block text-xs font-bold text-brand">
+                    <Link
+                      to={`/places/${item.place_id}`}
+                      className="mt-1 inline-block text-xs font-bold text-brand"
+                    >
                       View place ↗
                     </Link>
                   )}
-                  <div className="mt-2 flex gap-3 text-xs font-semibold">
-                    <button type="button" className="text-muted" onClick={() => setEditingId(item.id)}>
-                      Edit
-                    </button>
-                    <button type="button" className="text-brand" onClick={() => setDeletingId(item.id)}>
-                      Delete
-                    </button>
-                  </div>
+                  {canEdit && (
+                    <div className="mt-2 flex gap-3 text-xs font-semibold">
+                      <button
+                        type="button"
+                        className="text-muted"
+                        onClick={() => setEditingId(item.id)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="text-brand"
+                        onClick={() => setDeletingId(item.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
               </li>
             )

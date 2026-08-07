@@ -6,9 +6,11 @@ import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
 import { ZoneImage } from '../components/ZoneImage'
+import { useCanEdit } from '../lib/session'
 
 export default function CategoryList() {
   const { zoneId = '', category = '' } = useParams()
+  const canEdit = useCanEdit()
   const cat = category as Category
   const zone = useZone(zoneId)
   const { data, isPending, isError, refetch } = useZonePlaces(zoneId, cat)
@@ -27,9 +29,14 @@ export default function CategoryList() {
           <span className="mr-2">{meta.icon}</span>
           {meta.label}
         </h1>
-        <Link to={`/zones/${zoneId}/places/new?category=${cat}`} className="text-sm font-bold text-brand">
-          + Add
-        </Link>
+        {canEdit && (
+          <Link
+            to={`/zones/${zoneId}/places/new?category=${cat}`}
+            className="text-sm font-bold text-brand"
+          >
+            + Add
+          </Link>
+        )}
       </div>
 
       {data.places.length === 0 ? (
@@ -42,10 +49,17 @@ export default function CategoryList() {
                 to={`/places/${p.id}`}
                 className="card flex items-stretch gap-3 overflow-hidden active:scale-[0.99]"
               >
-                <ZoneImage src={p.image_url} alt={p.name} icon={meta.icon} className="h-24 w-24 shrink-0" />
+                <ZoneImage
+                  src={p.image_url}
+                  alt={p.name}
+                  icon={meta.icon}
+                  className="h-24 w-24 shrink-0"
+                />
                 <div className="min-w-0 flex-1 py-3 pr-3">
                   <p className="truncate font-bold">{p.name}</p>
-                  {p.summary_line && <p className="mt-0.5 line-clamp-2 text-sm text-muted">{p.summary_line}</p>}
+                  {p.summary_line && (
+                    <p className="mt-0.5 line-clamp-2 text-sm text-muted">{p.summary_line}</p>
+                  )}
                 </div>
               </Link>
             </li>

@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { isGuest } from '../lib/auth.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import { getZoneDetail, listZonePlaces } from '../services/zones.js'
@@ -8,7 +9,11 @@ export const zonesRouter = Router()
 zonesRouter.get(
   '/zones/:zoneId',
   asyncHandler(async (req, res) => {
-    res.json(await getZoneDetail(await getDataStore(), req.params.zoneId))
+    res.json(
+      await getZoneDetail(await getDataStore(), req.params.zoneId, {
+        includeFiles: !isGuest(req),
+      })
+    )
   })
 )
 

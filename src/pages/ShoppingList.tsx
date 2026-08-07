@@ -9,8 +9,10 @@ import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
 import { ShoppingTile, priceLabel } from '../components/ShoppingCards'
 import { useShoppingActions } from '../lib/shopping'
+import { useCanEdit } from '../lib/session'
 
 export default function ShoppingList() {
+  const canEdit = useCanEdit()
   const { data, isPending, isError, refetch } = useShoppingList()
   const { data: rates } = useRates()
   const { update, toggleBought, isToggling } = useShoppingActions()
@@ -51,9 +53,11 @@ export default function ShoppingList() {
             {budget > 0 && ` · still to spend ${priceLabel(budget, rates)}`}
           </p>
         </div>
-        <Link to="/shopping/new" className="btn-primary shrink-0 px-4">
-          + Add
-        </Link>
+        {canEdit && (
+          <Link to="/shopping/new" className="btn-primary shrink-0 px-4">
+            + Add
+          </Link>
+        )}
       </div>
 
       {update.isError && (
@@ -61,7 +65,13 @@ export default function ShoppingList() {
       )}
 
       {items.length === 0 ? (
-        <EmptyState message="Add the shoes, the Uniqlo must-haves, the hair products — everything you want to bring home." />
+        <EmptyState
+          message={
+            canEdit
+              ? 'Add the shoes, the Uniqlo must-haves, the hair products — everything you want to bring home.'
+              : 'Nothing on the list yet.'
+          }
+        />
       ) : (
         sections.map(({ category, items: inCategory }) => (
           <CategorySection

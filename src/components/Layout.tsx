@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { clearReminderBadge, hasUnseenReminder } from '../lib/push'
+import { useCanEdit } from '../lib/session'
 
 type IconName = 'journey' | 'shopping' | 'reminders' | 'essentials' | 'docs'
 
@@ -76,6 +77,7 @@ function TabIcon({
 
 export function Layout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
+  const canEdit = useCanEdit()
   const journeyActive =
     pathname === '/' || pathname.startsWith('/zones') || pathname.startsWith('/places')
   const shoppingActive = pathname.startsWith('/shopping')
@@ -120,7 +122,8 @@ export function Layout({ children }: { children: ReactNode }) {
   }, [])
 
   // Five tabs share a 360px phone, so the labels stay tight — otherwise
-  // "Reminders"/"Essentials"/"Documents" run into each other.
+  // "Reminders"/"Essentials"/"Documents" run into each other. The guest view
+  // drops Documents and gets by with four.
   const tab = (
     to: string,
     name: IconName,
@@ -147,6 +150,11 @@ export function Layout({ children }: { children: ReactNode }) {
             旅
           </span>
           <span className="font-display text-lg font-extrabold tracking-tight">Japan</span>
+          {!canEdit && (
+            <span className="chip bg-canvas text-[10px] font-bold text-muted">
+              Guest · view only
+            </span>
+          )}
         </Link>
         <Link
           to="/search"
@@ -175,7 +183,7 @@ export function Layout({ children }: { children: ReactNode }) {
           {tab('/shopping', 'shopping', 'Shopping', shoppingActive)}
           {tab('/reminders', 'reminders', 'Reminders', remindersActive, unseenReminder)}
           {tab('/essentials', 'essentials', 'Essentials', essentialsActive)}
-          {tab('/files', 'docs', 'Documents', docsActive)}
+          {canEdit && tab('/files', 'docs', 'Documents', docsActive)}
         </div>
       </nav>
     </div>
