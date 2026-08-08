@@ -24,7 +24,9 @@ describe('Zone page (US1)', () => {
       files: [],
       place_counts: { hotel: 0, attraction: 2, food: 1, shopping: 0, other: 0 },
     })
-    renderAt('/zones/zone-1', [{ path: '/zones/:zoneId', element: <Zone /> }])
+    renderAt('/trips/trip-1/zones/zone-1', [
+      { path: '/trips/:tripId/zones/:zoneId', element: <Zone /> },
+    ])
 
     expect(await screen.findByText('Tokyo')).toBeInTheDocument()
     expect(screen.getByTestId('category-attraction')).toBeInTheDocument()
@@ -52,7 +54,9 @@ describe('PlaceDetail page (US1)', () => {
       tips: [{ id: 't1', body: 'Sunrise visit — no crowds' }],
       files: [],
     })
-    renderAt('/places/p1', [{ path: '/places/:placeId', element: <PlaceDetail /> }])
+    renderAt('/trips/trip-1/places/p1', [
+      { path: '/trips/:tripId/places/:placeId', element: <PlaceDetail /> },
+    ])
 
     expect(await screen.findByText('Fushimi Inari')).toBeInTheDocument()
     expect(screen.getByText('The thousand torii gates.')).toBeInTheDocument()

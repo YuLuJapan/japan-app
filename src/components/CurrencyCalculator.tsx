@@ -8,6 +8,8 @@ const usdFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'US
 const ilsFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'ILS' })
 const yen = new Intl.NumberFormat('en-US')
 
+const QUICK_AMOUNTS = [1000, 5000, 10000, 50000]
+
 export function CurrencyCalculator() {
   const { data, isPending, isError, refetch } = useRates()
   const [amountStr, setAmountStr] = useState('1000')
@@ -27,7 +29,10 @@ export function CurrencyCalculator() {
         </p>
       )}
 
-      <label htmlFor="yen" className="mt-3 block text-[11px] font-bold uppercase tracking-wide text-muted">
+      <label
+        htmlFor="yen"
+        className="mt-3 block text-[11px] font-bold uppercase tracking-wide text-muted"
+      >
         Amount in yen
       </label>
       <div className="mt-1 flex items-center gap-2 rounded-2xl border border-line bg-canvas px-3 py-2.5 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20">
@@ -41,6 +46,19 @@ export function CurrencyCalculator() {
           className="w-full bg-transparent text-2xl font-extrabold text-ink outline-none"
           aria-label="Amount in yen"
         />
+      </div>
+
+      <div className="mt-2 flex gap-2">
+        {QUICK_AMOUNTS.map((q) => (
+          <button
+            key={q}
+            type="button"
+            onClick={() => setAmountStr(String(q))}
+            className="flex-1 rounded-xl bg-canvas py-2 text-xs font-semibold text-ink hover:bg-brand/10 hover:text-brand"
+          >
+            {yen.format(q)}
+          </button>
+        ))}
       </div>
 
       {isError ? (
@@ -69,7 +87,8 @@ export function CurrencyCalculator() {
 
       {data && (
         <p className="mt-2 text-[11px] text-muted">
-          e.g. ¥{yen.format(1000)} ≈ {usdFmt.format(1000 * data.usd)} ≈ {ilsFmt.format(1000 * data.ils)}
+          e.g. ¥{yen.format(1000)} ≈ {usdFmt.format(1000 * data.usd)} ≈{' '}
+          {ilsFmt.format(1000 * data.ils)}
         </p>
       )}
     </div>

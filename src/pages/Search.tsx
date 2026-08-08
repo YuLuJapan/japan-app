@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useSearch } from '../api/hooks'
 import { CATEGORY_META } from '../api/types'
 import { EmptyState } from '../components/EmptyState'
+import { useTripId } from '../lib/trip'
 
 const typeIcon: Record<string, string> = { zone: '📍', tip: '💡' }
 
@@ -12,6 +13,7 @@ function resultIcon(type: string, subtitle: string) {
 }
 
 export default function Search() {
+  const tripId = useTripId()
   const [input, setInput] = useState('')
   const [query, setQuery] = useState('')
 
@@ -26,7 +28,9 @@ export default function Search() {
   const ready = query.trim().length >= 2
   const label = useMemo(
     () => (subtitle: string, type: string) =>
-      type === 'place' ? (CATEGORY_META[subtitle as keyof typeof CATEGORY_META]?.singular ?? 'Place') : subtitle,
+      type === 'place'
+        ? (CATEGORY_META[subtitle as keyof typeof CATEGORY_META]?.singular ?? 'Place')
+        : subtitle,
     []
   )
 
@@ -58,7 +62,7 @@ export default function Search() {
             {results.map((r) => (
               <li key={`${r.type}-${r.id}`}>
                 <Link
-                  to={r.href}
+                  to={`/trips/${tripId}${r.href}`}
                   className="flex items-center gap-3 rounded-2xl border border-line bg-white px-4 py-3 active:scale-[0.99]"
                 >
                   <span className="text-lg" aria-hidden>
@@ -66,7 +70,9 @@ export default function Search() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-semibold">{r.title}</span>
-                    <span className="text-xs capitalize text-muted">{label(r.subtitle, r.type)}</span>
+                    <span className="text-xs capitalize text-muted">
+                      {label(r.subtitle, r.type)}
+                    </span>
                   </span>
                   <span className="text-muted" aria-hidden>
                     ›

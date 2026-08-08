@@ -128,6 +128,7 @@ A destination is given either as an existing `zone_id` or as free-text `destinat
 
 - Request: `{"start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","zone_id":"…"} | {"start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","destination":{"name":"…","address?":"…","lat":n,"lng":n}}`
 - 201: `{"step": {"id":"…","trip_id":"…","zone_id":"…","position":n,"start_date":"…","end_date":"…"}}` · 400 `VALIDATION` (missing zone_id/destination, bad dates, end before start, bad destination name/lat/lng) · 404 unknown zone (when `zone_id` given).
+- **Trip-scoped (2026-08-08 addition):** `POST /api/trips/:tripId/steps` is the same route pointed at a specific trip instead of the legacy default (oldest) trip — same request/response shape.
 
 ### PATCH /api/steps/:stepId
 
@@ -183,6 +184,8 @@ A flat list of timed/untimed activities per trip; the client groups them by day.
 
 - Request: `{"day":"YYYY-MM-DD","title":"…","zone_id?","place_id?","start_time?":"HH:MM","note?","position?","highlight?","icon?"}`
 - 201: `{"item": {…}}` · 400 `VALIDATION` (missing title/bad day/bad time) · 404 unknown zone.
+
+**Trip-scoped (2026-08-08 addition):** `GET|POST /api/trips/:tripId/itinerary` are the same two routes pointed at a specific trip instead of the legacy default (oldest) trip — same request/response shapes.
 
 ### PATCH /api/itinerary/:itemId
 
@@ -262,6 +265,8 @@ Trip-level list of things to buy in Japan: what it is, where to buy it, what it 
 - Request: `{"name":"…","category?":"clothes","note?","shop?","zone_id?","price_yen?":12000,"url?","image_url?","bought?":false}`
 - 201: `{"item": {…}}` · 400 `VALIDATION` (missing name, unknown category, negative/non-numeric `price_yen`, non-http(s) `url`/`image_url`) · 404 unknown zone.
 
+**Trip-scoped (2026-08-08 addition):** `GET|POST /api/trips/:tripId/shopping` are the same two routes pointed at a specific trip instead of the legacy default (oldest) trip — same request/response shapes.
+
 ### PATCH /api/shopping/:itemId
 
 - Request: any subset of the POST fields — `{"bought": true}` is the tick-off action. Last write wins.
@@ -312,6 +317,8 @@ All documents attached to the (legacy, oldest) trip: files on the trip itself, p
 
 - 200: `{"files":[{"id":"…","display_name":"…","mime_type":"…","size_bytes":123}]}`
 
+**Trip-scoped (2026-08-08 addition):** `GET|POST /api/trips/:tripId/files` are the same two routes pointed at a specific trip instead of the legacy default (oldest) trip — same request/response shapes, same guest block (403).
+
 ### GET /api/files/:fileId/url (FR-008)
 
 Short-lived signed URL for opening/downloading the blob.
@@ -341,6 +348,8 @@ Scheduled nudges ("book the ryokan") delivered as web push notifications. `remin
 
 - Request: `{"title":"…","remind_at":"2026-09-12T09:00:00+09:00","body?":"…","url?":"https://… | /places/…","time_zone?":"Asia/Tokyo"}`
 - 201: `{"reminder":{…}}` · 400 `VALIDATION` (missing title, unparseable `remind_at`, bad `url` scheme, unknown time zone).
+
+**Trip-scoped (2026-08-08 addition):** `GET|POST /api/trips/:tripId/reminders` are the same two routes pointed at a specific trip instead of the legacy default (oldest) trip — same request/response shapes.
 
 ### PATCH /api/reminders/:reminderId
 

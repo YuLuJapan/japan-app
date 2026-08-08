@@ -24,6 +24,22 @@ itineraryRouter.post(
   })
 )
 
+itineraryRouter.get(
+  '/trips/:tripId/itinerary',
+  asyncHandler(async (req, res) => {
+    res.json(await listItinerary(await getDataStore(), req.params.tripId))
+  })
+)
+
+itineraryRouter.post(
+  '/trips/:tripId/itinerary',
+  asyncHandler(async (req, res) => {
+    res
+      .status(201)
+      .json(await createItineraryItem(await getDataStore(), req.body ?? {}, req.params.tripId))
+  })
+)
+
 itineraryRouter.patch(
   '/itinerary/:itemId',
   asyncHandler(async (req, res) => {

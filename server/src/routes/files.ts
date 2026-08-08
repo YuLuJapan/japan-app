@@ -27,6 +27,20 @@ filesRouter.post(
 )
 
 filesRouter.get(
+  '/trips/:tripId/files',
+  asyncHandler(async (req, res) => {
+    res.json(await listTripDocuments(await getDataStore(), req.params.tripId))
+  })
+)
+
+filesRouter.post(
+  '/trips/:tripId/files',
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await createFile(await getDataStore(), req.body ?? {}, req.params.tripId))
+  })
+)
+
+filesRouter.get(
   '/files/:fileId/url',
   asyncHandler(async (req, res) => {
     res.json(await getFileUrl(await getDataStore(), req.params.fileId))

@@ -35,8 +35,8 @@ export function downloadName(file: FileAttachment) {
   return base.toLowerCase().endsWith(`.${ext}`) ? base : `${base}.${ext}`
 }
 
-export async function listTripDocuments(store: DataStore) {
-  const trip = await getDefaultTrip(store)
+export async function listTripDocuments(store: DataStore, tripId?: string) {
+  const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
   const files = await store.listAllFiles(trip.id)
 
@@ -86,7 +86,7 @@ interface UploadBody {
   data_base64?: string
 }
 
-export async function createFile(store: DataStore, body: UploadBody) {
+export async function createFile(store: DataStore, body: UploadBody, tripId?: string) {
   const errors: string[] = []
   const display_name = (body.display_name ?? '').trim()
   if (!display_name) errors.push('display_name is required')
@@ -112,7 +112,7 @@ export async function createFile(store: DataStore, body: UploadBody) {
   if (bytes.length > MAX_BYTES)
     throw validation([`file is too large (max ${Math.round(MAX_BYTES / 1024 / 1024)} MB)`])
 
-  const trip = await getDefaultTrip(store)
+  const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
 
   const input = {

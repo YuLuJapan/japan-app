@@ -6,6 +6,7 @@ import { ErrorState } from '../components/ErrorState'
 import { FileList } from '../components/FileList'
 import { FileUploader } from '../components/FileUploader'
 import { Loading } from '../components/Loading'
+import { useTripId } from '../lib/trip'
 
 interface Group {
   key: string
@@ -31,11 +32,16 @@ function groupDocuments(files: TripDocument[]): Group[] {
 const parentFor = (g: Group): FileParent =>
   g.kind === 'trip' ? { kind: 'trip' } : { kind: g.kind, id: g.id }
 
-const groupHref = (g: Group) =>
-  g.kind === 'place' ? `/places/${g.id}` : g.kind === 'zone' ? `/zones/${g.id}` : null
+const groupHref = (g: Group, tripId: string) =>
+  g.kind === 'place'
+    ? `/trips/${tripId}/places/${g.id}`
+    : g.kind === 'zone'
+      ? `/trips/${tripId}/zones/${g.id}`
+      : null
 
 export default function TripFiles() {
-  const { data, isPending, isError, refetch } = useTripFiles()
+  const tripId = useTripId()
+  const { data, isPending, isError, refetch } = useTripFiles(tripId)
 
   if (isPending) return <Loading />
   if (isError) return <ErrorState message="Could not load documents." onRetry={() => refetch()} />
@@ -59,7 +65,7 @@ export default function TripFiles() {
           <EmptyState message="No documents yet — upload your first one above." />
         ) : (
           groups.map((g) => {
-            const href = groupHref(g)
+            const href = groupHref(g, tripId)
             return (
               <section key={g.key}>
                 <h2 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted">

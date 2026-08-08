@@ -170,3 +170,34 @@ describe('DELETE /api/shopping/:itemId', () => {
     expect(res.status).toBe(404)
   })
 })
+
+describe('trip-scoped shopping routes', () => {
+  it('GET/POST /api/trips/:tripId/shopping are isolated from the legacy default trip', async () => {
+    const trip2 = await auth(request(app).post('/api/trips')).send({
+      name: 'Dolomites',
+      start_date: '2027-02-06',
+      end_date: '2027-02-14',
+    })
+    const tripId = trip2.body.trip.id
+
+    const created = await auth(request(app).post(`/api/trips/${tripId}/shopping`)).send({
+      name: 'Wool socks',
+    })
+    expect(created.status).toBe(201)
+    expect(created.body.item.trip_id).toBe(tripId)
+
+    const trip2List = await auth(request(app).get(`/api/trips/${tripId}/shopping`))
+    expect(trip2List.body.items.map((i: { name: string }) => i.name)).toEqual(['Wool socks'])
+
+    const trip1List = await auth(request(app).get('/api/trips/trip-1/shopping'))
+    expect(trip1List.body.items.map((i: { id: string }) => i.id).sort()).toEqual([
+      'shop-shampoo',
+      'shop-shoes',
+    ])
+  })
+
+  it('404s for an unknown trip', async () => {
+    const res = await auth(request(app).get('/api/trips/nope/shopping'))
+    expect(res.status).toBe(404)
+  })
+})

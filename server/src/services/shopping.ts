@@ -8,8 +8,8 @@ import { findImageUrl } from './images.js'
 const MAX_PRICE_YEN = 10_000_000
 const isHttpUrl = (u: string) => /^https?:\/\/.+/.test(u)
 
-export async function listShoppingItems(store: DataStore) {
-  const trip = await getDefaultTrip(store)
+export async function listShoppingItems(store: DataStore, tripId?: string) {
+  const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
   const items = await store.listShoppingItems(trip.id)
   return { items }
@@ -63,10 +63,14 @@ function clean(input: Partial<ShoppingItemInput>): Partial<ShoppingItemInput> {
   return out
 }
 
-export async function createShoppingItem(store: DataStore, input: ShoppingItemInput) {
+export async function createShoppingItem(
+  store: DataStore,
+  input: ShoppingItemInput,
+  tripId?: string
+) {
   const errors = collectShoppingErrors(input, false)
   if (errors.length) throw validation(errors)
-  const trip = await getDefaultTrip(store)
+  const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
   if (input.zone_id) {
     if (!(await store.getZone(input.zone_id))) throw notFound('Zone')

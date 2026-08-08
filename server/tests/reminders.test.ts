@@ -126,6 +126,37 @@ describe('reminders CRUD', () => {
   })
 })
 
+describe('trip-scoped reminder routes', () => {
+  it('GET/POST /api/trips/:tripId/reminders are isolated from the legacy default trip', async () => {
+    const trip2 = await auth(request(app).post('/api/trips')).send({
+      name: 'Dolomites',
+      start_date: '2027-02-06',
+      end_date: '2027-02-14',
+    })
+    const tripId = trip2.body.trip.id
+
+    const created = await auth(request(app).post(`/api/trips/${tripId}/reminders`)).send({
+      title: 'Book the mountain hut',
+      remind_at: '2027-01-01T09:00:00Z',
+    })
+    expect(created.status).toBe(201)
+    expect(created.body.reminder.trip_id).toBe(tripId)
+
+    const trip2List = await auth(request(app).get(`/api/trips/${tripId}/reminders`))
+    expect(trip2List.body.reminders.map((r: { title: string }) => r.title)).toEqual([
+      'Book the mountain hut',
+    ])
+
+    const trip1List = await auth(request(app).get('/api/trips/trip-1/reminders'))
+    expect(trip1List.body.reminders).toEqual([])
+  })
+
+  it('404s for an unknown trip', async () => {
+    const res = await auth(request(app).get('/api/trips/nope/reminders'))
+    expect(res.status).toBe(404)
+  })
+})
+
 describe('dispatch', () => {
   const due = () =>
     store.createReminder({

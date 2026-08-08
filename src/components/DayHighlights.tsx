@@ -20,15 +20,16 @@ interface Props {
   highlights: ItineraryItem[]
   /** City this day belongs to; new highlights are tagged with it. */
   zoneId?: string | null
+  tripId: string
 }
 
-export function DayHighlights({ day, highlights, zoneId = null }: Props) {
+export function DayHighlights({ day, highlights, zoneId = null, tripId }: Props) {
   const canEdit = useCanEdit()
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  const create = useCreateItineraryItem()
+  const create = useCreateItineraryItem(tripId)
   const update = useUpdateItineraryItem()
   const remove = useDeleteItineraryItem()
 

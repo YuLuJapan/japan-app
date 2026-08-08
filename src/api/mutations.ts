@@ -17,6 +17,8 @@ import type {
   ShoppingItem,
   ShoppingItemInput,
   Tip,
+  Trip,
+  TripInput,
 } from './types'
 import type { SubscriptionPayload } from '../lib/push'
 
@@ -67,10 +69,11 @@ function useShoppingInvalidation() {
   return () => qc.invalidateQueries({ queryKey: ['shopping'] })
 }
 
-export function useCreateShoppingItem() {
+export function useCreateShoppingItem(tripId: string) {
   const invalidate = useShoppingInvalidation()
   return useMutation({
-    mutationFn: (input: ShoppingItemInput) => api.post<{ item: ShoppingItem }>('/shopping', input),
+    mutationFn: (input: ShoppingItemInput) =>
+      api.post<{ item: ShoppingItem }>(`/trips/${tripId}/shopping`, input),
     onSuccess: invalidate,
   })
 }
@@ -98,10 +101,11 @@ function invalidateForFileParent(qc: ReturnType<typeof useQueryClient>, parent?:
   if (parent?.kind === 'place') qc.invalidateQueries({ queryKey: ['place', parent.id] })
 }
 
-export function useUploadFile() {
+export function useUploadFile(tripId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (input: FileUploadInput) => api.post<{ file: FileMeta }>('/files', input),
+    mutationFn: (input: FileUploadInput) =>
+      api.post<{ file: FileMeta }>(`/trips/${tripId}/files`, input),
     onSuccess: (_data, input) => invalidateForFileParent(qc, input.parent),
   })
 }
@@ -119,11 +123,11 @@ function useItineraryInvalidation() {
   return () => qc.invalidateQueries({ queryKey: ['itinerary'] })
 }
 
-export function useCreateItineraryItem() {
+export function useCreateItineraryItem(tripId: string) {
   const invalidate = useItineraryInvalidation()
   return useMutation({
     mutationFn: (input: ItineraryItemInput) =>
-      api.post<{ item: ItineraryItem }>('/itinerary', input),
+      api.post<{ item: ItineraryItem }>(`/trips/${tripId}/itinerary`, input),
     onSuccess: invalidate,
   })
 }
@@ -150,10 +154,11 @@ function useStepInvalidation() {
   return () => qc.invalidateQueries({ queryKey: ['trip'] })
 }
 
-export function useCreateStep() {
+export function useCreateStep(tripId: string) {
   const invalidate = useStepInvalidation()
   return useMutation({
-    mutationFn: (input: JourneyStepInput) => api.post<{ step: JourneyStep }>('/steps', input),
+    mutationFn: (input: JourneyStepInput) =>
+      api.post<{ step: JourneyStep }>(`/trips/${tripId}/steps`, input),
     onSuccess: invalidate,
   })
 }
@@ -218,10 +223,11 @@ function useReminderInvalidation() {
   return () => qc.invalidateQueries({ queryKey: ['reminders'] })
 }
 
-export function useCreateReminder() {
+export function useCreateReminder(tripId: string) {
   const invalidate = useReminderInvalidation()
   return useMutation({
-    mutationFn: (input: ReminderInput) => api.post<{ reminder: Reminder }>('/reminders', input),
+    mutationFn: (input: ReminderInput) =>
+      api.post<{ reminder: Reminder }>(`/trips/${tripId}/reminders`, input),
     onSuccess: invalidate,
   })
 }
@@ -265,5 +271,38 @@ export function useSendTestPush() {
   return useMutation({
     mutationFn: () =>
       api.post<{ subscriptions: number; sent: number; failed: number }>('/push/test', {}),
+  })
+}
+
+function useTripsInvalidation() {
+  const qc = useQueryClient()
+  return () => qc.invalidateQueries({ queryKey: ['trips'] })
+}
+
+export function useCreateTrip() {
+  const invalidate = useTripsInvalidation()
+  return useMutation({
+    mutationFn: (input: TripInput) => api.post<{ trip: Trip }>('/trips', input),
+    onSuccess: invalidate,
+  })
+}
+
+export function useUpdateTrip(tripId: string) {
+  const invalidate = useTripsInvalidation()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (patch: Partial<TripInput>) => api.patch<{ trip: Trip }>(`/trips/${tripId}`, patch),
+    onSuccess: () => {
+      invalidate()
+      qc.invalidateQueries({ queryKey: ['trip', tripId] })
+    },
+  })
+}
+
+export function useDeleteTrip() {
+  const invalidate = useTripsInvalidation()
+  return useMutation({
+    mutationFn: (tripId: string) => api.delete<void>(`/trips/${tripId}`),
+    onSuccess: invalidate,
   })
 }

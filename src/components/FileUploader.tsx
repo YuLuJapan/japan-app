@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { useUploadFile } from '../api/mutations'
 import type { FileParent } from '../api/types'
 import { useCanEdit } from '../lib/session'
+import { useTripId } from '../lib/trip'
 
 const MAX_BYTES = 3 * 1024 * 1024
 const ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp,image/gif,image/heic'
@@ -27,11 +28,12 @@ export function FileUploader({
   label?: string
 }) {
   const canEdit = useCanEdit()
+  const tripId = useTripId()
   const inputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [name, setName] = useState('')
   const [localError, setLocalError] = useState('')
-  const upload = useUploadFile()
+  const upload = useUploadFile(tripId)
 
   const pick = (f: File | null) => {
     setLocalError('')

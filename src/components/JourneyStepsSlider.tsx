@@ -21,7 +21,15 @@ const fmt = (iso: string) =>
 const nights = (a: string, b: string) =>
   Math.round((+new Date(`${b}T00:00:00`) - +new Date(`${a}T00:00:00`)) / 86_400_000)
 
-export function JourneyStepsSlider({ steps, today = new Date() }: { steps: TripStep[]; today?: Date }) {
+export function JourneyStepsSlider({
+  steps,
+  today = new Date(),
+  tripId,
+}: {
+  steps: TripStep[]
+  today?: Date
+  tripId: string
+}) {
   return (
     <div
       className="no-scrollbar -mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-2"
@@ -34,14 +42,18 @@ export function JourneyStepsSlider({ steps, today = new Date() }: { steps: TripS
         return (
           <Link
             key={step.id}
-            to={zone ? `/zones/${zone.id}` : '#'}
+            to={zone ? `/trips/${tripId}/zones/${zone.id}` : '#'}
             data-status={status}
             className={`relative w-[76%] shrink-0 snap-start overflow-hidden rounded-3xl bg-white shadow-card ring-1 transition ${
               status === 'current' ? 'ring-2 ring-brand' : 'ring-line'
             }`}
           >
             <div className="relative">
-              <ZoneImage src={zone?.image_url} alt={zone ? `${zone.name}` : ''} className="h-44 w-full" />
+              <ZoneImage
+                src={zone?.image_url}
+                alt={zone ? `${zone.name}` : ''}
+                className="h-44 w-full"
+              />
               <span className="absolute left-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-xs font-extrabold text-ink shadow">
                 {i + 1}
               </span>
@@ -51,7 +63,9 @@ export function JourneyStepsSlider({ steps, today = new Date() }: { steps: TripS
                 </span>
               )}
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-3 pt-8">
-                <p className="font-display text-xl font-extrabold text-white drop-shadow">{zone?.name ?? 'Unknown'}</p>
+                <p className="font-display text-xl font-extrabold text-white drop-shadow">
+                  {zone?.name ?? 'Unknown'}
+                </p>
               </div>
             </div>
             <div className="flex items-center justify-between px-4 py-3">

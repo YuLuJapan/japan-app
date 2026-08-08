@@ -53,6 +53,20 @@ remindersRouter.post(
   })
 )
 
+remindersRouter.get(
+  '/trips/:tripId/reminders',
+  asyncHandler(async (req, res) => {
+    res.json(await listReminders(await getDataStore(), req.params.tripId))
+  })
+)
+
+remindersRouter.post(
+  '/trips/:tripId/reminders',
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await createReminder(await getDataStore(), req.body, req.params.tripId))
+  })
+)
+
 remindersRouter.patch(
   '/reminders/:reminderId',
   asyncHandler(async (req, res) => {

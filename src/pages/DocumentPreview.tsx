@@ -11,6 +11,7 @@ import { useTripFiles } from '../api/hooks'
 import type { TripDocument } from '../api/types'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
+import { useTripId } from '../lib/trip'
 
 const EXT_BY_MIME: Record<string, string> = {
   'application/pdf': 'pdf',
@@ -36,11 +37,11 @@ const fileName = (doc: TripDocument) => {
     : `${doc.display_name}.${ext}`
 }
 
-const parentHref = (doc: TripDocument) =>
+const parentHref = (doc: TripDocument, tripId: string) =>
   doc.attached_to.kind === 'place'
-    ? `/places/${doc.attached_to.id}`
+    ? `/trips/${tripId}/places/${doc.attached_to.id}`
     : doc.attached_to.kind === 'zone'
-      ? `/zones/${doc.attached_to.id}`
+      ? `/trips/${tripId}/zones/${doc.attached_to.id}`
       : null
 
 type ContentState =
@@ -125,7 +126,8 @@ function Viewer({ doc, url }: { doc: TripDocument; url: string }) {
 export default function DocumentPreview() {
   const { fileId = '' } = useParams()
   const navigate = useNavigate()
-  const { data, isPending, isError, refetch } = useTripFiles()
+  const tripId = useTripId()
+  const { data, isPending, isError, refetch } = useTripFiles(tripId)
   const content = useFileContent(fileId)
 
   if (isPending) return <Loading />
@@ -134,7 +136,7 @@ export default function DocumentPreview() {
   const doc = data.files.find((f) => f.id === fileId)
   if (!doc) return <ErrorState message="This document no longer exists." />
 
-  const href = parentHref(doc)
+  const href = parentHref(doc, tripId)
 
   return (
     <div>

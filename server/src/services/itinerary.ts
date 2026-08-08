@@ -7,8 +7,8 @@ import { notFound, validation } from '../lib/errors.js'
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
-export async function listItinerary(store: DataStore) {
-  const trip = await getDefaultTrip(store)
+export async function listItinerary(store: DataStore, tripId?: string) {
+  const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
   const items = await store.listItinerary(trip.id)
   return { items }
@@ -36,10 +36,14 @@ function collectErrors(input: Partial<ItineraryItemInput>, partial: boolean): st
   return errors
 }
 
-export async function createItineraryItem(store: DataStore, input: ItineraryItemInput) {
+export async function createItineraryItem(
+  store: DataStore,
+  input: ItineraryItemInput,
+  tripId?: string
+) {
   const errors = collectErrors(input, false)
   if (errors.length) throw validation(errors)
-  const trip = await getDefaultTrip(store)
+  const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
   if (input.zone_id) {
     const zone = await store.getZone(input.zone_id)

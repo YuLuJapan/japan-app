@@ -10,10 +10,12 @@ import { Loading } from '../components/Loading'
 import { ShoppingTile, priceLabel } from '../components/ShoppingCards'
 import { useShoppingActions } from '../lib/shopping'
 import { useCanEdit } from '../lib/session'
+import { useTripId } from '../lib/trip'
 
 export default function ShoppingList() {
   const canEdit = useCanEdit()
-  const { data, isPending, isError, refetch } = useShoppingList()
+  const tripId = useTripId()
+  const { data, isPending, isError, refetch } = useShoppingList(tripId)
   const { data: rates } = useRates()
   const { update, toggleBought, isToggling } = useShoppingActions()
 
@@ -54,7 +56,7 @@ export default function ShoppingList() {
           </p>
         </div>
         {canEdit && (
-          <Link to="/shopping/new" className="btn-primary shrink-0 px-4">
+          <Link to={`/trips/${tripId}/shopping/new`} className="btn-primary shrink-0 px-4">
             + Add
           </Link>
         )}
@@ -100,13 +102,17 @@ function CategorySection({
   children: React.ReactNode
 }) {
   const meta = SHOPPING_CATEGORY_META[category]
+  const tripId = useTripId()
   return (
     <section>
       <div className="mb-2 flex items-baseline justify-between gap-3">
         <h2 className="font-display text-lg font-extrabold">
           {meta.icon} {meta.label}
         </h2>
-        <Link to={`/shopping/c/${category}`} className="shrink-0 text-sm font-bold text-brand">
+        <Link
+          to={`/trips/${tripId}/shopping/c/${category}`}
+          className="shrink-0 text-sm font-bold text-brand"
+        >
           See all {count} ›
         </Link>
       </div>

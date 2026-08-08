@@ -11,13 +11,15 @@ import { TipEditor } from '../components/TipEditor'
 import { ZoneImage } from '../components/ZoneImage'
 import { enumerateDays, toISODate, zoneDays } from '../lib/schedule'
 import { useCanEdit } from '../lib/session'
+import { useTripId } from '../lib/trip'
 
 export default function Zone() {
   const { zoneId = '' } = useParams()
   const canEdit = useCanEdit()
+  const tripId = useTripId()
   const { data, isPending, isError, refetch } = useZone(zoneId)
-  const trip = useTrip()
-  const itinerary = useItinerary()
+  const trip = useTrip(tripId)
+  const itinerary = useItinerary(tripId)
 
   if (isPending) return <Loading />
   if (isError) return <ErrorState message="Could not load this zone." onRetry={() => refetch()} />
@@ -34,7 +36,7 @@ export default function Zone() {
   return (
     <div className="space-y-8">
       <div>
-        <Link to="/" className="text-sm font-semibold text-muted">
+        <Link to={`/trips/${tripId}`} className="text-sm font-semibold text-muted">
           ‹ Journey
         </Link>
         <div className="relative mt-3 overflow-hidden rounded-3xl shadow-card">
@@ -58,6 +60,7 @@ export default function Zone() {
             items={itinerary.data.items}
             days={days}
             today={toISODate(new Date())}
+            tripId={tripId}
           />
         </section>
       )}
@@ -66,7 +69,10 @@ export default function Zone() {
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-display text-lg font-extrabold">Explore</h2>
           {canEdit && (
-            <Link to={`/zones/${zoneId}/places/new`} className="text-sm font-bold text-brand">
+            <Link
+              to={`/trips/${tripId}/zones/${zoneId}/places/new`}
+              className="text-sm font-bold text-brand"
+            >
               + Add place
             </Link>
           )}
@@ -84,7 +90,7 @@ export default function Zone() {
               return (
                 <Link
                   key={c}
-                  to={`/zones/${zoneId}/c/${c}`}
+                  to={`/trips/${tripId}/zones/${zoneId}/c/${c}`}
                   data-testid={`category-${c}`}
                   className="card flex items-center gap-3 p-4 active:scale-[0.98]"
                 >

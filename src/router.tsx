@@ -1,4 +1,4 @@
-import { Navigate, Outlet, createBrowserRouter } from 'react-router-dom'
+import { Navigate, Outlet, createBrowserRouter, useParams } from 'react-router-dom'
 import { getAccessCode } from './api/client'
 import { Layout } from './components/Layout'
 import { Loading } from './components/Loading'
@@ -19,6 +19,7 @@ import ShoppingItemDetail from './pages/ShoppingItem'
 import ShoppingList from './pages/ShoppingList'
 import TripEssentials from './pages/TripEssentials'
 import TripFiles from './pages/TripFiles'
+import TripsList from './pages/TripsList'
 import Zone from './pages/Zone'
 
 /** Route guard: without a stored access code, everything redirects to the gate. */
@@ -26,10 +27,17 @@ function RequireAccess() {
   if (!getAccessCode()) return <Navigate to="/gate" replace />
   return (
     <RoleProvider fallback={<Loading />}>
-      <Layout>
-        <Outlet />
-      </Layout>
+      <Outlet />
     </RoleProvider>
+  )
+}
+
+/** Everything inside a trip shares the tabbed layout (Journey/Shopping/Reminders/Essentials/Docs). */
+function TripLayout() {
+  return (
+    <Layout>
+      <Outlet />
+    </Layout>
   )
 }
 
@@ -39,7 +47,8 @@ function RequireAccess() {
  * than to a form that could not save anyway.
  */
 function RequireOwner() {
-  return useCanEdit() ? <Outlet /> : <Navigate to="/" replace />
+  const { tripId } = useParams<{ tripId: string }>()
+  return useCanEdit() ? <Outlet /> : <Navigate to={`/trips/${tripId}`} replace />
 }
 
 export const router = createBrowserRouter([
@@ -47,26 +56,35 @@ export const router = createBrowserRouter([
   {
     element: <RequireAccess />,
     children: [
-      { path: '/', element: <Journey /> },
-      { path: '/zones/:zoneId', element: <Zone /> },
-      { path: '/zones/:zoneId/c/:category', element: <CategoryList /> },
-      { path: '/places/:placeId', element: <PlaceDetail /> },
-      { path: '/search', element: <Search /> },
-      { path: '/shopping', element: <ShoppingList /> },
-      { path: '/shopping/c/:category', element: <ShoppingCategoryPage /> },
-      { path: '/shopping/:itemId', element: <ShoppingItemDetail /> },
-      { path: '/reminders', element: <Reminders /> },
-      { path: '/essentials', element: <TripEssentials /> },
+      { path: '/', element: <Navigate to="/trips" replace /> },
+      { path: '/trips', element: <TripsList /> },
       {
-        element: <RequireOwner />,
+        path: '/trips/:tripId',
+        element: <TripLayout />,
         children: [
-          { path: '/journey/edit', element: <JourneySteps /> },
-          { path: '/zones/:zoneId/places/new', element: <PlaceForm /> },
-          { path: '/places/:placeId/edit', element: <PlaceForm /> },
-          { path: '/shopping/new', element: <ShoppingForm /> },
-          { path: '/shopping/:itemId/edit', element: <ShoppingForm /> },
-          { path: '/files', element: <TripFiles /> },
-          { path: '/files/:fileId', element: <DocumentPreview /> },
+          { index: true, element: <Journey /> },
+          { path: 'zones/:zoneId', element: <Zone /> },
+          { path: 'zones/:zoneId/c/:category', element: <CategoryList /> },
+          { path: 'places/:placeId', element: <PlaceDetail /> },
+          { path: 'search', element: <Search /> },
+          { path: 'shopping', element: <ShoppingList /> },
+          { path: 'shopping/c/:category', element: <ShoppingCategoryPage /> },
+          { path: 'shopping/:itemId', element: <ShoppingItemDetail /> },
+          { path: 'reminders', element: <Reminders /> },
+          { path: 'essentials', element: <TripEssentials /> },
+          {
+            element: <RequireOwner />,
+            children: [
+              { path: 'journey/edit', element: <JourneySteps /> },
+              { path: 'zones/:zoneId/places/new', element: <PlaceForm /> },
+              { path: 'places/:placeId/edit', element: <PlaceForm /> },
+              { path: 'shopping/new', element: <ShoppingForm /> },
+              { path: 'shopping/:itemId/edit', element: <ShoppingForm /> },
+              { path: 'files', element: <TripFiles /> },
+              { path: 'files/:fileId', element: <DocumentPreview /> },
+            ],
+          },
+          { path: '*', element: <NotFound /> },
         ],
       },
       { path: '*', element: <NotFound /> },

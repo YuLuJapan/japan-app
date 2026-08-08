@@ -15,6 +15,13 @@ stepsRouter.post(
   })
 )
 
+stepsRouter.post(
+  '/trips/:tripId/steps',
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await createStep(await getDataStore(), req.body ?? {}, req.params.tripId))
+  })
+)
+
 stepsRouter.patch(
   '/steps/:stepId',
   asyncHandler(async (req, res) => {

@@ -158,29 +158,52 @@ const PHRASES: { romaji: string; meaning: string }[] = [
   { romaji: 'Kanpai!', meaning: 'Cheers!' },
 ]
 
-const PACKING = [
-  'Passports + travel insurance',
-  'Visit Japan Web done — immigration + customs QR ready for both of us',
-  'IC card set up in phone wallet',
-  'Power adapter (Type A, 100V) + portable charger',
-  'Comfortable walking shoes',
-  'Some cash (yen) for day one',
-  'Any medications + copies of prescriptions',
-  'Coin purse (you will collect coins)',
-  'Small foldable bag for shopping / trash',
-  'Compact umbrella',
+const PACKING_GROUPS: { name: string; items: string[] }[] = [
+  {
+    name: 'Papers & money',
+    items: [
+      'Passports + travel insurance',
+      'Visit Japan Web done — immigration + customs QR ready for both of us',
+      'IC card set up in phone wallet',
+      'Some cash (yen) for day one',
+    ],
+  },
+  {
+    name: 'Clothes',
+    items: ['Comfortable walking shoes', 'Compact umbrella'],
+  },
+  {
+    name: 'Tech',
+    items: ['Power adapter (Type A, 100V) + portable charger'],
+  },
+  {
+    name: 'Health & small things',
+    items: [
+      'Any medications + copies of prescriptions',
+      'Coin purse (you will collect coins)',
+      'Small foldable bag for shopping / trash',
+    ],
+  },
 ]
 
 const PACK_KEY = 'trip_packing_v1'
+const PACK_EXTRA_KEY = 'trip_packing_extra_v1'
 
 export default function TripEssentials() {
   const [checked, setChecked] = useState<Record<string, boolean>>({})
+  const [extra, setExtra] = useState<string[]>([])
+  const [packInput, setPackInput] = useState('')
 
   useEffect(() => {
     try {
       setChecked(JSON.parse(localStorage.getItem(PACK_KEY) ?? '{}'))
     } catch {
       setChecked({})
+    }
+    try {
+      setExtra(JSON.parse(localStorage.getItem(PACK_EXTRA_KEY) ?? '[]'))
+    } catch {
+      setExtra([])
     }
   }, [])
 
@@ -192,7 +215,30 @@ export default function TripEssentials() {
     })
   }
 
-  const packedCount = PACKING.filter((i) => checked[i]).length
+  const addPackItem = () => {
+    const name = packInput.trim()
+    if (!name) return
+    setExtra((prev) => {
+      const next = [...prev, name]
+      localStorage.setItem(PACK_EXTRA_KEY, JSON.stringify(next))
+      return next
+    })
+    setPackInput('')
+  }
+
+  const removePackItem = (name: string) => {
+    setExtra((prev) => {
+      const next = prev.filter((i) => i !== name)
+      localStorage.setItem(PACK_EXTRA_KEY, JSON.stringify(next))
+      return next
+    })
+  }
+
+  const groups =
+    extra.length > 0 ? [...PACKING_GROUPS, { name: 'Yours', items: extra }] : PACKING_GROUPS
+  const allItems = groups.flatMap((g) => g.items)
+  const packedCount = allItems.filter((i) => checked[i]).length
+  const packPct = allItems.length ? Math.round((packedCount / allItems.length) * 100) : 0
 
   return (
     <div className="space-y-8">
@@ -253,34 +299,96 @@ export default function TripEssentials() {
 
       <section>
         <div className="mb-2 flex items-baseline justify-between">
-          <h2 className="font-display text-lg font-extrabold">🎒 Packing checklist</h2>
-          <span className="text-xs text-muted">
-            {packedCount}/{PACKING.length}
+          <h2 className="font-display text-lg font-extrabold">🎒 Packing</h2>
+          <span className="text-xs font-semibold text-muted">
+            {packedCount} / {allItems.length} packed
           </span>
         </div>
-        <ul className="space-y-2">
-          {PACKING.map((item) => (
-            <li key={item}>
-              <button
-                type="button"
-                onClick={() => toggle(item)}
-                className="flex w-full items-center gap-3 rounded-2xl border border-line bg-white px-4 py-3 text-left active:scale-[0.99]"
-              >
-                <span
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs text-white ${
-                    checked[item] ? 'border-brand bg-brand' : 'border-line'
-                  }`}
-                  aria-hidden
-                >
-                  {checked[item] ? '✓' : ''}
-                </span>
-                <span className={`text-sm ${checked[item] ? 'text-muted line-through' : ''}`}>
-                  {item}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="h-2 overflow-hidden rounded-full bg-line">
+          <div
+            className="h-full rounded-full bg-brand transition-[width] duration-300 ease-out"
+            style={{ width: `${packPct}%` }}
+          />
+        </div>
+
+        <div className="mt-4 flex gap-2">
+          <input
+            className="field"
+            placeholder="Add something to the bag"
+            value={packInput}
+            onChange={(e) => setPackInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                addPackItem()
+              }
+            }}
+            aria-label="Add something to the bag"
+          />
+          <button
+            type="button"
+            onClick={addPackItem}
+            aria-label="Add to packing list"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-ink text-xl font-bold leading-none text-white active:scale-95"
+          >
+            +
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {groups.map((g) => {
+            const done = g.items.filter((i) => checked[i]).length
+            return (
+              <div key={g.name} className="rounded-2xl border border-line bg-white px-4 py-3">
+                <div className="flex items-baseline justify-between">
+                  <h3 className="text-sm font-bold">{g.name}</h3>
+                  <span
+                    className={`text-xs font-bold ${
+                      done === g.items.length ? 'text-green-700' : 'text-muted'
+                    }`}
+                  >
+                    {done}/{g.items.length}
+                  </span>
+                </div>
+                <ul className="mt-1 divide-y divide-line">
+                  {g.items.map((item) => (
+                    <li key={item} className="flex items-center gap-3 py-2">
+                      <button
+                        type="button"
+                        onClick={() => toggle(item)}
+                        className="flex flex-1 items-center gap-3 text-left"
+                      >
+                        <span
+                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs text-white ${
+                            checked[item] ? 'border-brand bg-brand' : 'border-line'
+                          }`}
+                          aria-hidden
+                        >
+                          {checked[item] ? '✓' : ''}
+                        </span>
+                        <span
+                          className={`text-sm ${checked[item] ? 'text-muted line-through' : ''}`}
+                        >
+                          {item}
+                        </span>
+                      </button>
+                      {g.name === 'Yours' && (
+                        <button
+                          type="button"
+                          aria-label={`Remove ${item}`}
+                          onClick={() => removePackItem(item)}
+                          className="px-1 text-muted"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })}
+        </div>
       </section>
     </div>
   )

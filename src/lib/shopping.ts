@@ -4,9 +4,11 @@
 import { useTrip } from '../api/hooks'
 import { useUpdateShoppingItem } from '../api/mutations'
 import type { ShoppingItem } from '../api/types'
+import { useTripId } from './trip'
 
 export function useShoppingActions() {
-  const trip = useTrip()
+  const tripId = useTripId()
+  const trip = useTrip(tripId)
   const update = useUpdateShoppingItem()
 
   return {

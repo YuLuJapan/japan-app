@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom'
 import { useDeleteFile } from '../api/mutations'
 import type { FileMeta, FileParent } from '../api/types'
 import { useCanEdit } from '../lib/session'
+import { useTripId } from '../lib/trip'
 import { ConfirmDialog } from './ConfirmDialog'
 
 const icon = (mime: string) => {
@@ -25,6 +26,7 @@ const size = (bytes: number) => {
 
 export function FileList({ files, deletable }: { files: FileMeta[]; deletable?: FileParent }) {
   const canDelete = useCanEdit() && deletable
+  const tripId = useTripId()
   const [deleting, setDeleting] = useState<FileMeta | null>(null)
   const remove = useDeleteFile(deletable)
 
@@ -37,7 +39,7 @@ export function FileList({ files, deletable }: { files: FileMeta[]; deletable?: 
           <li key={file.id}>
             <div className="flex items-center gap-1 rounded-2xl border border-line bg-white pr-2">
               <Link
-                to={`/files/${file.id}`}
+                to={`/trips/${tripId}/files/${file.id}`}
                 className="flex min-h-11 flex-1 items-center gap-3 px-4 py-3 text-left active:scale-[0.99]"
               >
                 <span className="text-lg" aria-hidden>

@@ -14,6 +14,7 @@ import { ZoneImage } from '../components/ZoneImage'
 import { placeMapsUrl } from '../lib/maps'
 import { useShoppingActions } from '../lib/shopping'
 import { useCanEdit } from '../lib/session'
+import { useTripId } from '../lib/trip'
 
 const yen = new Intl.NumberFormat('en-US')
 const usdFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
@@ -22,8 +23,9 @@ const ilsFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'IL
 export default function ShoppingItemDetail() {
   const { itemId = '' } = useParams()
   const canEdit = useCanEdit()
+  const tripId = useTripId()
   const navigate = useNavigate()
-  const { data, isPending, isError, refetch } = useShoppingList()
+  const { data, isPending, isError, refetch } = useShoppingList(tripId)
   const { data: rates } = useRates()
   const { update, zoneName, toggleBought, isToggling } = useShoppingActions()
   const remove = useDeleteShoppingItem()
@@ -36,7 +38,7 @@ export default function ShoppingItemDetail() {
   if (!item) {
     return (
       <div className="space-y-4">
-        <Link to="/shopping" className="text-sm font-semibold text-muted">
+        <Link to={`/trips/${tripId}/shopping`} className="text-sm font-semibold text-muted">
           ‹ Shopping
         </Link>
         <ErrorState message="That item is no longer on the list." />
@@ -50,7 +52,10 @@ export default function ShoppingItemDetail() {
   return (
     <div className="space-y-6">
       <div>
-        <Link to={`/shopping/c/${item.category}`} className="text-sm font-semibold text-muted">
+        <Link
+          to={`/trips/${tripId}/shopping/c/${item.category}`}
+          className="text-sm font-semibold text-muted"
+        >
           ‹ {meta.label}
         </Link>
         <div className="mt-3 overflow-hidden rounded-3xl shadow-card">
@@ -152,7 +157,7 @@ export default function ShoppingItemDetail() {
                 : 'Mark as bought'}
           </button>
           <div className="flex gap-3">
-            <Link to={`/shopping/${item.id}/edit`} className="btn-ghost flex-1">
+            <Link to={`/trips/${tripId}/shopping/${item.id}/edit`} className="btn-ghost flex-1">
               Edit
             </Link>
             <button type="button" className="btn-danger flex-1" onClick={() => setConfirming(true)}>
@@ -169,7 +174,9 @@ export default function ShoppingItemDetail() {
         confirmLabel="Delete"
         onCancel={() => setConfirming(false)}
         onConfirm={() =>
-          remove.mutate(item.id, { onSuccess: () => navigate('/shopping', { replace: true }) })
+          remove.mutate(item.id, {
+            onSuccess: () => navigate(`/trips/${tripId}/shopping`, { replace: true }),
+          })
         }
       />
     </div>

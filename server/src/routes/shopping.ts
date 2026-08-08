@@ -24,6 +24,22 @@ shoppingRouter.post(
   })
 )
 
+shoppingRouter.get(
+  '/trips/:tripId/shopping',
+  asyncHandler(async (req, res) => {
+    res.json(await listShoppingItems(await getDataStore(), req.params.tripId))
+  })
+)
+
+shoppingRouter.post(
+  '/trips/:tripId/shopping',
+  asyncHandler(async (req, res) => {
+    res
+      .status(201)
+      .json(await createShoppingItem(await getDataStore(), req.body ?? {}, req.params.tripId))
+  })
+)
+
 shoppingRouter.patch(
   '/shopping/:itemId',
   asyncHandler(async (req, res) => {

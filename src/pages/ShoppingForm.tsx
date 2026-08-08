@@ -15,16 +15,18 @@ import { SHOPPING_CATEGORIES, SHOPPING_CATEGORY_META } from '../api/types'
 import { ImagePicker } from '../components/ImagePicker'
 import { Loading } from '../components/Loading'
 import { ZoneImage } from '../components/ZoneImage'
+import { useTripId } from '../lib/trip'
 
 export default function ShoppingForm() {
   const { itemId } = useParams()
   const [params] = useSearchParams()
   const navigate = useNavigate()
+  const tripId = useTripId()
   const editing = Boolean(itemId)
 
-  const list = useShoppingList()
-  const trip = useTrip()
-  const create = useCreateShoppingItem()
+  const list = useShoppingList(tripId)
+  const trip = useTrip(tripId)
+  const create = useCreateShoppingItem(tripId)
   const update = useUpdateShoppingItem()
   const mutation = editing ? update : create
 
@@ -107,8 +109,8 @@ export default function ShoppingForm() {
           ? `Filled in the ${filled.join(', ')} — check it over and edit anything.${
               preview.price_note ? ` ${preview.price_note}` : ''
             }`
-          : preview.price_note ??
-              'Could not read that page — fill the details in yourself (the link is saved).'
+          : (preview.price_note ??
+              'Could not read that page — fill the details in yourself (the link is saved).')
       )
     } catch {
       setImportNote('Could not read that link. Check it, or fill the details in yourself.')
@@ -160,18 +162,19 @@ export default function ShoppingForm() {
     if (editing && itemId)
       update.mutate(
         { id: itemId, patch: input },
-        { onSuccess: () => navigate(`/shopping/${itemId}`, { replace: true }) }
+        { onSuccess: () => navigate(`/trips/${tripId}/shopping/${itemId}`, { replace: true }) }
       )
     else
       create.mutate(input, {
-        onSuccess: (data) => navigate(`/shopping/${data.item.id}`, { replace: true }),
+        onSuccess: (data) =>
+          navigate(`/trips/${tripId}/shopping/${data.item.id}`, { replace: true }),
       })
   }
 
   return (
     <form onSubmit={submit} className="space-y-4">
       <Link
-        to={editing ? `/shopping/${itemId}` : '/shopping'}
+        to={editing ? `/trips/${tripId}/shopping/${itemId}` : `/trips/${tripId}/shopping`}
         className="text-sm font-semibold text-muted"
       >
         ‹ {editing ? 'Item' : 'Shopping'}
@@ -401,7 +404,6 @@ export default function ShoppingForm() {
               ? 'Save changes'
               : 'Add to list'}
       </button>
-
     </form>
   )
 }
