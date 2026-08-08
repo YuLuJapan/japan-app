@@ -79,12 +79,23 @@ export default function AccessGate() {
   }
 
   return (
-    <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-sun via-brand to-brand-700 px-6">
+    <div
+      className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-6"
+      style={{
+        background: 'linear-gradient(150deg,#F9873F 0%,#F1543F 55%,#E3402F 100%)',
+      }}
+    >
       <div className="absolute -left-16 top-10 h-56 w-56 rounded-full bg-white/15 blur-2xl" />
       <div className="absolute -right-10 bottom-24 h-64 w-64 rounded-full bg-black/10 blur-2xl" />
       <div className="relative w-full max-w-app text-center">
-        <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-white/95 text-4xl font-extrabold text-brand shadow-pop">
-          旅
+        <span
+          className="mx-auto flex h-[88px] w-[88px] items-center justify-center rounded-[28px] shadow-pop"
+          style={{ background: '#FFF4F1' }}
+          aria-hidden
+        >
+          <span className="relative h-[34px] w-[34px] rounded-full border-[4px] border-brand">
+            <span className="absolute -right-px -top-px h-2.5 w-2.5 rounded-full bg-brand" />
+          </span>
         </span>
         <h1 className="mt-6 font-display text-4xl font-extrabold tracking-tight text-white">
           Japan

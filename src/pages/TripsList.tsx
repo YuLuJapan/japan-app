@@ -7,6 +7,7 @@ import type { Trip } from '../api/types'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
+import { RingMark } from '../components/RingMark'
 import { SignOutButton } from '../components/SignOutButton'
 import { TripSheet } from '../components/TripSheet'
 import { useCanEdit } from '../lib/session'
@@ -24,7 +25,7 @@ function dateRange(trip: Trip): string {
 }
 
 function avatarBg(name: string): string {
-  const palette = ['#ff5a4d', '#161a22', '#6e8248', '#4c6273', '#b07a62', '#8a5fa8']
+  const palette = ['#F1543F', '#17150F', '#6E8248', '#4C6273', '#B07A62', '#8A5FA8']
   let h = 0
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 997
   return palette[h % palette.length]
@@ -32,7 +33,7 @@ function avatarBg(name: string): string {
 
 function swatchFor(id: string): string {
   const gradients = [
-    'linear-gradient(160deg,#ff5a4d,#c8302a)',
+    'linear-gradient(160deg,#F1543F,#C8302A)',
     'linear-gradient(160deg,#8fa9b8,#4c6273)',
     'linear-gradient(160deg,#a9b87f,#6e8248)',
     'linear-gradient(160deg,#e0b872,#a8763b)',
@@ -113,9 +114,7 @@ export default function TripsList() {
     <div className="mx-auto flex min-h-dvh max-w-app flex-col bg-canvas">
       <header className="sticky top-0 z-10 flex items-center justify-between bg-canvas/85 px-5 py-4 backdrop-blur">
         <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-brand text-lg font-extrabold text-white shadow-card">
-            旅
-          </span>
+          <RingMark size={30} />
           <span className="font-display text-lg font-extrabold tracking-tight">Onward</span>
         </div>
         <SignOutButton />

@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { useTrip } from '../api/hooks'
 import { clearReminderBadge, hasUnseenReminder } from '../lib/push'
 import { useCanEdit } from '../lib/session'
 import { useTripId } from '../lib/trip'
+import { RingMark } from './RingMark'
 import { SignOutButton } from './SignOutButton'
 
 type IconName = 'journey' | 'shopping' | 'reminders' | 'essentials' | 'docs'
@@ -17,7 +19,7 @@ function TabIcon({
   active: boolean
   dot?: boolean
 }) {
-  const s = active ? '#ff5a4d' : '#6b7280'
+  const s = active ? '#F1543F' : '#7A756B'
   const common = {
     width: 22,
     height: 22,
@@ -81,6 +83,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
   const canEdit = useCanEdit()
   const tripId = useTripId()
+  const trip = useTrip(tripId)
   const base = `/trips/${tripId}`
   const journeyActive =
     pathname === base || pathname.includes('/zones/') || pathname.includes('/places/')
@@ -150,14 +153,15 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="mx-auto flex min-h-dvh max-w-app flex-col bg-canvas">
       <header className="sticky top-0 z-20 flex items-center justify-between bg-canvas/85 px-5 py-4 backdrop-blur">
         {/* min-w-0 + truncate: the search and sign-out buttons keep their size
-            on a narrow phone, and the guest chip gives up width instead. */}
+            on a narrow phone, and the guest chip gives up width instead. Tapping
+            the mark + trip name goes back to the trips list, like the prototype. */}
         <Link to="/trips" className="flex min-w-0 items-center gap-2">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-brand text-lg font-extrabold text-white shadow-card">
-            旅
+          <RingMark size={34} />
+          <span className="truncate font-display text-lg font-extrabold tracking-tight">
+            {trip.data?.trip.name ?? ' '}
           </span>
-          <span className="font-display text-lg font-extrabold tracking-tight">Onward</span>
           {!canEdit && (
-            <span className="chip truncate bg-canvas text-[10px] font-bold text-muted">
+            <span className="chip shrink-0 truncate bg-canvas text-[10px] font-bold text-muted">
               Guest · view only
             </span>
           )}
