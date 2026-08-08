@@ -1,5 +1,5 @@
 import type { Category, DataStore, PlaceInput, PlaceLink } from '../lib/datastore.js'
-import { CATEGORIES } from '../lib/datastore.js'
+import { CATEGORIES, getDefaultTrip } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
 
 /** `includeFiles: false` is the guest view — attachments never leave the server. */
@@ -101,7 +101,7 @@ export async function deletePlace(store: DataStore, placeId: string) {
   const place = await store.getPlace(placeId)
   if (!place) throw notFound('Place')
   // no silent file loss (data-model.md): move the place's files to the trip first
-  const trip = await store.getTrip()
+  const trip = await getDefaultTrip(store)
   if (trip) await store.reparentFilesToTrip(placeId, trip.id)
   await store.deletePlace(placeId)
 }

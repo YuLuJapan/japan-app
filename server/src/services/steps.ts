@@ -5,6 +5,7 @@
 // client); a destination reuses an existing zone when the name matches,
 // otherwise a new zone is created on the fly.
 import type { DataStore } from '../lib/datastore.js'
+import { getDefaultTrip } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
 import type { GeocodeResult } from './geocode.js'
 
@@ -22,7 +23,8 @@ function collectDestinationErrors(destination: GeocodeResult): string[] {
   const errors: string[] = []
   const name = (destination?.name ?? '').trim()
   if (!name) errors.push('destination.name is required')
-  else if (name.length > NAME_MAX) errors.push(`destination.name must be at most ${NAME_MAX} characters`)
+  else if (name.length > NAME_MAX)
+    errors.push(`destination.name must be at most ${NAME_MAX} characters`)
   if (typeof destination?.lat !== 'number' || destination.lat < -90 || destination.lat > 90)
     errors.push('destination.lat must be a number between -90 and 90')
   if (typeof destination?.lng !== 'number' || destination.lng < -180 || destination.lng > 180)
@@ -80,7 +82,7 @@ async function resolveZoneId(
 export async function createStep(store: DataStore, input: StepFields) {
   const errors = collectErrors(input, false)
   if (errors.length) throw validation(errors)
-  const trip = await store.getTrip()
+  const trip = await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
   const zoneId = await resolveZoneId(store, input.zone_id, input.destination)
   const steps = await store.listSteps(trip.id)

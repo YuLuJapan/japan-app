@@ -10,6 +10,16 @@ export interface Trip {
   start_date: string
   end_date: string
   description: string | null
+  /** Free-text traveller names for this trip (not linked accounts). */
+  people: string[]
+}
+
+export interface TripInput {
+  name: string
+  start_date: string
+  end_date: string
+  description?: string | null
+  people?: string[]
 }
 
 export interface JourneyStep {
@@ -237,7 +247,14 @@ export interface DataStore {
   /** Trivial read used by /api/health (keep-alive). Throws if the backend is unreachable. */
   ping(): Promise<void>
 
-  getTrip(): Promise<Trip | null>
+  /** Every trip, oldest first. Powers the "Where to next?" trips list. */
+  listTrips(): Promise<Trip[]>
+  getTrip(tripId: string): Promise<Trip | null>
+  createTrip(input: TripInput): Promise<Trip>
+  updateTrip(tripId: string, patch: Partial<TripInput>): Promise<Trip | null>
+  /** Hard delete. Cascades to the trip's steps/itinerary/shopping/reminders/files. */
+  deleteTrip(tripId: string): Promise<boolean>
+
   listSteps(tripId: string): Promise<JourneyStep[]>
   getStep(stepId: string): Promise<JourneyStep | null>
   createStep(input: JourneyStepInput): Promise<JourneyStep>
@@ -285,8 +302,12 @@ export interface DataStore {
   listFiles(
     parent: { trip_id: string } | { zone_id: string } | { place_id: string }
   ): Promise<FileAttachment[]>
-  /** Every file for the trip regardless of parent (used by the Documents view). */
-  listAllFiles(): Promise<FileAttachment[]>
+  /**
+   * Every file for the trip regardless of parent (used by the Documents view):
+   * files attached directly to the trip, plus files on any zone/place visited
+   * by one of the trip's steps.
+   */
+  listAllFiles(tripId: string): Promise<FileAttachment[]>
   countTripFiles(tripId: string): Promise<number>
   getFile(fileId: string): Promise<FileAttachment | null>
   /** Store an uploaded blob and its metadata row. */
@@ -353,4 +374,17 @@ export async function getDataStore(): Promise<DataStore> {
 /** Test hook: replace the process-wide store (pass null to reset to env selection). */
 export function setDataStore(next: DataStore | null): void {
   store = next
+}
+
+/**
+ * The trip that single-trip-era routes (itinerary/steps/shopping/reminders/
+ * files) still implicitly operate on: the oldest one. Multi-trip support so
+ * far only covers listing/creating/editing/deleting trips themselves — these
+ * other routes stay scoped to one trip until the UI can actually switch
+ * between trips (tracked as a follow-up), so this preserves exactly the
+ * pre-multi-trip behavior for them.
+ */
+export async function getDefaultTrip(store: DataStore): Promise<Trip | null> {
+  const trips = await store.listTrips()
+  return trips[0] ?? null
 }
