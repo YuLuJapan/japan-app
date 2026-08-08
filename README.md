@@ -48,10 +48,6 @@ Leave `TRIP_GUEST_CODE` unset and there is no guest view — the app behaves exa
 - **The seed**: [server/src/data/placeholder-data.json](server/src/data/placeholder-data.json) is what the live database was built from and what local dev loads. Editing it does **not** change the deployed data — re-run `npm run seed` against Supabase for that, or just edit in the app.
 - Sample files live in `public/placeholder-files/`; regenerate the PDFs with `node scripts/make-placeholder-files.mjs`.
 
-## English map labels (optional)
-
-The city maps (Leaflet + free CARTO tiles) label streets in Japanese by default. For English labels, get a free [MapTiler](https://cloud.maptiler.com/account/keys/) API key (no credit card) and set `VITE_MAPTILER_KEY` in `.env.local`. Small streets that OpenStreetMap hasn't tagged with an English name may still show Japanese or nothing.
-
 ## Infrastructure (Supabase — live)
 
 **Status: activated.** The deployed app runs on Supabase (`DATA_BACKEND=supabase`

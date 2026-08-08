@@ -37,13 +37,6 @@ export const useZonePlaces = (zoneId: string, category: Category) =>
       api.get<{ places: PlaceListItem[] }>(`/zones/${zoneId}/places?category=${category}`),
   })
 
-// Every place in a zone, all categories — powers the city map's pins.
-export const useZoneMapPlaces = (zoneId: string) =>
-  useQuery({
-    queryKey: ['zone-places', zoneId, ''],
-    queryFn: () => api.get<{ places: PlaceListItem[] }>(`/zones/${zoneId}/places`),
-  })
-
 export const usePlace = (placeId: string) =>
   useQuery({
     queryKey: ['place', placeId],
@@ -71,7 +64,7 @@ export const useRates = () =>
   })
 
 // Free OpenStreetMap place search (proxied by the server). Called on demand
-// from the map's search box, not as a standing query.
+// from the journey editor's destination box, not as a standing query.
 export const geocode = (query: string, bias?: { lat: number; lng: number }) => {
   const params = new URLSearchParams({ q: query })
   if (bias) {
