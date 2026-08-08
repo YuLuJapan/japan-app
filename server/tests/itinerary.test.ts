@@ -81,3 +81,36 @@ describe('itinerary', () => {
     expect(item.place_id).toBeNull() // but no longer linked
   })
 })
+
+describe('trip-scoped itinerary routes', () => {
+  it('GET/POST /api/trips/:tripId/itinerary are isolated from the legacy default trip', async () => {
+    const trip2 = await auth(request(app).post('/api/trips')).send({
+      name: 'Dolomites',
+      start_date: '2027-02-06',
+      end_date: '2027-02-14',
+    })
+    const tripId = trip2.body.trip.id
+
+    const created = await auth(request(app).post(`/api/trips/${tripId}/itinerary`)).send({
+      day: '2027-02-07',
+      title: 'Rifugio hike',
+    })
+    expect(created.status).toBe(201)
+    expect(created.body.item.trip_id).toBe(tripId)
+
+    const trip2List = await auth(request(app).get(`/api/trips/${tripId}/itinerary`))
+    expect(trip2List.body.items.map((i: { title: string }) => i.title)).toEqual(['Rifugio hike'])
+
+    // trip-1's list is untouched, and doesn't see trip-2's item
+    const trip1List = await auth(request(app).get('/api/trips/trip-1/itinerary'))
+    expect(trip1List.body.items.map((i: { id: string }) => i.id)).toEqual([
+      'itin-ramen',
+      'itin-walk',
+    ])
+  })
+
+  it('404s for an unknown trip', async () => {
+    const res = await auth(request(app).get('/api/trips/nope/itinerary'))
+    expect(res.status).toBe(404)
+  })
+})

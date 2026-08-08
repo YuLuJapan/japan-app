@@ -22,18 +22,20 @@ import {
   wallClockToInstant,
 } from '../lib/reminders'
 import { useCanEdit } from '../lib/session'
+import { useTripId } from '../lib/trip'
 
 const errorText = (error: unknown) =>
   error instanceof ApiError ? (error.details?.join(' · ') ?? error.message) : 'Something went wrong'
 
 export default function Reminders() {
   const canEdit = useCanEdit()
-  const reminders = useReminders()
+  const tripId = useTripId()
+  const reminders = useReminders(tripId)
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  const create = useCreateReminder()
+  const create = useCreateReminder(tripId)
   const update = useUpdateReminder()
   const remove = useDeleteReminder()
 

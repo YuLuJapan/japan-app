@@ -3,12 +3,30 @@ import type { TripStep } from '../api/types'
 import { enumerateDays, isNextDay, isTravelDay, primaryStep, zoneDays } from '../lib/schedule'
 
 const counts = { hotel: 0, attraction: 0, food: 0, shopping: 0, other: 0 }
-const zone = (id: string, name: string) => ({ id, name, name_ja: null, summary: null, place_counts: counts })
+const zone = (id: string, name: string) => ({
+  id,
+  name,
+  name_ja: null,
+  summary: null,
+  place_counts: counts,
+})
 
 // Tokyo Oct 5–9, then Kyoto Oct 9–12 — Oct 9 is the shared travel/checkout day.
 const steps: TripStep[] = [
-  { id: 's1', position: 1, start_date: '2026-10-05', end_date: '2026-10-09', zone: zone('z-tokyo', 'Tokyo') },
-  { id: 's2', position: 2, start_date: '2026-10-09', end_date: '2026-10-12', zone: zone('z-kyoto', 'Kyoto') },
+  {
+    id: 's1',
+    position: 1,
+    start_date: '2026-10-05',
+    end_date: '2026-10-09',
+    zone: zone('z-tokyo', 'Tokyo'),
+  },
+  {
+    id: 's2',
+    position: 2,
+    start_date: '2026-10-09',
+    end_date: '2026-10-12',
+    zone: zone('z-kyoto', 'Kyoto'),
+  },
 ]
 const allDays = enumerateDays('2026-10-05', '2026-10-12')
 

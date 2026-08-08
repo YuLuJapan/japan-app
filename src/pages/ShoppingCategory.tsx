@@ -14,15 +14,17 @@ import { ShoppingRow, priceLabel } from '../components/ShoppingCards'
 import { SwipeRow } from '../components/SwipeRow'
 import { useShoppingActions } from '../lib/shopping'
 import { useCanEdit } from '../lib/session'
+import { useTripId } from '../lib/trip'
 
 export default function ShoppingCategoryPage() {
   const { category = '' } = useParams()
   const canEdit = useCanEdit()
+  const tripId = useTripId()
   const [pendingDelete, setPendingDelete] = useState<ShoppingItem | null>(null)
   const remove = useDeleteShoppingItem()
   const cat = category as Category
   const meta = SHOPPING_CATEGORY_META[cat] ?? { label: category, icon: '🛍️' }
-  const { data, isPending, isError, refetch } = useShoppingList()
+  const { data, isPending, isError, refetch } = useShoppingList(tripId)
   const { data: rates } = useRates()
   const { update, zoneName, toggleBought, isToggling } = useShoppingActions()
 
@@ -68,7 +70,7 @@ export default function ShoppingCategoryPage() {
 
   return (
     <div className="space-y-5">
-      <Link to="/shopping" className="text-sm font-semibold text-muted">
+      <Link to={`/trips/${tripId}/shopping`} className="text-sm font-semibold text-muted">
         ‹ Shopping
       </Link>
 
@@ -84,7 +86,10 @@ export default function ShoppingCategoryPage() {
           </p>
         </div>
         {canEdit && (
-          <Link to={`/shopping/new?category=${cat}`} className="btn-primary shrink-0 px-4">
+          <Link
+            to={`/trips/${tripId}/shopping/new?category=${cat}`}
+            className="btn-primary shrink-0 px-4"
+          >
             + Add
           </Link>
         )}

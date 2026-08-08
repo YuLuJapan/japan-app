@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { clearReminderBadge, hasUnseenReminder } from '../lib/push'
 import { useCanEdit } from '../lib/session'
+import { useTripId } from '../lib/trip'
 import { SignOutButton } from './SignOutButton'
 
 type IconName = 'journey' | 'shopping' | 'reminders' | 'essentials' | 'docs'
@@ -79,12 +80,14 @@ function TabIcon({
 export function Layout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
   const canEdit = useCanEdit()
+  const tripId = useTripId()
+  const base = `/trips/${tripId}`
   const journeyActive =
-    pathname === '/' || pathname.startsWith('/zones') || pathname.startsWith('/places')
-  const shoppingActive = pathname.startsWith('/shopping')
-  const remindersActive = pathname.startsWith('/reminders')
-  const essentialsActive = pathname.startsWith('/essentials')
-  const docsActive = pathname.startsWith('/files')
+    pathname === base || pathname.includes('/zones/') || pathname.includes('/places/')
+  const shoppingActive = pathname.includes('/shopping')
+  const remindersActive = pathname.includes('/reminders')
+  const essentialsActive = pathname.includes('/essentials')
+  const docsActive = pathname.includes('/files')
 
   // Red dot on the Reminders tab for a push nobody's looked at yet. Visiting
   // the tab is what clears it (below); an open tab also lights up live via a
@@ -148,11 +151,11 @@ export function Layout({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-20 flex items-center justify-between bg-canvas/85 px-5 py-4 backdrop-blur">
         {/* min-w-0 + truncate: the search and sign-out buttons keep their size
             on a narrow phone, and the guest chip gives up width instead. */}
-        <Link to="/" className="flex min-w-0 items-center gap-2">
+        <Link to="/trips" className="flex min-w-0 items-center gap-2">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-brand text-lg font-extrabold text-white shadow-card">
             旅
           </span>
-          <span className="font-display text-lg font-extrabold tracking-tight">Japan</span>
+          <span className="font-display text-lg font-extrabold tracking-tight">Onward</span>
           {!canEdit && (
             <span className="chip truncate bg-canvas text-[10px] font-bold text-muted">
               Guest · view only
@@ -161,7 +164,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </Link>
         <div className="flex shrink-0 items-center gap-2">
           <Link
-            to="/search"
+            to={`${base}/search`}
             aria-label="Search"
             className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-white text-ink active:scale-95"
           >
@@ -185,11 +188,11 @@ export function Layout({ children }: { children: ReactNode }) {
       <main className="flex-1 px-5 pb-28 pt-1">{children}</main>
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-app px-4">
-          {tab('/', 'journey', 'Journey', journeyActive)}
-          {tab('/shopping', 'shopping', 'Shopping', shoppingActive)}
-          {tab('/reminders', 'reminders', 'Reminders', remindersActive, unseenReminder)}
-          {tab('/essentials', 'essentials', 'Essentials', essentialsActive)}
-          {canEdit && tab('/files', 'docs', 'Documents', docsActive)}
+          {tab(base, 'journey', 'Journey', journeyActive)}
+          {tab(`${base}/shopping`, 'shopping', 'Shopping', shoppingActive)}
+          {tab(`${base}/reminders`, 'reminders', 'Reminders', remindersActive, unseenReminder)}
+          {tab(`${base}/essentials`, 'essentials', 'Essentials', essentialsActive)}
+          {canEdit && tab(`${base}/files`, 'docs', 'Documents', docsActive)}
         </div>
       </nav>
     </div>

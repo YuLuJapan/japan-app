@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { clearAccessCode } from '../api/client'
 import { useCanEdit } from '../lib/session'
+import { getSupabaseClient } from '../lib/supabaseClient'
 import { ConfirmDialog } from './ConfirmDialog'
 
 export function SignOutButton() {
@@ -20,6 +21,8 @@ export function SignOutButton() {
   const signOut = () => {
     clearAccessCode()
     queryClient.clear()
+    // no-op if the session wasn't a Supabase one (a shared access code)
+    getSupabaseClient()?.auth.signOut()
     navigate('/gate', { replace: true })
   }
 

@@ -29,6 +29,16 @@ export interface Trip {
   start_date: string
   end_date: string
   description: string | null
+  /** Free-text traveller names for this trip (not linked accounts). */
+  people: string[]
+}
+
+export interface TripInput {
+  name: string
+  start_date: string
+  end_date: string
+  description?: string | null
+  people?: string[]
 }
 
 export interface ZoneSummary {

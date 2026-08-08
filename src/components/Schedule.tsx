@@ -17,9 +17,10 @@ interface Props {
   /** 'trip' shows the day's city; 'zone' is scoped to one city's days. */
   mode: 'trip' | 'zone'
   zoneId?: string
+  tripId: string
 }
 
-export function Schedule({ steps, items, days, today, mode, zoneId }: Props) {
+export function Schedule({ steps, items, days, today, mode, zoneId, tripId }: Props) {
   const [selected, setSelected] = useState(() =>
     days.includes(today) ? today : (days[0] ?? today)
   )
@@ -48,7 +49,13 @@ export function Schedule({ steps, items, days, today, mode, zoneId }: Props) {
 
   return (
     <div className="space-y-4">
-      <DayStrip days={days} selected={day} onSelect={setSelected} today={today} hasItems={dayHasItems} />
+      <DayStrip
+        days={days}
+        selected={day}
+        onSelect={setSelected}
+        today={today}
+        hasItems={dayHasItems}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <p className="font-display text-lg font-extrabold">{fmtDayLong(day)}</p>
@@ -56,7 +63,10 @@ export function Schedule({ steps, items, days, today, mode, zoneId }: Props) {
           zones.map((z, i) => (
             <span key={z.id} className="flex items-center gap-2">
               {i > 0 && <span className="text-muted">→</span>}
-              <Link to={`/zones/${z.id}`} className="chip bg-canvas font-bold text-ink">
+              <Link
+                to={`/trips/${tripId}/zones/${z.id}`}
+                className="chip bg-canvas font-bold text-ink"
+              >
                 {z.name}
               </Link>
             </span>
@@ -66,9 +76,9 @@ export function Schedule({ steps, items, days, today, mode, zoneId }: Props) {
         )}
       </div>
 
-      <DayHighlights day={day} highlights={highlights} zoneId={newZoneId} />
+      <DayHighlights day={day} highlights={highlights} zoneId={newZoneId} tripId={tripId} />
 
-      <DayPlan day={day} items={planItems} zoneId={newZoneId} />
+      <DayPlan day={day} items={planItems} zoneId={newZoneId} tripId={tripId} />
     </div>
   )
 }

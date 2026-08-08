@@ -13,10 +13,12 @@ import { TipEditor } from '../components/TipEditor'
 import { ZoneImage } from '../components/ZoneImage'
 import { placeMapsUrl } from '../lib/maps'
 import { useCanEdit } from '../lib/session'
+import { useTripId } from '../lib/trip'
 
 export default function PlaceDetail() {
   const { placeId = '' } = useParams()
   const canEdit = useCanEdit()
+  const tripId = useTripId()
   const navigate = useNavigate()
   const { data, isPending, isError, refetch } = usePlace(placeId)
   const [confirming, setConfirming] = useState(false)
@@ -32,7 +34,7 @@ export default function PlaceDetail() {
     <div className="space-y-8">
       <div>
         <Link
-          to={`/zones/${place.zone_id}/c/${place.category}`}
+          to={`/trips/${tripId}/zones/${place.zone_id}/c/${place.category}`}
           className="text-sm font-semibold text-muted"
         >
           ‹ {meta.label}
@@ -127,7 +129,7 @@ export default function PlaceDetail() {
       {canEdit && (
         <>
           <div className="flex gap-3 border-t border-line pt-6">
-            <Link to={`/places/${placeId}/edit`} className="btn-ghost flex-1">
+            <Link to={`/trips/${tripId}/places/${placeId}/edit`} className="btn-ghost flex-1">
               Edit
             </Link>
             <button type="button" className="btn-danger flex-1" onClick={() => setConfirming(true)}>
@@ -152,7 +154,9 @@ export default function PlaceDetail() {
           setConfirming(false)
           deletePlace.mutate(placeId, {
             onSuccess: () =>
-              navigate(`/zones/${place.zone_id}/c/${place.category}`, { replace: true }),
+              navigate(`/trips/${tripId}/zones/${place.zone_id}/c/${place.category}`, {
+                replace: true,
+              }),
           })
         }}
         onCancel={() => setConfirming(false)}

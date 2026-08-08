@@ -23,10 +23,13 @@ import { zonesRouter } from './routes/zones.js'
 export function createApp() {
   const app = express()
   // File uploads post a base64 blob, so /files needs a larger body than the rest.
+  // Matches both the legacy flat route and the trip-scoped one.
   const bigJson = express.json({ limit: '8mb' })
   const smallJson = express.json({ limit: '256kb' })
+  const isFilesUpload = (path: string) =>
+    path === '/api/files' || /^\/api\/trips\/[^/]+\/files$/.test(path)
   app.use((req, res, next) =>
-    req.method === 'POST' && req.path === '/api/files'
+    req.method === 'POST' && isFilesUpload(req.path)
       ? bigJson(req, res, next)
       : smallJson(req, res, next)
   )

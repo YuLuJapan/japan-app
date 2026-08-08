@@ -76,25 +76,28 @@ function normalize(input: Partial<ReminderInput>): Partial<ReminderInput> {
   return next
 }
 
-async function requireTripId(store: DataStore): Promise<string> {
-  const trip = await getDefaultTrip(store)
+async function requireTripId(store: DataStore, tripId?: string): Promise<string> {
+  const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
   return trip.id
 }
 
-export async function listReminders(store: DataStore): Promise<{ reminders: Reminder[] }> {
-  const tripId = await requireTripId(store)
-  return { reminders: await store.listReminders(tripId) }
+export async function listReminders(
+  store: DataStore,
+  tripId?: string
+): Promise<{ reminders: Reminder[] }> {
+  const resolvedTripId = await requireTripId(store, tripId)
+  return { reminders: await store.listReminders(resolvedTripId) }
 }
 
-export async function createReminder(store: DataStore, body: unknown) {
+export async function createReminder(store: DataStore, body: unknown, tripId?: string) {
   const input = (body ?? {}) as Partial<ReminderInput>
   const errors = collectReminderErrors(input, false)
   if (errors.length) throw validation(errors)
-  const tripId = await requireTripId(store)
+  const resolvedTripId = await requireTripId(store, tripId)
   const normalized = normalize(input)
   const reminder = await store.createReminder({
-    trip_id: tripId,
+    trip_id: resolvedTripId,
     title: normalized.title!,
     body: normalized.body ?? null,
     url: normalized.url ?? null,

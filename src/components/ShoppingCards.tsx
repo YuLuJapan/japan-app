@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import type { Rates, ShoppingItem } from '../api/types'
 import { SHOPPING_CATEGORY_META } from '../api/types'
 import { useCanEdit } from '../lib/session'
+import { useTripId } from '../lib/trip'
 import { ZoneImage } from './ZoneImage'
 
 const yen = new Intl.NumberFormat('en-US')
@@ -65,10 +66,11 @@ function TickButton({
  * the bottom by the flex-1 name block above it.
  */
 export function ShoppingTile({ item, onToggle, busy }: CardProps) {
+  const tripId = useTripId()
   return (
     <li className={`relative h-48 w-36 shrink-0 ${item.bought ? 'opacity-60' : ''}`}>
       <Link
-        to={`/shopping/${item.id}`}
+        to={`/trips/${tripId}/shopping/${item.id}`}
         className="card flex h-full flex-col overflow-hidden active:scale-[0.98]"
       >
         <ZoneImage
@@ -112,6 +114,7 @@ export function ShoppingTile({ item, onToggle, busy }: CardProps) {
  * clamped to fit — the full note lives on the item's page.
  */
 export function ShoppingRow({ item, zoneName, rates, onToggle, busy }: CardProps) {
+  const tripId = useTripId()
   const where = [item.shop, zoneName].filter(Boolean).join(' · ')
 
   return (
@@ -122,7 +125,10 @@ export function ShoppingRow({ item, zoneName, rates, onToggle, busy }: CardProps
         item.bought ? 'opacity-60' : ''
       }`}
     >
-      <Link to={`/shopping/${item.id}`} className="flex min-w-0 flex-1 items-stretch gap-3">
+      <Link
+        to={`/trips/${tripId}/shopping/${item.id}`}
+        className="flex min-w-0 flex-1 items-stretch gap-3"
+      >
         <ZoneImage
           src={item.image_url}
           alt={item.name}

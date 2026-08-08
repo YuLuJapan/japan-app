@@ -20,9 +20,7 @@ describe('files', () => {
     const byName = (n: string) =>
       res.body.files.find((f: { display_name: string }) => f.display_name === n)
 
-    expect(byName('Flight booking').attached_to).toEqual(
-      expect.objectContaining({ kind: 'trip' })
-    )
+    expect(byName('Flight booking').attached_to).toEqual(expect.objectContaining({ kind: 'trip' }))
     expect(byName('Menu photo').attached_to).toEqual(
       expect.objectContaining({ kind: 'place', id: 'place-ramen', name: 'Ramen Bar' })
     )
@@ -177,5 +175,48 @@ describe('files', () => {
       expect((await auth(request(app).delete(`/api/files/${id}`))).status).toBe(404)
       expect((await auth(request(app).get(`/api/files/${id}/url`))).status).toBe(404)
     })
+  })
+})
+
+describe('trip-scoped file routes', () => {
+  it('GET/POST /api/trips/:tripId/files are isolated from the legacy default trip', async () => {
+    const trip2 = await auth(request(app).post('/api/trips')).send({
+      name: 'Dolomites',
+      start_date: '2027-02-06',
+      end_date: '2027-02-14',
+    })
+    const tripId = trip2.body.trip.id
+
+    const created = await auth(request(app).post(`/api/trips/${tripId}/files`)).send({
+      parent: { kind: 'trip' },
+      display_name: 'Hut reservation',
+      mime_type: 'application/pdf',
+      data_base64: pdfBase64,
+    })
+    expect(created.status).toBe(201)
+
+    const trip2List = await auth(request(app).get(`/api/trips/${tripId}/files`))
+    expect(trip2List.body.files.map((f: { display_name: string }) => f.display_name)).toEqual([
+      'Hut reservation',
+    ])
+
+    // trip-1's documents are untouched
+    const trip1List = await auth(request(app).get('/api/trips/trip-1/files'))
+    expect(trip1List.body.files.map((f: { display_name: string }) => f.display_name)).not.toContain(
+      'Hut reservation'
+    )
+  })
+
+  it('404s for an unknown trip', async () => {
+    const res = await auth(request(app).get('/api/trips/nope/files'))
+    expect(res.status).toBe(404)
+  })
+
+  it('blocks guests the same way the legacy /api/files route does', async () => {
+    process.env.TRIP_GUEST_CODE = 'guest-code'
+    const guestAuth = (r: request.Test) => r.set('Authorization', 'Bearer guest-code')
+    const res = await guestAuth(request(app).get('/api/trips/trip-1/files'))
+    expect(res.status).toBe(403)
+    delete process.env.TRIP_GUEST_CODE
   })
 })

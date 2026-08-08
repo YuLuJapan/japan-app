@@ -8,11 +8,13 @@ import { useCreatePlace, useUpdatePlace } from '../api/mutations'
 import type { Category, PlaceInput, PlaceLink } from '../api/types'
 import { CATEGORIES, CATEGORY_META } from '../api/types'
 import { Loading } from '../components/Loading'
+import { useTripId } from '../lib/trip'
 
 export default function PlaceForm() {
   const { zoneId, placeId } = useParams()
   const [params] = useSearchParams()
   const navigate = useNavigate()
+  const tripId = useTripId()
   const editing = Boolean(placeId)
 
   const existing = usePlace(placeId ?? '')
@@ -56,9 +58,10 @@ export default function PlaceForm() {
       links: links.filter((l) => l.label.trim() && l.url.trim()),
     }
     const onSuccess = (data: { place: { id: string } }) =>
-      navigate(`/places/${data.place.id}`, { replace: true })
+      navigate(`/trips/${tripId}/places/${data.place.id}`, { replace: true })
     if (editing) update.mutate(input, { onSuccess })
-    else if (targetZone) create.mutate({ ...input, zone_id: targetZone } as PlaceInput, { onSuccess })
+    else if (targetZone)
+      create.mutate({ ...input, zone_id: targetZone } as PlaceInput, { onSuccess })
   }
 
   const setLink = (i: number, patch: Partial<PlaceLink>) =>
@@ -66,16 +69,27 @@ export default function PlaceForm() {
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <Link to={editing ? `/places/${placeId}` : `/zones/${targetZone}`} className="text-sm font-semibold text-muted">
+      <Link
+        to={editing ? `/trips/${tripId}/places/${placeId}` : `/trips/${tripId}/zones/${targetZone}`}
+        className="text-sm font-semibold text-muted"
+      >
         ‹ Back
       </Link>
-      <h1 className="font-display text-2xl font-extrabold">{editing ? 'Edit place' : 'Add a place'}</h1>
+      <h1 className="font-display text-2xl font-extrabold">
+        {editing ? 'Edit place' : 'Add a place'}
+      </h1>
 
       <div>
         <label className="label" htmlFor="name">
           Name *
         </label>
-        <input id="name" className="field" value={name} onChange={(e) => setName(e.target.value)} required />
+        <input
+          id="name"
+          className="field"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
       </div>
 
       <div>
@@ -112,7 +126,12 @@ export default function PlaceForm() {
         <label className="label" htmlFor="address">
           Address
         </label>
-        <input id="address" className="field" value={address} onChange={(e) => setAddress(e.target.value)} />
+        <input
+          id="address"
+          className="field"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+        />
       </div>
 
       <div>
@@ -178,7 +197,13 @@ export default function PlaceForm() {
       )}
 
       <button type="submit" className="btn-primary w-full" disabled={mutation.isPending}>
-        {mutation.isPending ? 'Saving…' : mutation.isError ? 'Retry save' : editing ? 'Save changes' : 'Add place'}
+        {mutation.isPending
+          ? 'Saving…'
+          : mutation.isError
+            ? 'Retry save'
+            : editing
+              ? 'Save changes'
+              : 'Add place'}
       </button>
     </form>
   )

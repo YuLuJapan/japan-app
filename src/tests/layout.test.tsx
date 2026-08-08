@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { Layout } from '../components/Layout'
 
 const push = vi.hoisted(() => ({
@@ -26,14 +26,21 @@ afterEach(() => {
 })
 
 // Layout's sign-out button clears the query cache, so it needs the provider it
-// always has in the app.
-const renderLayoutAt = (path: string) =>
+// always has in the app. Rendered inside a real Route so useTripId() resolves.
+const renderLayoutAt = (subpath: string) =>
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <MemoryRouter initialEntries={[path]}>
-        <Layout>
-          <div>page content</div>
-        </Layout>
+      <MemoryRouter initialEntries={[`/trips/trip-1${subpath}`]}>
+        <Routes>
+          <Route
+            path="/trips/:tripId/*"
+            element={
+              <Layout>
+                <div>page content</div>
+              </Layout>
+            }
+          />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -43,7 +50,7 @@ describe('Layout reminders badge', () => {
     push.hasUnseenReminder.mockResolvedValue(true)
     push.clearReminderBadge.mockResolvedValue(undefined)
 
-    renderLayoutAt('/')
+    renderLayoutAt('')
 
     expect(await screen.findByLabelText('Unread reminder')).toBeInTheDocument()
     expect(push.clearReminderBadge).not.toHaveBeenCalled()
@@ -53,7 +60,7 @@ describe('Layout reminders badge', () => {
     push.hasUnseenReminder.mockResolvedValue(false)
     push.clearReminderBadge.mockResolvedValue(undefined)
 
-    renderLayoutAt('/')
+    renderLayoutAt('')
 
     await waitFor(() => expect(push.hasUnseenReminder).toHaveBeenCalled())
     expect(screen.queryByLabelText('Unread reminder')).not.toBeInTheDocument()
@@ -88,7 +95,7 @@ describe('Layout reminders badge', () => {
       },
     })
 
-    renderLayoutAt('/')
+    renderLayoutAt('')
     await waitFor(() => expect(push.hasUnseenReminder).toHaveBeenCalled())
     expect(screen.queryByLabelText('Unread reminder')).not.toBeInTheDocument()
 

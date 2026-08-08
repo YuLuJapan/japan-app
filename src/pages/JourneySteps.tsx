@@ -11,6 +11,7 @@ import type { GeocodeResult, JourneyStepInput, TripStep } from '../api/types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
+import { useTripId } from '../lib/trip'
 
 const fmt = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString('en', {
@@ -20,12 +21,13 @@ const fmt = (iso: string) =>
   })
 
 export default function JourneySteps() {
-  const trip = useTrip()
+  const tripId = useTripId()
+  const trip = useTrip(tripId)
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  const create = useCreateStep()
+  const create = useCreateStep(tripId)
   const update = useUpdateStep()
   const remove = useDeleteStep()
 
@@ -37,7 +39,7 @@ export default function JourneySteps() {
 
   return (
     <div className="space-y-4">
-      <Link to="/" className="text-sm font-semibold text-muted">
+      <Link to={`/trips/${tripId}`} className="text-sm font-semibold text-muted">
         ‹ Back
       </Link>
       <div>
@@ -79,10 +81,18 @@ export default function JourneySteps() {
                   {fmt(step.start_date)} – {fmt(step.end_date)}
                 </p>
                 <div className="mt-2 flex gap-3 text-xs font-semibold">
-                  <button type="button" className="text-muted" onClick={() => setEditingId(step.id)}>
+                  <button
+                    type="button"
+                    className="text-muted"
+                    onClick={() => setEditingId(step.id)}
+                  >
                     Edit
                   </button>
-                  <button type="button" className="text-brand" onClick={() => setDeletingId(step.id)}>
+                  <button
+                    type="button"
+                    className="text-brand"
+                    onClick={() => setDeletingId(step.id)}
+                  >
                     Delete
                   </button>
                 </div>
@@ -239,7 +249,9 @@ function DestinationForm({
         />
       </div>
       {destinationTouched && !selected && (
-        <p className="text-xs text-muted">Pick a place from the suggestions to confirm it's real.</p>
+        <p className="text-xs text-muted">
+          Pick a place from the suggestions to confirm it's real.
+        </p>
       )}
       {error && <p className="text-sm text-brand">Save failed — try again.</p>}
       <div className="flex gap-2">

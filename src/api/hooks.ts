@@ -13,18 +13,25 @@ import type {
   SearchResult,
   ShoppingItem,
   Translation,
+  Trip,
   TripBundle,
   TripDocument,
   ZoneDetail,
 } from './types'
 
-export const useTrip = () =>
-  useQuery({ queryKey: ['trip'], queryFn: () => api.get<TripBundle>('/trip') })
+export const useTrips = () =>
+  useQuery({ queryKey: ['trips'], queryFn: () => api.get<{ trips: Trip[] }>('/trips') })
 
-export const useItinerary = () =>
+export const useTrip = (tripId: string) =>
   useQuery({
-    queryKey: ['itinerary'],
-    queryFn: () => api.get<{ items: ItineraryItem[] }>('/itinerary'),
+    queryKey: ['trip', tripId],
+    queryFn: () => api.get<TripBundle>(`/trips/${tripId}`),
+  })
+
+export const useItinerary = (tripId: string) =>
+  useQuery({
+    queryKey: ['itinerary', tripId],
+    queryFn: () => api.get<{ items: ItineraryItem[] }>(`/trips/${tripId}/itinerary`),
   })
 
 export const useZone = (zoneId: string) =>
@@ -44,16 +51,16 @@ export const usePlace = (placeId: string) =>
     enabled: placeId !== '', // PlaceForm in add mode has no place to fetch
   })
 
-export const useShoppingList = () =>
+export const useShoppingList = (tripId: string) =>
   useQuery({
-    queryKey: ['shopping'],
-    queryFn: () => api.get<{ items: ShoppingItem[] }>('/shopping'),
+    queryKey: ['shopping', tripId],
+    queryFn: () => api.get<{ items: ShoppingItem[] }>(`/trips/${tripId}/shopping`),
   })
 
-export const useTripFiles = () =>
+export const useTripFiles = (tripId: string) =>
   useQuery({
-    queryKey: ['trip-files'],
-    queryFn: () => api.get<{ files: TripDocument[] }>('/files'),
+    queryKey: ['trip-files', tripId],
+    queryFn: () => api.get<{ files: TripDocument[] }>(`/trips/${tripId}/files`),
   })
 
 export const useRates = () =>
@@ -74,10 +81,10 @@ export const geocode = (query: string, bias?: { lat: number; lng: number }) => {
   return api.get<{ results: GeocodeResult[] }>(`/geocode?${params}`)
 }
 
-export const useReminders = () =>
+export const useReminders = (tripId: string) =>
   useQuery({
-    queryKey: ['reminders'],
-    queryFn: () => api.get<{ reminders: Reminder[] }>('/reminders'),
+    queryKey: ['reminders', tripId],
+    queryFn: () => api.get<{ reminders: Reminder[] }>(`/trips/${tripId}/reminders`),
   })
 
 // null public_key = the server has no VAPID keys yet, so notifications can't
@@ -110,8 +117,7 @@ export const fetchTranslation = (text: string) =>
   api.get<Translation>(`/translate?q=${encodeURIComponent(text)}`)
 
 /** Kana, kanji or full-width punctuation — mirrors the server's check. */
-export const containsJapanese = (text: string) =>
-  /[぀-ゟ゠-ヿ㐀-䶿一-鿿＀-ﾟ]/.test(text)
+export const containsJapanese = (text: string) => /[぀-ゟ゠-ヿ㐀-䶿一-鿿＀-ﾟ]/.test(text)
 
 export const useSearch = (query: string) =>
   useQuery({

@@ -7,10 +7,12 @@ import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
 import { ZoneImage } from '../components/ZoneImage'
 import { useCanEdit } from '../lib/session'
+import { useTripId } from '../lib/trip'
 
 export default function CategoryList() {
   const { zoneId = '', category = '' } = useParams()
   const canEdit = useCanEdit()
+  const tripId = useTripId()
   const cat = category as Category
   const zone = useZone(zoneId)
   const { data, isPending, isError, refetch } = useZonePlaces(zoneId, cat)
@@ -21,7 +23,7 @@ export default function CategoryList() {
 
   return (
     <div>
-      <Link to={`/zones/${zoneId}`} className="text-sm font-semibold text-muted">
+      <Link to={`/trips/${tripId}/zones/${zoneId}`} className="text-sm font-semibold text-muted">
         ‹ {zone.data?.zone.name ?? 'Zone'}
       </Link>
       <div className="m-0 mt-2 flex items-center justify-between">
@@ -31,7 +33,7 @@ export default function CategoryList() {
         </h1>
         {canEdit && (
           <Link
-            to={`/zones/${zoneId}/places/new?category=${cat}`}
+            to={`/trips/${tripId}/zones/${zoneId}/places/new?category=${cat}`}
             className="text-sm font-bold text-brand"
           >
             + Add
@@ -46,7 +48,7 @@ export default function CategoryList() {
           {data.places.map((p) => (
             <li key={p.id}>
               <Link
-                to={`/places/${p.id}`}
+                to={`/trips/${tripId}/places/${p.id}`}
                 className="card flex items-stretch gap-3 overflow-hidden active:scale-[0.99]"
               >
                 <ZoneImage

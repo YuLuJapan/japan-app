@@ -28,15 +28,16 @@ interface Props {
   items: ItineraryItem[]
   /** City this day belongs to; new items are tagged with it. */
   zoneId?: string | null
+  tripId: string
 }
 
-export function DayPlan({ day, items, zoneId = null }: Props) {
+export function DayPlan({ day, items, zoneId = null, tripId }: Props) {
   const canEdit = useCanEdit()
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  const create = useCreateItineraryItem()
+  const create = useCreateItineraryItem(tripId)
   const update = useUpdateItineraryItem()
   const remove = useDeleteItineraryItem()
 
@@ -89,7 +90,7 @@ export function DayPlan({ day, items, zoneId = null }: Props) {
                   {item.note && <p className="mt-0.5 text-sm text-muted">{item.note}</p>}
                   {item.place_id && (
                     <Link
-                      to={`/places/${item.place_id}`}
+                      to={`/trips/${tripId}/places/${item.place_id}`}
                       className="mt-1 inline-block text-xs font-bold text-brand"
                     >
                       View place ↗

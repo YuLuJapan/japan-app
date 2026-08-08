@@ -79,10 +79,10 @@ async function resolveZoneId(
   return created.id
 }
 
-export async function createStep(store: DataStore, input: StepFields) {
+export async function createStep(store: DataStore, input: StepFields, tripId?: string) {
   const errors = collectErrors(input, false)
   if (errors.length) throw validation(errors)
-  const trip = await getDefaultTrip(store)
+  const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
   const zoneId = await resolveZoneId(store, input.zone_id, input.destination)
   const steps = await store.listSteps(trip.id)

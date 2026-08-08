@@ -207,3 +207,35 @@ describe('DELETE /api/steps/:stepId', () => {
     expect(res.status).toBe(404)
   })
 })
+
+describe('POST /api/trips/:tripId/steps', () => {
+  it('creates the step under the given trip, not the legacy default trip', async () => {
+    const trip2 = await auth(request(app).post('/api/trips')).send({
+      name: 'Dolomites',
+      start_date: '2027-02-06',
+      end_date: '2027-02-14',
+    })
+    const tripId = trip2.body.trip.id
+
+    const res = await auth(request(app).post(`/api/trips/${tripId}/steps`)).send({
+      zone_id: 'zone-tokyo',
+      start_date: '2027-02-07',
+      end_date: '2027-02-10',
+    })
+    expect(res.status).toBe(201)
+    expect(res.body.step.trip_id).toBe(tripId)
+
+    // trip-1's steps are untouched
+    const trip = await auth(request(app).get('/api/trip'))
+    expect(trip.body.steps.map((s: { id: string }) => s.id)).toEqual(['step-1', 'step-2'])
+  })
+
+  it('404s for an unknown trip', async () => {
+    const res = await auth(request(app).post('/api/trips/nope/steps')).send({
+      zone_id: 'zone-tokyo',
+      start_date: '2027-02-07',
+      end_date: '2027-02-10',
+    })
+    expect(res.status).toBe(404)
+  })
+})

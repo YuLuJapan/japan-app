@@ -51,9 +51,9 @@ describe('PlaceDetail delete flow (FR-017)', () => {
       files: [],
     })
     mocks.delete.mockResolvedValue(undefined)
-    renderAt('/places/p1', [
-      { path: '/places/:placeId', element: <PlaceDetail /> },
-      { path: '/zones/:zoneId/c/:category', element: <p>list</p> },
+    renderAt('/trips/trip-1/places/p1', [
+      { path: '/trips/:tripId/places/:placeId', element: <PlaceDetail /> },
+      { path: '/trips/:tripId/zones/:zoneId/c/:category', element: <p>list</p> },
     ])
 
     await userEvent.click(await screen.findByRole('button', { name: 'Delete' }))
@@ -72,8 +72,8 @@ describe('PlaceDetail delete flow (FR-017)', () => {
 describe('PlaceForm failure path (FR-019)', () => {
   it('keeps the entered text and offers retry when the save fails', async () => {
     mocks.post.mockRejectedValue(new Error('offline'))
-    renderAt('/zones/z1/places/new', [
-      { path: '/zones/:zoneId/places/new', element: <PlaceForm /> },
+    renderAt('/trips/trip-1/zones/z1/places/new', [
+      { path: '/trips/:tripId/zones/:zoneId/places/new', element: <PlaceForm /> },
     ])
 
     const name = screen.getByLabelText('Name *')

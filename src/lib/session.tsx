@@ -7,7 +7,8 @@
 // load-bearing for safety; it exists so a guest is never shown a button that
 // would just fail.
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { api, getStoredRole, setStoredRole, type Role } from '../api/client'
+import { api, getStoredRole, setAccessCode, setStoredRole, type Role } from '../api/client'
+import { getSupabaseClient } from './supabaseClient'
 
 // Read-only is the safe default for anything rendered outside a provider.
 const RoleContext = createContext<Role>('guest')
@@ -33,6 +34,20 @@ export function RoleProvider({
   fallback?: ReactNode
 }) {
   const [role, setRole] = useState<Role | null>(getStoredRole)
+
+  // A signed-in owner's bearer token is a Supabase JWT (~1h lifetime); keep
+  // the copy api/client.ts sends in sync as supabase-js rotates it, so a
+  // long-lived tab never starts sending a stale token.
+  useEffect(() => {
+    const supabase = getSupabaseClient()
+    if (!supabase) return
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) setAccessCode(session.access_token)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   useEffect(() => {
     let cancelled = false

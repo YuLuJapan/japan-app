@@ -8,7 +8,7 @@ authRouter.post(
   '/auth/verify',
   asyncHandler(async (req, res) => {
     const { code } = (req.body ?? {}) as { code?: string }
-    const role = typeof code === 'string' ? roleForToken(code.trim()) : null
+    const role = typeof code === 'string' ? await roleForToken(code.trim()) : null
     if (!role) {
       throw new ApiError(401, 'UNAUTHORIZED', 'Wrong access code')
     }

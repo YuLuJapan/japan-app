@@ -40,14 +40,17 @@ const reminder = {
 
 function stubApi(reminders: unknown[]) {
   mocks.get.mockImplementation((path: string) => {
-    if (path === '/reminders') return Promise.resolve({ reminders })
+    if (path === '/trips/trip-1/reminders') return Promise.resolve({ reminders })
     if (path === '/push/key') return Promise.resolve({ public_key: null })
     return Promise.reject(new Error(`unexpected GET ${path}`))
   })
   mocks.post.mockResolvedValue({ reminder })
 }
 
-const render = () => renderAt('/reminders', [{ path: '/reminders', element: <Reminders /> }])
+const render = () =>
+  renderAt('/trips/trip-1/reminders', [
+    { path: '/trips/:tripId/reminders', element: <Reminders /> },
+  ])
 
 describe('Reminders page', () => {
   it('lists an upcoming reminder in the zone it was set in', async () => {
@@ -85,7 +88,7 @@ describe('Reminders page', () => {
     await user.click(screen.getByRole('button', { name: /add reminder/i }))
 
     await waitFor(() => expect(mocks.post).toHaveBeenCalled())
-    expect(mocks.post).toHaveBeenCalledWith('/reminders', {
+    expect(mocks.post).toHaveBeenCalledWith('/trips/trip-1/reminders', {
       title: 'Book the sushi place for 20 September',
       body: null,
       url: null,
@@ -102,7 +105,7 @@ describe('Reminders page', () => {
     await user.click(screen.getByRole('button', { name: /add reminder/i }))
 
     await waitFor(() => expect(mocks.post).toHaveBeenCalled())
-    expect(mocks.post).toHaveBeenCalledWith('/reminders', {
+    expect(mocks.post).toHaveBeenCalledWith('/trips/trip-1/reminders', {
       title: 'Book the bus seats',
       body: null,
       url: null,

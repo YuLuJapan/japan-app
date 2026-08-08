@@ -6,12 +6,14 @@ import { useCreateItineraryItem } from '../api/mutations'
 import type { Place } from '../api/types'
 import { enumerateDays, fmtDayLong, zoneDays } from '../lib/schedule'
 import { useCanEdit } from '../lib/session'
+import { useTripId } from '../lib/trip'
 
 export function AddPlaceToDay({ place }: { place: Place }) {
   const canEdit = useCanEdit()
-  const trip = useTrip()
-  const itinerary = useItinerary()
-  const create = useCreateItineraryItem()
+  const tripId = useTripId()
+  const trip = useTrip(tripId)
+  const itinerary = useItinerary(tripId)
+  const create = useCreateItineraryItem(tripId)
   const [open, setOpen] = useState(false)
   const [day, setDay] = useState('')
   const [time, setTime] = useState('')

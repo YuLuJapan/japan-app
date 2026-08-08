@@ -67,10 +67,10 @@ const shoppingItem = {
 /** One mock for every query the shopping screens make. */
 function mockShoppingApi() {
   mocks.get.mockImplementation((path: string) => {
-    if (path === '/shopping') return Promise.resolve({ items: [shoppingItem] })
+    if (path === '/trips/trip-1/shopping') return Promise.resolve({ items: [shoppingItem] })
     if (path === '/rates')
       return Promise.resolve({ base: 'JPY', date: '2026-08-01', usd: 0.0067, ils: 0.025 })
-    if (path === '/trip')
+    if (path === '/trips/trip-1')
       return Promise.resolve({
         trip: {
           id: 'trip-1',
@@ -78,6 +78,7 @@ function mockShoppingApi() {
           start_date: '2026-09-19',
           end_date: '2026-10-16',
           description: null,
+          people: [],
         },
         steps: [],
       })
@@ -88,7 +89,11 @@ function mockShoppingApi() {
 describe('guest view — places', () => {
   it('shows a place and its tips without edit, delete or files', async () => {
     mocks.get.mockResolvedValue(place)
-    renderAt('/places/p1', [{ path: '/places/:placeId', element: <PlaceDetail /> }], guest)
+    renderAt(
+      '/trips/trip-1/places/p1',
+      [{ path: '/trips/:tripId/places/:placeId', element: <PlaceDetail /> }],
+      guest
+    )
 
     // everything worth reading is still there
     expect(await screen.findByText('Fushimi Inari')).toBeInTheDocument()
@@ -106,7 +111,9 @@ describe('guest view — places', () => {
 
   it('still offers edit and files to the travelers', async () => {
     mocks.get.mockResolvedValue(place)
-    renderAt('/places/p1', [{ path: '/places/:placeId', element: <PlaceDetail /> }])
+    renderAt('/trips/trip-1/places/p1', [
+      { path: '/trips/:tripId/places/:placeId', element: <PlaceDetail /> },
+    ])
 
     expect(await screen.findByRole('link', { name: 'Edit' })).toBeInTheDocument()
     // more than one: the page's button plus the confirm dialog's
@@ -118,7 +125,11 @@ describe('guest view — places', () => {
 describe('guest view — zones', () => {
   it('browses a zone without the add-place or files sections', async () => {
     mocks.get.mockResolvedValue(zone)
-    renderAt('/zones/zone-1', [{ path: '/zones/:zoneId', element: <Zone /> }], guest)
+    renderAt(
+      '/trips/trip-1/zones/zone-1',
+      [{ path: '/trips/:tripId/zones/:zoneId', element: <Zone /> }],
+      guest
+    )
 
     expect(await screen.findByText('Tokyo')).toBeInTheDocument()
     expect(screen.getByTestId('category-attraction')).toBeInTheDocument()
@@ -131,8 +142,8 @@ describe('guest view — zones', () => {
   it('drops the "+ Add" link on a category list', async () => {
     mocks.get.mockResolvedValue({ places: [], zone: zone.zone })
     renderAt(
-      '/zones/zone-1/c/food',
-      [{ path: '/zones/:zoneId/c/:category', element: <CategoryList /> }],
+      '/trips/trip-1/zones/zone-1/c/food',
+      [{ path: '/trips/:tripId/zones/:zoneId/c/:category', element: <CategoryList /> }],
       guest
     )
 
@@ -144,7 +155,11 @@ describe('guest view — zones', () => {
 describe('guest view — shopping', () => {
   it('reads the list without adding or ticking items off', async () => {
     mockShoppingApi()
-    renderAt('/shopping', [{ path: '/shopping', element: <ShoppingList /> }], guest)
+    renderAt(
+      '/trips/trip-1/shopping',
+      [{ path: '/trips/:tripId/shopping', element: <ShoppingList /> }],
+      guest
+    )
 
     expect(await screen.findByText('Onitsuka Tiger Mexico 66')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: '+ Add' })).not.toBeInTheDocument()
@@ -156,8 +171,8 @@ describe('guest view — shopping', () => {
   it('reads an item without the bought / edit / delete actions', async () => {
     mockShoppingApi()
     renderAt(
-      '/shopping/buy-1',
-      [{ path: '/shopping/:itemId', element: <ShoppingItemDetail /> }],
+      '/trips/trip-1/shopping/buy-1',
+      [{ path: '/trips/:tripId/shopping/:itemId', element: <ShoppingItemDetail /> }],
       guest
     )
 
@@ -171,7 +186,11 @@ describe('guest view — shopping', () => {
 
 describe('guest view — navigation', () => {
   it('has no Documents tab and says it is view-only', () => {
-    renderAt('/', [{ path: '/', element: <Layout>content</Layout> }], guest)
+    renderAt(
+      '/trips/trip-1',
+      [{ path: '/trips/:tripId', element: <Layout>content</Layout> }],
+      guest
+    )
 
     expect(screen.queryByRole('link', { name: /Documents/ })).not.toBeInTheDocument()
     expect(screen.getByText('Guest · view only')).toBeInTheDocument()
@@ -182,7 +201,7 @@ describe('guest view — navigation', () => {
   })
 
   it('keeps the Documents tab for the travelers', () => {
-    renderAt('/', [{ path: '/', element: <Layout>content</Layout> }])
+    renderAt('/trips/trip-1', [{ path: '/trips/:tripId', element: <Layout>content</Layout> }])
 
     expect(screen.getByRole('link', { name: /Documents/ })).toBeInTheDocument()
     expect(screen.queryByText('Guest · view only')).not.toBeInTheDocument()
@@ -191,7 +210,7 @@ describe('guest view — navigation', () => {
 
 describe('signing out', () => {
   const routes = [
-    { path: '/', element: <Layout>content</Layout> },
+    { path: '/trips/:tripId', element: <Layout>content</Layout> },
     { path: '/gate', element: <p>gate screen</p> },
   ]
 
@@ -200,7 +219,7 @@ describe('signing out', () => {
   it('lets a guest drop the code and go back to the gate to enter another', async () => {
     localStorage.setItem('trip_access_code', 'guest-code')
     localStorage.setItem('trip_role', 'guest')
-    renderAt('/', routes, guest)
+    renderAt('/trips/trip-1', routes, guest)
 
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     // confirmed, not instant — the header button is easy to catch by accident
@@ -217,7 +236,7 @@ describe('signing out', () => {
 
   it('keeps the session when the confirmation is cancelled', async () => {
     localStorage.setItem('trip_access_code', 'guest-code')
-    renderAt('/', routes, guest)
+    renderAt('/trips/trip-1', routes, guest)
 
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -228,7 +247,7 @@ describe('signing out', () => {
 
   it('is offered to the travelers too', async () => {
     localStorage.setItem('trip_access_code', 'owner-code')
-    renderAt('/', routes)
+    renderAt('/trips/trip-1', routes)
 
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     expect(screen.getByText(/need the access code to get back in/)).toBeInTheDocument()

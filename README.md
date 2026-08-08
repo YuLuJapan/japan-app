@@ -42,6 +42,15 @@ Both rules live in `authMiddleware` (`server/src/lib/auth.ts`), ahead of every r
 
 Leave `TRIP_GUEST_CODE` unset and there is no guest view — the app behaves exactly as before.
 
+## Owner sign-in (email magic-link)
+
+The two travelers can also sign in with their real email instead of typing the shared code — "Continue with email" on the gate screen sends a Supabase Auth magic link; clicking it signs the browser in as `owner`. `TRIP_ACCESS_CODE` keeps working too (a "Use an access code instead" link on the gate), so there are two independent doors in for the two of you — useful if email delivery ever has a hiccup.
+
+- **Who counts as an owner** is a plain allow-list: `TRIP_OWNER_EMAILS` (comma-separated) in `.env.local`. A real, successfully verified sign-in whose email isn't on that list buys no role at all — there is no "guest via real account." Guests only ever use `TRIP_GUEST_CODE`, unchanged by any of this.
+- **Setup**: needs `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY` (server) and `VITE_SUPABASE_URL` + `VITE_SUPABASE_PUBLISHABLE_KEY` (frontend, same project — the publishable key is safe to ship to the browser). See `.env.example`. This works independent of `DATA_BACKEND`: Supabase Auth is a property of the Supabase project, not of which datastore the app is reading trip data from. The project's Auth → URL Configuration also needs the app's URL(s) added to the redirect allow-list.
+- **Google / Apple ID** buttons are visible on the gate but disabled — they need OAuth credentials (Google Cloud, Apple Developer) that only an account owner can create. A manual follow-up, not code.
+- Verification happens server-side in `server/src/lib/auth.ts` / `server/src/lib/supabaseAuth.ts`: a bearer token is tried against the two static codes first, and only if neither matches is it verified as a Supabase JWT.
+
 ## Editing the trip content
 
 - **In the app**: add/edit/delete places and tips from any screen. In the deployed app these persist (Supabase); running locally on the memory store they last until the server restarts.

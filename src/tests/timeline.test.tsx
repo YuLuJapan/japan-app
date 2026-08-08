@@ -25,7 +25,7 @@ const steps: TripStep[] = [
 const renderSlider = (today: Date) =>
   render(
     <MemoryRouter>
-      <JourneyStepsSlider steps={steps} today={today} />
+      <JourneyStepsSlider steps={steps} today={today} tripId="trip-1" />
     </MemoryRouter>
   )
 
@@ -37,7 +37,7 @@ describe('JourneyStepsSlider (US2)', () => {
     expect(links[0]).toHaveTextContent('Tokyo')
     expect(links[1]).toHaveTextContent('Kyoto')
     expect(links[0]).toHaveTextContent('Oct 5')
-    expect(links[0]).toHaveAttribute('href', '/zones/z1')
+    expect(links[0]).toHaveAttribute('href', '/trips/trip-1/zones/z1')
   })
 
   it('highlights the current step when today is inside its dates (FR-006)', () => {
