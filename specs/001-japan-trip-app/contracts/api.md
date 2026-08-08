@@ -38,9 +38,22 @@ The role of the code this client is already holding. Lets a session that predate
 
 ## Trip & journey
 
-### GET /api/trip
+**Multi-trip (2026-08-08 addition):** the app now supports more than one trip — `GET /api/trips` lists them, `POST /api/trips` creates one, and `GET/PATCH/DELETE /api/trips/:tripId` operate on a specific trip. `people` is a free-text array of traveller names on the trip itself (not linked accounts — there is no per-trip membership/sharing model yet). `GET /api/trip` (singular, no id) is kept as a **legacy alias** for `GET /api/trips/:tripId` on whichever trip is oldest, so the pre-multi-trip UI keeps working; new code should call the plural routes. Journey steps, itinerary, shopping, reminders and file upload are **not yet trip-scoped in their routes** — they still operate on that same oldest trip regardless of how many trips exist, until the UI can actually switch between trips (tracked as a follow-up; trip CRUD itself has no such limitation).
 
-The whole journey skeleton in one call — powers the Journey (home) view and offline-ish caching (one query serves SC-002/SC-006).
+### GET /api/trips
+
+List every trip, oldest first (powers the "Where to next?" trips list).
+
+- 200: `{"trips": [{"id":"…","name":"…","start_date":"…","end_date":"…","description":"…","people":["Yuval","Luciana"]}]}`
+
+### POST /api/trips
+
+- Request: `{"name":"…","start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","description?":"…","people?":["…"]}`
+- 201: `{"trip": {…}}` · 400 `VALIDATION` (missing/blank name, bad dates, end before start, name/description/people too long, more than 12 people).
+
+### GET /api/trips/:tripId
+
+The whole journey skeleton for one trip — powers the Journey (home) view and offline-ish caching (one query serves SC-002/SC-006). `GET /api/trip` (no id) is the legacy equivalent for the oldest trip.
 
 - 200:
 
@@ -51,7 +64,8 @@ The whole journey skeleton in one call — powers the Journey (home) view and of
     "name": "Japan 2026",
     "start_date": "2026-10-05",
     "end_date": "2026-10-24",
-    "description": "…"
+    "description": "…",
+    "people": ["Yuval", "Luciana"]
   },
   "steps": [
     {
@@ -92,6 +106,17 @@ The whole journey skeleton in one call — powers the Journey (home) view and of
 
 - Current/past/future step status is **computed client-side** from device date (FR-006).
 - `flight` is trip-level metadata held in code (`server/src/lib/flight.ts`), not the DB, so the booking reference is only served behind auth. `outbound.depart_at` is the countdown target; the `*_tz` fields are IANA zones so ticket times render the same on a phone set to Israel or to Japan.
+
+### PATCH /api/trips/:tripId
+
+- Request: any subset of `{"name","start_date","end_date","description","people"}`.
+- 200: `{"trip": {…updated…}}` · 400 `VALIDATION` · 404 unknown trip.
+
+### DELETE /api/trips/:tripId
+
+Hard delete. Cascades to the trip's journey steps, itinerary items, shopping items, reminders and files (zones/places are a shared catalog and are not deleted).
+
+- 204 · 404.
 
 ## Journey steps
 
@@ -283,7 +308,7 @@ Japanese → English, for product names read off Japanese shop pages and for any
 
 ### GET /api/files
 
-Trip-level files (US4 AC3).
+All documents attached to the (legacy, oldest) trip: files on the trip itself, plus files on any zone/place visited by one of its journey steps (US4 AC3).
 
 - 200: `{"files":[{"id":"…","display_name":"…","mime_type":"…","size_bytes":123}]}`
 

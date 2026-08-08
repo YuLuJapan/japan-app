@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { DataStore, FileAttachment } from '../lib/datastore.js'
+import { getDefaultTrip } from '../lib/datastore.js'
 import { ApiError, notFound, validation } from '../lib/errors.js'
 
 const MAX_BYTES = 3 * 1024 * 1024 // 3 MB — stays under Vercel's request-body limit once base64-encoded
@@ -35,9 +36,9 @@ export function downloadName(file: FileAttachment) {
 }
 
 export async function listTripDocuments(store: DataStore) {
-  const trip = await store.getTrip()
+  const trip = await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
-  const files = await store.listAllFiles()
+  const files = await store.listAllFiles(trip.id)
 
   const zoneNames = new Map<string, string>()
   const placeNames = new Map<string, string>()
@@ -111,7 +112,7 @@ export async function createFile(store: DataStore, body: UploadBody) {
   if (bytes.length > MAX_BYTES)
     throw validation([`file is too large (max ${Math.round(MAX_BYTES / 1024 / 1024)} MB)`])
 
-  const trip = await store.getTrip()
+  const trip = await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
 
   const input = {

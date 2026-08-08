@@ -1,13 +1,14 @@
 // Day-by-day itinerary: a flat list of activities the client groups by day.
 // GET returns every item for the trip; the client maps each day to its city.
 import type { DataStore, ItineraryItemInput } from '../lib/datastore.js'
+import { getDefaultTrip } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
 export async function listItinerary(store: DataStore) {
-  const trip = await store.getTrip()
+  const trip = await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
   const items = await store.listItinerary(trip.id)
   return { items }
@@ -38,7 +39,7 @@ function collectErrors(input: Partial<ItineraryItemInput>, partial: boolean): st
 export async function createItineraryItem(store: DataStore, input: ItineraryItemInput) {
   const errors = collectErrors(input, false)
   if (errors.length) throw validation(errors)
-  const trip = await store.getTrip()
+  const trip = await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
   if (input.zone_id) {
     const zone = await store.getZone(input.zone_id)

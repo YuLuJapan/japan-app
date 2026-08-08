@@ -3,6 +3,7 @@
 // time agree on when it fires; `time_zone` only records which wall clock the
 // user typed, for display.
 import type { DataStore, Reminder, ReminderInput } from '../lib/datastore.js'
+import { getDefaultTrip } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
 import { sendPush, type PushSender } from '../lib/push.js'
 
@@ -76,7 +77,7 @@ function normalize(input: Partial<ReminderInput>): Partial<ReminderInput> {
 }
 
 async function requireTripId(store: DataStore): Promise<string> {
-  const trip = await store.getTrip()
+  const trip = await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
   return trip.id
 }

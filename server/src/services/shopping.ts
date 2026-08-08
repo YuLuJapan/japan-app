@@ -1,7 +1,7 @@
 // Shopping list: the things we want to buy in Japan — what it is, where to buy
 // it, what it should cost, a photo, and whether it's been bought.
 import type { DataStore, ShoppingCategory, ShoppingItemInput } from '../lib/datastore.js'
-import { SHOPPING_CATEGORIES } from '../lib/datastore.js'
+import { SHOPPING_CATEGORIES, getDefaultTrip } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
 import { findImageUrl } from './images.js'
 
@@ -9,7 +9,7 @@ const MAX_PRICE_YEN = 10_000_000
 const isHttpUrl = (u: string) => /^https?:\/\/.+/.test(u)
 
 export async function listShoppingItems(store: DataStore) {
-  const trip = await store.getTrip()
+  const trip = await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
   const items = await store.listShoppingItems(trip.id)
   return { items }
@@ -66,7 +66,7 @@ function clean(input: Partial<ShoppingItemInput>): Partial<ShoppingItemInput> {
 export async function createShoppingItem(store: DataStore, input: ShoppingItemInput) {
   const errors = collectShoppingErrors(input, false)
   if (errors.length) throw validation(errors)
-  const trip = await store.getTrip()
+  const trip = await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
   if (input.zone_id) {
     if (!(await store.getZone(input.zone_id))) throw notFound('Zone')
