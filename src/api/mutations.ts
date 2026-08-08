@@ -49,24 +49,6 @@ export function useUpdatePlace(placeId: string) {
   })
 }
 
-// Attach or clear a place's map coordinates (the "locate"/"unpin" actions).
-// Not bound to a single id like useUpdatePlace, so the map can (un)pin any place.
-export function useSetPlaceCoords(zoneId: string) {
-  const invalidate = usePlaceInvalidation()
-  return useMutation({
-    mutationFn: ({
-      placeId,
-      lat,
-      lng,
-    }: {
-      placeId: string
-      lat: number | null
-      lng: number | null
-    }) => api.patch<{ place: Place }>(`/places/${placeId}`, { lat, lng }),
-    onSuccess: (data) => invalidate(zoneId, data.place.id),
-  })
-}
-
 export function useDeletePlace(zoneId: string | undefined) {
   const invalidate = usePlaceInvalidation()
   const qc = useQueryClient()

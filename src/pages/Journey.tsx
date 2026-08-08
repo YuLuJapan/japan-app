@@ -1,13 +1,11 @@
 import { Link } from 'react-router-dom'
 import { useItinerary, useTrip } from '../api/hooks'
-import type { MapCity } from '../components/TripMap'
 import { CountdownWidget } from '../components/CountdownWidget'
 import { ErrorState } from '../components/ErrorState'
-import { JourneyStepsSlider, stepStatus } from '../components/JourneyStepsSlider'
+import { JourneyStepsSlider } from '../components/JourneyStepsSlider'
 import { Loading } from '../components/Loading'
 import { Schedule } from '../components/Schedule'
 import { SushiSequence } from '../components/SushiSequence'
-import { TripMap } from '../components/TripMap'
 import { enumerateDays, toISODate } from '../lib/schedule'
 import { useCanEdit } from '../lib/session'
 
@@ -22,23 +20,7 @@ export default function Journey() {
   if (isPending) return <Loading label="Loading the journey…" />
   if (isError) return <ErrorState message="Could not load the trip." onRetry={() => refetch()} />
 
-  // One pin per city, numbered by first visit; mark the city of the current stop.
   const today = new Date()
-  const cities: MapCity[] = []
-  const seen = new Set<string>()
-  data.steps.forEach((step) => {
-    const z = step.zone
-    if (!z || z.lat == null || z.lng == null || seen.has(z.id)) return
-    seen.add(z.id)
-    cities.push({
-      id: z.id,
-      name: z.name,
-      lat: z.lat,
-      lng: z.lng,
-      order: cities.length + 1,
-      current: stepStatus(step, today) === 'current',
-    })
-  })
 
   return (
     <div className="space-y-6">
@@ -48,10 +30,6 @@ export default function Journey() {
       />
 
       {data.flight && <CountdownWidget flight={data.flight} />}
-
-      <div className="h-64 overflow-hidden rounded-3xl shadow-card ring-1 ring-line">
-        <TripMap cities={cities} />
-      </div>
 
       <div>
         <div className="mb-3 flex items-baseline justify-between">

@@ -47,16 +47,3 @@
     scrollbar-width: none;
   }
 }
-
-/* Custom map pin marker (see TripMap) */
-.trip-pin {
-  background: transparent;
-  border: none;
-}
-
-/* Leaflet gives its panes/controls z-index 400–1000, which would otherwise sit
-   above the app chrome (header/bottom nav are z-20) and paint the map over it.
-   Isolating the map container keeps those z-indexes inside the map. */
-.leaflet-container {
-  isolation: isolate;
-}
