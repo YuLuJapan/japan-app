@@ -1,27 +1,28 @@
 import type { Config } from 'tailwindcss'
 
-// Modern, vibrant travel-app palette: warm coral primary, sunset gradient,
-// clean off-white canvas, near-black ink. (Redesigned 2026-07-11.)
+// Palette + type matched to the Onward design prototype (design/Onward Trip
+// App.dc.html): rice-paper canvas, nori ink, tuna-coral accent. (Matched to
+// the prototype 2026-08-08 — see chat1.md for the design reasoning.)
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        canvas: '#f6f7f9',
-        ink: '#161a22',
-        muted: '#6b7280',
-        line: '#e7e9ee',
+        canvas: '#FAF8F5',
+        ink: '#17150F',
+        muted: '#7A756B',
+        line: '#EFEAE2',
         brand: {
-          DEFAULT: '#ff5a4d',
-          400: '#ff8a7d',
-          600: '#f0392a',
-          700: '#d92c1e',
+          DEFAULT: '#F1543F',
+          400: '#F9873F',
+          600: '#E3402F',
+          700: '#C0392B',
         },
-        sun: '#ff9d3c',
+        sun: '#F9873F',
         ocean: '#2bb6c4',
       },
       fontFamily: {
-        display: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        display: ['"Bricolage Grotesque"', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
         body: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
       },
       boxShadow: {

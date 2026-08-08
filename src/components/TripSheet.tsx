@@ -43,7 +43,7 @@ const fmtPreview = (iso: string) => {
 }
 
 function avatarBg(name: string): string {
-  const palette = ['#ff5a4d', '#161a22', '#6e8248', '#4c6273', '#b07a62', '#8a5fa8']
+  const palette = ['#F1543F', '#17150F', '#6E8248', '#4C6273', '#B07A62', '#8A5FA8']
   let h = 0
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 997
   return palette[h % palette.length]
