@@ -1,11 +1,14 @@
 {
-  "trip": {
-    "id": "trip-japan",
-    "name": "Yuval & Luciana in Japan",
-    "start_date": "2026-09-19",
-    "end_date": "2026-10-16",
-    "description": "Honeymoon. 27 nights, Tokyo → Hakone → Fuji → Matsumoto → Takayama → Kanazawa → Kyoto → Osaka → Atami/Izu → Tokyo. Ground rules for this itinerary: one timed anchor per day, never two. Start time varies with what actually opens that day, but never later than 10:00. Nothing scheduled after 20:00. Travel days count as light days, not as free days to fill."
-  },
+  "trips": [
+    {
+      "id": "trip-japan",
+      "name": "Yuval & Luciana in Japan",
+      "start_date": "2026-09-19",
+      "end_date": "2026-10-16",
+      "description": "Honeymoon. 27 nights, Tokyo → Hakone → Fuji → Matsumoto → Takayama → Kanazawa → Kyoto → Osaka → Atami/Izu → Tokyo. Ground rules for this itinerary: one timed anchor per day, never two. Start time varies with what actually opens that day, but never later than 10:00. Nothing scheduled after 20:00. Travel days count as light days, not as free days to fill.",
+      "people": ["Yuval", "Luciana"]
+    }
+  ],
   "steps": [
     {
       "id": "step-0",

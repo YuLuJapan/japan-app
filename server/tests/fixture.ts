@@ -5,16 +5,33 @@ export const TEST_CODE = 'test-code'
 
 export function fixture(): MemoryData {
   return {
-    trip: {
-      id: 'trip-1',
-      name: 'Test Trip',
-      start_date: '2026-10-05',
-      end_date: '2026-10-12',
-      description: null,
-    },
+    trips: [
+      {
+        id: 'trip-1',
+        name: 'Test Trip',
+        start_date: '2026-10-05',
+        end_date: '2026-10-12',
+        description: null,
+        people: ['Alex', 'Sam'],
+      },
+    ],
     steps: [
-      { id: 'step-2', trip_id: 'trip-1', zone_id: 'zone-kyoto', position: 2, start_date: '2026-10-09', end_date: '2026-10-12' },
-      { id: 'step-1', trip_id: 'trip-1', zone_id: 'zone-tokyo', position: 1, start_date: '2026-10-05', end_date: '2026-10-09' },
+      {
+        id: 'step-2',
+        trip_id: 'trip-1',
+        zone_id: 'zone-kyoto',
+        position: 2,
+        start_date: '2026-10-09',
+        end_date: '2026-10-12',
+      },
+      {
+        id: 'step-1',
+        trip_id: 'trip-1',
+        zone_id: 'zone-tokyo',
+        position: 1,
+        start_date: '2026-10-05',
+        end_date: '2026-10-09',
+      },
     ],
     zones: [
       { id: 'zone-tokyo', name: 'Tokyo', name_ja: '東京', summary: 'Big city' },
@@ -27,7 +44,8 @@ export function fixture(): MemoryData {
         category: 'food',
         name: 'Ramen Bar',
         name_ja: null,
-        description: 'A very long description that should be trimmed into a summary line for lists, exceeding one hundred characters in total length for the test.',
+        description:
+          'A very long description that should be trimmed into a summary line for lists, exceeding one hundred characters in total length for the test.',
         address: 'Shinjuku',
         links: [{ label: 'Site', url: 'https://example.com' }],
       },
