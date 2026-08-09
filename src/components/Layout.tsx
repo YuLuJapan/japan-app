@@ -8,16 +8,56 @@ import { useTripId } from '../lib/trip'
 import { RingMark } from './RingMark'
 import { SignOutButton } from './SignOutButton'
 
-// The design prototype's bottom nav has no icons — just a small pill (active)
-// or dot (inactive) above a text label.
-function TabIndicator({ active }: { active: boolean }) {
+type IconName = 'journey' | 'shopping' | 'reminders' | 'essentials' | 'docs'
+
+// The prototype's bottom nav skips icons entirely, but icon + label reads
+// faster on a five-tab strip than a dot/pill — kept quiet (thin, muted line
+// icons) so it doesn't turn back into a busy bar, colored brand-coral only
+// on the active tab.
+function TabIcon({ name, active }: { name: IconName; active: boolean }) {
+  const common = {
+    width: 22,
+    height: 22,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: active ? '#F1543F' : '#A29C90',
+    strokeWidth: 1.75,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  }
+  if (name === 'journey')
+    return (
+      <svg {...common}>
+        <path d="M12 21s-7-6.3-7-11a7 7 0 0 1 14 0c0 4.7-7 11-7 11Z" />
+        <circle cx="12" cy="10" r="2.5" />
+      </svg>
+    )
+  if (name === 'shopping')
+    return (
+      <svg {...common}>
+        <path d="M4 8h16l-1.2 11a2 2 0 0 1-2 1.8H7.2a2 2 0 0 1-2-1.8L4 8Z" />
+        <path d="M9 11V6a3 3 0 0 1 6 0v5" />
+      </svg>
+    )
+  if (name === 'reminders')
+    return (
+      <svg {...common}>
+        <path d="M18 8a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6" />
+        <path d="M10.5 20a2 2 0 0 0 3 0" />
+      </svg>
+    )
+  if (name === 'essentials')
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 8h.01M11 12h1v4h1" />
+      </svg>
+    )
   return (
-    <span
-      aria-hidden
-      className={`block rounded-full transition-all ${
-        active ? 'h-[7px] w-[18px] bg-brand' : 'h-[7px] w-[7px] bg-[#DCD5C9]'
-      }`}
-    />
+    <svg {...common}>
+      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+      <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z" />
+    </svg>
   )
 }
 
@@ -73,22 +113,28 @@ export function Layout({ children }: { children: ReactNode }) {
   // Five tabs share a 360px phone, so the labels stay tight — otherwise
   // "Reminders"/"Essentials"/"Documents" run into each other. The guest view
   // drops Documents and gets by with four.
-  const tab = (to: string, label: string, active: boolean, dot: boolean = false) => (
+  const tab = (
+    to: string,
+    name: IconName,
+    label: string,
+    active: boolean,
+    dot: boolean = false
+  ) => (
     <Link
       to={to}
-      className="flex min-h-14 flex-1 flex-col items-center justify-center gap-[7px] px-0.5"
+      className="flex min-h-14 flex-1 flex-col items-center justify-center gap-1 px-0.5"
     >
       <span className="relative inline-flex">
-        <TabIndicator active={active} />
+        <TabIcon name={name} active={active} />
         {dot && (
           <span
             aria-label="Unread reminder"
-            className="absolute -right-2 -top-1.5 h-2 w-2 rounded-full bg-brand ring-2 ring-canvas"
+            className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-canvas"
           />
         )}
       </span>
       <span
-        className={`text-[10px] tracking-tight ${active ? 'font-bold text-ink' : 'font-medium text-muted'}`}
+        className={`text-[10px] tracking-tight ${active ? 'font-bold text-brand' : 'font-medium text-muted'}`}
       >
         {label}
       </span>
@@ -138,11 +184,11 @@ export function Layout({ children }: { children: ReactNode }) {
       <main className="flex-1 px-5 pb-28 pt-1">{children}</main>
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-canvas/95 backdrop-blur">
         <div className="mx-auto flex max-w-app px-4 py-1.5">
-          {tab(base, 'Journey', journeyActive)}
-          {tab(`${base}/shopping`, 'Shopping', shoppingActive)}
-          {tab(`${base}/reminders`, 'Reminders', remindersActive, unseenReminder)}
-          {tab(`${base}/essentials`, 'Essentials', essentialsActive)}
-          {canEdit && tab(`${base}/files`, 'Documents', docsActive)}
+          {tab(base, 'journey', 'Journey', journeyActive)}
+          {tab(`${base}/shopping`, 'shopping', 'Shopping', shoppingActive)}
+          {tab(`${base}/reminders`, 'reminders', 'Reminders', remindersActive, unseenReminder)}
+          {tab(`${base}/essentials`, 'essentials', 'Essentials', essentialsActive)}
+          {canEdit && tab(`${base}/files`, 'docs', 'Documents', docsActive)}
         </div>
       </nav>
     </div>
