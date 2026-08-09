@@ -9,10 +9,10 @@ export function fixture(): MemoryData {
       {
         id: 'trip-1',
         name: 'Test Trip',
-        start_date: '2026-10-05',
-        end_date: '2026-10-12',
+        start_date: '2026-10-01',
+        end_date: '2026-10-14',
         description: null,
-        people: ['Alex', 'Sam'],
+        people: [{ name: 'Alex' }, { name: 'Sam' }],
       },
     ],
     steps: [

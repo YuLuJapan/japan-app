@@ -44,7 +44,7 @@ export default function Journey() {
       ) : (
         <div>
           <p className="section-title text-brand">Our trip</p>
-          <h1 className="mt-1 font-display text-3xl font-extrabold tracking-tight">
+          <h1 className="mt-1 font-display text-[34px] font-extrabold leading-[1.05] tracking-tight">
             {data.trip.name}
           </h1>
           <p className="mt-1.5 text-sm text-muted">
@@ -63,7 +63,7 @@ export default function Journey() {
         <>
           <div>
             <div className="mb-3 flex items-baseline justify-between">
-              <h2 className="font-display text-lg font-extrabold">The journey</h2>
+              <h2 className="font-display text-2xl font-bold tracking-tight">The journey</h2>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-muted">swipe →</span>
                 {canEdit && (
@@ -80,7 +80,7 @@ export default function Journey() {
           </div>
 
           <section>
-            <h2 className="mb-3 font-display text-lg font-extrabold">Day by day</h2>
+            <h2 className="mb-3 font-display text-2xl font-bold tracking-tight">Day by day</h2>
             {itinerary.isPending ? (
               <Loading label="Loading the schedule…" />
             ) : itinerary.isError ? (

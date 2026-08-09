@@ -55,6 +55,7 @@ export default function JourneySteps() {
             <li key={step.id} className="rounded-2xl border border-line bg-white p-3">
               <DestinationForm
                 initial={step}
+                tripRange={{ start: trip.data.trip.start_date, end: trip.data.trip.end_date }}
                 pending={update.isPending}
                 error={update.isError}
                 submitLabel="Save"
@@ -105,6 +106,7 @@ export default function JourneySteps() {
       {adding ? (
         <div className="rounded-2xl border border-line bg-white p-3">
           <DestinationForm
+            tripRange={{ start: trip.data.trip.start_date, end: trip.data.trip.end_date }}
             pending={create.isPending}
             error={create.isError}
             submitLabel="Add"
@@ -135,6 +137,7 @@ export default function JourneySteps() {
 
 function DestinationForm({
   initial,
+  tripRange,
   pending,
   error,
   submitLabel,
@@ -142,6 +145,7 @@ function DestinationForm({
   onCancel,
 }: {
   initial?: TripStep
+  tripRange: { start: string; end: string }
   pending: boolean
   error: boolean
   submitLabel: string
@@ -237,6 +241,8 @@ function DestinationForm({
           type="date"
           className="field flex-1"
           value={startDate}
+          min={tripRange.start}
+          max={tripRange.end}
           onChange={(e) => setStartDate(e.target.value)}
           aria-label="Start date"
         />
@@ -244,10 +250,15 @@ function DestinationForm({
           type="date"
           className="field flex-1"
           value={endDate}
+          min={tripRange.start}
+          max={tripRange.end}
           onChange={(e) => setEndDate(e.target.value)}
           aria-label="End date"
         />
       </div>
+      <p className="text-xs text-muted">
+        Stops must fall within the trip's dates ({fmt(tripRange.start)} – {fmt(tripRange.end)}).
+      </p>
       {destinationTouched && !selected && (
         <p className="text-xs text-muted">
           Pick a place from the suggestions to confirm it's real.

@@ -58,6 +58,20 @@ describe('POST /api/steps', () => {
     )
     expect(res.status).toBe(404)
   })
+
+  it("400 VALIDATION when the step's dates fall outside the trip's own dates", async () => {
+    // fixture trip-1 runs 2026-10-01 → 2026-10-14
+    const res = await auth(
+      request(app).post('/api/steps').send({
+        zone_id: 'zone-kyoto',
+        start_date: '2026-09-28',
+        end_date: '2026-10-02',
+      })
+    )
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('VALIDATION')
+    expect(res.body.error.details.some((d: string) => d.includes('start_date'))).toBe(true)
+  })
 })
 
 describe('POST /api/steps with a free-text destination', () => {
@@ -169,6 +183,14 @@ describe('PATCH /api/steps/:stepId', () => {
       request(app).patch('/api/steps/step-nope').send({ end_date: '2026-10-06' })
     )
     expect(res.status).toBe(404)
+  })
+
+  it("400 VALIDATION when a patched date would fall outside the trip's own dates", async () => {
+    const res = await auth(
+      request(app).patch('/api/steps/step-1').send({ end_date: '2026-10-20' })
+    )
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('VALIDATION')
   })
 
   it('404 for unknown zone', async () => {

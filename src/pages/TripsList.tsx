@@ -71,12 +71,12 @@ function TripCard({ trip, onEdit }: { trip: Trip; onEdit: () => void }) {
           <div className="mt-2 flex items-center gap-1.5">
             {trip.people.slice(0, 4).map((p, i) => (
               <span
-                key={`${p}-${i}`}
+                key={`${p.name}-${i}`}
                 className="flex h-[22px] w-[22px] items-center justify-center rounded-full text-[10px] font-bold text-white"
-                style={{ background: avatarBg(p) }}
+                style={{ background: avatarBg(p.name) }}
                 aria-hidden
               >
-                {p[0]?.toUpperCase()}
+                {p.name[0]?.toUpperCase()}
               </span>
             ))}
           </div>

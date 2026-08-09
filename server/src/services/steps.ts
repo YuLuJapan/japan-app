@@ -60,6 +60,22 @@ function collectErrors(input: StepFields, partial: boolean): string[] {
   return errors
 }
 
+/** A step's dates must fall inside the trip's own dates — no stop before it starts or after it ends. */
+function collectRangeErrors(
+  startDate: string,
+  endDate: string,
+  trip: { start_date: string; end_date: string }
+): string[] {
+  const errors: string[] = []
+  if (startDate < trip.start_date || startDate > trip.end_date) {
+    errors.push(`start_date must fall within the trip's dates (${trip.start_date} – ${trip.end_date})`)
+  }
+  if (endDate < trip.start_date || endDate > trip.end_date) {
+    errors.push(`end_date must fall within the trip's dates (${trip.start_date} – ${trip.end_date})`)
+  }
+  return errors
+}
+
 /** Resolve a zone_id or free-text destination to a zone id, creating the zone if needed. */
 async function resolveZoneId(
   store: DataStore,
@@ -84,6 +100,8 @@ export async function createStep(store: DataStore, input: StepFields, tripId?: s
   if (errors.length) throw validation(errors)
   const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
+  const rangeErrors = collectRangeErrors(input.start_date!, input.end_date!, trip)
+  if (rangeErrors.length) throw validation(rangeErrors)
   const zoneId = await resolveZoneId(store, input.zone_id, input.destination)
   const steps = await store.listSteps(trip.id)
   const nextPosition = steps.reduce((max, s) => Math.max(max, s.position), 0) + 1
@@ -106,6 +124,11 @@ export async function updateStep(store: DataStore, stepId: string, patch: StepFi
   const mergedStart = patch.start_date ?? existing.start_date
   const mergedEnd = patch.end_date ?? existing.end_date
   if (mergedEnd < mergedStart) throw validation(['end_date must be on or after start_date'])
+
+  const trip = await store.getTrip(existing.trip_id)
+  if (!trip) throw notFound('Trip')
+  const rangeErrors = collectRangeErrors(mergedStart, mergedEnd, trip)
+  if (rangeErrors.length) throw validation(rangeErrors)
 
   const zoneId =
     patch.zone_id || patch.destination

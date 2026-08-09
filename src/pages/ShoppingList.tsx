@@ -47,7 +47,9 @@ export default function ShoppingList() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="section-title text-brand">Shopping</p>
-          <h1 className="mt-1 font-display text-2xl font-extrabold">Things to buy</h1>
+          <h1 className="mt-1 font-display text-[34px] font-extrabold leading-[1.05] tracking-tight">
+            Things to buy
+          </h1>
           <p className="mt-1 text-sm text-muted">
             {items.length === 0
               ? 'Nothing on the list yet.'

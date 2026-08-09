@@ -23,14 +23,20 @@ export const CATEGORY_META: Record<
   other: { label: 'More', singular: 'Place', icon: '📍', color: 'bg-emerald-100 text-emerald-700' },
 }
 
+/** A free-text traveller on a trip — not a linked account. `email` is optional and only
+ *  ever used to open a mailto: invite; there is no per-traveller login or delivered email. */
+export interface Traveller {
+  name: string
+  email?: string
+}
+
 export interface Trip {
   id: string
   name: string
   start_date: string
   end_date: string
   description: string | null
-  /** Free-text traveller names for this trip (not linked accounts). */
-  people: string[]
+  people: Traveller[]
 }
 
 export interface TripInput {
@@ -38,7 +44,7 @@ export interface TripInput {
   start_date: string
   end_date: string
   description?: string | null
-  people?: string[]
+  people?: Traveller[]
 }
 
 export interface ZoneSummary {

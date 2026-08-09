@@ -51,8 +51,11 @@ export default function Reminders() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="font-display text-2xl font-extrabold">Reminders</h1>
-        <p className="mt-1 text-sm text-muted">
+        <p className="section-title text-brand">Reminders</p>
+        <h1 className="mt-1 font-display text-[34px] font-extrabold leading-[1.05] tracking-tight">
+          Don&apos;t forget
+        </h1>
+        <p className="mt-1.5 text-sm text-muted">
           {canEdit
             ? "Get a notification when it's time to book a restaurant, a bus seat or an activity."
             : 'What Yuval & Luciana have lined up to book or sort out.'}

@@ -38,18 +38,20 @@ The role of the code this client is already holding. Lets a session that predate
 
 ## Trip & journey
 
-**Multi-trip (2026-08-08 addition):** the app now supports more than one trip — `GET /api/trips` lists them, `POST /api/trips` creates one, and `GET/PATCH/DELETE /api/trips/:tripId` operate on a specific trip. `people` is a free-text array of traveller names on the trip itself (not linked accounts — there is no per-trip membership/sharing model yet). `GET /api/trip` (singular, no id) is kept as a **legacy alias** for `GET /api/trips/:tripId` on whichever trip is oldest, so the pre-multi-trip UI keeps working; new code should call the plural routes. Journey steps, itinerary, shopping, reminders and file upload are **not yet trip-scoped in their routes** — they still operate on that same oldest trip regardless of how many trips exist, until the UI can actually switch between trips (tracked as a follow-up; trip CRUD itself has no such limitation).
+**Multi-trip (2026-08-08 addition):** the app now supports more than one trip — `GET /api/trips` lists them, `POST /api/trips` creates one, and `GET/PATCH/DELETE /api/trips/:tripId` operate on a specific trip. `people` is a free-text array of travellers on the trip itself (not linked accounts — there is no per-trip membership/sharing model, login, or delivered email; `email` is optional and only ever used client-side to open a `mailto:` invite). `GET /api/trip` (singular, no id) is kept as a **legacy alias** for `GET /api/trips/:tripId` on whichever trip is oldest, so the pre-multi-trip UI keeps working; new code should call the plural routes. Journey steps, itinerary, shopping, reminders and file upload are **not yet trip-scoped in their routes** — they still operate on that same oldest trip regardless of how many trips exist, until the UI can actually switch between trips (tracked as a follow-up; trip CRUD itself has no such limitation).
+
+**Traveller shape (2026-08-09 addition):** each entry in `people` is `{"name":"…","email?":"…"}`. A plain string is also accepted on write (normalized to `{"name": "…"}`) for backward compatibility with older clients and rows written before this change; the response always uses the object form.
 
 ### GET /api/trips
 
 List every trip, oldest first (powers the "Where to next?" trips list).
 
-- 200: `{"trips": [{"id":"…","name":"…","start_date":"…","end_date":"…","description":"…","people":["Yuval","Luciana"]}]}`
+- 200: `{"trips": [{"id":"…","name":"…","start_date":"…","end_date":"…","description":"…","people":[{"name":"Yuval"},{"name":"Luciana","email":"luciana@example.com"}]}]}`
 
 ### POST /api/trips
 
-- Request: `{"name":"…","start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","description?":"…","people?":["…"]}`
-- 201: `{"trip": {…}}` · 400 `VALIDATION` (missing/blank name, bad dates, end before start, name/description/people too long, more than 12 people).
+- Request: `{"name":"…","start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","description?":"…","people?":[{"name":"…","email?":"…"} | "…"]}`
+- 201: `{"trip": {…}}` · 400 `VALIDATION` (missing/blank name, bad dates, end before start, name/description too long, more than 12 travellers, a traveller missing a name, a traveller name too long, or an `email` that isn't a valid address).
 
 ### GET /api/trips/:tripId
 
@@ -65,7 +67,7 @@ The whole journey skeleton for one trip — powers the Journey (home) view and o
     "start_date": "2026-10-05",
     "end_date": "2026-10-24",
     "description": "…",
-    "people": ["Yuval", "Luciana"]
+    "people": [{ "name": "Yuval" }, { "name": "Luciana", "email": "luciana@example.com" }]
   },
   "steps": [
     {
@@ -124,15 +126,17 @@ Self-service editing of the trip schedule (which destinations, over what dates).
 
 A destination is given either as an existing `zone_id` or as free-text `destination` (the name + coordinates of a real place, e.g. from a geocoder-backed autocomplete on the client — see `GET /api/geocode`). Exactly one of the two is required on create. When `destination` is given, the server reuses an existing zone whose name matches (case-insensitive); otherwise it creates a new zone from the destination's name/lat/lng.
 
+A step's `start_date`/`end_date` must both fall within its trip's own `start_date`/`end_date` — no stop before the trip starts or after it ends.
+
 ### POST /api/steps
 
 - Request: `{"start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","zone_id":"…"} | {"start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","destination":{"name":"…","address?":"…","lat":n,"lng":n}}`
-- 201: `{"step": {"id":"…","trip_id":"…","zone_id":"…","position":n,"start_date":"…","end_date":"…"}}` · 400 `VALIDATION` (missing zone_id/destination, bad dates, end before start, bad destination name/lat/lng) · 404 unknown zone (when `zone_id` given).
+- 201: `{"step": {"id":"…","trip_id":"…","zone_id":"…","position":n,"start_date":"…","end_date":"…"}}` · 400 `VALIDATION` (missing zone_id/destination, bad dates, end before start, dates outside the trip's own range, bad destination name/lat/lng) · 404 unknown zone (when `zone_id` given).
 - **Trip-scoped (2026-08-08 addition):** `POST /api/trips/:tripId/steps` is the same route pointed at a specific trip instead of the legacy default (oldest) trip — same request/response shape.
 
 ### PATCH /api/steps/:stepId
 
-- Request: any subset of `{"zone_id","destination","start_date","end_date"}`. Dates are cross-checked against the merged (existing + patched) values, so patching just one date still enforces end ≥ start.
+- Request: any subset of `{"zone_id","destination","start_date","end_date"}`. Dates are cross-checked against the merged (existing + patched) values, so patching just one date still enforces end ≥ start and both within the trip's own range.
 - 200: `{"step": {…updated…}}` · 400 `VALIDATION` · 404 unknown step or zone.
 
 ### DELETE /api/steps/:stepId

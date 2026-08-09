@@ -45,7 +45,6 @@ export async function geocodeSearch(
     q,
     limit: '6',
     addressdetails: '0',
-    countrycodes: 'jp',
   })
   if (bias) {
     // ~0.6° box around the city so nearby matches rank first (bounded=0 still
