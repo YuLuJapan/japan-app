@@ -71,6 +71,10 @@ function inviteHref(email: string, tripName: string): string {
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 
+/** Nights in a stay — how the journey already counts a stop's length. */
+const nightsBetween = (start: string, end: string) =>
+  Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000)
+
 /** A packed trip can strand dozens of activities — list a readable slice. */
 const LIST_MAX = 12
 /** Above this, say out loud what moving them all onto one day costs. */
@@ -138,20 +142,41 @@ function StrandedPanel({
           <p className="text-sm font-bold text-brand-700">
             {plural(steps.length, 'stop falls', 'stops fall')} outside the new dates
           </p>
-          <ul className="mt-1 space-y-0.5">
-            {steps.map((s) => (
-              <li key={s.id} className="text-xs text-muted">
-                <span className="font-semibold text-ink">{s.zone_name ?? 'Unknown stop'}</span>{' '}
-                {fmtPreview(s.start_date)} – {fmtPreview(s.end_date)}
-              </li>
-            ))}
+          <ul className="mt-1 space-y-1">
+            {steps.map((s) => {
+              const was = nightsBetween(s.start_date, s.end_date)
+              const now = nightsBetween(s.moves_to.start_date, s.moves_to.end_date)
+              return (
+                <li key={s.id} className="text-xs text-muted">
+                  <span className="font-semibold text-ink">{s.zone_name ?? 'Unknown stop'}</span>{' '}
+                  {fmtPreview(s.start_date)} – {fmtPreview(s.end_date)}
+                  <br />
+                  <span aria-hidden>↳ </span>
+                  <span className="font-semibold text-ink">
+                    {fmtPreview(s.moves_to.start_date)} – {fmtPreview(s.moves_to.end_date)}
+                  </span>
+                  {now < was && (
+                    <span className="font-semibold text-brand-700">
+                      {' '}
+                      · shortened to {plural(now, 'night', 'nights')} (was {was})
+                    </span>
+                  )}
+                </li>
+              )
+            })}
           </ul>
           <p className="mt-2 text-xs text-muted">
             {steps.length === 1 ? 'It moves' : 'They move'} to the first day
-            {firstDay && ` · ${fmtPreview(firstDay)}`}, keeping{' '}
-            {steps.length === 1 ? 'its length' : 'their lengths'}
-            {steps.length > 1 && ', so they land on top of each other'}. Re-space them on the
-            journey editor afterwards.
+            {firstDay && ` · ${fmtPreview(firstDay)}`}
+            {steps.some(
+              (s) =>
+                nightsBetween(s.moves_to.start_date, s.moves_to.end_date) <
+                nightsBetween(s.start_date, s.end_date)
+            )
+              ? ', clipped where the trip is no longer long enough to hold the stay'
+              : `, keeping ${steps.length === 1 ? 'its length' : 'their lengths'}`}
+            {steps.length > 1 && ', so they land on top of each other'}. Re-space
+            {steps.length === 1 ? ' it' : ' them'} on the journey editor afterwards.
           </p>
         </div>
       )}

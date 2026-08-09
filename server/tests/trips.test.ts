@@ -159,6 +159,12 @@ describe('trips', () => {
     // step-1 (10-05 → 10-09) starts before the new range; step-2 (10-09 → 10-12) fits
     expect(res.body.steps.map((s: { id: string }) => s.id)).toEqual(['step-1'])
     expect(res.body.steps[0].zone_name).toBe('Tokyo')
+    // The dry run says where the stop would land, so the sheet can show the
+    // real outcome instead of promising the stay survives intact.
+    expect(res.body.steps[0].moves_to).toEqual({
+      start_date: '2026-10-07',
+      end_date: '2026-10-11', // Tokyo's 4 nights still fit
+    })
     // both fixture activities sit on 2026-10-06
     expect(res.body.items.map((i: { id: string }) => i.id).sort()).toEqual([
       'itin-ramen',
@@ -208,6 +214,15 @@ describe('trips', () => {
     for (const s of trip.body.steps) {
       expect(s.start_date >= '2026-10-07' && s.end_date <= '2026-10-14').toBe(true)
     }
+  })
+
+  it('reports the clipped landing spot up front for a stay the trip cannot hold', async () => {
+    // step-1 Tokyo is 4 nights; the new trip is 2 days long.
+    const res = await request(app)
+      .get('/api/trips/trip-1/date-impact?start_date=2026-10-13&end_date=2026-10-14')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+    const tokyo = res.body.steps.find((s: { id: string }) => s.id === 'step-1')
+    expect(tokyo.moves_to).toEqual({ start_date: '2026-10-13', end_date: '2026-10-14' })
   })
 
   it('clips a stop that no longer fits rather than letting it hang off the end', async () => {

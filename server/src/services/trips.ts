@@ -200,6 +200,10 @@ export async function getDateImpact(
       start_date: s.start_date,
       end_date: s.end_date,
       zone_name: zoneNames[i],
+      // Where `stranded_stops: "move"` would put it. Sent so the client shows
+      // the actual outcome — including a stay clipped short by a trip that no
+      // longer has room for it — rather than re-deriving the rule and drifting.
+      moves_to: movedStepDates(s, range),
     })),
     items: stranded.items.map((i) => ({
       id: i.id,

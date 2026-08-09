@@ -118,7 +118,15 @@ describe('TripSheet date changes that strand activities', () => {
     const user = userEvent.setup()
     mocks.get.mockResolvedValue({
       ...IMPACT,
-      steps: [{ id: 's1', start_date: '2027-03-05', end_date: '2027-03-08', zone_name: 'Sintra' }],
+      steps: [
+        {
+          id: 's1',
+          start_date: '2027-03-05',
+          end_date: '2027-03-08',
+          zone_name: 'Sintra',
+          moves_to: { start_date: '2027-03-01', end_date: '2027-03-04' },
+        },
+      ],
       items: [],
     })
     renderSheet({ mode: 'edit', trip: TRIP })
@@ -141,11 +149,46 @@ describe('TripSheet date changes that strand activities', () => {
     expect(mocks.patch.mock.calls[0][1].stranded_activities).toBeUndefined()
   })
 
+  it('says a stop is shortened rather than claiming it keeps its length', async () => {
+    const user = userEvent.setup()
+    mocks.get.mockResolvedValue({
+      range: { start_date: '2027-03-01', end_date: '2027-03-02' },
+      // A 4-night stay on what is now a 2-day trip: it cannot survive intact.
+      steps: [
+        {
+          id: 's1',
+          start_date: '2027-03-01',
+          end_date: '2027-03-05',
+          zone_name: 'Porto',
+          moves_to: { start_date: '2027-03-01', end_date: '2027-03-02' },
+        },
+      ],
+      items: [],
+    })
+    renderSheet({ mode: 'edit', trip: TRIP })
+
+    await shortenEndDate(user)
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await screen.findByText(/1 stop falls outside/i)
+
+    expect(screen.getByText(/shortened to 1 night \(was 4\)/i)).toBeInTheDocument()
+    expect(screen.getByText(/clipped where the trip is no longer long enough/i)).toBeInTheDocument()
+    expect(screen.queryByText(/keeping its length/i)).not.toBeInTheDocument()
+  })
+
   it('resolves stops and activities in one save', async () => {
     const user = userEvent.setup()
     mocks.get.mockResolvedValue({
       ...IMPACT,
-      steps: [{ id: 's1', start_date: '2027-03-05', end_date: '2027-03-08', zone_name: 'Sintra' }],
+      steps: [
+        {
+          id: 's1',
+          start_date: '2027-03-05',
+          end_date: '2027-03-08',
+          zone_name: 'Sintra',
+          moves_to: { start_date: '2027-03-01', end_date: '2027-03-04' },
+        },
+      ],
     })
     renderSheet({ mode: 'edit', trip: TRIP })
 

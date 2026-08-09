@@ -50,8 +50,14 @@ export interface TripInput {
 /** What a date change would leave outside the trip (GET /trips/:id/date-impact). */
 export interface TripDateImpact {
   range: { start_date: string; end_date: string }
-  /** Stops cannot be auto-resolved — they are fixed on the journey editor. */
-  steps: { id: string; start_date: string; end_date: string; zone_name: string | null }[]
+  steps: {
+    id: string
+    start_date: string
+    end_date: string
+    zone_name: string | null
+    /** Where `stranded_stops: 'move'` would put it — clipped if the trip is now too short. */
+    moves_to: { start_date: string; end_date: string }
+  }[]
   items: {
     id: string
     day: string
