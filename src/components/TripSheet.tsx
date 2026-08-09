@@ -71,6 +71,11 @@ function inviteHref(email: string, tripName: string): string {
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 
+/** A packed trip can strand dozens of activities — list a readable slice. */
+const LIST_MAX = 12
+/** Above this, say out loud what moving them all onto one day costs. */
+const CROWD_WARN = 5
+
 function submitLabel({
   pending,
   checking,
@@ -101,7 +106,8 @@ function submitLabel({
  * moving them onto the trip's first day — the default, since it keeps the plan
  * — or deleting them. Stranded stops have no such choice: they are shown as
  * blocking, because a stop is a date range tied to a city and only the journey
- * editor can sensibly change one.
+ * editor can sensibly change one. When a stop blocks, the activity choice is
+ * withheld rather than shown dead — the save is not one tap away.
  */
 function StrandedPanel({
   impact,
@@ -147,41 +153,61 @@ function StrandedPanel({
               Show {items.length === 1 ? 'it' : 'them'}
             </summary>
             <ul className="mt-1 space-y-0.5">
-              {items.map((i) => (
+              {items.slice(0, LIST_MAX).map((i) => (
                 <li key={i.id} className="text-xs text-muted">
                   <span className="font-semibold text-ink">{i.title}</span> · {fmtPreview(i.day)}
                   {i.start_time ? ` · ${i.start_time}` : ''}
                 </li>
               ))}
+              {items.length > LIST_MAX && (
+                <li className="text-xs font-semibold text-muted">
+                  + {items.length - LIST_MAX} more
+                </li>
+              )}
             </ul>
           </details>
 
-          <fieldset className="mt-3">
-            <legend className="sr-only">What should happen to them?</legend>
-            <label className="flex items-start gap-2 py-1 text-sm">
-              <input
-                type="radio"
-                name="stranded-activities"
-                className="mt-1"
-                checked={resolution === 'move'}
-                onChange={() => onResolution('move')}
-              />
-              <span>
-                Move to the first day
-                {firstDay && <span className="text-muted"> · {fmtPreview(firstDay)}</span>}
-              </span>
-            </label>
-            <label className="flex items-start gap-2 py-1 text-sm">
-              <input
-                type="radio"
-                name="stranded-activities"
-                className="mt-1"
-                checked={resolution === 'delete'}
-                onChange={() => onResolution('delete')}
-              />
-              <span>Delete {items.length === 1 ? 'it' : 'them'}</span>
-            </label>
-          </fieldset>
+          {/* No choice to offer while a stop blocks the whole change — asking
+              would imply the save is one tap away when it is not. */}
+          {steps.length > 0 ? (
+            <p className="mt-2 text-xs text-muted">
+              You'll be asked what to do with {items.length === 1 ? 'it' : 'them'} once the stops
+              fit.
+            </p>
+          ) : (
+            <fieldset className="mt-3">
+              <legend className="sr-only">What should happen to them?</legend>
+              <label className="flex items-start gap-2 py-1 text-sm">
+                <input
+                  type="radio"
+                  name="stranded-activities"
+                  className="mt-1"
+                  checked={resolution === 'move'}
+                  onChange={() => onResolution('move')}
+                />
+                <span>
+                  Move to the first day
+                  {firstDay && <span className="text-muted"> · {fmtPreview(firstDay)}</span>}
+                </span>
+              </label>
+              <label className="flex items-start gap-2 py-1 text-sm">
+                <input
+                  type="radio"
+                  name="stranded-activities"
+                  className="mt-1"
+                  checked={resolution === 'delete'}
+                  onChange={() => onResolution('delete')}
+                />
+                <span>Delete {items.length === 1 ? 'it' : 'them'}</span>
+              </label>
+              {items.length > CROWD_WARN && resolution === 'move' && (
+                <p className="mt-1 text-xs text-muted">
+                  That stacks {items.length} activities onto one day, and their original days are
+                  not kept.
+                </p>
+              )}
+            </fieldset>
+          )}
         </div>
       )}
     </div>

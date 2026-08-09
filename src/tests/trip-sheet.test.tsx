@@ -132,6 +132,47 @@ describe('TripSheet date changes that strand activities', () => {
     expect(mocks.patch).not.toHaveBeenCalled()
   })
 
+  it('withholds the activity choice while a stop blocks the change', async () => {
+    const user = userEvent.setup()
+    mocks.get.mockResolvedValue({
+      ...IMPACT,
+      steps: [{ id: 's1', start_date: '2027-03-05', end_date: '2027-03-08', zone_name: 'Sintra' }],
+    })
+    renderSheet({ mode: 'edit', trip: TRIP })
+
+    await shortenEndDate(user)
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await screen.findByText(/1 stop falls outside/i)
+
+    // The stranded activities are still named…
+    expect(screen.getByText(/2 activities fall outside/i)).toBeInTheDocument()
+    // …but offering a choice would imply the save is one tap away. It is not.
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+    expect(screen.getByText(/once the stops fit/i)).toBeInTheDocument()
+  })
+
+  it('says what moving a crowd of activities onto one day costs', async () => {
+    const user = userEvent.setup()
+    const many = Array.from({ length: 9 }, (_, i) => ({
+      id: `i${i}`,
+      day: '2027-03-06',
+      start_time: null,
+      title: `Activity ${i}`,
+      highlight: false,
+    }))
+    mocks.get.mockResolvedValue({ ...IMPACT, items: many })
+    renderSheet({ mode: 'edit', trip: TRIP })
+
+    await shortenEndDate(user)
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await screen.findByText(/9 activities fall outside/i)
+
+    expect(screen.getByText(/stacks 9 activities onto one day/i)).toBeInTheDocument()
+    // Deleting them carries no such warning.
+    await user.click(screen.getByRole('radio', { name: /Delete them/ }))
+    expect(screen.queryByText(/stacks 9 activities/i)).not.toBeInTheDocument()
+  })
+
   it('re-checks after the dates are edited again', async () => {
     const user = userEvent.setup()
     mocks.get.mockResolvedValue(IMPACT)
