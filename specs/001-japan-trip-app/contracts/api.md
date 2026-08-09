@@ -111,9 +111,23 @@ The whole journey skeleton for one trip — powers the Journey (home) view and o
 
 ### PATCH /api/trips/:tripId
 
-- Request: any subset of `{"name","start_date","end_date","description","people"}`.
-- 200: `{"trip": {…updated…}}` · 400 `VALIDATION` · 404 unknown trip.
-- Changing the dates is rejected when the new range would strand what is already planned inside the old one — a journey step or an itinerary day outside it. The `details` name the conflicting stop dates / activity days so the client can say what to move first. This is the mirror of the rule steps and itinerary items enforce on the way in: the trip's dates always contain everything planned on it.
+- Request: any subset of `{"name","start_date","end_date","description","people"}`, plus optional `"stranded_activities": "move" | "delete"` (see below).
+- 200: `{"trip": {…updated…}[, "moved": ["…item ids…"]][, "deleted": ["…item ids…"]]}` · 400 `VALIDATION` · 404 unknown trip.
+
+Changing the dates can strand what is already planned inside the old range — the mirror of the rule steps and itinerary items enforce on the way in: **the trip's dates always contain everything planned on it**. The two kinds of conflict resolve differently:
+
+- **A journey step outside the new range is always a 400.** A stop is a date range tied to a city; there is no sensible day to move it to and deleting one rearranges the journey, so it is fixed on the journey editor first. No resolution overrides this.
+- **Itinerary items outside the new range are a 400 too, unless the request says what to do with them.** `stranded_activities: "move"` re-dates each one to the trip's new `start_date` (everything else about the activity is untouched); `"delete"` removes them. The response echoes the affected ids as `moved` / `deleted`. Both are ignored when the change strands nothing.
+
+The trip row is written before the activities are moved/deleted, and the two are not in one transaction (the DataStore has none). If the second half fails, the dates are already correct and re-saving with the same choice retries it.
+
+### GET /api/trips/:tripId/date-impact?start_date=&end_date=
+
+Dry run for the above: what a date change *would* strand, so the client can list it and ask before committing. Either query param may be omitted to keep the trip's current value.
+
+- 200: `{"range":{"start_date","end_date"},"steps":[{"id","start_date","end_date","zone_name"}],"items":[{"id","day","start_time","title","highlight"}]}` — empty arrays mean the change is clean.
+- 400 `VALIDATION` (bad date, end before start) · 404 unknown trip.
+- Read-only, so guests may call it; the `PATCH` it precedes is owner-only by method.
 
 ### DELETE /api/trips/:tripId
 

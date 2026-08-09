@@ -1,7 +1,7 @@
 // Trips: the top-level "which journey is this" entity. GET /api/trips lists
 // them all (the "Where to next?" screen); GET /api/trips/:tripId returns the
 // full journey skeleton for one (steps + zones + flight + file count).
-import type { DataStore, Trip, TripInput } from '../lib/datastore.js'
+import type { DataStore, ItineraryItem, JourneyStep, Trip, TripInput } from '../lib/datastore.js'
 import { getDefaultTrip, normalizeTraveller } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
 import { FLIGHT } from '../lib/flight.js'
@@ -101,41 +101,100 @@ function collectTripErrors(input: Partial<TripInput>, partial: boolean): string[
 /**
  * Steps and activities are pinned to the trip's dates on the way in, so moving
  * or shortening those dates afterwards is the one move that could strand them.
- * Rather than silently orphaning a stop or a day plan, say what is in the way
- * and let the traveller move it first.
+ * `GET /api/trips/:tripId/date-impact` runs this before the traveller commits,
+ * so the sheet can list exactly what is in the way.
+ *
+ * Stops and activities are treated differently on purpose. An activity sits on
+ * a single day, so "move it to the first day" is a sensible offer. A stop is a
+ * date range tied to a city — there is no obvious day to move it to, and
+ * deleting one rearranges the journey itself, so those stay a hard refusal and
+ * are fixed on the journey editor.
  */
-async function collectStrandedErrors(
+async function findStranded(store: DataStore, tripId: string, range: DateRange) {
+  const [steps, items] = await Promise.all([store.listSteps(tripId), store.listItinerary(tripId)])
+  return {
+    steps: steps.filter(
+      (s) => !withinRange(s.start_date, range) || !withinRange(s.end_date, range)
+    ),
+    items: items.filter((i) => !withinRange(i.day, range)),
+  }
+}
+
+function strandedStepsError(steps: JourneyStep[], range: DateRange): string[] {
+  if (!steps.length) return []
+  const dates = steps.map((s) => `${s.start_date} – ${s.end_date}`).join(', ')
+  return [
+    steps.length === 1
+      ? `A journey stop (${dates}) falls outside ${rangeLabel(range)} — change it first`
+      : `${steps.length} journey stops (${dates}) fall outside ${rangeLabel(range)} — change them first`,
+  ]
+}
+
+function strandedItemsError(items: ItineraryItem[], range: DateRange): string[] {
+  if (!items.length) return []
+  const days = [...new Set(items.map((i) => i.day))].sort()
+  return [
+    days.length === 1
+      ? `Activities are planned on ${days[0]}, outside ${rangeLabel(range)} — move or remove them first`
+      : `Activities are planned on ${days.length} days (${days.join(', ')}) outside ${rangeLabel(range)} — move or remove them first`,
+  ]
+}
+
+/** The merged range a date patch would produce, validated. */
+async function resolveRange(
   store: DataStore,
   tripId: string,
-  range: DateRange
-): Promise<string[]> {
-  const [steps, items] = await Promise.all([store.listSteps(tripId), store.listItinerary(tripId)])
+  patch: { start_date?: string; end_date?: string }
+): Promise<DateRange> {
+  const current = await store.getTrip(tripId)
+  if (!current) throw notFound('Trip')
+  const range = {
+    start_date: patch.start_date ?? current.start_date,
+    end_date: patch.end_date ?? current.end_date,
+  }
+  if (range.end_date < range.start_date)
+    throw validation(['end_date must be on or after start_date'])
+  return range
+}
+
+/**
+ * What changing the dates to `range` would strand — asked by the trip sheet
+ * before it saves, so the traveller sees the actual stops and activities
+ * rather than a bare error, and picks what happens to them.
+ */
+export async function getDateImpact(
+  store: DataStore,
+  tripId: string,
+  query: { start_date?: string; end_date?: string }
+) {
   const errors: string[] = []
+  if (query.start_date !== undefined && !DATE_RE.test(query.start_date))
+    errors.push('start_date must be an ISO date (YYYY-MM-DD)')
+  if (query.end_date !== undefined && !DATE_RE.test(query.end_date))
+    errors.push('end_date must be an ISO date (YYYY-MM-DD)')
+  if (errors.length) throw validation(errors)
 
-  const strandedSteps = steps.filter(
-    (s) => !withinRange(s.start_date, range) || !withinRange(s.end_date, range)
+  const range = await resolveRange(store, tripId, query)
+  const stranded = await findStranded(store, tripId, range)
+  const zoneNames = await Promise.all(
+    stranded.steps.map(async (s) => (await store.getZone(s.zone_id))?.name ?? null)
   )
-  if (strandedSteps.length) {
-    const dates = strandedSteps.map((s) => `${s.start_date} – ${s.end_date}`).join(', ')
-    errors.push(
-      strandedSteps.length === 1
-        ? `A journey stop (${dates}) falls outside ${rangeLabel(range)} — change it first`
-        : `${strandedSteps.length} journey stops (${dates}) fall outside ${rangeLabel(range)} — change them first`
-    )
+  return {
+    range,
+    steps: stranded.steps.map((s, i) => ({
+      id: s.id,
+      start_date: s.start_date,
+      end_date: s.end_date,
+      zone_name: zoneNames[i],
+    })),
+    items: stranded.items.map((i) => ({
+      id: i.id,
+      day: i.day,
+      start_time: i.start_time,
+      title: i.title,
+      highlight: i.highlight,
+    })),
   }
-
-  const strandedDays = [
-    ...new Set(items.filter((i) => !withinRange(i.day, range)).map((i) => i.day)),
-  ]
-  if (strandedDays.length) {
-    const days = strandedDays.sort().join(', ')
-    errors.push(
-      strandedDays.length === 1
-        ? `Activities are planned on ${days}, outside ${rangeLabel(range)} — move or remove them first`
-        : `Activities are planned on ${strandedDays.length} days (${days}) outside ${rangeLabel(range)} — move or remove them first`
-    )
-  }
-  return errors
 }
 
 export async function createTrip(store: DataStore, input: Partial<TripInput>) {
@@ -151,30 +210,65 @@ export async function createTrip(store: DataStore, input: Partial<TripInput>) {
   return { trip }
 }
 
-export async function updateTrip(store: DataStore, tripId: string, patch: Partial<TripInput>) {
-  const errors = collectTripErrors(patch, true)
+/** What to do with activities the new dates would leave outside the trip. */
+export const STRANDED_RESOLUTIONS = ['move', 'delete'] as const
+export type StrandedResolution = (typeof STRANDED_RESOLUTIONS)[number]
+
+export interface TripPatch extends Partial<TripInput> {
+  /** Required (by the client's choice) only when the date change strands activities. */
+  stranded_activities?: StrandedResolution
+}
+
+export async function updateTrip(store: DataStore, tripId: string, patch: TripPatch) {
+  const { stranded_activities: resolution, ...fields } = patch
+  const errors = collectTripErrors(fields, true)
+  if (resolution !== undefined && !STRANDED_RESOLUTIONS.includes(resolution))
+    errors.push(`stranded_activities must be one of: ${STRANDED_RESOLUTIONS.join(', ')}`)
   if (errors.length) throw validation(errors)
 
-  if (patch.start_date !== undefined || patch.end_date !== undefined) {
-    const current = await store.getTrip(tripId)
-    if (!current) throw notFound('Trip')
-    const range = {
-      start_date: patch.start_date ?? current.start_date,
-      end_date: patch.end_date ?? current.end_date,
-    }
-    if (range.end_date < range.start_date)
-      throw validation(['end_date must be on or after start_date'])
-    const stranded = await collectStrandedErrors(store, tripId, range)
-    if (stranded.length) throw validation(stranded)
+  const datesChanged = fields.start_date !== undefined || fields.end_date !== undefined
+  let strandedItems: ItineraryItem[] = []
+  let range: DateRange | null = null
+
+  if (datesChanged) {
+    range = await resolveRange(store, tripId, fields)
+    const stranded = await findStranded(store, tripId, range)
+    // A stop can only be fixed on the journey editor — no resolution to offer.
+    const stepErrors = strandedStepsError(stranded.steps, range)
+    if (stepErrors.length) throw validation(stepErrors)
+    // Activities can be moved or dropped, but only on an explicit choice: with
+    // none, this stays the refusal it was before the sheet learned to ask.
+    if (stranded.items.length && !resolution)
+      throw validation(strandedItemsError(stranded.items, range))
+    strandedItems = stranded.items
   }
 
-  const clean: Partial<TripInput> = { ...patch }
+  const clean: Partial<TripInput> = { ...fields }
   if (clean.name !== undefined) clean.name = clean.name.trim()
   if (clean.description !== undefined) clean.description = clean.description?.trim() || null
   if (clean.people !== undefined) clean.people = cleanPeople(clean.people)
   const trip = await store.updateTrip(tripId, clean)
   if (!trip) throw notFound('Trip')
-  return { trip }
+
+  // The trip lands first, then its activities follow it. There is no
+  // transaction across the two (the DataStore has none), so the order matters:
+  // if the second half fails the dates are already correct and re-saving them
+  // with the same choice retries the move/delete.
+  const moved: string[] = []
+  const deleted: string[] = []
+  if (range && strandedItems.length && resolution) {
+    for (const item of strandedItems) {
+      if (resolution === 'delete') {
+        await store.deleteItineraryItem(item.id)
+        deleted.push(item.id)
+      } else {
+        await store.updateItineraryItem(item.id, { day: range.start_date })
+        moved.push(item.id)
+      }
+    }
+  }
+
+  return { trip, ...(moved.length && { moved }), ...(deleted.length && { deleted }) }
 }
 
 export async function deleteTrip(store: DataStore, tripId: string) {

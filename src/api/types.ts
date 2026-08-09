@@ -47,6 +47,23 @@ export interface TripInput {
   people?: Traveller[]
 }
 
+/** What a date change would leave outside the trip (GET /trips/:id/date-impact). */
+export interface TripDateImpact {
+  range: { start_date: string; end_date: string }
+  /** Stops cannot be auto-resolved — they are fixed on the journey editor. */
+  steps: { id: string; start_date: string; end_date: string; zone_name: string | null }[]
+  items: {
+    id: string
+    day: string
+    start_time: string | null
+    title: string
+    highlight: boolean
+  }[]
+}
+
+/** How to resolve stranded activities when a date change would orphan them. */
+export type StrandedResolution = 'move' | 'delete'
+
 export interface ZoneSummary {
   id: string
   name: string

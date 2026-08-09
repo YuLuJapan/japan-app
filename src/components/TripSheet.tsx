@@ -2,10 +2,16 @@
 // — rejected explicitly in the design chat), and free-text traveller names as
 // chips. Editing also offers delete, gated behind a double confirmation: a
 // warning panel, then a required reason before "Delete for good" activates.
+//
+// Shortening or moving the dates can leave activities outside the trip. Saving
+// therefore dry-runs the change first (GET /trips/:id/date-impact) and, when
+// something is in the way, lists it and asks what should happen to it before
+// anything is written.
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { tripDateImpact } from '../api/hooks'
 import { useCreateTrip, useDeleteTrip, useUpdateTrip } from '../api/mutations'
-import type { Traveller, Trip } from '../api/types'
+import type { StrandedResolution, Traveller, Trip, TripDateImpact } from '../api/types'
 import { saveErrorMessage } from '../lib/errors'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -63,6 +69,125 @@ function inviteHref(email: string, tripName: string): string {
   return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
 }
 
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+
+function submitLabel({
+  pending,
+  checking,
+  mode,
+  items,
+  blocked,
+  resolution,
+}: {
+  pending: boolean
+  checking: boolean
+  mode: 'add' | 'edit'
+  items: number
+  blocked: boolean
+  resolution: StrandedResolution
+}): string {
+  if (pending) return 'Saving…'
+  if (checking) return 'Checking the dates…'
+  if (mode === 'add') return 'Create trip'
+  if (blocked || !items) return 'Save changes'
+  return resolution === 'delete'
+    ? `Delete ${plural(items, 'activity', 'activities')} & save`
+    : `Move ${plural(items, 'activity', 'activities')} & save`
+}
+
+/**
+ * What the new dates would strand, and what to do about it. Activities are
+ * listed in a collapsed disclosure (a day plan can be long) with a choice of
+ * moving them onto the trip's first day — the default, since it keeps the plan
+ * — or deleting them. Stranded stops have no such choice: they are shown as
+ * blocking, because a stop is a date range tied to a city and only the journey
+ * editor can sensibly change one.
+ */
+function StrandedPanel({
+  impact,
+  firstDay,
+  resolution,
+  onResolution,
+}: {
+  impact: TripDateImpact
+  firstDay: string
+  resolution: StrandedResolution
+  onResolution: (r: StrandedResolution) => void
+}) {
+  const { steps, items } = impact
+  return (
+    <div className="mt-3 rounded-2xl border border-brand/30 bg-brand/5 p-3">
+      {steps.length > 0 && (
+        <div className={items.length ? 'border-b border-brand/20 pb-3' : undefined}>
+          <p className="text-sm font-bold text-brand-700">
+            {plural(steps.length, 'stop falls', 'stops fall')} outside the new dates
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {steps.map((s) => (
+              <li key={s.id} className="text-xs text-muted">
+                <span className="font-semibold text-ink">{s.zone_name ?? 'Unknown stop'}</span>{' '}
+                {fmtPreview(s.start_date)} – {fmtPreview(s.end_date)}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-muted">
+            Change {steps.length === 1 ? 'it' : 'them'} on the journey editor first — the dates
+            can't move while a stop sits outside them.
+          </p>
+        </div>
+      )}
+
+      {items.length > 0 && (
+        <div className={steps.length ? 'pt-3' : undefined}>
+          <p className="text-sm font-bold text-brand-700">
+            {plural(items.length, 'activity falls', 'activities fall')} outside the new dates
+          </p>
+          <details className="mt-1">
+            <summary className="cursor-pointer text-xs font-semibold text-muted">
+              Show {items.length === 1 ? 'it' : 'them'}
+            </summary>
+            <ul className="mt-1 space-y-0.5">
+              {items.map((i) => (
+                <li key={i.id} className="text-xs text-muted">
+                  <span className="font-semibold text-ink">{i.title}</span> · {fmtPreview(i.day)}
+                  {i.start_time ? ` · ${i.start_time}` : ''}
+                </li>
+              ))}
+            </ul>
+          </details>
+
+          <fieldset className="mt-3">
+            <legend className="sr-only">What should happen to them?</legend>
+            <label className="flex items-start gap-2 py-1 text-sm">
+              <input
+                type="radio"
+                name="stranded-activities"
+                className="mt-1"
+                checked={resolution === 'move'}
+                onChange={() => onResolution('move')}
+              />
+              <span>
+                Move to the first day
+                {firstDay && <span className="text-muted"> · {fmtPreview(firstDay)}</span>}
+              </span>
+            </label>
+            <label className="flex items-start gap-2 py-1 text-sm">
+              <input
+                type="radio"
+                name="stranded-activities"
+                className="mt-1"
+                checked={resolution === 'delete'}
+                onChange={() => onResolution('delete')}
+              />
+              <span>Delete {items.length === 1 ? 'it' : 'them'}</span>
+            </label>
+          </fieldset>
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface Props {
   mode: 'add' | 'edit' | null
   trip?: Trip
@@ -87,6 +212,10 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   const [confirm, setConfirm] = useState<0 | 1 | 2>(0)
   const [reason, setReason] = useState('')
   const [personError, setPersonError] = useState(false)
+  // What the new dates would strand, once checked; null until the traveller saves.
+  const [impact, setImpact] = useState<TripDateImpact | null>(null)
+  const [resolution, setResolution] = useState<StrandedResolution>('move')
+  const [checking, setChecking] = useState(false)
 
   useEffect(() => {
     if (!mode) return
@@ -116,6 +245,9 @@ export function TripSheet({ mode, trip, onClose }: Props) {
     setPersonError(false)
     setConfirm(0)
     setReason('')
+    setImpact(null)
+    setResolution('move')
+    setChecking(false)
   }, [mode, trip])
 
   if (!mode) return null
@@ -124,6 +256,10 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   const endDate = joinDate(ey, em, ed)
   const mutation = mode === 'edit' ? update : create
   const canSubmit = name.trim() && startDate && endDate && endDate >= startDate
+  const datesChanged =
+    mode === 'edit' && !!trip && (startDate !== trip.start_date || endDate !== trip.end_date)
+  // A stranded stop has no sensible auto-fix — the journey editor owns those.
+  const blocked = !!impact?.steps.length
 
   const addPerson = () => {
     const n = personName.trim()
@@ -139,12 +275,48 @@ export function TripSheet({ mode, trip, onClose }: Props) {
     setPersonEmail('')
   }
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!canSubmit) return
+  const save = (stranded?: StrandedResolution) => {
     const input = { name: name.trim(), start_date: startDate, end_date: endDate, people }
-    if (mode === 'edit') update.mutate(input, { onSuccess: onClose })
-    else create.mutate(input, { onSuccess: onClose })
+    if (mode !== 'edit') {
+      create.mutate(input, { onSuccess: onClose })
+      return
+    }
+    update.mutate(
+      { ...input, ...(stranded ? { stranded_activities: stranded } : {}) },
+      { onSuccess: onClose }
+    )
+  }
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!canSubmit || blocked) return
+    // Second press: the traveller has seen what is in the way and chosen.
+    if (impact) {
+      save(resolution)
+      return
+    }
+    if (!datesChanged) {
+      save()
+      return
+    }
+    setChecking(true)
+    try {
+      const found = await tripDateImpact(trip!.id, startDate, endDate)
+      if (found.steps.length || found.items.length) setImpact(found)
+      else save()
+    } catch {
+      // The dry run only exists to ask a better question. If it fails, save
+      // anyway and let the PATCH be the judge — it enforces the same rule.
+      save()
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  // Editing the dates again invalidates whatever the last dry run found.
+  const pickDate = (set: (v: string) => void) => (e: React.ChangeEvent<HTMLSelectElement>) => {
+    set(e.target.value)
+    setImpact(null)
   }
 
   return createPortal(
@@ -189,7 +361,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
             className="field flex-1"
             aria-label="Start day"
             value={sd}
-            onChange={(e) => setSd(e.target.value)}
+            onChange={pickDate(setSd)}
           >
             <option value="" disabled>
               Day
@@ -204,7 +376,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
             className="field flex-[1.5]"
             aria-label="Start month"
             value={sm}
-            onChange={(e) => setSm(e.target.value)}
+            onChange={pickDate(setSm)}
           >
             <option value="" disabled>
               Month
@@ -219,7 +391,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
             className="field flex-[1.2]"
             aria-label="Start year"
             value={sy}
-            onChange={(e) => setSy(e.target.value)}
+            onChange={pickDate(setSy)}
           >
             <option value="" disabled>
               Year
@@ -238,7 +410,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
             className="field flex-1"
             aria-label="End day"
             value={ed}
-            onChange={(e) => setEd(e.target.value)}
+            onChange={pickDate(setEd)}
           >
             <option value="" disabled>
               Day
@@ -253,7 +425,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
             className="field flex-[1.5]"
             aria-label="End month"
             value={em}
-            onChange={(e) => setEm(e.target.value)}
+            onChange={pickDate(setEm)}
           >
             <option value="" disabled>
               Month
@@ -268,7 +440,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
             className="field flex-[1.2]"
             aria-label="End year"
             value={ey}
-            onChange={(e) => setEy(e.target.value)}
+            onChange={pickDate(setEy)}
           >
             <option value="" disabled>
               Year
@@ -286,6 +458,15 @@ export function TripSheet({ mode, trip, onClose }: Props) {
               ? 'End date is before the start date.'
               : `${fmtPreview(startDate)} – ${fmtPreview(endDate)}`}
           </p>
+        )}
+
+        {impact && (
+          <StrandedPanel
+            impact={impact}
+            firstDay={startDate}
+            resolution={resolution}
+            onResolution={setResolution}
+          />
         )}
 
         <span className="label mt-4 block">Who is travelling?</span>
@@ -457,9 +638,16 @@ export function TripSheet({ mode, trip, onClose }: Props) {
           <button
             type="submit"
             className="btn-primary flex-1"
-            disabled={!canSubmit || mutation.isPending}
+            disabled={!canSubmit || blocked || checking || mutation.isPending}
           >
-            {mutation.isPending ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Create trip'}
+            {submitLabel({
+              pending: mutation.isPending,
+              checking,
+              mode,
+              items: impact?.items.length ?? 0,
+              blocked,
+              resolution,
+            })}
           </button>
         </div>
       </form>
