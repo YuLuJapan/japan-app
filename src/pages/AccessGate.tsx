@@ -98,9 +98,9 @@ export default function AccessGate() {
           </span>
         </span>
         <h1 className="mt-6 font-display text-4xl font-extrabold tracking-tight text-white">
-          Japan
+          Onward
         </h1>
-        <p className="mt-2 text-white/85">Yuval &amp; Luciana · our trip companion</p>
+        <p className="mt-2 text-white/85">Your trip companion</p>
 
         {screen === 'sent' && (
           <div className="mt-10 flex flex-col gap-3 text-left">

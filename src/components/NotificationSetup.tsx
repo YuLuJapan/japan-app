@@ -84,24 +84,18 @@ export function NotificationSetup() {
 
   if (support === 'needs-install') {
     return (
-      <Card tone="hint">
-        <p className="text-sm">
-          <strong>Add the app to your Home Screen first.</strong> On iPhone, notifications only work
-          from the installed app: tap Share → “Add to Home Screen”, then open it from there and come
-          back to this screen.
-        </p>
-      </Card>
+      <HintRow icon="📲">
+        <strong>Add the app to your Home Screen first</strong> — on iPhone, notifications only work
+        from the installed app.
+      </HintRow>
     )
   }
 
   if (support === 'unsupported') {
     return (
-      <Card tone="hint">
-        <p className="text-sm">
-          This browser can&apos;t receive push notifications. Reminders are still saved — open them
-          on a phone with the app installed to get notified.
-        </p>
-      </Card>
+      <HintRow icon="🔕">
+        This browser can&apos;t receive push notifications — reminders are still saved.
+      </HintRow>
     )
   }
 
@@ -109,33 +103,27 @@ export function NotificationSetup() {
 
   if (!publicKey) {
     return (
-      <Card tone="hint">
-        <p className="text-sm">
-          <strong>Notifications aren&apos;t set up on the server yet.</strong> Reminders are saved,
-          but nothing will be delivered until the VAPID keys are configured (see README → Reminders
-          &amp; notifications).
-        </p>
-      </Card>
+      <HintRow icon="🔔">
+        <strong>Notifications aren&apos;t set up on the server yet.</strong> Reminders are saved
+        regardless (see README → Reminders &amp; notifications).
+      </HintRow>
     )
   }
 
   return (
-    <Card tone={enabled ? 'on' : 'off'}>
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="font-semibold">
-            {enabled ? 'Notifications on' : 'Notifications off'}{' '}
-            <span className="text-xs font-normal text-muted">· this device</span>
-          </p>
-          <p className="text-xs text-muted">
-            {enabled
-              ? 'Reminders arrive even when the app is closed.'
-              : 'Turn on to get reminders on this phone.'}
-          </p>
-        </div>
+    <div>
+      <div
+        className={`flex items-center justify-between gap-3 rounded-2xl px-3.5 py-2.5 ${
+          enabled ? 'bg-brand/10' : 'bg-canvas'
+        }`}
+      >
+        <p className="min-w-0 truncate text-xs font-semibold text-ink">
+          {enabled ? 'Notifications on' : 'Notifications off'}
+          <span className="font-normal text-muted"> · this device</span>
+        </p>
         <button
           type="button"
-          className={enabled ? 'btn-ghost' : 'btn-primary'}
+          className={`chip shrink-0 font-bold ${enabled ? 'bg-white text-muted' : 'bg-ink text-white'}`}
           onClick={enabled ? turnOff : turnOn}
           disabled={busy || enabled === null}
         >
@@ -145,20 +133,27 @@ export function NotificationSetup() {
       {enabled && (
         <button
           type="button"
-          className="mt-3 text-sm font-semibold text-brand"
+          className="mt-1.5 text-xs font-semibold text-brand"
           onClick={sendTest}
           disabled={test.isPending}
         >
           {test.isPending ? 'Sending…' : 'Send a test notification'}
         </button>
       )}
-      {message && <p className="mt-2 text-sm text-muted">{message}</p>}
-    </Card>
+      {message && <p className="mt-1.5 text-xs text-muted">{message}</p>}
+    </div>
   )
 }
 
-function Card({ tone, children }: { tone: 'on' | 'off' | 'hint'; children: React.ReactNode }) {
-  const border =
-    tone === 'on' ? 'border-brand/30' : tone === 'hint' ? 'border-sun/60' : 'border-line'
-  return <section className={`card border ${border} p-4`}>{children}</section>
+/** A slim one-line banner for the setup/unsupported states — these are rare
+ *  edge cases, so they shouldn't cost the same vertical space as the toggle. */
+function HintRow({ icon, children }: { icon: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2.5 rounded-2xl bg-canvas px-3.5 py-2.5">
+      <span className="text-sm leading-5" aria-hidden>
+        {icon}
+      </span>
+      <p className="text-xs leading-5 text-muted">{children}</p>
+    </div>
+  )
 }

@@ -12,6 +12,9 @@ import { useShoppingActions } from '../lib/shopping'
 import { useCanEdit } from '../lib/session'
 import { useTripId } from '../lib/trip'
 
+const yen = new Intl.NumberFormat('en-US')
+const ilsFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'ILS' })
+
 export default function ShoppingList() {
   const canEdit = useCanEdit()
   const tripId = useTripId()
@@ -25,6 +28,9 @@ export default function ShoppingList() {
 
   const items = data.items
   const budget = items.filter((i) => !i.bought).reduce((sum, i) => sum + (i.price_yen ?? 0), 0)
+  const totalYen = items.reduce((sum, i) => sum + (i.price_yen ?? 0), 0)
+  const boughtCount = items.filter((i) => i.bought).length
+  const boughtPct = items.length ? Math.round((boughtCount / items.length) * 100) : 0
 
   // only sections that actually hold something, in the canonical category order
   const sections = SHOPPING_CATEGORIES.map((category) => ({
@@ -50,12 +56,7 @@ export default function ShoppingList() {
           <h1 className="mt-1 font-display text-[34px] font-extrabold leading-[1.05] tracking-tight">
             Things to buy
           </h1>
-          <p className="mt-1 text-sm text-muted">
-            {items.length === 0
-              ? 'Nothing on the list yet.'
-              : `${items.filter((i) => i.bought).length}/${items.length} bought`}
-            {budget > 0 && ` · still to spend ${priceLabel(budget, rates)}`}
-          </p>
+          {items.length === 0 && <p className="mt-1 text-sm text-muted">Nothing on the list yet.</p>}
         </div>
         {canEdit && (
           <Link to={`/trips/${tripId}/shopping/new`} className="btn-primary shrink-0 px-4">
@@ -63,6 +64,28 @@ export default function ShoppingList() {
           </Link>
         )}
       </div>
+
+      {items.length > 0 && (
+        <div className="rounded-3xl bg-white p-[18px] shadow-card">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-[13px] text-muted">
+              {boughtCount} of {items.length} bought
+            </p>
+            <p className="font-display text-lg font-bold text-ink">¥{yen.format(totalYen)}</p>
+          </div>
+          <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-line">
+            <div
+              className="h-full rounded-full bg-brand transition-[width] duration-300 ease-out"
+              style={{ width: `${boughtPct}%` }}
+            />
+          </div>
+          {budget > 0 && (
+            <p className="mt-2.5 text-xs text-muted">
+              {rates ? `≈ ${ilsFmt.format(budget * rates.ils)}` : priceLabel(budget)} still to spend
+            </p>
+          )}
+        </div>
+      )}
 
       {update.isError && (
         <ErrorState message="Could not save that change." onRetry={() => update.reset()} />

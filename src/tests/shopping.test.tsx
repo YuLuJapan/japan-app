@@ -129,8 +129,9 @@ describe('Shopping home (category carousels)', () => {
     mockApi([item(), item({ id: 'buy-3', name: 'Kit Kats', price_yen: 600, bought: true })])
     renderShoppingList()
 
-    expect(await screen.findByText(/1\/2 bought/)).toBeInTheDocument()
-    expect(screen.getByText(/still to spend ¥12,000 ≈ ₪300/)).toBeInTheDocument()
+    expect(await screen.findByText('1 of 2 bought')).toBeInTheDocument()
+    expect(screen.getByText('¥12,600')).toBeInTheDocument() // total value of everything on the list
+    expect(screen.getByText(/₪300.*still to spend/)).toBeInTheDocument()
   })
 
   it('ticks an item off straight from the carousel', async () => {
