@@ -9,6 +9,7 @@ import {
   useUpdateItineraryItem,
 } from '../api/mutations'
 import type { ItineraryItem } from '../api/types'
+import { saveErrorMessage } from '../lib/errors'
 import { useCanEdit } from '../lib/session'
 import { ConfirmDialog } from './ConfirmDialog'
 import { EmptyState } from './EmptyState'
@@ -66,7 +67,7 @@ export function DayPlan({ day, items, zoneId = null, tripId }: Props) {
                 <ItemForm
                   initial={item}
                   pending={update.isPending}
-                  error={update.isError}
+                  error={update.error}
                   submitLabel="Save"
                   onCancel={() => setEditingId(null)}
                   onSubmit={(patch) =>
@@ -125,7 +126,7 @@ export function DayPlan({ day, items, zoneId = null, tripId }: Props) {
         <div className="mt-2 rounded-2xl border border-line bg-white p-3">
           <ItemForm
             pending={create.isPending}
-            error={create.isError}
+            error={create.error}
             submitLabel="Add"
             onCancel={() => setAdding(false)}
             onSubmit={(input) =>
@@ -169,7 +170,7 @@ function ItemForm({
 }: {
   initial?: ItineraryItem
   pending: boolean
-  error: boolean
+  error: unknown
   submitLabel: string
   onSubmit: (values: FormValues) => void
   onCancel: () => void
@@ -209,7 +210,11 @@ function ItemForm({
         onChange={(e) => setNote(e.target.value)}
         aria-label="Note"
       />
-      {error && <p className="text-sm text-brand">Save failed — your text is kept, try again.</p>}
+      {!!error && (
+        <p className="text-sm text-brand">
+          {saveErrorMessage(error, 'Save failed — your text is kept, try again.')}
+        </p>
+      )}
       <div className="flex gap-2">
         <button type="button" className="btn-primary flex-1" onClick={submit} disabled={pending}>
           {pending ? 'Saving…' : error ? 'Retry' : submitLabel}

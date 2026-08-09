@@ -114,7 +114,7 @@ export default function ShoppingItemDetail() {
           </p>
           {item.shop && (
             <a
-              href={placeMapsUrl(item.shop, city)}
+              href={placeMapsUrl(item.shop, null, city)}
               target="_blank"
               rel="noreferrer noopener"
               className="btn-ghost mt-2 w-full"

@@ -47,6 +47,64 @@ describe('itinerary', () => {
     expect(details).toMatch(/start_time must be HH:MM/)
   })
 
+  it("POST 400 when the day falls outside the trip's own dates", async () => {
+    // fixture trip-1 runs 2026-10-01 → 2026-10-14
+    for (const day of ['2026-09-30', '2026-10-15']) {
+      const res = await auth(request(app).post('/api/itinerary')).send({ day, title: 'Too early' })
+      expect(res.status).toBe(400)
+      expect(res.body.error.code).toBe('VALIDATION')
+      expect(res.body.error.details.join(' ')).toMatch(/day must fall within the trip's dates/)
+    }
+  })
+
+  it("POST accepts the trip's first and last day", async () => {
+    for (const day of ['2026-10-01', '2026-10-14']) {
+      const res = await auth(request(app).post('/api/itinerary')).send({ day, title: 'Edge day' })
+      expect(res.status).toBe(201)
+    }
+  })
+
+  it('POST /api/trips/:tripId/itinerary validates against that trip, not the default one', async () => {
+    const created = await auth(request(app).post('/api/trips')).send({
+      name: 'Lisbon',
+      start_date: '2027-03-01',
+      end_date: '2027-03-08',
+    })
+    const tripId = created.body.trip.id
+
+    const inRange = await auth(request(app).post(`/api/trips/${tripId}/itinerary`)).send({
+      day: '2027-03-04',
+      title: 'Pastéis de Belém',
+    })
+    expect(inRange.status).toBe(201)
+
+    const outOfRange = await auth(request(app).post(`/api/trips/${tripId}/itinerary`)).send({
+      day: '2026-10-06', // inside the *other* trip's dates
+      title: 'Wrong trip',
+    })
+    expect(outOfRange.status).toBe(400)
+    expect(outOfRange.body.error.code).toBe('VALIDATION')
+  })
+
+  it("PATCH 400 when the new day falls outside the trip's dates; 404 for an unknown item", async () => {
+    const res = await auth(request(app).patch('/api/itinerary/itin-ramen')).send({
+      day: '2026-10-20',
+    })
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('VALIDATION')
+
+    const moved = await auth(request(app).patch('/api/itinerary/itin-ramen')).send({
+      day: '2026-10-07',
+    })
+    expect(moved.status).toBe(200)
+    expect(moved.body.item.day).toBe('2026-10-07')
+
+    const gone = await auth(request(app).patch('/api/itinerary/itin-nope')).send({
+      day: '2026-10-07',
+    })
+    expect(gone.status).toBe(404)
+  })
+
   it('POST 404 for an unknown zone', async () => {
     const res = await auth(request(app).post('/api/itinerary')).send({
       zone_id: 'zone-nope',

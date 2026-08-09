@@ -3,6 +3,7 @@
 import type { DataStore, ItineraryItemInput } from '../lib/datastore.js'
 import { getDefaultTrip } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
+import { collectRangeErrors } from '../lib/trip-dates.js'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -45,6 +46,9 @@ export async function createItineraryItem(
   if (errors.length) throw validation(errors)
   const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
+  // An activity only exists on a day the trip actually covers.
+  const rangeErrors = collectRangeErrors('day', input.day, trip)
+  if (rangeErrors.length) throw validation(rangeErrors)
   if (input.zone_id) {
     const zone = await store.getZone(input.zone_id)
     if (!zone) throw notFound('Zone')
@@ -65,6 +69,14 @@ export async function updateItineraryItem(
 ) {
   const errors = collectErrors(patch, true)
   if (errors.length) throw validation(errors)
+  if (patch.day !== undefined) {
+    const existing = await store.getItineraryItem(itemId)
+    if (!existing) throw notFound('Itinerary item')
+    const trip = await store.getTrip(existing.trip_id)
+    if (!trip) throw notFound('Trip')
+    const rangeErrors = collectRangeErrors('day', patch.day, trip)
+    if (rangeErrors.length) throw validation(rangeErrors)
+  }
   if (patch.zone_id) {
     const zone = await store.getZone(patch.zone_id)
     if (!zone) throw notFound('Zone')

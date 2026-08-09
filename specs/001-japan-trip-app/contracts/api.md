@@ -113,6 +113,7 @@ The whole journey skeleton for one trip — powers the Journey (home) view and o
 
 - Request: any subset of `{"name","start_date","end_date","description","people"}`.
 - 200: `{"trip": {…updated…}}` · 400 `VALIDATION` · 404 unknown trip.
+- Changing the dates is rejected when the new range would strand what is already planned inside the old one — a journey step or an itinerary day outside it. The `details` name the conflicting stop dates / activity days so the client can say what to move first. This is the mirror of the rule steps and itinerary items enforce on the way in: the trip's dates always contain everything planned on it.
 
 ### DELETE /api/trips/:tripId
 
@@ -180,6 +181,8 @@ Places of one category in a zone, list form (name + summary line, FR-002).
 
 A flat list of timed/untimed activities per trip; the client groups them by day. Distinct from journey steps above — an itinerary item is a single activity within a day, optionally linked to a saved place.
 
+An item's `day` must fall within its trip's own `start_date`/`end_date` — the same rule journey steps follow. Nothing is planned before the trip starts or after it ends.
+
 ### GET /api/itinerary
 
 - 200: `{"items":[{"id":"…","trip_id":"…","zone_id":"…","place_id":"…","day":"YYYY-MM-DD","start_time":"HH:MM"|null,"title":"…","note":"…"|null,"position":0,"highlight":false,"icon":"…"|null}]}`
@@ -187,14 +190,14 @@ A flat list of timed/untimed activities per trip; the client groups them by day.
 ### POST /api/itinerary
 
 - Request: `{"day":"YYYY-MM-DD","title":"…","zone_id?","place_id?","start_time?":"HH:MM","note?","position?","highlight?","icon?"}`
-- 201: `{"item": {…}}` · 400 `VALIDATION` (missing title/bad day/bad time) · 404 unknown zone.
+- 201: `{"item": {…}}` · 400 `VALIDATION` (missing title/bad day/bad time/day outside the trip's own dates) · 404 unknown zone.
 
 **Trip-scoped (2026-08-08 addition):** `GET|POST /api/trips/:tripId/itinerary` are the same two routes pointed at a specific trip instead of the legacy default (oldest) trip — same request/response shapes.
 
 ### PATCH /api/itinerary/:itemId
 
-- Request: any subset of the POST fields. Last write wins.
-- 200: `{"item": {…updated…}}` · 400 · 404.
+- Request: any subset of the POST fields. Last write wins. A patched `day` is re-checked against the item's own trip's dates.
+- 200: `{"item": {…updated…}}` · 400 · 404 (unknown item or zone).
 
 ### DELETE /api/itinerary/:itemId
 

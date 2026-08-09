@@ -5,6 +5,8 @@ import type { DataStore, Trip, TripInput } from '../lib/datastore.js'
 import { getDefaultTrip, normalizeTraveller } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
 import { FLIGHT } from '../lib/flight.js'
+import type { DateRange } from '../lib/trip-dates.js'
+import { rangeLabel, withinRange } from '../lib/trip-dates.js'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -96,6 +98,46 @@ function collectTripErrors(input: Partial<TripInput>, partial: boolean): string[
   return errors
 }
 
+/**
+ * Steps and activities are pinned to the trip's dates on the way in, so moving
+ * or shortening those dates afterwards is the one move that could strand them.
+ * Rather than silently orphaning a stop or a day plan, say what is in the way
+ * and let the traveller move it first.
+ */
+async function collectStrandedErrors(
+  store: DataStore,
+  tripId: string,
+  range: DateRange
+): Promise<string[]> {
+  const [steps, items] = await Promise.all([store.listSteps(tripId), store.listItinerary(tripId)])
+  const errors: string[] = []
+
+  const strandedSteps = steps.filter(
+    (s) => !withinRange(s.start_date, range) || !withinRange(s.end_date, range)
+  )
+  if (strandedSteps.length) {
+    const dates = strandedSteps.map((s) => `${s.start_date} – ${s.end_date}`).join(', ')
+    errors.push(
+      strandedSteps.length === 1
+        ? `A journey stop (${dates}) falls outside ${rangeLabel(range)} — change it first`
+        : `${strandedSteps.length} journey stops (${dates}) fall outside ${rangeLabel(range)} — change them first`
+    )
+  }
+
+  const strandedDays = [
+    ...new Set(items.filter((i) => !withinRange(i.day, range)).map((i) => i.day)),
+  ]
+  if (strandedDays.length) {
+    const days = strandedDays.sort().join(', ')
+    errors.push(
+      strandedDays.length === 1
+        ? `Activities are planned on ${days}, outside ${rangeLabel(range)} — move or remove them first`
+        : `Activities are planned on ${strandedDays.length} days (${days}) outside ${rangeLabel(range)} — move or remove them first`
+    )
+  }
+  return errors
+}
+
 export async function createTrip(store: DataStore, input: Partial<TripInput>) {
   const errors = collectTripErrors(input, false)
   if (errors.length) throw validation(errors)
@@ -112,6 +154,20 @@ export async function createTrip(store: DataStore, input: Partial<TripInput>) {
 export async function updateTrip(store: DataStore, tripId: string, patch: Partial<TripInput>) {
   const errors = collectTripErrors(patch, true)
   if (errors.length) throw validation(errors)
+
+  if (patch.start_date !== undefined || patch.end_date !== undefined) {
+    const current = await store.getTrip(tripId)
+    if (!current) throw notFound('Trip')
+    const range = {
+      start_date: patch.start_date ?? current.start_date,
+      end_date: patch.end_date ?? current.end_date,
+    }
+    if (range.end_date < range.start_date)
+      throw validation(['end_date must be on or after start_date'])
+    const stranded = await collectStrandedErrors(store, tripId, range)
+    if (stranded.length) throw validation(stranded)
+  }
+
   const clean: Partial<TripInput> = { ...patch }
   if (clean.name !== undefined) clean.name = clean.name.trim()
   if (clean.description !== undefined) clean.description = clean.description?.trim() || null

@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useCreateTrip, useDeleteTrip, useUpdateTrip } from '../api/mutations'
 import type { Traveller, Trip } from '../api/types'
+import { saveErrorMessage } from '../lib/errors'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -444,7 +445,9 @@ export function TripSheet({ mode, trip, onClose }: Props) {
         )}
 
         {mutation.isError && (
-          <p className="mt-4 text-sm font-semibold text-brand">Save failed — try again.</p>
+          <p className="mt-4 text-sm font-semibold text-brand">
+            {saveErrorMessage(mutation.error)}
+          </p>
         )}
 
         <div className="mt-5 flex gap-2">

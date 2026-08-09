@@ -96,6 +96,33 @@ describe('trips', () => {
     expect(res.body.error.code).toBe('VALIDATION')
   })
 
+  it('PATCH /api/trips/:tripId refuses dates that would strand a stop or an activity', async () => {
+    // fixture: trip 2026-10-01→14, steps 10-05→09 and 10-09→12, activities on 10-06
+    const res = await request(app)
+      .patch('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({ start_date: '2026-10-07', end_date: '2026-10-14' })
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('VALIDATION')
+    const details = res.body.error.details.join(' ')
+    expect(details).toMatch(/journey stop/i)
+    expect(details).toMatch(/2026-10-06/) // the stranded activity's day is named
+
+    const unchanged = await request(app)
+      .get('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+    expect(unchanged.body.trip.start_date).toBe('2026-10-01')
+  })
+
+  it('PATCH /api/trips/:tripId allows a date change that still covers everything planned', async () => {
+    const res = await request(app)
+      .patch('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({ start_date: '2026-10-04', end_date: '2026-10-20' })
+    expect(res.status).toBe(200)
+    expect(res.body.trip).toMatchObject({ start_date: '2026-10-04', end_date: '2026-10-20' })
+  })
+
   it('DELETE /api/trips/:tripId removes the trip and cascades its children', async () => {
     const del = await request(app)
       .delete('/api/trips/trip-1')

@@ -11,6 +11,7 @@ import type { GeocodeResult, JourneyStepInput, TripStep } from '../api/types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
+import { saveErrorMessage } from '../lib/errors'
 import { useTripId } from '../lib/trip'
 
 const fmt = (iso: string) =>
@@ -57,7 +58,7 @@ export default function JourneySteps() {
                 initial={step}
                 tripRange={{ start: trip.data.trip.start_date, end: trip.data.trip.end_date }}
                 pending={update.isPending}
-                error={update.isError}
+                error={update.error}
                 submitLabel="Save"
                 onCancel={() => setEditingId(null)}
                 onSubmit={(input) =>
@@ -108,7 +109,7 @@ export default function JourneySteps() {
           <DestinationForm
             tripRange={{ start: trip.data.trip.start_date, end: trip.data.trip.end_date }}
             pending={create.isPending}
-            error={create.isError}
+            error={create.error}
             submitLabel="Add"
             onCancel={() => setAdding(false)}
             onSubmit={(input) => create.mutate(input, { onSuccess: () => setAdding(false) })}
@@ -147,7 +148,7 @@ function DestinationForm({
   initial?: TripStep
   tripRange: { start: string; end: string }
   pending: boolean
-  error: boolean
+  error: unknown
   submitLabel: string
   onSubmit: (values: JourneyStepInput) => void
   onCancel: () => void
@@ -264,7 +265,7 @@ function DestinationForm({
           Pick a place from the suggestions to confirm it's real.
         </p>
       )}
-      {error && <p className="text-sm text-brand">Save failed — try again.</p>}
+      {!!error && <p className="text-sm text-brand">{saveErrorMessage(error)}</p>}
       <div className="flex gap-2">
         <button
           type="button"

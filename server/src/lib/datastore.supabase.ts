@@ -396,6 +396,16 @@ export function createSupabaseStore(): DataStore {
       return (data ?? []).map((r) => withHighlightDefaults(r as unknown as Record<string, unknown>))
     },
 
+    async getItineraryItem(itemId) {
+      const run = (cols: string) =>
+        db.from('itinerary_items').select(cols).eq('id', itemId).maybeSingle()
+      let { data, error } = await run(ITINERARY_COLS)
+      if (error && isMissingHighlightColumn(error))
+        ({ data, error } = await run(ITINERARY_BASE_COLS))
+      if (error) throw new Error(error.message)
+      return data ? withHighlightDefaults(data as unknown as Record<string, unknown>) : null
+    },
+
     async createItineraryItem(input: ItineraryItemInput) {
       const base = {
         id: randomUUID(),
