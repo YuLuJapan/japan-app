@@ -9,8 +9,12 @@ export function useTripId(): string {
   return tripId!
 }
 
-/** "Yuval & Luciana" from the trip's travellers — up to the first two, like the
- *  design prototype's travellersLabel. Falls back to "Our trip" with none set. */
+/** "Yuval & Luciana", or "Yuval, Luciana & Noa" for three or more — every
+ *  traveller's name, comma-separated with "&" before the last one. Falls back
+ *  to "Our trip" when none are set. */
 export function travellersLabel(people: Traveller[]): string {
-  return people.length ? people.slice(0, 2).map((p) => p.name).join(' & ') : 'Our trip'
+  const names = people.map((p) => p.name).filter(Boolean)
+  if (names.length === 0) return 'Our trip'
+  if (names.length === 1) return names[0]
+  return `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`
 }
