@@ -10,53 +10,75 @@ import { SignOutButton } from './SignOutButton'
 
 type IconName = 'journey' | 'shopping' | 'reminders' | 'essentials' | 'docs'
 
+// Canvas hex, not the Tailwind token — these sit as solid "cutout" shapes on
+// top of a filled icon, so they need the literal color rather than a class.
+const CANVAS = '#FAF8F5'
+
 // The prototype's bottom nav skips icons entirely, but icon + label reads
-// faster on a five-tab strip than a dot/pill — kept quiet (thin, muted line
-// icons) so it doesn't turn back into a busy bar, colored brand-coral only
-// on the active tab.
+// faster on a five-tab strip than a dot/pill. Solid, geometric, filled shapes
+// (rather than thin outlines) match the bold rounded-square logo mark and
+// extrabold headlines used everywhere else in the app — muted tan at rest,
+// brand-coral only on the active tab.
 function TabIcon({ name, active }: { name: IconName; active: boolean }) {
-  const common = {
-    width: 22,
-    height: 22,
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: active ? '#F1543F' : '#A29C90',
-    strokeWidth: 1.75,
-    strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const,
-  }
+  const fill = active ? '#F1543F' : '#DCD5C9'
+  const common = { width: 22, height: 22, viewBox: '0 0 24 24' }
   if (name === 'journey')
     return (
       <svg {...common}>
-        <path d="M12 21s-7-6.3-7-11a7 7 0 0 1 14 0c0 4.7-7 11-7 11Z" />
-        <circle cx="12" cy="10" r="2.5" />
+        <path
+          d="M12 22c-4.2-4.2-7-8-7-11.5a7 7 0 0 1 14 0C19 14 16.2 17.8 12 22Z"
+          fill={fill}
+        />
+        <circle cx="12" cy="10.3" r="2.6" fill={CANVAS} />
       </svg>
     )
   if (name === 'shopping')
     return (
       <svg {...common}>
-        <path d="M4 8h16l-1.2 11a2 2 0 0 1-2 1.8H7.2a2 2 0 0 1-2-1.8L4 8Z" />
-        <path d="M9 11V6a3 3 0 0 1 6 0v5" />
+        <path
+          d="M5.5 8h13l-1 12.2a1.8 1.8 0 0 1-1.8 1.6H8.3a1.8 1.8 0 0 1-1.8-1.6L5.5 8Z"
+          fill={fill}
+        />
+        <path
+          d="M8.5 8V6.5a3.5 3.5 0 0 1 7 0V8"
+          stroke={CANVAS}
+          strokeWidth="1.8"
+          fill="none"
+          strokeLinecap="round"
+        />
       </svg>
     )
   if (name === 'reminders')
     return (
       <svg {...common}>
-        <path d="M18 8a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6" />
-        <path d="M10.5 20a2 2 0 0 0 3 0" />
+        <path
+          d="M12 3.5a5.5 5.5 0 0 0-5.5 5.5c0 4.2-1.7 5.6-1.7 5.6h14.4s-1.7-1.4-1.7-5.6A5.5 5.5 0 0 0 12 3.5Z"
+          fill={fill}
+        />
+        <path
+          d="M9.5 17.3a2.5 2.5 0 0 0 5 0"
+          stroke={CANVAS}
+          strokeWidth="1.8"
+          fill="none"
+          strokeLinecap="round"
+        />
       </svg>
     )
   if (name === 'essentials')
     return (
       <svg {...common}>
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 8h.01M11 12h1v4h1" />
+        <circle cx="12" cy="12" r="9" fill={fill} />
+        <circle cx="12" cy="8.3" r="1.3" fill={CANVAS} />
+        <rect x="10.8" y="10.8" width="2.4" height="6" rx="1.2" fill={CANVAS} />
       </svg>
     )
   return (
     <svg {...common}>
-      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-      <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z" />
+      <path
+        d="M7 3.5h7l4 4v11a1.7 1.7 0 0 1-1.7 1.7H7a1.7 1.7 0 0 1-1.7-1.7V5.2A1.7 1.7 0 0 1 7 3.5Z"
+        fill={fill}
+      />
+      <path d="M14 3.5v3.3a1 1 0 0 0 1 1H18Z" fill={CANVAS} />
     </svg>
   )
 }
