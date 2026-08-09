@@ -15,6 +15,7 @@ import type {
   Translation,
   Trip,
   TripBundle,
+  TripDateImpact,
   TripDocument,
   ZoneDetail,
 } from './types'
@@ -79,6 +80,13 @@ export const geocode = (query: string, bias?: { lat: number; lng: number }) => {
     params.set('lng', String(bias.lng))
   }
   return api.get<{ results: GeocodeResult[] }>(`/geocode?${params}`)
+}
+
+// Dry run for a trip's new dates: what they would strand. Called on demand from
+// the trip sheet when the traveller saves, not as a standing query.
+export const tripDateImpact = (tripId: string, startDate: string, endDate: string) => {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate })
+  return api.get<TripDateImpact>(`/trips/${tripId}/date-impact?${params}`)
 }
 
 export const useReminders = (tripId: string) =>

@@ -111,8 +111,23 @@ The whole journey skeleton for one trip — powers the Journey (home) view and o
 
 ### PATCH /api/trips/:tripId
 
-- Request: any subset of `{"name","start_date","end_date","description","people"}`.
-- 200: `{"trip": {…updated…}}` · 400 `VALIDATION` · 404 unknown trip.
+- Request: any subset of `{"name","start_date","end_date","description","people"}`, plus optional `"stranded_activities": "move" | "delete"` (see below).
+- 200: `{"trip": {…updated…}[, "moved": ["…item ids…"]][, "deleted": ["…item ids…"]]}` · 400 `VALIDATION` · 404 unknown trip.
+
+Changing the dates can strand what is already planned inside the old range — the mirror of the rule steps and itinerary items enforce on the way in: **the trip's dates always contain everything planned on it**. The two kinds of conflict resolve differently:
+
+- **A journey step outside the new range is always a 400.** A stop is a date range tied to a city; there is no sensible day to move it to and deleting one rearranges the journey, so it is fixed on the journey editor first. No resolution overrides this.
+- **Itinerary items outside the new range are a 400 too, unless the request says what to do with them.** `stranded_activities: "move"` re-dates each one to the trip's new `start_date` (everything else about the activity is untouched); `"delete"` removes them. The response echoes the affected ids as `moved` / `deleted`. Both are ignored when the change strands nothing.
+
+The trip row is written before the activities are moved/deleted, and the two are not in one transaction (the DataStore has none). If the second half fails, the dates are already correct and re-saving with the same choice retries it.
+
+### GET /api/trips/:tripId/date-impact?start_date=&end_date=
+
+Dry run for the above: what a date change *would* strand, so the client can list it and ask before committing. Either query param may be omitted to keep the trip's current value.
+
+- 200: `{"range":{"start_date","end_date"},"steps":[{"id","start_date","end_date","zone_name"}],"items":[{"id","day","start_time","title","highlight"}]}` — empty arrays mean the change is clean.
+- 400 `VALIDATION` (bad date, end before start) · 404 unknown trip.
+- Read-only, so guests may call it; the `PATCH` it precedes is owner-only by method.
 
 ### DELETE /api/trips/:tripId
 
@@ -180,6 +195,8 @@ Places of one category in a zone, list form (name + summary line, FR-002).
 
 A flat list of timed/untimed activities per trip; the client groups them by day. Distinct from journey steps above — an itinerary item is a single activity within a day, optionally linked to a saved place.
 
+An item's `day` must fall within its trip's own `start_date`/`end_date` — the same rule journey steps follow. Nothing is planned before the trip starts or after it ends.
+
 ### GET /api/itinerary
 
 - 200: `{"items":[{"id":"…","trip_id":"…","zone_id":"…","place_id":"…","day":"YYYY-MM-DD","start_time":"HH:MM"|null,"title":"…","note":"…"|null,"position":0,"highlight":false,"icon":"…"|null}]}`
@@ -187,14 +204,14 @@ A flat list of timed/untimed activities per trip; the client groups them by day.
 ### POST /api/itinerary
 
 - Request: `{"day":"YYYY-MM-DD","title":"…","zone_id?","place_id?","start_time?":"HH:MM","note?","position?","highlight?","icon?"}`
-- 201: `{"item": {…}}` · 400 `VALIDATION` (missing title/bad day/bad time) · 404 unknown zone.
+- 201: `{"item": {…}}` · 400 `VALIDATION` (missing title/bad day/bad time/day outside the trip's own dates) · 404 unknown zone.
 
 **Trip-scoped (2026-08-08 addition):** `GET|POST /api/trips/:tripId/itinerary` are the same two routes pointed at a specific trip instead of the legacy default (oldest) trip — same request/response shapes.
 
 ### PATCH /api/itinerary/:itemId
 
-- Request: any subset of the POST fields. Last write wins.
-- 200: `{"item": {…updated…}}` · 400 · 404.
+- Request: any subset of the POST fields. Last write wins. A patched `day` is re-checked against the item's own trip's dates.
+- 200: `{"item": {…updated…}}` · 400 · 404 (unknown item or zone).
 
 ### DELETE /api/itinerary/:itemId
 

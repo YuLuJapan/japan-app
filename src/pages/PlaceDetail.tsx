@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { usePlace } from '../api/hooks'
+import { usePlace, useTrip } from '../api/hooks'
 import { useDeletePlace } from '../api/mutations'
 import { CATEGORY_META } from '../api/types'
 import { AddPlaceToDay } from '../components/AddPlaceToDay'
@@ -21,6 +21,7 @@ export default function PlaceDetail() {
   const tripId = useTripId()
   const navigate = useNavigate()
   const { data, isPending, isError, refetch } = usePlace(placeId)
+  const trip = useTrip(tripId)
   const [confirming, setConfirming] = useState(false)
   const deletePlace = useDeletePlace(data?.place.zone_id)
 
@@ -29,6 +30,8 @@ export default function PlaceDetail() {
 
   const { place, tips, files } = data
   const meta = CATEGORY_META[place.category]
+  // The city, so the map search lands in the right country (trips are worldwide).
+  const city = trip.data?.steps?.find((s) => s.zone?.id === place.zone_id)?.zone?.name ?? null
 
   return (
     <div className="space-y-8">
@@ -67,7 +70,7 @@ export default function PlaceDetail() {
           </>
         )}
         <a
-          href={placeMapsUrl(place.name, place.address)}
+          href={placeMapsUrl(place.name, place.address, city)}
           target="_blank"
           rel="noreferrer noopener"
           className="btn-primary mt-3 w-full"

@@ -11,6 +11,32 @@ const auth = () => request(app).get('/api/trips').set('Authorization', `Bearer $
 
 beforeEach(() => setDataStore(createMemoryStore(fixture())))
 
+/**
+ * A second trip with two activities near its end and no journey stops, so a
+ * date change can strand the activities alone (the seeded trip's stops always
+ * cover its activity days, which is the point of the rule).
+ */
+async function tripWithActivities() {
+  const created = await request(app)
+    .post('/api/trips')
+    .set('Authorization', `Bearer ${TEST_CODE}`)
+    .send({ name: 'Lisbon', start_date: '2027-03-01', end_date: '2027-03-08' })
+  const tripId = created.body.trip.id as string
+
+  const itemIds: string[] = []
+  for (const item of [
+    { day: '2027-03-06', title: 'Tram 28', start_time: '09:00' },
+    { day: '2027-03-07', title: 'Time Out Market' },
+  ]) {
+    const res = await request(app)
+      .post(`/api/trips/${tripId}/itinerary`)
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send(item)
+    itemIds.push(res.body.item.id)
+  }
+  return { tripId, itemIds }
+}
+
 describe('trips', () => {
   it('GET /api/trips lists the seeded trip with its travellers', async () => {
     const res = await auth()
@@ -94,6 +120,143 @@ describe('trips', () => {
       .send({ people: [{ name: 'Alex', email: 'not-an-email' }] })
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('VALIDATION')
+  })
+
+  it('PATCH /api/trips/:tripId refuses dates that would strand a stop, and changes nothing', async () => {
+    // fixture: trip 2026-10-01→14, steps 10-05→09 and 10-09→12, activities on 10-06
+    const res = await request(app)
+      .patch('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({ start_date: '2026-10-07', end_date: '2026-10-14' })
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('VALIDATION')
+    expect(res.body.error.details.join(' ')).toMatch(/journey stop \(2026-10-05 – 2026-10-09\)/)
+
+    const unchanged = await request(app)
+      .get('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+    expect(unchanged.body.trip.start_date).toBe('2026-10-01')
+  })
+
+  it('names the stranded activity days when only activities are in the way', async () => {
+    const { tripId } = await tripWithActivities()
+    const res = await request(app)
+      .patch(`/api/trips/${tripId}`)
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({ end_date: '2027-03-04' })
+    expect(res.status).toBe(400)
+    const details = res.body.error.details.join(' ')
+    expect(details).toMatch(/2027-03-06/)
+    expect(details).toMatch(/2027-03-07/)
+  })
+
+  it('GET /api/trips/:tripId/date-impact lists what a date change would strand', async () => {
+    const res = await request(app)
+      .get('/api/trips/trip-1/date-impact?start_date=2026-10-07&end_date=2026-10-14')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+    expect(res.status).toBe(200)
+    expect(res.body.range).toEqual({ start_date: '2026-10-07', end_date: '2026-10-14' })
+    // step-1 (10-05 → 10-09) starts before the new range; step-2 (10-09 → 10-12) fits
+    expect(res.body.steps.map((s: { id: string }) => s.id)).toEqual(['step-1'])
+    expect(res.body.steps[0].zone_name).toBe('Tokyo')
+    // both fixture activities sit on 2026-10-06
+    expect(res.body.items.map((i: { id: string }) => i.id).sort()).toEqual([
+      'itin-ramen',
+      'itin-walk',
+    ])
+    expect(res.body.items[0]).toMatchObject({ day: '2026-10-06', title: expect.any(String) })
+  })
+
+  it('GET date-impact reports nothing for a range that still covers everything', async () => {
+    const res = await request(app)
+      .get('/api/trips/trip-1/date-impact?start_date=2026-10-01&end_date=2026-10-20')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+    expect(res.status).toBe(200)
+    expect(res.body.steps).toEqual([])
+    expect(res.body.items).toEqual([])
+  })
+
+  it('a stranded stop is refused even with a resolution — stops have no auto-fix', async () => {
+    const res = await request(app)
+      .patch('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({ start_date: '2026-10-07', end_date: '2026-10-14', stranded_activities: 'move' })
+    expect(res.status).toBe(400)
+    expect(res.body.error.details.join(' ')).toMatch(/journey stop/i)
+  })
+
+  it('PATCH with stranded_activities=move keeps the activities on the new first day', async () => {
+    const { tripId, itemIds } = await tripWithActivities()
+
+    const ok = await request(app)
+      .patch(`/api/trips/${tripId}`)
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({ start_date: '2027-03-01', end_date: '2027-03-04', stranded_activities: 'move' })
+    expect(ok.status).toBe(200)
+    expect(ok.body.trip.end_date).toBe('2027-03-04')
+    expect(ok.body.moved.sort()).toEqual([...itemIds].sort())
+
+    const items = await request(app)
+      .get(`/api/trips/${tripId}/itinerary`)
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+    expect(items.body.items).toHaveLength(2) // nothing lost
+    for (const item of items.body.items) expect(item.day).toBe('2027-03-01')
+    // the move touches the day and nothing else
+    const timed = items.body.items.find((i: { id: string }) => i.id === itemIds[0])
+    expect(timed).toMatchObject({ title: 'Tram 28', start_time: '09:00' })
+  })
+
+  it('PATCH with stranded_activities=delete drops them instead', async () => {
+    const { tripId } = await tripWithActivities()
+
+    const refused = await request(app)
+      .patch(`/api/trips/${tripId}`)
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({ start_date: '2027-03-01', end_date: '2027-03-04' })
+    expect(refused.status).toBe(400) // still refused without a choice
+
+    const ok = await request(app)
+      .patch(`/api/trips/${tripId}`)
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({ start_date: '2027-03-01', end_date: '2027-03-04', stranded_activities: 'delete' })
+    expect(ok.status).toBe(200)
+    expect(ok.body.deleted).toHaveLength(2)
+
+    const items = await request(app)
+      .get(`/api/trips/${tripId}/itinerary`)
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+    expect(items.body.items).toEqual([])
+  })
+
+  it('PATCH rejects an unknown stranded_activities value', async () => {
+    const res = await request(app)
+      .patch('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({ start_date: '2026-10-01', end_date: '2026-10-14', stranded_activities: 'shred' })
+    expect(res.status).toBe(400)
+    expect(res.body.error.details.join(' ')).toMatch(/stranded_activities/)
+  })
+
+  it('a resolution is ignored when the new dates strand nothing', async () => {
+    const res = await request(app)
+      .patch('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({ end_date: '2026-10-20', stranded_activities: 'delete' })
+    expect(res.status).toBe(200)
+    expect(res.body.deleted).toBeUndefined()
+    const items = await request(app)
+      .get('/api/itinerary')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+    expect(items.body.items).toHaveLength(2)
+  })
+
+  it('PATCH /api/trips/:tripId allows a date change that still covers everything planned', async () => {
+    const res = await request(app)
+      .patch('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({ start_date: '2026-10-04', end_date: '2026-10-20' })
+    expect(res.status).toBe(200)
+    expect(res.body.trip).toMatchObject({ start_date: '2026-10-04', end_date: '2026-10-20' })
   })
 
   it('DELETE /api/trips/:tripId removes the trip and cascades its children', async () => {

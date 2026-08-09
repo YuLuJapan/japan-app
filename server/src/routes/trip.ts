@@ -4,6 +4,7 @@ import { getDataStore } from '../lib/datastore.js'
 import {
   createTrip,
   deleteTrip,
+  getDateImpact,
   getDefaultTripBundle,
   getTripBundle,
   listTrips,
@@ -40,6 +41,21 @@ tripRouter.get(
   '/trips/:tripId',
   asyncHandler(async (req, res) => {
     res.json(await getTripBundle(await getDataStore(), req.params.tripId))
+  })
+)
+
+// GET /api/trips/:tripId/date-impact?start_date=&end_date=
+// Dry run for a date change: which stops and activities it would strand.
+tripRouter.get(
+  '/trips/:tripId/date-impact',
+  asyncHandler(async (req, res) => {
+    const pick = (v: unknown) => (typeof v === 'string' && v ? v : undefined)
+    res.json(
+      await getDateImpact(await getDataStore(), req.params.tripId, {
+        start_date: pick(req.query.start_date),
+        end_date: pick(req.query.end_date),
+      })
+    )
   })
 )
 

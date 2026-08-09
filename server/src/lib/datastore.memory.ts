@@ -278,6 +278,11 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return db.itinerary!.filter((i) => i.trip_id === tripId).sort(compareItinerary)
     },
 
+    async getItineraryItem(itemId) {
+      const item = db.itinerary!.find((i) => i.id === itemId)
+      return item ? structuredClone(item) : null
+    },
+
     async createItineraryItem(input: ItineraryItemInput) {
       const item: ItineraryItem = {
         id: randomUUID(),

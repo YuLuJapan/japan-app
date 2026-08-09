@@ -78,7 +78,8 @@ export function Schedule({ steps, items, days, today, mode, zoneId, tripId }: Pr
 
       <DayHighlights day={day} highlights={highlights} zoneId={newZoneId} tripId={tripId} />
 
-      <DayPlan day={day} items={planItems} zoneId={newZoneId} tripId={tripId} />
+      {/* Keyed by day so switching days drops any half-open form or "moved" notice. */}
+      <DayPlan key={day} day={day} items={planItems} zoneId={newZoneId} tripId={tripId} />
     </div>
   )
 }

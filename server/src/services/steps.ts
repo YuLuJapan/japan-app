@@ -7,6 +7,8 @@
 import type { DataStore } from '../lib/datastore.js'
 import { getDefaultTrip } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
+import type { DateRange } from '../lib/trip-dates.js'
+import { collectRangeErrors } from '../lib/trip-dates.js'
 import type { GeocodeResult } from './geocode.js'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -61,19 +63,11 @@ function collectErrors(input: StepFields, partial: boolean): string[] {
 }
 
 /** A step's dates must fall inside the trip's own dates — no stop before it starts or after it ends. */
-function collectRangeErrors(
-  startDate: string,
-  endDate: string,
-  trip: { start_date: string; end_date: string }
-): string[] {
-  const errors: string[] = []
-  if (startDate < trip.start_date || startDate > trip.end_date) {
-    errors.push(`start_date must fall within the trip's dates (${trip.start_date} – ${trip.end_date})`)
-  }
-  if (endDate < trip.start_date || endDate > trip.end_date) {
-    errors.push(`end_date must fall within the trip's dates (${trip.start_date} – ${trip.end_date})`)
-  }
-  return errors
+function collectStepRangeErrors(startDate: string, endDate: string, trip: DateRange): string[] {
+  return [
+    ...collectRangeErrors('start_date', startDate, trip),
+    ...collectRangeErrors('end_date', endDate, trip),
+  ]
 }
 
 /** Resolve a zone_id or free-text destination to a zone id, creating the zone if needed. */
@@ -100,7 +94,7 @@ export async function createStep(store: DataStore, input: StepFields, tripId?: s
   if (errors.length) throw validation(errors)
   const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
-  const rangeErrors = collectRangeErrors(input.start_date!, input.end_date!, trip)
+  const rangeErrors = collectStepRangeErrors(input.start_date!, input.end_date!, trip)
   if (rangeErrors.length) throw validation(rangeErrors)
   const zoneId = await resolveZoneId(store, input.zone_id, input.destination)
   const steps = await store.listSteps(trip.id)
@@ -127,7 +121,7 @@ export async function updateStep(store: DataStore, stepId: string, patch: StepFi
 
   const trip = await store.getTrip(existing.trip_id)
   if (!trip) throw notFound('Trip')
-  const rangeErrors = collectRangeErrors(mergedStart, mergedEnd, trip)
+  const rangeErrors = collectStepRangeErrors(mergedStart, mergedEnd, trip)
   if (rangeErrors.length) throw validation(rangeErrors)
 
   const zoneId =

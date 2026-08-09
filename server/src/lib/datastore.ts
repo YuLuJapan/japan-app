@@ -297,6 +297,8 @@ export interface DataStore {
   deletePlace(placeId: string): Promise<boolean>
 
   listItinerary(tripId: string): Promise<ItineraryItem[]>
+  /** One item by id — used to find its trip before validating a patched day. */
+  getItineraryItem(itemId: string): Promise<ItineraryItem | null>
   createItineraryItem(input: ItineraryItemInput): Promise<ItineraryItem>
   updateItineraryItem(
     itemId: string,
