@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useTrip } from '../api/hooks'
 import { CurrencyCalculator } from '../components/CurrencyCalculator'
+import { useTripId } from '../lib/trip'
 
 // Curated static reference for the trip. Phrases are romaji (Latin script) +
 // English meaning — a travel phrasebook, no Japanese characters in the UI.
@@ -204,6 +206,8 @@ const PACK_KEY = 'trip_packing_v1'
 const PACK_EXTRA_KEY = 'trip_packing_extra_v1'
 
 export default function TripEssentials() {
+  const tripId = useTripId()
+  const { data: tripData } = useTrip(tripId)
   const [checked, setChecked] = useState<Record<string, boolean>>({})
   const [extra, setExtra] = useState<string[]>([])
   const [packInput, setPackInput] = useState('')
@@ -264,7 +268,7 @@ export default function TripEssentials() {
         </h1>
       </div>
 
-      <CurrencyCalculator />
+      <CurrencyCalculator localCurrency={tripData?.trip.local_currency ?? 'JPY'} />
 
       <div className="space-y-3">
         {SECTIONS.map((s, i) => {

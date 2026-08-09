@@ -13,6 +13,7 @@ export function fixture(): MemoryData {
         end_date: '2026-10-14',
         description: null,
         people: [{ name: 'Alex' }, { name: 'Sam' }],
+        local_currency: 'JPY',
       },
     ],
     steps: [

@@ -1,4 +1,6 @@
 // Mirrors contracts/api.md response shapes.
+import type { CurrencyCode } from '../lib/currency'
+
 export const CATEGORIES = ['hotel', 'attraction', 'food', 'shopping', 'other'] as const
 export type Category = (typeof CATEGORIES)[number]
 
@@ -37,6 +39,7 @@ export interface Trip {
   end_date: string
   description: string | null
   people: Traveller[]
+  local_currency: CurrencyCode
 }
 
 export interface TripInput {
@@ -45,6 +48,7 @@ export interface TripInput {
   end_date: string
   description?: string | null
   people?: Traveller[]
+  local_currency?: CurrencyCode
 }
 
 export interface ZoneSummary {
@@ -319,10 +323,10 @@ export interface ImageResult {
 }
 
 export interface Rates {
-  base: 'JPY'
+  base: CurrencyCode
   date: string
-  usd: number // 1 JPY in USD
-  ils: number // 1 JPY in ILS
+  usd: number // 1 unit of `base` in USD
+  ils: number // 1 unit of `base` in ILS
 }
 
 export interface Reminder {

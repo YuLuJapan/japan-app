@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from './client'
+import type { CurrencyCode } from '../lib/currency'
 import type {
   Category,
   GeocodeResult,
@@ -63,10 +64,10 @@ export const useTripFiles = (tripId: string) =>
     queryFn: () => api.get<{ files: TripDocument[] }>(`/trips/${tripId}/files`),
   })
 
-export const useRates = () =>
+export const useRates = (base: CurrencyCode = 'JPY') =>
   useQuery({
-    queryKey: ['rates'],
-    queryFn: () => api.get<Rates>('/rates'),
+    queryKey: ['rates', base],
+    queryFn: () => api.get<Rates>(`/rates?base=${base}`),
     staleTime: 1000 * 60 * 60 * 6, // refetch at most every ~6h
   })
 

@@ -31,7 +31,25 @@ describe('exchange rates', () => {
     const r = await getRates(store)
     expect(r).toMatchObject({ base: 'JPY', usd: 0.0067, ils: 0.025, date: '2026-07-11' })
     // it was written to the store for durable fallback
-    expect(await store.getLatestRates()).toMatchObject({ usd: 0.0067, ils: 0.025 })
+    expect(await store.getLatestRates('JPY')).toMatchObject({ usd: 0.0067, ils: 0.025 })
+  })
+
+  it('fetches per base currency and caches them independently', async () => {
+    const store = createMemoryStore(fixture())
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async () => new Response(JSON.stringify(payload), { status: 200 }))
+
+    await getRates(store, 'GBP')
+    await getRates(store, 'JPY')
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    expect(fetchSpy.mock.calls[0][0]).toContain('/latest/GBP')
+    expect(fetchSpy.mock.calls[1][0]).toContain('/latest/JPY')
+
+    // cached — no further live fetches for either base
+    await getRates(store, 'GBP')
+    await getRates(store, 'JPY')
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
   })
 
   it('falls back to the last DB rate when the live fetch fails', async () => {
@@ -62,5 +80,20 @@ describe('exchange rates', () => {
     expect(res.status).toBe(200)
     expect(res.body.usd).toBeGreaterThan(0)
     expect(res.body.ils).toBeGreaterThan(0)
+  })
+
+  it('GET /api/rates?base=GBP returns rates for that base', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify(payload), { status: 200 })
+    )
+    const res = await auth(request(app).get('/api/rates?base=GBP'))
+    expect(res.status).toBe(200)
+    expect(res.body.base).toBe('GBP')
+  })
+
+  it('GET /api/rates?base=XXX rejects an unsupported currency code', async () => {
+    const res = await auth(request(app).get('/api/rates?base=XXX'))
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('VALIDATION')
   })
 })

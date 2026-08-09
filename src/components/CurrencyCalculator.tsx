@@ -1,20 +1,29 @@
-// Money helper: type an amount in yen, see it in USD and ILS. Rates come from
-// /api/rates (refreshed daily, cached for offline). Yen is the input; the two
-// conversions update live.
+// Money helper: type an amount in the trip's local currency, see it in your
+// home currencies (USD, ILS — whichever isn't the trip's own currency). Rates
+// come from /api/rates (refreshed daily, cached for offline).
 import { useState } from 'react'
 import { useRates } from '../api/hooks'
+import { CURRENCY_NAMES, HOME_CURRENCIES, currencySymbol, type CurrencyCode } from '../lib/currency'
 
-const usdFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
-const ilsFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'ILS' })
 const yen = new Intl.NumberFormat('en-US')
 
 const QUICK_AMOUNTS = [1000, 5000, 10000, 50000]
 
-export function CurrencyCalculator() {
-  const { data, isPending, isError, refetch } = useRates()
+const fmtFor = (code: CurrencyCode) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: code })
+
+interface Props {
+  localCurrency: CurrencyCode
+}
+
+export function CurrencyCalculator({ localCurrency }: Props) {
+  const { data, isPending, isError, refetch } = useRates(localCurrency)
   const [amountStr, setAmountStr] = useState('1000')
 
   const amount = Number(amountStr.replace(/[^0-9.]/g, '')) || 0
+  const targets = HOME_CURRENCIES.filter((c) => c !== localCurrency)
+  const rateFor = (target: CurrencyCode) => (target === 'USD' ? data?.usd : data?.ils)
+  const localSymbol = currencySymbol(localCurrency)
 
   return (
     <div className="rounded-3xl border border-line bg-white p-5 shadow-card">
@@ -23,28 +32,34 @@ export function CurrencyCalculator() {
         {data && <span className="text-[11px] font-semibold text-muted">Rate · {data.date}</span>}
       </div>
 
-      {data && (
+      {data && targets.length > 0 && (
         <p className="mt-1 text-xs font-semibold text-brand">
-          US$1 ≈ ¥{Math.round(1 / data.usd)} &nbsp;·&nbsp; ₪1 ≈ ¥{Math.round(1 / data.ils)}
+          {targets
+            .map((t) => {
+              const rate = rateFor(t)
+              return rate ? `${currencySymbol(t)}1 ≈ ${localSymbol}${Math.round(1 / rate)}` : null
+            })
+            .filter(Boolean)
+            .join('  ·  ')}
         </p>
       )}
 
       <label
-        htmlFor="yen"
+        htmlFor="local-amount"
         className="mt-3 block text-[11px] font-bold uppercase tracking-wide text-muted"
       >
-        Amount in yen
+        Amount in {CURRENCY_NAMES[localCurrency]}
       </label>
       <div className="mt-1 flex items-center gap-2 rounded-2xl border border-line bg-canvas px-3 py-2.5 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20">
-        <span className="font-display text-2xl font-extrabold text-muted">¥</span>
+        <span className="font-display text-2xl font-extrabold text-muted">{localSymbol}</span>
         <input
-          id="yen"
+          id="local-amount"
           inputMode="decimal"
           value={amountStr}
           onChange={(e) => setAmountStr(e.target.value)}
           placeholder="1000"
           className="w-full bg-transparent text-2xl font-extrabold text-ink outline-none"
-          aria-label="Amount in yen"
+          aria-label={`Amount in ${CURRENCY_NAMES[localCurrency]}`}
         />
       </div>
 
@@ -68,27 +83,38 @@ export function CurrencyCalculator() {
             Retry
           </button>
         </div>
-      ) : (
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <div className="rounded-2xl border border-brand/20 bg-brand/5 px-3 py-3 text-center">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-muted">US Dollar</p>
-            <p className="mt-0.5 font-display text-2xl font-extrabold text-ink">
-              {isPending || !data ? '…' : usdFmt.format(amount * data.usd)}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-brand/20 bg-brand/5 px-3 py-3 text-center">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Shekel (ILS)</p>
-            <p className="mt-0.5 font-display text-2xl font-extrabold text-ink">
-              {isPending || !data ? '…' : ilsFmt.format(amount * data.ils)}
-            </p>
-          </div>
+      ) : targets.length > 0 ? (
+        <div className={`mt-3 grid gap-2 ${targets.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {targets.map((t) => {
+            const rate = rateFor(t)
+            return (
+              <div
+                key={t}
+                className="rounded-2xl border border-brand/20 bg-brand/5 px-3 py-3 text-center"
+              >
+                <p className="text-[11px] font-bold uppercase tracking-wide text-muted">
+                  {CURRENCY_NAMES[t]}
+                </p>
+                <p className="mt-0.5 font-display text-2xl font-extrabold text-ink">
+                  {isPending || !data || rate === undefined ? '…' : fmtFor(t).format(amount * rate)}
+                </p>
+              </div>
+            )
+          })}
         </div>
-      )}
+      ) : null}
 
-      {data && (
+      {data && targets.length > 0 && (
         <p className="mt-2 text-[11px] text-muted">
-          e.g. ¥{yen.format(1000)} ≈ {usdFmt.format(1000 * data.usd)} ≈{' '}
-          {ilsFmt.format(1000 * data.ils)}
+          e.g. {localSymbol}
+          {yen.format(1000)} ≈{' '}
+          {targets
+            .map((t) => {
+              const rate = rateFor(t)
+              return rate ? fmtFor(t).format(1000 * rate) : null
+            })
+            .filter(Boolean)
+            .join(' ≈ ')}
         </p>
       )}
     </div>

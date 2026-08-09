@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useCreateTrip, useDeleteTrip, useUpdateTrip } from '../api/mutations'
 import type { Traveller, Trip } from '../api/types'
+import { CURRENCIES, CURRENCY_NAMES, type CurrencyCode } from '../lib/currency'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -81,6 +82,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   const [em, setEm] = useState('')
   const [ed, setEd] = useState('')
   const [people, setPeople] = useState<Traveller[]>([])
+  const [localCurrency, setLocalCurrency] = useState<CurrencyCode>('JPY')
   const [personName, setPersonName] = useState('')
   const [personEmail, setPersonEmail] = useState('')
   const [confirm, setConfirm] = useState<0 | 1 | 2>(0)
@@ -100,6 +102,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
       setEm(end.m)
       setEd(end.d)
       setPeople(trip.people)
+      setLocalCurrency(trip.local_currency)
     } else {
       setName('')
       setSy('')
@@ -109,6 +112,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
       setEm('')
       setEd('')
       setPeople([])
+      setLocalCurrency('JPY')
     }
     setPersonName('')
     setPersonEmail('')
@@ -141,7 +145,13 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!canSubmit) return
-    const input = { name: name.trim(), start_date: startDate, end_date: endDate, people }
+    const input = {
+      name: name.trim(),
+      start_date: startDate,
+      end_date: endDate,
+      people,
+      local_currency: localCurrency,
+    }
     if (mode === 'edit') update.mutate(input, { onSuccess: onClose })
     else create.mutate(input, { onSuccess: onClose })
   }
@@ -181,6 +191,25 @@ export function TripSheet({ mode, trip, onClose }: Props) {
           maxLength={120}
           required
         />
+
+        <label className="label mt-4 block" htmlFor="trip-currency">
+          Local currency
+        </label>
+        <select
+          id="trip-currency"
+          className="field mt-1"
+          value={localCurrency}
+          onChange={(e) => setLocalCurrency(e.target.value as CurrencyCode)}
+        >
+          {CURRENCIES.map((c) => (
+            <option key={c} value={c}>
+              {c} — {CURRENCY_NAMES[c]}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-muted">
+          Used by the exchange calculator on the Essentials tab.
+        </p>
 
         <span className="label mt-4 block">Starts</span>
         <div className="mt-1 flex gap-2">

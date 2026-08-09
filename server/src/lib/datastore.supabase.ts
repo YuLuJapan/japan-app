@@ -52,25 +52,32 @@ const PLACE_COLS = `${PLACE_BASE_COLS},lat,lng`
 const SHOPPING_COLS =
   'id,trip_id,name,category,note,shop,zone_id,price_yen,url,image_url,bought,position'
 
-// trips.people (migration 0009). Same graceful fallback as the itinerary
-// highlight/place coord columns above: an old deploy running against a
-// not-yet-migrated database gets trips back with people defaulted to [],
-// rather than a hard 500.
+// trips.people (migration 0009) and trips.local_currency (migration 0010).
+// Same graceful fallback as the itinerary highlight/place coord columns
+// above: an old deploy running against a not-yet-migrated database gets
+// trips back with these columns defaulted, rather than a hard 500.
 const TRIP_BASE_COLS = 'id,name,start_date,end_date,description'
-const TRIP_COLS = `${TRIP_BASE_COLS},people`
+const TRIP_PEOPLE_COLS = `${TRIP_BASE_COLS},people`
+const TRIP_COLS = `${TRIP_PEOPLE_COLS},local_currency`
 
-function isMissingPeopleColumn(error: { code?: string; message?: string } | null): boolean {
+function isMissingColumn(
+  error: { code?: string; message?: string } | null,
+  column: string
+): boolean {
   if (!error) return false
   return (
-    error.code === '42703' || error.code === 'PGRST204' || /\bpeople\b/i.test(error.message ?? '')
+    error.code === '42703' ||
+    error.code === 'PGRST204' ||
+    new RegExp(`\\b${column}\\b`, 'i').test(error.message ?? '')
   )
 }
 
 // Also normalizes legacy rows where people was a plain string array (pre
 // name+email support), so an unmigrated production row still renders.
-function withPeopleDefault(row: Record<string, unknown>): Trip {
+function withTripDefaults(row: Record<string, unknown>): Trip {
   const people = Array.isArray(row.people) ? row.people.map(normalizeTraveller) : []
-  return { ...row, people } as unknown as Trip
+  const local_currency = typeof row.local_currency === 'string' ? row.local_currency : 'JPY'
+  return { ...row, people, local_currency } as unknown as Trip
 }
 
 // Tables added in migration 0006 (scheduled reminders + push subscriptions).
@@ -131,17 +138,21 @@ export function createSupabaseStore(): DataStore {
       const run = (cols: string) =>
         db.from('trips').select(cols).order('created_at', { ascending: true })
       let { data, error } = await run(TRIP_COLS)
-      if (error && isMissingPeopleColumn(error)) ({ data, error } = await run(TRIP_BASE_COLS))
+      if (error && isMissingColumn(error, 'local_currency'))
+        ({ data, error } = await run(TRIP_PEOPLE_COLS))
+      if (error && isMissingColumn(error, 'people')) ({ data, error } = await run(TRIP_BASE_COLS))
       if (error) throw new Error(error.message)
-      return ((data as unknown as Record<string, unknown>[]) ?? []).map(withPeopleDefault)
+      return ((data as unknown as Record<string, unknown>[]) ?? []).map(withTripDefaults)
     },
 
     async getTrip(tripId) {
       const run = (cols: string) => db.from('trips').select(cols).eq('id', tripId).maybeSingle()
       let { data, error } = await run(TRIP_COLS)
-      if (error && isMissingPeopleColumn(error)) ({ data, error } = await run(TRIP_BASE_COLS))
+      if (error && isMissingColumn(error, 'local_currency'))
+        ({ data, error } = await run(TRIP_PEOPLE_COLS))
+      if (error && isMissingColumn(error, 'people')) ({ data, error } = await run(TRIP_BASE_COLS))
       if (error) throw new Error(error.message)
-      return data ? withPeopleDefault(data as unknown as Record<string, unknown>) : null
+      return data ? withTripDefaults(data as unknown as Record<string, unknown>) : null
     },
 
     async createTrip(input: TripInput) {
@@ -152,12 +163,19 @@ export function createSupabaseStore(): DataStore {
         end_date: input.end_date,
         description: input.description ?? null,
       }
-      const row = { ...base, people: input.people ?? [] }
+      const withPeople = { ...base, people: input.people ?? [] }
+      const row = { ...withPeople, local_currency: input.local_currency ?? 'JPY' }
       let { data, error } = await db.from('trips').insert(row).select(TRIP_COLS).single()
-      if (error && isMissingPeopleColumn(error))
+      if (error && isMissingColumn(error, 'local_currency'))
+        ({ data, error } = await db
+          .from('trips')
+          .insert(withPeople)
+          .select(TRIP_PEOPLE_COLS)
+          .single())
+      if (error && isMissingColumn(error, 'people'))
         ({ data, error } = await db.from('trips').insert(base).select(TRIP_BASE_COLS).single())
       if (error) throw new Error(error.message)
-      return withPeopleDefault(data as unknown as Record<string, unknown>)
+      return withTripDefaults(data as unknown as Record<string, unknown>)
     },
 
     async updateTrip(tripId, patch) {
@@ -167,11 +185,18 @@ export function createSupabaseStore(): DataStore {
       if (patch.end_date !== undefined) fields.end_date = patch.end_date
       if (patch.description !== undefined) fields.description = patch.description ?? null
       if (patch.people !== undefined) fields.people = patch.people ?? []
+      if (patch.local_currency !== undefined) fields.local_currency = patch.local_currency
       const run = (f: Record<string, unknown>, cols: string) =>
         db.from('trips').update(f).eq('id', tripId).select(cols).maybeSingle()
       let { data, error } = await run(fields, TRIP_COLS)
-      if (error && isMissingPeopleColumn(error)) {
+      if (error && isMissingColumn(error, 'local_currency')) {
         const rest = { ...fields }
+        delete rest.local_currency
+        ;({ data, error } = await run(rest, TRIP_PEOPLE_COLS))
+      }
+      if (error && isMissingColumn(error, 'people')) {
+        const rest = { ...fields }
+        delete rest.local_currency
         delete rest.people
         if (Object.keys(rest).length === 0) {
           throw new Error(
@@ -181,7 +206,7 @@ export function createSupabaseStore(): DataStore {
         ;({ data, error } = await run(rest, TRIP_BASE_COLS))
       }
       if (error) throw new Error(error.message)
-      return data ? withPeopleDefault(data as unknown as Record<string, unknown>) : null
+      return data ? withTripDefaults(data as unknown as Record<string, unknown>) : null
     },
 
     async deleteTrip(tripId) {
@@ -655,11 +680,11 @@ export function createSupabaseStore(): DataStore {
       return { bytes: Buffer.from(await data.arrayBuffer()), mime_type: file.mime_type }
     },
 
-    async getLatestRates() {
+    async getLatestRates(base) {
       const { data } = await db
         .from('exchange_rates')
         .select('base,date,usd,ils')
-        .eq('base', 'JPY')
+        .eq('base', base)
         .maybeSingle()
       return (data as ExchangeRates) ?? null
     },

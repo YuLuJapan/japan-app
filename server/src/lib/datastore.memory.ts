@@ -94,7 +94,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
   }
   // uploaded blobs live in memory only (dev/tests); seeded samples come from public/
   const blobs = new Map<string, { bytes: Buffer; mime: string }>()
-  let latestRates: ExchangeRates | null = null
+  const latestRates = new Map<string, ExchangeRates>()
   const subscriptions: PushSubscriptionRecord[] = []
 
   const emptyCounts = (): Record<Category, number> =>
@@ -122,6 +122,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         end_date: input.end_date,
         description: input.description ?? null,
         people: input.people ?? [],
+        local_currency: input.local_currency ?? 'JPY',
       }
       db.trips.push(trip)
       return structuredClone(trip)
@@ -135,6 +136,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       if (patch.end_date !== undefined) trip.end_date = patch.end_date
       if (patch.description !== undefined) trip.description = patch.description ?? null
       if (patch.people !== undefined) trip.people = patch.people ?? []
+      if (patch.local_currency !== undefined) trip.local_currency = patch.local_currency
       return structuredClone(trip)
     },
 
@@ -475,12 +477,13 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return { bytes: readFileSync(abs), mime_type: file.mime_type }
     },
 
-    async getLatestRates() {
-      return latestRates ? { ...latestRates } : null
+    async getLatestRates(base) {
+      const rates = latestRates.get(base)
+      return rates ? { ...rates } : null
     },
 
     async saveRates(rates: ExchangeRates) {
-      latestRates = { ...rates }
+      latestRates.set(rates.base, { ...rates })
     },
 
     async listReminders(tripId) {

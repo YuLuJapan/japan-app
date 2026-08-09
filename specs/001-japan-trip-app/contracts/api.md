@@ -42,16 +42,18 @@ The role of the code this client is already holding. Lets a session that predate
 
 **Traveller shape (2026-08-09 addition):** each entry in `people` is `{"name":"…","email?":"…"}`. A plain string is also accepted on write (normalized to `{"name": "…"}`) for backward compatibility with older clients and rows written before this change; the response always uses the object form.
 
+**Local currency (2026-08-09 addition):** each trip carries `local_currency`, an ISO 4217 code (`"JPY"`, `"GBP"`, `"ILS"`, …) from the allowlist in `server/src/lib/currency.ts` / `src/lib/currency.ts`. It drives the Essentials-tab exchange calculator (`GET /api/rates?base=…`), which converts the trip's own currency into whichever of USD/ILS isn't already that currency. Defaults to `"JPY"` when omitted on create, for backward compatibility with the original single-Japan-trip data.
+
 ### GET /api/trips
 
 List every trip, oldest first (powers the "Where to next?" trips list).
 
-- 200: `{"trips": [{"id":"…","name":"…","start_date":"…","end_date":"…","description":"…","people":[{"name":"Yuval"},{"name":"Luciana","email":"luciana@example.com"}]}]}`
+- 200: `{"trips": [{"id":"…","name":"…","start_date":"…","end_date":"…","description":"…","people":[{"name":"Yuval"},{"name":"Luciana","email":"luciana@example.com"}],"local_currency":"JPY"}]}`
 
 ### POST /api/trips
 
-- Request: `{"name":"…","start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","description?":"…","people?":[{"name":"…","email?":"…"} | "…"]}`
-- 201: `{"trip": {…}}` · 400 `VALIDATION` (missing/blank name, bad dates, end before start, name/description too long, more than 12 travellers, a traveller missing a name, a traveller name too long, or an `email` that isn't a valid address).
+- Request: `{"name":"…","start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","description?":"…","people?":[{"name":"…","email?":"…"} | "…"],"local_currency?":"JPY"}`
+- 201: `{"trip": {…}}` · 400 `VALIDATION` (missing/blank name, bad dates, end before start, name/description too long, more than 12 travellers, a traveller missing a name, a traveller name too long, an `email` that isn't a valid address, or a `local_currency` outside the supported list).
 
 ### GET /api/trips/:tripId
 
@@ -67,7 +69,8 @@ The whole journey skeleton for one trip — powers the Journey (home) view and o
     "start_date": "2026-10-05",
     "end_date": "2026-10-24",
     "description": "…",
-    "people": [{ "name": "Yuval" }, { "name": "Luciana", "email": "luciana@example.com" }]
+    "people": [{ "name": "Yuval" }, { "name": "Luciana", "email": "luciana@example.com" }],
+    "local_currency": "JPY"
   },
   "steps": [
     {
@@ -111,7 +114,7 @@ The whole journey skeleton for one trip — powers the Journey (home) view and o
 
 ### PATCH /api/trips/:tripId
 
-- Request: any subset of `{"name","start_date","end_date","description","people"}`.
+- Request: any subset of `{"name","start_date","end_date","description","people","local_currency"}`.
 - 200: `{"trip": {…updated…}}` · 400 `VALIDATION` · 404 unknown trip.
 
 ### DELETE /api/trips/:tripId
@@ -304,6 +307,14 @@ Reads a shop's own product page so an item can be added by pasting its link. Par
 - **A page it can't read is not an error**: unreachable host, non-HTML response, or no useful tags → 200 with the fields it couldn't fill set to `null`, so the form still keeps the link.
 - **Prices**: JPY is taken as-is; USD and ILS are converted with `GET /api/rates`; any other currency comes back as `price_yen: null` plus a `price_note` rather than a guess. A price with no stated currency on a Japanese shop is treated as yen.
 - **Fetching a URL the client chose is guarded** (this runs inside our own network): http(s) only; hostnames and resolved addresses in loopback/private/link-local ranges are refused (which covers names like `localtest.me` that resolve to `127.0.0.1`, and the `169.254.169.254` cloud-metadata address); redirects are followed manually, max 3, each hop re-checked; 6s timeout; the read stops after 512 KB. Only parsed fields are returned — never the page body.
+
+### GET /api/rates?base=JPY
+
+The exchange calculator's daily rate: 1 unit of `base` in each home currency (USD, ILS). Backed by open.er-api.com (free, keyless), cached ~6h in-process and durably in the DB (`exchange_rates`, one row per `base`) as an offline/outage fallback.
+
+- `base` optional, defaults to `JPY`. Must be one of the supported currency codes (`server/src/lib/currency.ts` / `src/lib/currency.ts`) → else 400 `VALIDATION`.
+- 200: `{"base":"JPY","date":"2026-07-11","usd":0.0067,"ils":0.025}`
+- **Multi-currency addition (2026-08-09):** each trip now carries its own `local_currency` (see `GET/POST /api/trips`); the calculator calls this route with that trip's currency as `base` instead of always JPY, and drops whichever of USD/ILS equals the trip's own currency client-side.
 
 ### GET /api/translate?q=クルーネックT
 

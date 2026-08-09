@@ -20,6 +20,7 @@ describe('trips', () => {
       id: 'trip-1',
       name: 'Test Trip',
       people: [{ name: 'Alex' }, { name: 'Sam' }],
+      local_currency: 'JPY',
     })
   })
 
@@ -44,6 +45,7 @@ describe('trips', () => {
     expect(create.body.trip).toMatchObject({
       name: 'Dolomites',
       people: [{ name: 'Alex' }, { name: 'Sam' }],
+      local_currency: 'JPY', // defaults when omitted
     })
 
     const list = await auth()
@@ -52,6 +54,43 @@ describe('trips', () => {
     // legacy single-trip route is unaffected by the new trip existing
     const legacy = await request(app).get('/api/trip').set('Authorization', `Bearer ${TEST_CODE}`)
     expect(legacy.body.trip.id).toBe('trip-1')
+  })
+
+  it('POST /api/trips accepts an explicit local_currency for a non-Japan destination', async () => {
+    const create = await request(app)
+      .post('/api/trips')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({
+        name: 'UK',
+        start_date: '2027-03-01',
+        end_date: '2027-03-10',
+        local_currency: 'GBP',
+      })
+    expect(create.status).toBe(201)
+    expect(create.body.trip.local_currency).toBe('GBP')
+  })
+
+  it('POST /api/trips rejects an unsupported local_currency', async () => {
+    const create = await request(app)
+      .post('/api/trips')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({
+        name: 'Nowhere',
+        start_date: '2027-03-01',
+        end_date: '2027-03-10',
+        local_currency: 'XXX',
+      })
+    expect(create.status).toBe(400)
+    expect(create.body.error.code).toBe('VALIDATION')
+  })
+
+  it('PATCH /api/trips/:tripId updates local_currency', async () => {
+    const res = await request(app)
+      .patch('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({ local_currency: 'ILS' })
+    expect(res.status).toBe(200)
+    expect(res.body.trip.local_currency).toBe('ILS')
   })
 
   it('POST /api/trips rejects a missing name and end before start', async () => {

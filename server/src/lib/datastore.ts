@@ -1,5 +1,6 @@
 // Datastore interface — every service depends on this, never on a concrete
 // backend. DATA_BACKEND=memory (placeholder JSON, default) | supabase (Phase 8).
+import type { CurrencyCode } from './currency.js'
 
 export const CATEGORIES = ['hotel', 'attraction', 'food', 'shopping', 'other'] as const
 export type Category = (typeof CATEGORIES)[number]
@@ -18,6 +19,8 @@ export interface Trip {
   end_date: string
   description: string | null
   people: Traveller[]
+  /** ISO 4217 code the exchange calculator treats as this trip's local currency. */
+  local_currency: CurrencyCode
 }
 
 export interface TripInput {
@@ -26,6 +29,7 @@ export interface TripInput {
   end_date: string
   description?: string | null
   people?: Traveller[]
+  local_currency?: CurrencyCode
 }
 
 /** Coerces a legacy plain-string traveller (old seed/DB rows) or a loose object into a Traveller. */
@@ -213,10 +217,10 @@ export interface FileInput {
 }
 
 export interface ExchangeRates {
-  base: 'JPY'
+  base: CurrencyCode
   date: string // YYYY-MM-DD
-  usd: number // 1 JPY in USD
-  ils: number // 1 JPY in ILS
+  usd: number // 1 unit of `base` in USD
+  ils: number // 1 unit of `base` in ILS
 }
 
 /** A scheduled nudge ("book the ryokan") delivered as a web push notification. */
@@ -342,8 +346,8 @@ export interface DataStore {
   /** Free-text search across places, zones, and tips (case-insensitive). */
   search(query: string): Promise<{ places: Place[]; zones: Zone[]; tips: Tip[] }>
 
-  /** Last exchange rate we successfully fetched (durable fallback), or null. */
-  getLatestRates(): Promise<ExchangeRates | null>
+  /** Last exchange rate we successfully fetched for this base currency (durable fallback), or null. */
+  getLatestRates(base: CurrencyCode): Promise<ExchangeRates | null>
   /** Persist the latest fetched exchange rate (one row per base currency). */
   saveRates(rates: ExchangeRates): Promise<void>
 

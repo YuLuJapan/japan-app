@@ -3,6 +3,7 @@
 // full journey skeleton for one (steps + zones + flight + file count).
 import type { DataStore, Trip, TripInput } from '../lib/datastore.js'
 import { getDefaultTrip, normalizeTraveller } from '../lib/datastore.js'
+import { isCurrencyCode } from '../lib/currency.js'
 import { notFound, validation } from '../lib/errors.js'
 import { FLIGHT } from '../lib/flight.js'
 
@@ -80,6 +81,8 @@ function collectTripErrors(input: Partial<TripInput>, partial: boolean): string[
   }
   if (has('description') && input.description != null && input.description.length > 2000)
     errors.push('description must be at most 2000 characters')
+  if (has('local_currency') && !isCurrencyCode(input.local_currency))
+    errors.push('local_currency must be a supported currency code')
   if (has('people') && input.people != null) {
     if (!Array.isArray(input.people)) errors.push('people must be an array of travellers')
     else if (input.people.length > PEOPLE_MAX) {
@@ -105,6 +108,7 @@ export async function createTrip(store: DataStore, input: Partial<TripInput>) {
     end_date: input.end_date!,
     description: input.description?.trim() || null,
     people: cleanPeople(input.people) ?? [],
+    local_currency: input.local_currency,
   })
   return { trip }
 }
