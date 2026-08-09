@@ -203,7 +203,12 @@ export function Layout({ children }: { children: ReactNode }) {
           <SignOutButton />
         </div>
       </header>
-      <main className="flex-1 px-5 pb-28 pt-1">{children}</main>
+      {/* Keyed by pathname so switching tabs — or drilling into a zone/place —
+          always remounts and replays the fade, even between two routes that'd
+          otherwise reuse the same component instance. */}
+      <main key={pathname} className="page-transition flex-1 px-5 pb-28 pt-1">
+        {children}
+      </main>
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-canvas/95 backdrop-blur">
         <div className="mx-auto flex max-w-app px-4 py-1.5">
           {tab(base, 'journey', 'Journey', journeyActive)}
