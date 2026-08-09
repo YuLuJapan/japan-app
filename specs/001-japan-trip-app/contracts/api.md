@@ -111,15 +111,17 @@ The whole journey skeleton for one trip — powers the Journey (home) view and o
 
 ### PATCH /api/trips/:tripId
 
-- Request: any subset of `{"name","start_date","end_date","description","people"}`, plus optional `"stranded_activities": "move" | "delete"` (see below).
-- 200: `{"trip": {…updated…}[, "moved": ["…item ids…"]][, "deleted": ["…item ids…"]]}` · 400 `VALIDATION` · 404 unknown trip.
+- Request: any subset of `{"name","start_date","end_date","description","people"}`, plus optional `"stranded_activities": "move" | "delete"` and `"stranded_stops": "move"` (see below).
+- 200: `{"trip": {…updated…}[, "moved_stops": ["…step ids…"]][, "moved": ["…item ids…"]][, "deleted": ["…item ids…"]]}` · 400 `VALIDATION` · 404 unknown trip.
 
-Changing the dates can strand what is already planned inside the old range — the mirror of the rule steps and itinerary items enforce on the way in: **the trip's dates always contain everything planned on it**. The two kinds of conflict resolve differently:
+Changing the dates can strand what is already planned inside the old range — the mirror of the rule steps and itinerary items enforce on the way in: **the trip's dates always contain everything planned on it**. Either kind of conflict is a 400 unless the request says what to do about it:
 
-- **A journey step outside the new range is always a 400.** A stop is a date range tied to a city; there is no sensible day to move it to and deleting one rearranges the journey, so it is fixed on the journey editor first. No resolution overrides this.
-- **Itinerary items outside the new range are a 400 too, unless the request says what to do with them.** `stranded_activities: "move"` re-dates each one to the trip's new `start_date` (everything else about the activity is untouched); `"delete"` removes them. The response echoes the affected ids as `moved` / `deleted`. Both are ignored when the change strands nothing.
+- `stranded_stops: "move"` re-dates each stranded step to the trip's new `start_date`, keeping its length (`end_date` clipped to the trip's end when the trip is now too short to hold the stay). Several stranded stops therefore land on top of each other and want re-spacing on the journey editor. Deleting a stop is **not** offered here — that rearranges the journey and belongs to the journey editor's own confirmed delete.
+- `stranded_activities: "move"` re-dates each stranded item to the new `start_date` (everything else about the activity is untouched); `"delete"` removes them.
 
-The trip row is written before the activities are moved/deleted, and the two are not in one transaction (the DataStore has none). If the second half fails, the dates are already correct and re-saving with the same choice retries it.
+Resolving stops from here is what makes a trip's dates movable at all. A step's dates are themselves pinned to its trip, so "fix the stop first, then the dates" is a deadlock: the stop cannot leave the window the trip still has, and the trip cannot leave the window the stop is in. Postponing a trip wholesale is impossible without this.
+
+The response echoes the affected ids; the fields are absent when the change strands nothing. The trip row is written before its stops and activities are moved, and the two halves are not in one transaction (the DataStore has none). If the second half fails, the dates are already correct and re-saving with the same choices retries it.
 
 ### GET /api/trips/:tripId/date-impact?start_date=&end_date=
 
