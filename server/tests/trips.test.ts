@@ -19,7 +19,7 @@ describe('trips', () => {
     expect(res.body.trips[0]).toMatchObject({
       id: 'trip-1',
       name: 'Test Trip',
-      people: ['Alex', 'Sam'],
+      people: [{ name: 'Alex' }, { name: 'Sam' }],
     })
   })
 
@@ -37,10 +37,14 @@ describe('trips', () => {
         name: 'Dolomites',
         start_date: '2027-02-06',
         end_date: '2027-02-14',
+        // legacy plain-string travellers are still accepted and normalized
         people: ['Alex', ' Sam '],
       })
     expect(create.status).toBe(201)
-    expect(create.body.trip).toMatchObject({ name: 'Dolomites', people: ['Alex', 'Sam'] })
+    expect(create.body.trip).toMatchObject({
+      name: 'Dolomites',
+      people: [{ name: 'Alex' }, { name: 'Sam' }],
+    })
 
     const list = await auth()
     expect(list.body.trips.map((t: { name: string }) => t.name)).toEqual(['Test Trip', 'Dolomites'])
@@ -69,14 +73,27 @@ describe('trips', () => {
     expect(res.status).toBe(404)
   })
 
-  it('PATCH /api/trips/:tripId updates travellers and dates', async () => {
+  it('PATCH /api/trips/:tripId updates travellers (with an email) and dates', async () => {
     const res = await request(app)
       .patch('/api/trips/trip-1')
       .set('Authorization', `Bearer ${TEST_CODE}`)
-      .send({ people: ['Alex', 'Sam', 'Noa'] })
+      .send({ people: [{ name: 'Alex' }, { name: 'Sam', email: 'sam@example.com' }, 'Noa'] })
     expect(res.status).toBe(200)
-    expect(res.body.trip.people).toEqual(['Alex', 'Sam', 'Noa'])
-    expect(res.body.trip.start_date).toBe('2026-10-05') // untouched fields survive a partial patch
+    expect(res.body.trip.people).toEqual([
+      { name: 'Alex' },
+      { name: 'Sam', email: 'sam@example.com' },
+      { name: 'Noa' },
+    ])
+    expect(res.body.trip.start_date).toBe('2026-10-01') // untouched fields survive a partial patch
+  })
+
+  it('PATCH /api/trips/:tripId rejects an invalid traveller email', async () => {
+    const res = await request(app)
+      .patch('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({ people: [{ name: 'Alex', email: 'not-an-email' }] })
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('VALIDATION')
   })
 
   it('DELETE /api/trips/:tripId removes the trip and cascades its children', async () => {

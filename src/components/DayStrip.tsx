@@ -55,7 +55,7 @@ export function DayStrip({ days, selected, onSelect, today, hasItems }: Props) {
               aria-pressed={active}
               aria-label={day}
               onClick={() => onSelect(day)}
-              className={`relative flex h-16 w-12 shrink-0 snap-start flex-col items-center justify-center rounded-2xl border text-center transition ${
+              className={`relative flex h-16 w-[52px] shrink-0 snap-start flex-col items-center justify-center rounded-2xl border text-center transition ${
                 active
                   ? 'border-brand bg-brand text-white shadow-card'
                   : 'border-line bg-white text-ink active:scale-95'

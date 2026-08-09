@@ -29,7 +29,7 @@ import type {
   Zone,
   ZoneInput,
 } from './datastore.js'
-import { CATEGORIES } from './datastore.js'
+import { CATEGORIES, normalizeTraveller } from './datastore.js'
 import { FILES_BUCKET, getSupabase } from './supabase.js'
 
 const SIGNED_URL_TTL = 300 // seconds
@@ -66,8 +66,11 @@ function isMissingPeopleColumn(error: { code?: string; message?: string } | null
   )
 }
 
+// Also normalizes legacy rows where people was a plain string array (pre
+// name+email support), so an unmigrated production row still renders.
 function withPeopleDefault(row: Record<string, unknown>): Trip {
-  return { people: [], ...row } as unknown as Trip
+  const people = Array.isArray(row.people) ? row.people.map(normalizeTraveller) : []
+  return { ...row, people } as unknown as Trip
 }
 
 // Tables added in migration 0006 (scheduled reminders + push subscriptions).

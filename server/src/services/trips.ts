@@ -2,11 +2,12 @@
 // them all (the "Where to next?" screen); GET /api/trips/:tripId returns the
 // full journey skeleton for one (steps + zones + flight + file count).
 import type { DataStore, Trip, TripInput } from '../lib/datastore.js'
-import { getDefaultTrip } from '../lib/datastore.js'
+import { getDefaultTrip, normalizeTraveller } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
 import { FLIGHT } from '../lib/flight.js'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const NAME_MAX = 120
 const PERSON_MAX = 60
 const PEOPLE_MAX = 12
@@ -43,9 +44,12 @@ export async function getDefaultTripBundle(store: DataStore) {
   return getTripBundle(store, trip.id)
 }
 
-function cleanPeople(people: string[] | undefined): string[] | undefined {
+function cleanPeople(people: unknown[] | undefined) {
   if (people === undefined) return undefined
-  return people.map((p) => p.trim()).filter(Boolean)
+  return people
+    .map(normalizeTraveller)
+    .map((p) => ({ name: p.name.trim(), ...(p.email ? { email: p.email.trim() } : {}) }))
+    .filter((p) => p.name)
 }
 
 function collectTripErrors(input: Partial<TripInput>, partial: boolean): string[] {
@@ -77,14 +81,16 @@ function collectTripErrors(input: Partial<TripInput>, partial: boolean): string[
   if (has('description') && input.description != null && input.description.length > 2000)
     errors.push('description must be at most 2000 characters')
   if (has('people') && input.people != null) {
-    if (!Array.isArray(input.people)) errors.push('people must be an array of names')
-    else {
-      if (input.people.length > PEOPLE_MAX)
-        errors.push(`people must have at most ${PEOPLE_MAX} names`)
-      if (input.people.some((p) => typeof p !== 'string' || !p.trim()))
-        errors.push('people must be non-empty names')
-      else if (input.people.some((p) => p.trim().length > PERSON_MAX))
-        errors.push(`each name in people must be at most ${PERSON_MAX} characters`)
+    if (!Array.isArray(input.people)) errors.push('people must be an array of travellers')
+    else if (input.people.length > PEOPLE_MAX) {
+      errors.push(`people must have at most ${PEOPLE_MAX} travellers`)
+    } else {
+      const travellers = input.people.map(normalizeTraveller)
+      if (travellers.some((p) => !p.name.trim())) errors.push('each traveller needs a name')
+      else if (travellers.some((p) => p.name.trim().length > PERSON_MAX))
+        errors.push(`each traveller's name must be at most ${PERSON_MAX} characters`)
+      if (travellers.some((p) => p.email && !EMAIL_RE.test(p.email)))
+        errors.push('each traveller email must be a valid email address')
     }
   }
   return errors

@@ -4,14 +4,20 @@
 export const CATEGORIES = ['hotel', 'attraction', 'food', 'shopping', 'other'] as const
 export type Category = (typeof CATEGORIES)[number]
 
+/** A free-text traveller on a trip — not a linked account. Email is optional and is
+ *  only ever used to open a mailto: invite; the app has no per-traveller login. */
+export interface Traveller {
+  name: string
+  email?: string
+}
+
 export interface Trip {
   id: string
   name: string
   start_date: string
   end_date: string
   description: string | null
-  /** Free-text traveller names for this trip (not linked accounts). */
-  people: string[]
+  people: Traveller[]
 }
 
 export interface TripInput {
@@ -19,7 +25,19 @@ export interface TripInput {
   start_date: string
   end_date: string
   description?: string | null
-  people?: string[]
+  people?: Traveller[]
+}
+
+/** Coerces a legacy plain-string traveller (old seed/DB rows) or a loose object into a Traveller. */
+export function normalizeTraveller(p: unknown): Traveller {
+  if (typeof p === 'string') return { name: p }
+  if (p && typeof p === 'object') {
+    const obj = p as { name?: unknown; email?: unknown }
+    const name = typeof obj.name === 'string' ? obj.name : ''
+    const email = typeof obj.email === 'string' ? obj.email.trim() : ''
+    return email ? { name, email } : { name }
+  }
+  return { name: '' }
 }
 
 export interface JourneyStep {

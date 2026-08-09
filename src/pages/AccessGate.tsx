@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, clearAccessCode, setAccessCode, setStoredRole, type Role } from '../api/client'
+import { RingMark } from '../components/RingMark'
 import { getSupabaseClient } from '../lib/supabaseClient'
 
 type Screen = 'choose' | 'email' | 'sent'
@@ -88,19 +89,13 @@ export default function AccessGate() {
       <div className="absolute -left-16 top-10 h-56 w-56 rounded-full bg-white/15 blur-2xl" />
       <div className="absolute -right-10 bottom-24 h-64 w-64 rounded-full bg-black/10 blur-2xl" />
       <div className="relative w-full max-w-app text-center">
-        <span
-          className="mx-auto flex h-[88px] w-[88px] items-center justify-center rounded-[28px] shadow-pop"
-          style={{ background: '#FFF4F1' }}
-          aria-hidden
-        >
-          <span className="relative h-[34px] w-[34px] rounded-full border-[4px] border-brand">
-            <span className="absolute -right-px -top-px h-2.5 w-2.5 rounded-full bg-brand" />
-          </span>
-        </span>
+        <div className="mx-auto w-fit">
+          <RingMark size={88} />
+        </div>
         <h1 className="mt-6 font-display text-4xl font-extrabold tracking-tight text-white">
-          Japan
+          Onward
         </h1>
-        <p className="mt-2 text-white/85">Yuval &amp; Luciana · our trip companion</p>
+        <p className="mt-2 text-white/85">Your trip companion</p>
 
         {screen === 'sent' && (
           <div className="mt-10 flex flex-col gap-3 text-left">

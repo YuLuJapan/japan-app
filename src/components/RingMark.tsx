@@ -1,6 +1,7 @@
-// The small ring mark from the design prototype — a plain white circle on
-// the brand-coral square, used in the trips-list and in-trip headers (the
-// login screen has its own larger version with an accent dot).
+// The ring mark from the design prototype — a plain white circle on the
+// brand-coral square. Used everywhere the app shows its logo (trips-list
+// header, in-trip header, and a larger size on the login screen) so it's the
+// same icon throughout, not a per-screen variant.
 export function RingMark({ size = 34 }: { size?: number }) {
   const ring = Math.round(size * 0.38)
   return (

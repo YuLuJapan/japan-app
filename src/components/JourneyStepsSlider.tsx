@@ -32,7 +32,7 @@ export function JourneyStepsSlider({
 }) {
   return (
     <div
-      className="no-scrollbar -mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-2"
+      className="no-scrollbar -mx-5 flex snap-x snap-mandatory gap-3.5 overflow-x-auto px-5 pb-2"
       data-testid="journey-slider"
     >
       {steps.map((step, i) => {
@@ -44,7 +44,7 @@ export function JourneyStepsSlider({
             key={step.id}
             to={zone ? `/trips/${tripId}/zones/${zone.id}` : '#'}
             data-status={status}
-            className={`relative w-[76%] shrink-0 snap-start overflow-hidden rounded-3xl bg-white shadow-card ring-1 transition ${
+            className={`relative w-[210px] shrink-0 snap-start overflow-hidden rounded-3xl bg-white shadow-card ring-1 transition ${
               status === 'current' ? 'ring-2 ring-brand' : 'ring-line'
             }`}
           >
@@ -52,7 +52,7 @@ export function JourneyStepsSlider({
               <ZoneImage
                 src={zone?.image_url}
                 alt={zone ? `${zone.name}` : ''}
-                className="h-44 w-full"
+                className="h-[130px] w-full"
               />
               <span className="absolute left-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-xs font-extrabold text-ink shadow">
                 {i + 1}
@@ -68,7 +68,7 @@ export function JourneyStepsSlider({
                 </p>
               </div>
             </div>
-            <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center justify-between px-3.5 py-3">
               <span className="text-sm font-semibold text-ink">
                 {fmt(step.start_date)} – {fmt(step.end_date)}
               </span>

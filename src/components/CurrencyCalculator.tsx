@@ -17,7 +17,7 @@ export function CurrencyCalculator() {
   const amount = Number(amountStr.replace(/[^0-9.]/g, '')) || 0
 
   return (
-    <div className="rounded-3xl border border-line bg-white p-4 shadow-card">
+    <div className="rounded-3xl border border-line bg-white p-5 shadow-card">
       <div className="flex items-center justify-between">
         <h3 className="font-display text-base font-extrabold">Exchange calculator</h3>
         {data && <span className="text-[11px] font-semibold text-muted">Rate · {data.date}</span>}

@@ -51,11 +51,14 @@ export default function Reminders() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="font-display text-2xl font-extrabold">Reminders</h1>
-        <p className="mt-1 text-sm text-muted">
+        <p className="section-title text-brand">Reminders</p>
+        <h1 className="mt-1 font-display text-[34px] font-extrabold leading-[1.05] tracking-tight">
+          Don&apos;t forget
+        </h1>
+        <p className="mt-1.5 text-sm text-muted">
           {canEdit
             ? "Get a notification when it's time to book a restaurant, a bus seat or an activity."
-            : 'What Yuval & Luciana have lined up to book or sort out.'}
+            : "What you've lined up to book or sort out before you fly."}
         </p>
       </div>
 
@@ -95,7 +98,7 @@ export default function Reminders() {
               />
             </div>
           ) : (
-            <ReminderCard
+            <UpcomingReminderCard
               key={reminder.id}
               reminder={reminder}
               now={now}
@@ -111,12 +114,10 @@ export default function Reminders() {
         <section className="space-y-2">
           <h2 className="section-title">Done</h2>
           {past.map((reminder) => (
-            <ReminderCard
+            <DoneReminderCard
               key={reminder.id}
               reminder={reminder}
-              now={now}
               canEdit={canEdit}
-              onEdit={() => setEditingId(reminder.id)}
               onDelete={() => setDeletingId(reminder.id)}
             />
           ))}
@@ -138,7 +139,12 @@ export default function Reminders() {
   )
 }
 
-function ReminderCard({
+const monthFmt = (tz: string) => new Intl.DateTimeFormat('en', { month: 'short', timeZone: tz })
+const dayFmt = (tz: string) => new Intl.DateTimeFormat('en', { day: 'numeric', timeZone: tz })
+
+/** Not-yet-sent reminder: white card with a date badge and an "in Xd" pill,
+ *  matching the design prototype. */
+function UpcomingReminderCard({
   reminder,
   now,
   canEdit,
@@ -152,53 +158,93 @@ function ReminderCard({
   onDelete: () => void
 }) {
   const zone = reminder.time_zone || HOME_TZ
-  const done = Boolean(reminder.sent_at)
+  const when = new Date(reminder.remind_at)
   return (
-    <article className={`card p-4 ${done ? 'opacity-60' : ''}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="font-semibold leading-snug">{reminder.title}</h3>
-          <p className="mt-0.5 text-sm text-muted">
-            {formatInTimeZone(reminder.remind_at, zone)}{' '}
-            <span className="text-xs">({timeZoneLabel(zone)})</span>
-          </p>
-          <p className="text-xs text-muted">
-            {done ? 'Sent' : relativeTime(reminder.remind_at, now)}
-          </p>
-        </div>
-        {canEdit && (
-          <div className="flex shrink-0 gap-1">
-            <button
-              type="button"
-              aria-label="Edit reminder"
-              className="rounded-full border border-line px-3 py-1 text-xs font-semibold"
-              onClick={onEdit}
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              aria-label="Delete reminder"
-              className="rounded-full border border-brand/30 px-3 py-1 text-xs font-semibold text-brand"
-              onClick={onDelete}
-            >
-              Delete
-            </button>
-          </div>
-        )}
+    <article className="flex items-start gap-3.5 rounded-[22px] bg-white p-4 shadow-card">
+      <div className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-2xl bg-[#FDECE8]">
+        <span className="text-[9px] font-bold uppercase tracking-wide text-brand">
+          {monthFmt(zone).format(when)}
+        </span>
+        <span className="font-display text-base font-bold leading-none text-brand">
+          {dayFmt(zone).format(when)}
+        </span>
       </div>
-      {reminder.body && <p className="mt-2 text-sm text-ink/80">{reminder.body}</p>}
-      {reminder.url && (
-        <a
-          href={reminder.url}
-          target={reminder.url.startsWith('/') ? undefined : '_blank'}
-          rel="noreferrer"
-          className="mt-2 inline-block text-sm font-semibold text-brand"
-        >
-          Open link ›
-        </a>
-      )}
+      <div className="min-w-0 flex-1">
+        <h3 className="font-bold leading-snug">{reminder.title}</h3>
+        <p className="mt-0.5 text-xs text-muted">
+          {formatInTimeZone(reminder.remind_at, zone)} ({timeZoneLabel(zone)})
+        </p>
+        {reminder.body && <p className="mt-1.5 text-sm text-ink/80">{reminder.body}</p>}
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          {reminder.url && (
+            <a
+              href={reminder.url}
+              target={reminder.url.startsWith('/') ? undefined : '_blank'}
+              rel="noreferrer"
+              className="text-xs font-bold text-brand"
+            >
+              Open link ›
+            </a>
+          )}
+          {canEdit && (
+            <>
+              <button
+                type="button"
+                aria-label="Edit reminder"
+                className="text-xs font-semibold text-muted"
+                onClick={onEdit}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                aria-label="Delete reminder"
+                className="text-xs font-semibold text-brand"
+                onClick={onDelete}
+              >
+                Delete
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+      <span className="shrink-0 rounded-full bg-[#F5F1EA] px-2.5 py-1 text-[11px] font-bold text-muted">
+        {relativeTime(reminder.remind_at, now)}
+      </span>
     </article>
+  )
+}
+
+/** Already-sent reminder: flat, muted, struck-through — a receipt, not an action. */
+function DoneReminderCard({
+  reminder,
+  canEdit,
+  onDelete,
+}: {
+  reminder: Reminder
+  canEdit: boolean
+  onDelete: () => void
+}) {
+  const zone = reminder.time_zone || HOME_TZ
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-[20px] bg-[#F3EFE8] px-4 py-3.5">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-ink/70 line-through">{reminder.title}</p>
+        <p className="mt-0.5 text-xs text-muted">
+          {formatInTimeZone(reminder.remind_at, zone)} · Sent
+        </p>
+      </div>
+      {canEdit && (
+        <button
+          type="button"
+          aria-label="Delete reminder"
+          className="shrink-0 text-xs font-semibold text-muted"
+          onClick={onDelete}
+        >
+          Delete
+        </button>
+      )}
+    </div>
   )
 }
 

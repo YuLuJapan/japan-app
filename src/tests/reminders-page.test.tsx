@@ -70,6 +70,15 @@ describe('Reminders page', () => {
     expect(await screen.findByText('Nothing scheduled yet.')).toBeInTheDocument()
   })
 
+  it('shows a sent reminder under Done, struck through, with no edit control', async () => {
+    stubApi([{ ...reminder, remind_at: '2020-01-01T00:00:00.000Z', sent_at: '2020-01-01T00:00:00.000Z' }])
+    render()
+
+    expect(await screen.findByText('Book the ryokan')).toHaveClass('line-through')
+    expect(screen.getByText(/· Sent/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit reminder' })).not.toBeInTheDocument()
+  })
+
   async function fillForm(title: string, date: string, time: string) {
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: /new reminder/i }))

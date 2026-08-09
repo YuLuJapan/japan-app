@@ -259,7 +259,9 @@ export default function TripEssentials() {
     <div className="space-y-8">
       <div>
         <p className="section-title text-brand">Essentials</p>
-        <h1 className="mt-1 font-display text-2xl font-extrabold">Good to know</h1>
+        <h1 className="mt-1 font-display text-[34px] font-extrabold leading-[1.05] tracking-tight">
+          Good to know
+        </h1>
       </div>
 
       <CurrencyCalculator />

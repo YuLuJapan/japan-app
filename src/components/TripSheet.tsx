@@ -5,9 +5,10 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useCreateTrip, useDeleteTrip, useUpdateTrip } from '../api/mutations'
-import type { Trip } from '../api/types'
+import type { Traveller, Trip } from '../api/types'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const DAY_OPTS = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0'))
 const MONTH_OPTS = MONTHS.map((label, i) => ({ value: String(i + 1).padStart(2, '0'), label }))
@@ -49,6 +50,18 @@ function avatarBg(name: string): string {
   return palette[h % palette.length]
 }
 
+/** No accounts to invite into — this just hands the guest link + a nudge to
+ *  the traveller's own inbox via the device's mail app. No server email involved. */
+function inviteHref(email: string, tripName: string): string {
+  const subject = `Join us on Onward${tripName ? ` — ${tripName}` : ''}`
+  const body = [
+    `Hey! I added you as a traveller on ${tripName ? `"${tripName}"` : 'our trip'} on Onward.`,
+    '',
+    `Sign in at ${window.location.origin}/gate with the trip's guest code (ask us if you don't have it) to see the plans, shopping list and documents.`,
+  ].join('\n')
+  return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+}
+
 interface Props {
   mode: 'add' | 'edit' | null
   trip?: Trip
@@ -67,10 +80,12 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   const [ey, setEy] = useState('')
   const [em, setEm] = useState('')
   const [ed, setEd] = useState('')
-  const [people, setPeople] = useState<string[]>([])
-  const [person, setPerson] = useState('')
+  const [people, setPeople] = useState<Traveller[]>([])
+  const [personName, setPersonName] = useState('')
+  const [personEmail, setPersonEmail] = useState('')
   const [confirm, setConfirm] = useState<0 | 1 | 2>(0)
   const [reason, setReason] = useState('')
+  const [personError, setPersonError] = useState(false)
 
   useEffect(() => {
     if (!mode) return
@@ -95,7 +110,9 @@ export function TripSheet({ mode, trip, onClose }: Props) {
       setEd('')
       setPeople([])
     }
-    setPerson('')
+    setPersonName('')
+    setPersonEmail('')
+    setPersonError(false)
     setConfirm(0)
     setReason('')
   }, [mode, trip])
@@ -108,10 +125,17 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   const canSubmit = name.trim() && startDate && endDate && endDate >= startDate
 
   const addPerson = () => {
-    const n = person.trim()
+    const n = personName.trim()
     if (!n || people.length >= 12) return
-    setPeople((p) => [...p, n])
-    setPerson('')
+    const e = personEmail.trim()
+    if (e && !EMAIL_RE.test(e)) {
+      setPersonError(true)
+      return
+    }
+    setPersonError(false)
+    setPeople((p) => [...p, e ? { name: n, email: e } : { name: n }])
+    setPersonName('')
+    setPersonEmail('')
   }
 
   const submit = (e: React.FormEvent) => {
@@ -267,9 +291,9 @@ export function TripSheet({ mode, trip, onClose }: Props) {
         <div className="mt-1 flex gap-2">
           <input
             className="field flex-1"
-            placeholder="Add a name"
-            value={person}
-            onChange={(e) => setPerson(e.target.value)}
+            placeholder="Name"
+            value={personName}
+            onChange={(e) => setPersonName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault()
@@ -277,6 +301,24 @@ export function TripSheet({ mode, trip, onClose }: Props) {
               }
             }}
             maxLength={60}
+            aria-label="Traveller name"
+          />
+          <input
+            className="field flex-1"
+            type="email"
+            placeholder="Email (optional)"
+            value={personEmail}
+            onChange={(e) => {
+              setPersonEmail(e.target.value)
+              setPersonError(false)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                addPerson()
+              }
+            }}
+            aria-label="Traveller email (optional)"
           />
           <button
             type="button"
@@ -287,24 +329,43 @@ export function TripSheet({ mode, trip, onClose }: Props) {
             +
           </button>
         </div>
+        {personError ? (
+          <p className="mt-1 text-xs font-semibold text-brand">
+            That doesn't look like a valid email.
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-muted">
+            Add an email to invite them by mail — they still sign in with the trip's guest code
+            (there are no individual logins).
+          </p>
+        )}
         {people.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
             {people.map((p, i) => (
               <span
-                key={`${p}-${i}`}
+                key={`${p.name}-${i}`}
                 className="flex items-center gap-2 rounded-full border border-line bg-white py-1 pl-1 pr-2"
               >
                 <span
                   className="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white"
-                  style={{ background: avatarBg(p) }}
+                  style={{ background: avatarBg(p.name) }}
                   aria-hidden
                 >
-                  {p[0]?.toUpperCase()}
+                  {p.name[0]?.toUpperCase()}
                 </span>
-                <span className="text-sm font-semibold">{p}</span>
+                <span className="text-sm font-semibold">{p.name}</span>
+                {p.email && (
+                  <a
+                    href={inviteHref(p.email, name)}
+                    className="text-xs font-bold text-brand"
+                    title={`Email an invite to ${p.email}`}
+                  >
+                    Invite
+                  </a>
+                )}
                 <button
                   type="button"
-                  aria-label={`Remove ${p}`}
+                  aria-label={`Remove ${p.name}`}
                   className="text-muted"
                   onClick={() => setPeople((ps) => ps.filter((_, j) => j !== i))}
                 >
