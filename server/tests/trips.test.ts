@@ -176,13 +176,101 @@ describe('trips', () => {
     expect(res.body.items).toEqual([])
   })
 
-  it('a stranded stop is refused even with a resolution — stops have no auto-fix', async () => {
+  it('a stranded stop is still refused without a stop resolution', async () => {
     const res = await request(app)
       .patch('/api/trips/trip-1')
       .set('Authorization', `Bearer ${TEST_CODE}`)
       .send({ start_date: '2026-10-07', end_date: '2026-10-14', stranded_activities: 'move' })
     expect(res.status).toBe(400)
     expect(res.body.error.details.join(' ')).toMatch(/journey stop/i)
+  })
+
+  it('stranded_stops=move brings the stops along, keeping their length', async () => {
+    // step-1 Tokyo 10-05 → 10-09 (4 nights) is the one that falls outside.
+    const res = await request(app)
+      .patch('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({
+        start_date: '2026-10-07',
+        end_date: '2026-10-14',
+        stranded_stops: 'move',
+        stranded_activities: 'move',
+      })
+    expect(res.status).toBe(200)
+    expect(res.body.moved_stops).toEqual(['step-1'])
+
+    const trip = await request(app)
+      .get('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+    const moved = trip.body.steps.find((s: { id: string }) => s.id === 'step-1')
+    expect(moved).toMatchObject({ start_date: '2026-10-07', end_date: '2026-10-11' }) // 4 nights kept
+    // and nothing is left outside the trip
+    for (const s of trip.body.steps) {
+      expect(s.start_date >= '2026-10-07' && s.end_date <= '2026-10-14').toBe(true)
+    }
+  })
+
+  it('clips a stop that no longer fits rather than letting it hang off the end', async () => {
+    // A 4-night stop cannot survive intact on a 2-day trip.
+    const res = await request(app)
+      .patch('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({
+        start_date: '2026-10-13',
+        end_date: '2026-10-14',
+        stranded_stops: 'move',
+        stranded_activities: 'delete',
+      })
+    expect(res.status).toBe(200)
+    const trip = await request(app)
+      .get('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+    for (const s of trip.body.steps) {
+      expect(s).toMatchObject({ start_date: '2026-10-13', end_date: '2026-10-14' })
+    }
+  })
+
+  it('lets a trip be postponed wholesale — the case that used to deadlock', async () => {
+    // Nothing about the old window overlaps the new one: every stop and every
+    // activity has to travel with it, which is impossible one entity at a time
+    // (a stop cannot leave the trip's dates, and the dates cannot move first).
+    const res = await request(app)
+      .patch('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({
+        start_date: '2027-01-10',
+        end_date: '2027-01-24',
+        stranded_stops: 'move',
+        stranded_activities: 'move',
+      })
+    expect(res.status).toBe(200)
+    expect(res.body.trip).toMatchObject({ start_date: '2027-01-10', end_date: '2027-01-24' })
+    expect(res.body.moved_stops).toHaveLength(2)
+    expect(res.body.moved).toHaveLength(2)
+
+    const trip = await request(app)
+      .get('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+    // Tokyo kept its 4 nights, Kyoto its 3, both anchored on the new first day.
+    expect(trip.body.steps.map((s: { start_date: string; end_date: string }) => s)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ start_date: '2027-01-10', end_date: '2027-01-14' }),
+        expect.objectContaining({ start_date: '2027-01-10', end_date: '2027-01-13' }),
+      ])
+    )
+    const items = await request(app)
+      .get('/api/itinerary')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+    for (const i of items.body.items) expect(i.day).toBe('2027-01-10')
+  })
+
+  it('rejects an unknown stranded_stops value', async () => {
+    const res = await request(app)
+      .patch('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({ start_date: '2026-10-01', end_date: '2026-10-14', stranded_stops: 'delete' })
+    expect(res.status).toBe(400)
+    expect(res.body.error.details.join(' ')).toMatch(/stranded_stops must be one of: move/)
   })
 
   it('PATCH with stranded_activities=move keeps the activities on the new first day', async () => {

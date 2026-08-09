@@ -76,38 +76,48 @@ const LIST_MAX = 12
 /** Above this, say out loud what moving them all onto one day costs. */
 const CROWD_WARN = 5
 
+/** The button says what the tap will actually do to the plan, not just "Save". */
 function submitLabel({
   pending,
   checking,
   mode,
+  steps,
   items,
-  blocked,
   resolution,
 }: {
   pending: boolean
   checking: boolean
   mode: 'add' | 'edit'
+  steps: number
   items: number
-  blocked: boolean
   resolution: StrandedResolution
 }): string {
   if (pending) return 'Saving…'
   if (checking) return 'Checking the dates…'
   if (mode === 'add') return 'Create trip'
-  if (blocked || !items) return 'Save changes'
-  return resolution === 'delete'
-    ? `Delete ${plural(items, 'activity', 'activities')} & save`
-    : `Move ${plural(items, 'activity', 'activities')} & save`
+  const parts: string[] = []
+  if (steps) parts.push(`move ${plural(steps, 'stop', 'stops')}`)
+  if (items)
+    parts.push(
+      `${resolution === 'delete' ? 'delete' : 'move'} ${plural(items, 'activity', 'activities')}`
+    )
+  if (!parts.length) return 'Save changes'
+  const text = parts.join(' & ')
+  return `${text[0].toUpperCase()}${text.slice(1)} & save`
 }
 
 /**
  * What the new dates would strand, and what to do about it. Activities are
  * listed in a collapsed disclosure (a day plan can be long) with a choice of
  * moving them onto the trip's first day — the default, since it keeps the plan
- * — or deleting them. Stranded stops have no such choice: they are shown as
- * blocking, because a stop is a date range tied to a city and only the journey
- * editor can sensibly change one. When a stop blocks, the activity choice is
- * withheld rather than shown dead — the save is not one tap away.
+ * — or deleting them.
+ *
+ * Stops travel with the trip and are stated rather than offered: they move to
+ * the first day, keeping their length. There is no "delete" here (that belongs
+ * to the journey editor's confirmed delete) and no "leave it" either — a stop
+ * outside the trip's dates is exactly what the API refuses, and sending the
+ * traveller to fix it first is a deadlock, since a stop cannot leave the window
+ * the trip still has.
  */
 function StrandedPanel({
   impact,
@@ -137,8 +147,11 @@ function StrandedPanel({
             ))}
           </ul>
           <p className="mt-2 text-xs text-muted">
-            Change {steps.length === 1 ? 'it' : 'them'} on the journey editor first — the dates
-            can't move while a stop sits outside them.
+            {steps.length === 1 ? 'It moves' : 'They move'} to the first day
+            {firstDay && ` · ${fmtPreview(firstDay)}`}, keeping{' '}
+            {steps.length === 1 ? 'its length' : 'their lengths'}
+            {steps.length > 1 && ', so they land on top of each other'}. Re-space them on the
+            journey editor afterwards.
           </p>
         </div>
       )}
@@ -167,47 +180,38 @@ function StrandedPanel({
             </ul>
           </details>
 
-          {/* No choice to offer while a stop blocks the whole change — asking
-              would imply the save is one tap away when it is not. */}
-          {steps.length > 0 ? (
-            <p className="mt-2 text-xs text-muted">
-              You'll be asked what to do with {items.length === 1 ? 'it' : 'them'} once the stops
-              fit.
-            </p>
-          ) : (
-            <fieldset className="mt-3">
-              <legend className="sr-only">What should happen to them?</legend>
-              <label className="flex items-start gap-2 py-1 text-sm">
-                <input
-                  type="radio"
-                  name="stranded-activities"
-                  className="mt-1"
-                  checked={resolution === 'move'}
-                  onChange={() => onResolution('move')}
-                />
-                <span>
-                  Move to the first day
-                  {firstDay && <span className="text-muted"> · {fmtPreview(firstDay)}</span>}
-                </span>
-              </label>
-              <label className="flex items-start gap-2 py-1 text-sm">
-                <input
-                  type="radio"
-                  name="stranded-activities"
-                  className="mt-1"
-                  checked={resolution === 'delete'}
-                  onChange={() => onResolution('delete')}
-                />
-                <span>Delete {items.length === 1 ? 'it' : 'them'}</span>
-              </label>
-              {items.length > CROWD_WARN && resolution === 'move' && (
-                <p className="mt-1 text-xs text-muted">
-                  That stacks {items.length} activities onto one day, and their original days are
-                  not kept.
-                </p>
-              )}
-            </fieldset>
-          )}
+          <fieldset className="mt-3">
+            <legend className="sr-only">What should happen to them?</legend>
+            <label className="flex items-start gap-2 py-1 text-sm">
+              <input
+                type="radio"
+                name="stranded-activities"
+                className="mt-1"
+                checked={resolution === 'move'}
+                onChange={() => onResolution('move')}
+              />
+              <span>
+                Move to the first day
+                {firstDay && <span className="text-muted"> · {fmtPreview(firstDay)}</span>}
+              </span>
+            </label>
+            <label className="flex items-start gap-2 py-1 text-sm">
+              <input
+                type="radio"
+                name="stranded-activities"
+                className="mt-1"
+                checked={resolution === 'delete'}
+                onChange={() => onResolution('delete')}
+              />
+              <span>Delete {items.length === 1 ? 'it' : 'them'}</span>
+            </label>
+            {items.length > CROWD_WARN && resolution === 'move' && (
+              <p className="mt-1 text-xs text-muted">
+                That stacks {items.length} activities onto one day, and their original days are not
+                kept.
+              </p>
+            )}
+          </fieldset>
         </div>
       )}
     </div>
@@ -284,8 +288,6 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   const canSubmit = name.trim() && startDate && endDate && endDate >= startDate
   const datesChanged =
     mode === 'edit' && !!trip && (startDate !== trip.start_date || endDate !== trip.end_date)
-  // A stranded stop has no sensible auto-fix — the journey editor owns those.
-  const blocked = !!impact?.steps.length
 
   const addPerson = () => {
     const n = personName.trim()
@@ -301,24 +303,28 @@ export function TripSheet({ mode, trip, onClose }: Props) {
     setPersonEmail('')
   }
 
-  const save = (stranded?: StrandedResolution) => {
+  const save = (found?: TripDateImpact | null) => {
     const input = { name: name.trim(), start_date: startDate, end_date: endDate, people }
     if (mode !== 'edit') {
       create.mutate(input, { onSuccess: onClose })
       return
     }
     update.mutate(
-      { ...input, ...(stranded ? { stranded_activities: stranded } : {}) },
+      {
+        ...input,
+        ...(found?.items.length ? { stranded_activities: resolution } : {}),
+        ...(found?.steps.length ? { stranded_stops: 'move' as const } : {}),
+      },
       { onSuccess: onClose }
     )
   }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!canSubmit || blocked) return
+    if (!canSubmit) return
     // Second press: the traveller has seen what is in the way and chosen.
     if (impact) {
-      save(resolution)
+      save(impact)
       return
     }
     if (!datesChanged) {
@@ -664,14 +670,14 @@ export function TripSheet({ mode, trip, onClose }: Props) {
           <button
             type="submit"
             className="btn-primary flex-1"
-            disabled={!canSubmit || blocked || checking || mutation.isPending}
+            disabled={!canSubmit || checking || mutation.isPending}
           >
             {submitLabel({
               pending: mutation.isPending,
               checking,
               mode,
+              steps: impact?.steps.length ?? 0,
               items: impact?.items.length ?? 0,
-              blocked,
               resolution,
             })}
           </button>

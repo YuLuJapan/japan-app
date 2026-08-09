@@ -64,6 +64,9 @@ export interface TripDateImpact {
 /** How to resolve stranded activities when a date change would orphan them. */
 export type StrandedResolution = 'move' | 'delete'
 
+/** Stops only move — deleting one belongs to the journey editor, not a date change. */
+export type StopResolution = 'move'
+
 export interface ZoneSummary {
   id: string
   name: string

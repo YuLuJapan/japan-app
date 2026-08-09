@@ -114,7 +114,7 @@ describe('TripSheet date changes that strand activities', () => {
     expect(mocks.patch.mock.calls[0][1]).toMatchObject({ stranded_activities: 'delete' })
   })
 
-  it('blocks on a stranded stop — those are fixed on the journey editor', async () => {
+  it('brings a stranded stop along instead of dead-ending on it', async () => {
     const user = userEvent.setup()
     mocks.get.mockResolvedValue({
       ...IMPACT,
@@ -128,11 +128,20 @@ describe('TripSheet date changes that strand activities', () => {
 
     expect(await screen.findByText(/1 stop falls outside/i)).toBeInTheDocument()
     expect(screen.getByText('Sintra')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled()
-    expect(mocks.patch).not.toHaveBeenCalled()
+    // Telling the traveller to fix it on the journey editor first was a
+    // deadlock: a stop cannot leave the window the trip still has.
+    expect(screen.getByText(/It moves to the first day/i)).toBeInTheDocument()
+
+    const save = screen.getByRole('button', { name: /Move 1 stop & save/ })
+    expect(save).toBeEnabled()
+    await user.click(save)
+
+    await waitFor(() => expect(mocks.patch).toHaveBeenCalled())
+    expect(mocks.patch.mock.calls[0][1]).toMatchObject({ stranded_stops: 'move' })
+    expect(mocks.patch.mock.calls[0][1].stranded_activities).toBeUndefined()
   })
 
-  it('withholds the activity choice while a stop blocks the change', async () => {
+  it('resolves stops and activities in one save', async () => {
     const user = userEvent.setup()
     mocks.get.mockResolvedValue({
       ...IMPACT,
@@ -144,11 +153,18 @@ describe('TripSheet date changes that strand activities', () => {
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
     await screen.findByText(/1 stop falls outside/i)
 
-    // The stranded activities are still named…
+    // Both are named, and the activity choice is live — nothing is blocking.
     expect(screen.getByText(/2 activities fall outside/i)).toBeInTheDocument()
-    // …but offering a choice would imply the save is one tap away. It is not.
-    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
-    expect(screen.getByText(/once the stops fit/i)).toBeInTheDocument()
+    await user.click(screen.getByRole('radio', { name: /Delete them/ }))
+
+    await user.click(
+      screen.getByRole('button', { name: /Move 1 stop & delete 2 activities & save/ })
+    )
+    await waitFor(() => expect(mocks.patch).toHaveBeenCalled())
+    expect(mocks.patch.mock.calls[0][1]).toMatchObject({
+      stranded_stops: 'move',
+      stranded_activities: 'delete',
+    })
   })
 
   it('says what moving a crowd of activities onto one day costs', async () => {

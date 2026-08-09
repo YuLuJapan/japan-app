@@ -17,6 +17,7 @@ import type {
   ShoppingItem,
   ShoppingItemInput,
   Tip,
+  StopResolution,
   StrandedResolution,
   Trip,
   TripInput,
@@ -292,10 +293,18 @@ export function useUpdateTrip(tripId: string) {
   const invalidate = useTripsInvalidation()
   const qc = useQueryClient()
   return useMutation({
-    // `stranded_activities` only matters when the new dates leave activities
-    // outside the trip; the server refuses the change without it.
-    mutationFn: (patch: Partial<TripInput> & { stranded_activities?: StrandedResolution }) =>
-      api.patch<{ trip: Trip; moved?: string[]; deleted?: string[] }>(`/trips/${tripId}`, patch),
+    // The `stranded_*` fields only matter when the new dates leave stops or
+    // activities outside the trip; the server refuses the change without them.
+    mutationFn: (
+      patch: Partial<TripInput> & {
+        stranded_activities?: StrandedResolution
+        stranded_stops?: StopResolution
+      }
+    ) =>
+      api.patch<{ trip: Trip; moved_stops?: string[]; moved?: string[]; deleted?: string[] }>(
+        `/trips/${tripId}`,
+        patch
+      ),
     onSuccess: () => {
       invalidate()
       qc.invalidateQueries({ queryKey: ['trip', tripId] })
