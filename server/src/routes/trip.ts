@@ -1,4 +1,5 @@
-import { Router } from 'express'
+import { Router, type Request } from 'express'
+import { isGuest } from '../lib/auth.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import {
@@ -13,13 +14,19 @@ import {
 
 export const tripRouter = Router()
 
+/** Guests get the bundle without the flight and without the stay counts. */
+const guestView = (req: Request) => ({
+  includeFlight: !isGuest(req),
+  includeStays: !isGuest(req),
+})
+
 // Legacy, pre-multi-trip route: the oldest trip's bundle. Kept so the current
 // (single-trip) frontend keeps working unchanged; superseded by
 // GET /api/trips/:tripId once the UI can pick a trip.
 tripRouter.get(
   '/trip',
-  asyncHandler(async (_req, res) => {
-    res.json(await getDefaultTripBundle(await getDataStore()))
+  asyncHandler(async (req, res) => {
+    res.json(await getDefaultTripBundle(await getDataStore(), guestView(req)))
   })
 )
 
@@ -40,7 +47,7 @@ tripRouter.post(
 tripRouter.get(
   '/trips/:tripId',
   asyncHandler(async (req, res) => {
-    res.json(await getTripBundle(await getDataStore(), req.params.tripId))
+    res.json(await getTripBundle(await getDataStore(), req.params.tripId, guestView(req)))
   })
 )
 

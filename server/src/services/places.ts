@@ -1,15 +1,26 @@
 import type { Category, DataStore, PlaceInput, PlaceLink } from '../lib/datastore.js'
 import { CATEGORIES, getDefaultTrip } from '../lib/datastore.js'
-import { notFound, validation } from '../lib/errors.js'
+import { forbidden, notFound, validation } from '../lib/errors.js'
+import { isStay } from '../lib/guest-view.js'
 
-/** `includeFiles: false` is the guest view — attachments never leave the server. */
+/**
+ * `includeFiles: false` is the guest view — attachments never leave the server.
+ * `includeStays: false` is the same view's other half: a stay is the booking
+ * itself (lib/guest-view.ts), so guests are refused the page outright.
+ */
 export async function getPlaceDetail(
   store: DataStore,
   placeId: string,
-  { includeFiles = true }: { includeFiles?: boolean } = {}
+  {
+    includeFiles = true,
+    includeStays = true,
+  }: { includeFiles?: boolean; includeStays?: boolean } = {}
 ) {
   const place = await store.getPlace(placeId)
   if (!place) throw notFound('Place')
+  if (!includeStays && isStay(place)) {
+    throw forbidden('Stays are not part of the guest view')
+  }
   const [tips, files] = await Promise.all([
     store.listTips({ place_id: placeId }),
     includeFiles ? store.listFiles({ place_id: placeId }) : [],

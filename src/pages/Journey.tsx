@@ -8,7 +8,7 @@ import { Loading } from '../components/Loading'
 import { Schedule } from '../components/Schedule'
 import { SushiSequence } from '../components/SushiSequence'
 import { enumerateDays, toISODate } from '../lib/schedule'
-import { useCanEdit } from '../lib/session'
+import { useCanEdit, useCanSeeBookings } from '../lib/session'
 import { travellersLabel, useTripId } from '../lib/trip'
 
 const fmt = (iso: string) =>
@@ -22,6 +22,7 @@ const isJapanTrip = (name: string) => /\bjapan\b/i.test(name)
 
 export default function Journey() {
   const canEdit = useCanEdit()
+  const canSeeBookings = useCanSeeBookings()
   const tripId = useTripId()
   const { data, isPending, isError, refetch } = useTrip(tripId)
   const itinerary = useItinerary(tripId)
@@ -59,7 +60,12 @@ export default function Journey() {
       {japan && data.flight ? (
         <CountdownWidget flight={data.flight} />
       ) : (
-        <GenericCountdown startDate={data.trip.start_date} />
+        <GenericCountdown
+          startDate={data.trip.start_date}
+          // A guest gets no `flight` at all — the bundle withholds it — so don't
+          // send them to a Documents tab they don't have either.
+          note={canSeeBookings ? undefined : 'The travellers keep the flight details private.'}
+        />
       )}
 
       {hasSteps ? (

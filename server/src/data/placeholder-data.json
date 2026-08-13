@@ -762,8 +762,8 @@
     },
     {
       "id": "tip-atami-cancel-backup",
-      "zone_id": "zone-atami",
-      "place_id": null,
+      "zone_id": null,
+      "place_id": "hotel-atami-sekaie",
       "body": "Cancel the backup Yuyado Ichibanchi booking (Oct 10–12) when you get a chance — Atami Sekaie is the one you're keeping."
     }
   ],

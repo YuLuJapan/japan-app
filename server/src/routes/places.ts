@@ -12,6 +12,7 @@ placesRouter.get(
     res.json(
       await getPlaceDetail(await getDataStore(), req.params.placeId, {
         includeFiles: !isGuest(req),
+        includeStays: !isGuest(req),
       })
     )
   })

@@ -319,6 +319,12 @@ export function createSupabaseStore(): DataStore {
       return (data as unknown as Place) ?? null
     },
 
+    async listPlaceIdsByCategory(category) {
+      const { data, error } = await db.from('places').select('id').eq('category', category)
+      if (error) throw new Error(error.message)
+      return ((data as { id: string }[]) ?? []).map((row) => row.id)
+    },
+
     async createPlace(input: PlaceInput) {
       const base = {
         id: randomUUID(),

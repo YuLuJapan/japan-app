@@ -1,12 +1,19 @@
 import type { Category, DataStore } from '../lib/datastore.js'
 import { CATEGORIES } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
+import { hideStayCounts, isStay } from '../lib/guest-view.js'
 
-/** `includeFiles: false` is the guest view — attachments never leave the server. */
+/**
+ * `includeFiles: false` is the guest view — attachments never leave the server.
+ * `includeStays: false` drops the stays from the counts (lib/guest-view.ts).
+ */
 export async function getZoneDetail(
   store: DataStore,
   zoneId: string,
-  { includeFiles = true }: { includeFiles?: boolean } = {}
+  {
+    includeFiles = true,
+    includeStays = true,
+  }: { includeFiles?: boolean; includeStays?: boolean } = {}
 ) {
   const zone = await store.getZone(zoneId)
   if (!zone) throw notFound('Zone')
@@ -24,21 +31,29 @@ export async function getZoneDetail(
       mime_type,
       size_bytes,
     })),
-    place_counts,
+    place_counts: includeStays ? place_counts : hideStayCounts(place_counts),
   }
 }
 
 // category === '' means "every category" (used by the city map, which plots
 // all of a zone's places and filters client-side).
-export async function listZonePlaces(store: DataStore, zoneId: string, category: string) {
+export async function listZonePlaces(
+  store: DataStore,
+  zoneId: string,
+  category: string,
+  { includeStays = true }: { includeStays?: boolean } = {}
+) {
   if (category !== '' && !CATEGORIES.includes(category as Category)) {
     throw validation([`category must be one of: ${CATEGORIES.join(', ')}`])
   }
   const zone = await store.getZone(zoneId)
   if (!zone) throw notFound('Zone')
-  const places = category
+  const all = category
     ? await store.listPlaces(zoneId, category as Category)
     : await store.listPlacesInZone(zoneId)
+  // Covers both shapes: asking for the stays themselves, and the map's
+  // all-categories sweep that would otherwise carry them along.
+  const places = includeStays ? all : all.filter((p) => !isStay(p))
   return {
     places: places.map((p) => ({
       id: p.id,
