@@ -266,43 +266,65 @@ export default function TripEssentials() {
 
       <CurrencyCalculator />
 
-      <div className="space-y-3">
-        {SECTIONS.map((s, i) => {
-          const open = openIdx === i
-          return (
-            <div
-              key={s.title}
-              className="rounded-2xl border border-line bg-white px-4.5 py-4 shadow-card"
-            >
-              <button
-                type="button"
-                onClick={() => setOpenIdx(open ? null : i)}
-                className="flex w-full items-center justify-between text-left"
-                aria-expanded={open}
-              >
-                <span className="font-bold text-ink">{s.title}</span>
-                <span className="text-base text-muted" aria-hidden>
-                  {open ? '⌃' : '⌄'}
-                </span>
-              </button>
-              <p className="mt-0.5 text-xs text-muted">{s.meta}</p>
-              {open && (
-                <ul className="mt-3 space-y-2">
-                  {s.items.map((item, j) => (
-                    <li key={j} className="flex gap-2 text-sm leading-relaxed">
-                      <span
-                        className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand"
-                        aria-hidden
-                      />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )
-        })}
-      </div>
+      <section>
+        <p className="section-title">Trip notes</p>
+        <div className="mt-3 space-y-3">
+          {SECTIONS.map((s, i) => {
+            const open = openIdx === i
+            const panelId = `essentials-panel-${i}`
+            return (
+              <div key={s.title} className="rounded-2xl border border-line bg-white shadow-card">
+                {/* The whole header row is the button — title, meta line and the
+                    card padding all tap — and the meta sits inside it so the
+                    chevron centres against both lines instead of just the title. */}
+                <button
+                  type="button"
+                  onClick={() => setOpenIdx(open ? null : i)}
+                  className="flex w-full items-center gap-3 px-4.5 py-4 text-left"
+                  aria-expanded={open}
+                  aria-controls={panelId}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-bold leading-snug text-ink">{s.title}</span>
+                    <span className="mt-1 block text-xs leading-snug text-muted">{s.meta}</span>
+                  </span>
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                    className={`shrink-0 text-muted transition-transform duration-200 ${
+                      open ? '-rotate-180' : ''
+                    }`}
+                  >
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+                {open && (
+                  <div id={panelId} className="border-t border-line px-4.5 pb-4 pt-3.5">
+                    <ul className="space-y-2.5">
+                      {s.items.map((item, j) => (
+                        <li key={j} className="flex gap-2.5 text-sm leading-relaxed">
+                          <span
+                            className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand"
+                            aria-hidden
+                          />
+                          <span className="min-w-0 flex-1">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </section>
 
       <section>
         <div className="mb-2 flex items-baseline justify-between">
@@ -346,8 +368,8 @@ export default function TripEssentials() {
           {groups.map((g) => {
             const done = g.items.filter((i) => checked[i]).length
             return (
-              <div key={g.name} className="rounded-2xl border border-line bg-white px-4 py-3">
-                <div className="flex items-baseline justify-between">
+              <div key={g.name} className="rounded-2xl border border-line bg-white px-4.5 py-3.5">
+                <div className="flex items-baseline justify-between gap-3">
                   <h3 className="text-sm font-bold">{g.name}</h3>
                   <span
                     className={`text-xs font-bold ${
@@ -357,13 +379,13 @@ export default function TripEssentials() {
                     {done}/{g.items.length}
                   </span>
                 </div>
-                <ul className="mt-1 divide-y divide-line">
+                <ul className="mt-2 divide-y divide-line">
                   {g.items.map((item) => (
-                    <li key={item} className="flex items-center gap-3 py-2">
+                    <li key={item} className="flex items-center gap-3 py-2.5">
                       <button
                         type="button"
                         onClick={() => toggle(item)}
-                        className="flex flex-1 items-center gap-3 text-left"
+                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
                       >
                         <span
                           className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs text-white ${
@@ -400,9 +422,15 @@ export default function TripEssentials() {
 
       <section>
         <p className="section-title">Handy phrases</p>
-        <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-white">
+        <ul className="mt-3 divide-y divide-line rounded-2xl border border-line bg-white">
           {PHRASES.map((p) => (
-            <li key={p.romaji} className="flex items-center justify-between px-4 py-2.5">
+            // flex-wrap, not shrink: a long pair like "Eigo ga hanasemasu ka?"
+            // / "Do you speak English?" drops the meaning onto its own line
+            // instead of squeezing the phrase into a three-line stack.
+            <li
+              key={p.romaji}
+              className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-4.5 py-3 leading-snug"
+            >
               <span className="font-semibold">{p.romaji}</span>
               <span className="text-sm text-muted">{p.meaning}</span>
             </li>
@@ -412,15 +440,17 @@ export default function TripEssentials() {
 
       <section>
         <p className="section-title">Emergency</p>
-        <ul className="mt-2 space-y-2">
+        <ul className="mt-3 space-y-2">
           {EMERGENCY.map((e) => (
             <li key={e.value}>
               <a
                 href={`tel:${e.value.replace(/[^0-9+]/g, '')}`}
-                className="flex items-center justify-between rounded-2xl border border-line bg-white px-4 py-3"
+                className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-white px-4.5 py-3.5"
               >
-                <span className="text-sm font-semibold">{e.label}</span>
-                <span className="font-display text-lg font-bold text-brand">{e.value}</span>
+                <span className="min-w-0 text-sm font-semibold leading-snug">{e.label}</span>
+                <span className="shrink-0 font-display text-lg font-bold text-brand">
+                  {e.value}
+                </span>
               </a>
             </li>
           ))}
