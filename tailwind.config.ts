@@ -36,6 +36,13 @@ export default {
       maxWidth: {
         app: '30rem',
       },
+      // Tailwind v3's default scale stops offering halves after 3.5, so the
+      // `px-4.5` the card padding wants silently generates nothing (v4 has it
+      // built in). Defining it keeps 18px available as a real token instead of
+      // a dead class that quietly collapses padding to zero.
+      spacing: {
+        4.5: '1.125rem',
+      },
     },
   },
   plugins: [],
