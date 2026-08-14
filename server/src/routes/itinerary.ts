@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { isGuest } from '../lib/auth.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import {
@@ -12,8 +13,8 @@ export const itineraryRouter = Router()
 
 itineraryRouter.get(
   '/itinerary',
-  asyncHandler(async (_req, res) => {
-    res.json(await listItinerary(await getDataStore()))
+  asyncHandler(async (req, res) => {
+    res.json(await listItinerary(await getDataStore(), undefined, { includeStays: !isGuest(req) }))
   })
 )
 
@@ -27,7 +28,11 @@ itineraryRouter.post(
 itineraryRouter.get(
   '/trips/:tripId/itinerary',
   asyncHandler(async (req, res) => {
-    res.json(await listItinerary(await getDataStore(), req.params.tripId))
+    res.json(
+      await listItinerary(await getDataStore(), req.params.tripId, {
+        includeStays: !isGuest(req),
+      })
+    )
   })
 )
 

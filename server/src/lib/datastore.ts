@@ -291,6 +291,8 @@ export interface DataStore {
   /** Every place in a zone, all categories (used by the city map). */
   listPlacesInZone(zoneId: string): Promise<Place[]>
   getPlace(placeId: string): Promise<Place | null>
+  /** Ids of every place in one category — one query, so the guest view can drop stays cheaply. */
+  listPlaceIdsByCategory(category: Category): Promise<string[]>
   createPlace(input: PlaceInput): Promise<Place>
   updatePlace(placeId: string, patch: Partial<PlaceInput>): Promise<Place | null>
   /** Hard delete; the place's tips are deleted with it. Returns false if not found. */

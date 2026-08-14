@@ -1,7 +1,7 @@
-// Countdown card for a trip with no flight booked yet (anything but the Japan
-// trip, until flight data is trip-aware). Counts down to the trip's own
-// start_date instead of a real departure time, and explains that a booking
-// attached in Documents will upgrade this to the full flight countdown.
+// Countdown card for a trip whose flight the viewer doesn't get: none booked
+// yet (anything but the Japan trip, until flight data is trip-aware), or a
+// guest, for whom the API withholds it. Counts down to the trip's own
+// start_date instead of a real departure time; `note` explains which case it is.
 import { useEffect, useState } from 'react'
 import { timeUntil } from '../lib/countdown'
 
@@ -16,7 +16,15 @@ function Unit({ value, label }: { value: number; label: string }) {
   )
 }
 
-export function GenericCountdown({ startDate, now }: { startDate: string; now?: Date }) {
+export function GenericCountdown({
+  startDate,
+  note = 'No flights added yet — attach a booking in Documents and the legs show up here.',
+  now,
+}: {
+  startDate: string
+  note?: string
+  now?: Date
+}) {
   const [tick, setTick] = useState(() => now ?? new Date())
 
   useEffect(() => {
@@ -51,9 +59,7 @@ export function GenericCountdown({ startDate, now }: { startDate: string; now?: 
           </div>
         )}
 
-        <div className="mt-4 border-t border-line pt-3 text-sm text-muted">
-          No flights added yet — attach a booking in Documents and the legs show up here.
-        </div>
+        <div className="mt-4 border-t border-line pt-3 text-sm text-muted">{note}</div>
       </div>
     </div>
   )

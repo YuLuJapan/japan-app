@@ -5,6 +5,7 @@ import type { DataStore, ItineraryItem, JourneyStep, Trip, TripInput } from '../
 import { getDefaultTrip, normalizeTraveller } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
 import { FLIGHT } from '../lib/flight.js'
+import { hideStayCounts } from '../lib/guest-view.js'
 import type { DateRange } from '../lib/trip-dates.js'
 import { addDays, daysBetween, rangeLabel, withinRange } from '../lib/trip-dates.js'
 
@@ -18,14 +19,29 @@ export async function listTrips(store: DataStore) {
   return { trips: await store.listTrips() }
 }
 
-export async function getTripBundle(store: DataStore, tripId: string) {
+/**
+ * The guest view drops both extras it would otherwise carry: the flight (its
+ * booking reference and ticket numbers) and the stay counts that would put a
+ * "Stays" card on every city. See lib/guest-view.ts.
+ */
+export interface TripBundleOptions {
+  includeFlight?: boolean
+  includeStays?: boolean
+}
+
+export async function getTripBundle(
+  store: DataStore,
+  tripId: string,
+  { includeFlight = true, includeStays = true }: TripBundleOptions = {}
+) {
   const trip = await store.getTrip(tripId)
   if (!trip) throw notFound('Trip')
   const steps = await store.listSteps(trip.id)
   const stepsWithZones = await Promise.all(
     steps.map(async (step) => {
       const zone = await store.getZone(step.zone_id)
-      const place_counts = await store.countPlacesByCategory(step.zone_id)
+      const counts = await store.countPlacesByCategory(step.zone_id)
+      const place_counts = includeStays ? counts : hideStayCounts(counts)
       return {
         id: step.id,
         position: step.position,
@@ -36,14 +52,19 @@ export async function getTripBundle(store: DataStore, tripId: string) {
     })
   )
   const trip_files_count = await store.countTripFiles(trip.id)
-  return { trip, steps: stepsWithZones, trip_files_count, flight: FLIGHT }
+  return {
+    trip,
+    steps: stepsWithZones,
+    trip_files_count,
+    ...(includeFlight ? { flight: FLIGHT } : {}),
+  }
 }
 
 /** Legacy GET /api/trip: whichever trip is oldest, kept for the pre-multi-trip UI. */
-export async function getDefaultTripBundle(store: DataStore) {
+export async function getDefaultTripBundle(store: DataStore, options: TripBundleOptions = {}) {
   const trip = await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
-  return getTripBundle(store, trip.id)
+  return getTripBundle(store, trip.id, options)
 }
 
 function cleanPeople(people: unknown[] | undefined) {

@@ -3,16 +3,33 @@
 import type { DataStore, ItineraryItemInput } from '../lib/datastore.js'
 import { getDefaultTrip } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
+import { STAY_CATEGORY } from '../lib/guest-view.js'
 import { collectRangeErrors } from '../lib/trip-dates.js'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
-export async function listItinerary(store: DataStore, tripId?: string) {
+/**
+ * `includeStays: false` is the guest view: the day-by-day plan still shows
+ * "check in at the ryokan", but the link to the stay is cut off the item —
+ * that page is refused for guests (lib/guest-view.ts), so leaving `place_id`
+ * on would only render a link into a 403.
+ */
+export async function listItinerary(
+  store: DataStore,
+  tripId?: string,
+  { includeStays = true }: { includeStays?: boolean } = {}
+) {
   const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
   if (!trip) throw notFound('Trip')
   const items = await store.listItinerary(trip.id)
-  return { items }
+  if (includeStays) return { items }
+  const stayIds = new Set(await store.listPlaceIdsByCategory(STAY_CATEGORY))
+  return {
+    items: items.map((item) =>
+      item.place_id && stayIds.has(item.place_id) ? { ...item, place_id: null } : item
+    ),
+  }
 }
 
 function collectErrors(input: Partial<ItineraryItemInput>, partial: boolean): string[] {

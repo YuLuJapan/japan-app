@@ -29,12 +29,15 @@ npm run build      # production bundle (~157 KB gzip JS)
 
 ## Guest access (read-only)
 
-Two codes, two views. `TRIP_ACCESS_CODE` is ours; `TRIP_GUEST_CODE` is the one to hand to friends who just want to look. A guest sees the whole trip — journey, cities, places, tips, schedule, shopping list, reminders, essentials — and:
+Two codes, two views. `TRIP_ACCESS_CODE` is ours; `TRIP_GUEST_CODE` is the one to hand to friends who just want to look. A guest sees the trip — journey, cities, attractions, food, shopping, tips, schedule, shopping list, reminders, essentials — and:
 
 - **cannot change anything.** Every add/edit/delete button is gone, and the API answers `403 FORBIDDEN` to any non-`GET` request from the guest code, so nothing gets deleted by mistake even from a stale tab.
 - **never sees trip documents.** No Documents tab, no files attached to a place or city. `/api/files` is `403` for guests (reads included), and the `files` array in zone/place responses comes back empty — so passports, bookings and tickets are not just hidden, they are never sent.
+- **never sees the bookings.** Not the stays (the "Stays" category is gone from every city — a hotel entry _is_ the reservation: what we paid, whether it's confirmed, the cancellation terms, the Booking.com link) and not the flight (the countdown card shows the days left, without the booking reference, ticket numbers or times). Same rule as documents: withheld server-side, never sent.
 
-Both rules live in `authMiddleware` (`server/src/lib/auth.ts`), ahead of every route. The frontend only hides buttons; it is not what enforces this.
+The first two live in `authMiddleware` (`server/src/lib/auth.ts`), ahead of every route. The third can't — those are `GET`s the middleware lets through — so it is enforced in the services that could surface a stay or the flight, listed in `server/src/lib/guest-view.ts`. The frontend only hides buttons and softens the empty screens; it is not what enforces any of this.
+
+Stays are held back **as a whole category** rather than by scrubbing prices out of the text, because the reservation lives in free-form description text that either of us can retype tomorrow. If you ever want friends to see where we're sleeping, the honest way is to move the reservation details out of the descriptions first.
 
 **Already gave the shared code to friends?** Don't ask them to re-enter anything: move the code they already have to `TRIP_GUEST_CODE`, and set `TRIP_ACCESS_CODE` to a new one that only the two of you know. Their phones keep working and silently become read-only; you two re-enter the new code once. (Sessions signed in before this existed resolve their role on next load via `GET /api/auth/session`, so nobody is bounced back to the gate.)
 

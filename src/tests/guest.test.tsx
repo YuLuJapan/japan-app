@@ -5,8 +5,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { ApiError } from '../api/client'
 import { Layout } from '../components/Layout'
 import CategoryList from '../pages/CategoryList'
+import Journey from '../pages/Journey'
 import PlaceDetail from '../pages/PlaceDetail'
 import ShoppingItemDetail from '../pages/ShoppingItem'
 import ShoppingList from '../pages/ShoppingList'
@@ -181,6 +183,93 @@ describe('guest view — shopping', () => {
     expect(screen.queryByRole('button', { name: 'Mark as bought' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Edit' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+  })
+})
+
+// The API sends a guest no stays and no flight at all (server/tests/guest.test.ts);
+// these check the screens say so instead of looking broken or empty.
+describe('guest view — stays and flight', () => {
+  const tripBundle = (flight?: unknown) => ({
+    trip: {
+      id: 'trip-1',
+      name: 'Japan',
+      start_date: '2026-09-19',
+      end_date: '2026-10-16',
+      description: null,
+      people: [{ name: 'Yuval' }, { name: 'Luciana' }],
+    },
+    steps: [],
+    trip_files_count: 0,
+    ...(flight ? { flight } : {}),
+  })
+
+  const flight = {
+    airline: 'Ethiopian Airlines',
+    booking_ref: 'AOXIUF',
+    outbound: {
+      depart_at: '2026-09-18T15:35:00+03:00',
+      depart_tz: 'Asia/Jerusalem',
+      arrive_at: '2026-09-19T19:40:00+09:00',
+      arrive_tz: 'Asia/Tokyo',
+      legs: [{ flight_no: 'ET 419', from: 'Tel Aviv (TLV)', to: 'Narita (NRT)' }],
+    },
+    return_flight: {
+      depart_at: '2026-10-16T20:40:00+09:00',
+      depart_tz: 'Asia/Tokyo',
+      arrive_at: '2026-10-17T14:35:00+03:00',
+      arrive_tz: 'Asia/Jerusalem',
+      legs: [{ flight_no: 'ET 418', from: 'Narita (NRT)', to: 'Tel Aviv (TLV)' }],
+    },
+  }
+
+  const journeyRoute = [{ path: '/trips/:tripId', element: <Journey /> }]
+
+  it('counts down without the booking reference or the legs', async () => {
+    mocks.get.mockImplementation((path: string) =>
+      Promise.resolve(path === '/trips/trip-1' ? tripBundle() : { items: [] })
+    )
+    renderAt('/trips/trip-1', journeyRoute, guest)
+
+    expect(await screen.findByText(/keep the flight details private/)).toBeInTheDocument()
+    expect(screen.queryByText('AOXIUF')).not.toBeInTheDocument()
+    expect(screen.queryByText('ET 419')).not.toBeInTheDocument()
+    // and it isn't told to go looking in a Documents tab it doesn't have
+    expect(screen.queryByText(/attach a booking in Documents/)).not.toBeInTheDocument()
+  })
+
+  it('still shows the travelers the whole ticket', async () => {
+    mocks.get.mockImplementation((path: string) =>
+      Promise.resolve(path === '/trips/trip-1' ? tripBundle(flight) : { items: [] })
+    )
+    renderAt('/trips/trip-1', journeyRoute)
+
+    expect(await screen.findByText('AOXIUF')).toBeInTheDocument()
+    expect(screen.getByText('ET 419')).toBeInTheDocument()
+  })
+
+  it('explains the empty stays list instead of calling it unsaved', async () => {
+    mocks.get.mockResolvedValue({ places: [], zone: zone.zone })
+    renderAt(
+      '/trips/trip-1/zones/zone-1/c/hotel',
+      [{ path: '/trips/:tripId/zones/:zoneId/c/:category', element: <CategoryList /> }],
+      guest
+    )
+
+    expect(await screen.findByText('The travellers keep the stays private.')).toBeInTheDocument()
+  })
+
+  it('explains a refused stay page rather than offering a retry', async () => {
+    mocks.get.mockRejectedValue(
+      new ApiError(403, 'FORBIDDEN', 'Stays are not part of the guest view')
+    )
+    renderAt(
+      '/trips/trip-1/places/hotel-1',
+      [{ path: '/trips/:tripId/places/:placeId', element: <PlaceDetail /> }],
+      guest
+    )
+
+    expect(await screen.findByText('The travellers keep the stays private.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
   })
 })
 

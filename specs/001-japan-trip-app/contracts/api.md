@@ -8,14 +8,21 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
 
 - **Auth**: every route except `GET /api/health` requires `Authorization: Bearer <ACCESS_CODE>`. Two codes are accepted, and which one is sent decides the caller's **role**:
   - `TRIP_ACCESS_CODE` → role `owner` — the travelers, full read/write.
-  - `TRIP_GUEST_CODE` (optional; unset = no guest view) → role `guest` — read-only, and no documents at all.
+  - `TRIP_GUEST_CODE` (optional; unset = no guest view) → role `guest` — read-only, and no documents, stays or flight.
 
   Missing/wrong → `401 {"error":{"code":"UNAUTHORIZED"}}`. If both env vars hold the same value, `owner` wins.
 
-- **Guest restrictions** (enforced in `authMiddleware`, before any route runs):
+- **Guest restrictions**, part 1 — the bookings (enforced in `authMiddleware`, before any route runs):
   - any method other than `GET`/`HEAD`/`OPTIONS` → `403 {"error":{"code":"FORBIDDEN"}}`;
   - any path under `/api/files` → `403 FORBIDDEN`, reads included;
   - `GET /api/zones/:zoneId` and `GET /api/places/:placeId` still answer `200`, but their `files` array is always `[]`.
+- **Guest restrictions**, part 2 — the bookings that aren't files (2026-08-13 addition; enforced in the services, since these are reads the middleware lets through — see `server/src/lib/guest-view.ts`). A `hotel` place _is_ the accommodation booking (price, confirmation, cancellation terms and the Booking.com link live in its free-text `description`/`links`), and the `flight` block carries the booking reference, so for a guest code:
+  - `GET /api/places/:placeId` on a `hotel` place → `403 FORBIDDEN`;
+  - `GET /api/zones/:zoneId/places` never returns `hotel` places — with `category=hotel`, or in the all-categories (`category=`) sweep;
+  - `place_counts.hotel` is always `0`, in zone detail and in the `steps[].zone` summaries of the trip bundle;
+  - the trip bundle omits `flight` entirely (the key is absent, not `null`);
+  - `GET /api/search` drops `hotel` places and any tip whose parent is one;
+  - itinerary items keep their `title`/`note` but come back with `place_id: null` when it pointed at a `hotel`.
 - **Error envelope**: `{"error":{"code":"<MACHINE_CODE>","message":"<human text>"}}`. Codes: `UNAUTHORIZED`, `FORBIDDEN` (403), `NOT_FOUND`, `VALIDATION` (400, with `details` array), `FILE_MISSING` (404), `INTERNAL` (500).
 - **IDs** are UUID strings. Timestamps ISO-8601. Dates `YYYY-MM-DD`.
 - Successful `DELETE` → `204` no body.
@@ -107,7 +114,7 @@ The whole journey skeleton for one trip — powers the Journey (home) view and o
 ```
 
 - Current/past/future step status is **computed client-side** from device date (FR-006).
-- `flight` is trip-level metadata held in code (`server/src/lib/flight.ts`), not the DB, so the booking reference is only served behind auth. `outbound.depart_at` is the countdown target; the `*_tz` fields are IANA zones so ticket times render the same on a phone set to Israel or to Japan.
+- `flight` is trip-level metadata held in code (`server/src/lib/flight.ts`), not the DB, so the booking reference is only served behind auth. `outbound.depart_at` is the countdown target; the `*_tz` fields are IANA zones so ticket times render the same on a phone set to Israel or to Japan. **Absent for a guest code**, along with any `place_counts.hotel` — clients must treat `flight` as optional (the UI falls back to a plain countdown on the trip's `start_date`).
 
 ### PATCH /api/trips/:tripId
 
@@ -125,7 +132,7 @@ The response echoes the affected ids; the fields are absent when the change stra
 
 ### GET /api/trips/:tripId/date-impact?start_date=&end_date=
 
-Dry run for the above: what a date change *would* strand, so the client can list it and ask before committing. Either query param may be omitted to keep the trip's current value.
+Dry run for the above: what a date change _would_ strand, so the client can list it and ask before committing. Either query param may be omitted to keep the trip's current value.
 
 - 200: `{"range":{"start_date","end_date"},"steps":[{"id","start_date","end_date","zone_name"}],"items":[{"id","day","start_time","title","highlight"}]}` — empty arrays mean the change is clean.
 - 400 `VALIDATION` (bad date, end before start) · 404 unknown trip.
@@ -192,6 +199,7 @@ Places of one category in a zone, list form (name + summary line, FR-002).
 
 - `category` required, one of `hotel|attraction|food|shopping|other` → else 400 `VALIDATION`.
 - 200: `{"places":[{"id":"…","name":"…","name_ja":"…","category":"food","summary_line":"first ~100 chars of description"}]}` (may be empty — UI renders empty state, FR-012).
+- A guest code never gets `hotel` places here: `category=hotel` returns `{"places":[]}`, and the all-categories sweep (`category=`, used by the city map) filters them out.
 
 ## Itinerary (day-by-day activities)
 
@@ -202,6 +210,7 @@ An item's `day` must fall within its trip's own `start_date`/`end_date` — the 
 ### GET /api/itinerary
 
 - 200: `{"items":[{"id":"…","trip_id":"…","zone_id":"…","place_id":"…","day":"YYYY-MM-DD","start_time":"HH:MM"|null,"title":"…","note":"…"|null,"position":0,"highlight":false,"icon":"…"|null}]}`
+- For a guest code an item that pointed at a `hotel` place comes back with `place_id: null` — the day still reads the same, it just doesn't link to a page that would answer 403.
 
 ### POST /api/itinerary
 
@@ -243,6 +252,8 @@ Full detail incl. tips and files (US1 AC2/AC3, US4 AC1).
   "files": [{ "id": "…", "display_name": "…", "mime_type": "…", "size_bytes": 123 }]
 }
 ```
+
+- `403 FORBIDDEN` for a guest code when the place is a `hotel` — the stay carries the accommodation booking (see Guest restrictions, part 2).
 
 ### POST /api/places (FR-015, SC-008)
 

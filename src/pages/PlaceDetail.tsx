@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ApiError } from '../api/client'
 import { usePlace, useTrip } from '../api/hooks'
 import { useDeletePlace } from '../api/mutations'
 import { CATEGORY_META } from '../api/types'
@@ -20,13 +21,21 @@ export default function PlaceDetail() {
   const canEdit = useCanEdit()
   const tripId = useTripId()
   const navigate = useNavigate()
-  const { data, isPending, isError, refetch } = usePlace(placeId)
+  const { data, error, isPending, isError, refetch } = usePlace(placeId)
   const trip = useTrip(tripId)
   const [confirming, setConfirming] = useState(false)
   const deletePlace = useDeletePlace(data?.place.zone_id)
 
   if (isPending) return <Loading />
-  if (isError) return <ErrorState message="Could not load this place." onRetry={() => refetch()} />
+  // A stay is refused outright for a guest code (the booking lives in it), so
+  // say that rather than offering a retry that will fail the same way.
+  if (isError) {
+    return error instanceof ApiError && error.code === 'FORBIDDEN' ? (
+      <ErrorState message="The travellers keep the stays private." />
+    ) : (
+      <ErrorState message="Could not load this place." onRetry={() => refetch()} />
+    )
+  }
 
   const { place, tips, files } = data
   const meta = CATEGORY_META[place.category]

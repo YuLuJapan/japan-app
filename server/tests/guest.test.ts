@@ -123,7 +123,98 @@ describe('guest sees no documents', () => {
   })
 })
 
+// A stay carries the booking itself (price, confirmation, cancellation terms,
+// the Booking.com link) in its description, and the flight carries the booking
+// reference — neither belongs in a friend's copy of the trip.
+describe('guest sees no stays and no flight', () => {
+  it('refuses the stay page outright', async () => {
+    const res = await asGuest(request(app).get('/api/places/place-hotel'))
+    expect(res.status).toBe(403)
+    expect(res.body.error.code).toBe('FORBIDDEN')
+  })
+
+  it('leaves stays out of a zone’s lists and counts', async () => {
+    const zone = await asGuest(request(app).get('/api/zones/zone-tokyo'))
+    expect(zone.status).toBe(200)
+    expect(zone.body.place_counts.hotel).toBe(0)
+    expect(zone.body.place_counts.food).toBe(1) // the rest is untouched
+
+    const stays = await asGuest(request(app).get('/api/zones/zone-tokyo/places?category=hotel'))
+    expect(stays.body.places).toEqual([])
+
+    // the map's all-categories sweep is the other way in
+    const all = await asGuest(request(app).get('/api/zones/zone-tokyo/places?category='))
+    expect(all.body.places.map((p: { id: string }) => p.id)).toEqual(['place-ramen'])
+  })
+
+  it('drops the flight and the stay counts from the trip bundle', async () => {
+    for (const path of ['/api/trip', '/api/trips/trip-1']) {
+      const res = await asGuest(request(app).get(path))
+      expect(res.status, path).toBe(200)
+      expect(res.body.flight, path).toBeUndefined()
+      expect(res.body.trip.name, path).toBe('Test Trip') // still the same trip
+      for (const step of res.body.steps) {
+        expect(step.zone.place_counts.hotel, path).toBe(0)
+      }
+    }
+  })
+
+  it('keeps stays and their tips out of search', async () => {
+    setDataStore(
+      createMemoryStore({
+        ...fixture(),
+        tips: [
+          { id: 'tip-hotel', zone_id: null, place_id: 'place-hotel', body: 'Test Hotel bath' },
+        ],
+      })
+    )
+
+    const owner = await asOwner(request(app).get('/api/search?q=Test Hotel'))
+    expect(owner.body.results.length).toBeGreaterThan(0)
+
+    const guest = await asGuest(request(app).get('/api/search?q=Test Hotel'))
+    expect(guest.status).toBe(200)
+    // neither the stay itself nor a tip whose only link is to the stay
+    expect(guest.body.results).toEqual([])
+  })
+
+  it('cuts the stay link off a day-plan item but keeps the plan', async () => {
+    const base = fixture()
+    const items = base.itinerary ?? []
+    setDataStore(
+      createMemoryStore({
+        ...base,
+        itinerary: [
+          { ...items[0], id: 'itin-checkin', place_id: 'place-hotel', title: 'Check in' },
+          ...items,
+        ],
+      })
+    )
+
+    const res = await asGuest(request(app).get('/api/itinerary'))
+    expect(res.status).toBe(200)
+    const checkIn = res.body.items.find((i: { id: string }) => i.id === 'itin-checkin')
+    expect(checkIn.title).toBe('Check in') // the day still reads the same
+    expect(checkIn.place_id).toBeNull() // but leads nowhere it would be refused
+    // an item pointing at an ordinary place still links
+    const ramen = res.body.items.find((i: { id: string }) => i.id === 'itin-ramen')
+    expect(ramen.place_id).toBe('place-ramen')
+  })
+})
+
 describe('the owner code is unaffected', () => {
+  it('still sees the stays and the flight', async () => {
+    const stay = await asOwner(request(app).get('/api/places/place-hotel'))
+    expect(stay.status).toBe(200)
+    expect(stay.body.place.name).toBe('Test Hotel')
+
+    const zone = await asOwner(request(app).get('/api/zones/zone-tokyo'))
+    expect(zone.body.place_counts.hotel).toBe(1)
+
+    const trip = await asOwner(request(app).get('/api/trip'))
+    expect(trip.body.flight.booking_ref).toBeTruthy()
+  })
+
   it('still writes and still sees documents', async () => {
     const patch = await asOwner(request(app).patch('/api/places/place-ramen')).send({
       name: 'Ramen Bar 2',

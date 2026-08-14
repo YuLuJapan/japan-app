@@ -1,5 +1,6 @@
 import type { DataStore } from '../lib/datastore.js'
 import { CATEGORIES } from '../lib/datastore.js'
+import { STAY_CATEGORY, isStay } from '../lib/guest-view.js'
 
 export interface SearchResult {
   type: 'place' | 'zone' | 'tip'
@@ -9,12 +10,27 @@ export interface SearchResult {
   href: string
 }
 
-export async function searchAll(store: DataStore, query: string): Promise<{ results: SearchResult[] }> {
+/** `includeStays: false` keeps the guest view's hidden stays out of the results — both the
+ *  stays themselves and the tips that would link straight to one. */
+export async function searchAll(
+  store: DataStore,
+  query: string,
+  { includeStays = true }: { includeStays?: boolean } = {}
+): Promise<{ results: SearchResult[] }> {
   const q = query.trim()
   if (q.length < 2) return { results: [] }
 
-  const { places, zones, tips } = await store.search(q)
+  const { places, zones, tips: allTips } = await store.search(q)
   const zoneName = new Map(zones.map((z) => [z.id, z.name]))
+
+  let matchedPlaces = places
+  let tips = allTips
+  if (!includeStays) {
+    matchedPlaces = places.filter((p) => !isStay(p))
+    // A tip's own parent may be a stay that never matched the query itself.
+    const stayIds = new Set(await store.listPlaceIdsByCategory(STAY_CATEGORY))
+    tips = allTips.filter((t) => !t.place_id || !stayIds.has(t.place_id))
+  }
 
   const results: SearchResult[] = [
     ...zones.map((z) => ({
@@ -24,7 +40,7 @@ export async function searchAll(store: DataStore, query: string): Promise<{ resu
       subtitle: 'Zone',
       href: `/zones/${z.id}`,
     })),
-    ...places.map((p) => ({
+    ...matchedPlaces.map((p) => ({
       type: 'place' as const,
       id: p.id,
       title: p.name,

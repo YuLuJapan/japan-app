@@ -1,6 +1,6 @@
 // Who is holding the phone. The access code decides it: the travelers' code is
 // 'owner', the code handed to friends is 'guest' — a read-only view with no
-// trip documents.
+// trip documents, no stays and no flight.
 //
 // This only drives what the UI offers. The server independently refuses every
 // write and every /api/files request from a guest code, so nothing here is
@@ -17,6 +17,14 @@ export const useRole = () => useContext(RoleContext)
 
 /** True for the travelers: add, edit, delete and the documents tab. */
 export const useCanEdit = () => useRole() === 'owner'
+
+/**
+ * True for the travelers: the stays and the flight. Both carry the booking
+ * itself — what was paid, the confirmation, the booking reference — so the API
+ * keeps them from a guest code entirely (server/src/lib/guest-view.ts). This
+ * only keeps the UI from linking somewhere it would be refused.
+ */
+export const useCanSeeBookings = () => useRole() === 'owner'
 
 export { RoleContext }
 

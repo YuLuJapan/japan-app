@@ -229,6 +229,10 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return db.places.find((p) => p.id === placeId) ?? null
     },
 
+    async listPlaceIdsByCategory(category) {
+      return db.places.filter((p) => p.category === category).map((p) => p.id)
+    },
+
     async createPlace(input: PlaceInput) {
       const place: Place = {
         id: randomUUID(),

@@ -6,12 +6,13 @@ import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
 import { ZoneImage } from '../components/ZoneImage'
-import { useCanEdit } from '../lib/session'
+import { useCanEdit, useCanSeeBookings } from '../lib/session'
 import { useTripId } from '../lib/trip'
 
 export default function CategoryList() {
   const { zoneId = '', category = '' } = useParams()
   const canEdit = useCanEdit()
+  const canSeeBookings = useCanSeeBookings()
   const tripId = useTripId()
   const cat = category as Category
   const zone = useZone(zoneId)
@@ -42,7 +43,15 @@ export default function CategoryList() {
       </div>
 
       {data.places.length === 0 ? (
-        <EmptyState message={`Nothing saved under ${meta.label.toLowerCase()} here yet.`} />
+        <EmptyState
+          message={
+            // The API sends a guest no stays at all, so an empty list here would
+            // read as "nothing booked" rather than "not yours to see".
+            cat === 'hotel' && !canSeeBookings
+              ? 'The travellers keep the stays private.'
+              : `Nothing saved under ${meta.label.toLowerCase()} here yet.`
+          }
+        />
       ) : (
         <ul className="mt-4 space-y-3">
           {data.places.map((p) => (
