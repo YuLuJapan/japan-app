@@ -23,8 +23,20 @@ export function DayStrip({ days, selected, onSelect, today, hasItems }: Props) {
     const strip = ref.current
     const el = strip?.querySelector<HTMLElement>('[data-selected="true"]')
     if (!strip || !el) return
-    const left = el.offsetLeft - strip.clientWidth / 2 + el.offsetWidth / 2
-    strip.scrollTo({ left: Math.max(0, left) })
+    // Measure the chip against the strip's own box. `offsetLeft` is relative to
+    // the nearest *positioned* ancestor — the strip isn't positioned, so on a
+    // wide screen that's the centred page container and the value carries the
+    // container's page offset. Scrolling by it skipped the strip several days
+    // forward, so picking Sep 29 left the strip starting at Oct 2.
+    const stripBox = strip.getBoundingClientRect()
+    const elBox = el.getBoundingClientRect()
+    const start = elBox.left - stripBox.left
+    // Already fully in view: leave the strip alone so tapping a day doesn't
+    // shuffle every other chip out from under the finger.
+    if (start >= 0 && start + elBox.width <= strip.clientWidth) return
+    const left = strip.scrollLeft + start - strip.clientWidth / 2 + elBox.width / 2
+    const max = Math.max(0, strip.scrollWidth - strip.clientWidth)
+    strip.scrollTo({ left: Math.min(Math.max(0, left), max) })
   }, [selected])
 
   return (
