@@ -376,10 +376,17 @@ export function SushiSequence({
       return
     }
 
-    // Long enough that the nigiri visibly comes apart on the way down, short
-    // enough that it never feels like a cutscene you have to sit through.
-    const duration = Math.min(1600, Math.max(900, distance * 0.6))
-    const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2)
+    // Deliberately unhurried: the point of moving the scroll instead of
+    // jumping it is that the nigiri comes apart on the way, and at speed that
+    // reads as a smear. About 3s for a full hero — slow enough to watch, and
+    // interruptible on the first swipe, which is what keeps it from feeling
+    // like a cutscene you have to sit through.
+    const duration = Math.min(3200, Math.max(1800, distance * 1.5))
+    // Sine rather than cubic. Over three seconds a cubic ease-in is dead for
+    // the first half-second (36px of 2038) — the tap reads as a dropped input
+    // — and then hurries the middle, which is exactly where the nigiri is
+    // coming apart. Sine leaves immediately and holds a near-even pace.
+    const ease = (t: number) => -(Math.cos(Math.PI * t) - 1) / 2
 
     let raf = 0
     let started = 0
