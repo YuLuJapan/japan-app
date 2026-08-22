@@ -9,6 +9,11 @@
 //
 // Reduced motion gets no pin and no scrub: just the first frame, cut once to
 // the last frame when the hero reaches the middle of the screen.
+//
+// "Get started" is the escape hatch: scrubbing 150% of a viewport by hand is a
+// chore on a phone, so the button tweens the window past the pinned hero for
+// you. It moves the scroll position rather than jumping it, so the sequence
+// still plays — it just plays itself, in the background, on the way down.
 import { useEffect, useRef, useState } from 'react'
 import { ASSET_VERSION, FRAME_COUNT, FRAME_HEIGHT, FRAME_WIDTH } from '../generated/sushi-frames'
 
@@ -139,8 +144,12 @@ export function SushiSequence({
   eyebrow?: string
   scrollLength?: string
 }) {
+  const wrapperRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  // Stops the "get started" scroll tween mid-flight (and unbinds its
+  // listeners); null whenever no tween is running.
+  const skipTweenRef = useRef<(() => void) | null>(null)
   const [progress, setProgress] = useState(0)
   const [ready, setReady] = useState(false)
   // The hero fills the screen, so the countdown below it is out of sight until
@@ -331,13 +340,75 @@ export function SushiSequence({
     }
   }, [scrollLength])
 
+  useEffect(() => () => skipTweenRef.current?.(), [])
+
+  /**
+   * Scroll the window to just past the hero, so the content below lands under
+   * the sticky header. The pin is driven by scroll position, so animating that
+   * position plays the sequence out on the way rather than cutting past it.
+   */
+  const skipToContent = () => {
+    const wrapper = wrapperRef.current
+    if (!wrapper) return
+    skipTweenRef.current?.()
+
+    // Once ScrollTrigger pins the stage it wraps it in a pin-spacer, which
+    // this wrapper still contains — so its bottom is the end of the hero
+    // whether the sequence is pinned, reduced-motion, or never loaded at all.
+    const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+    const to = Math.min(wrapper.getBoundingClientRect().bottom + window.scrollY - HEADER, max)
+    const from = window.scrollY
+    const distance = to - from
+    if (distance <= 0) return
+
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduced || typeof requestAnimationFrame !== 'function') {
+      window.scrollTo(0, to)
+      return
+    }
+
+    // Long enough that the nigiri visibly comes apart on the way down, short
+    // enough that it never feels like a cutscene you have to sit through.
+    const duration = Math.min(1600, Math.max(900, distance * 0.6))
+    const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2)
+
+    let raf = 0
+    let started = 0
+    const stop = () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('wheel', stop)
+      window.removeEventListener('touchstart', stop)
+      window.removeEventListener('keydown', stop)
+      skipTweenRef.current = null
+    }
+    const step = (now: number) => {
+      const t = Math.min(1, (now - started) / duration)
+      window.scrollTo(0, from + distance * ease(t))
+      if (t < 1) raf = requestAnimationFrame(step)
+      else stop()
+    }
+
+    // Bound on the next frame, not now: activating the button with the
+    // keyboard is still dispatching its own keydown, which would otherwise
+    // cancel the tween the moment it starts.
+    raf = requestAnimationFrame((now) => {
+      started = now
+      // Any real scroll input hands control straight back to the reader.
+      window.addEventListener('wheel', stop, { passive: true })
+      window.addEventListener('touchstart', stop, { passive: true })
+      window.addEventListener('keydown', stop)
+      step(now)
+    })
+    skipTweenRef.current = stop
+  }
+
   return (
     // Full-bleed: -mx-5 cancels the padding on <main>, -mt-1 its top padding,
     // so the hero runs edge to edge and fills the screen under the header.
     // The margins live on this wrapper rather than on the stage itself —
     // ScrollTrigger copies a pinned element's margins onto its pin-spacer, and
     // negative ones would then be applied twice and drag the hero off-screen.
-    <div className="-mx-5 -mt-1">
+    <div ref={wrapperRef} className="-mx-5 -mt-1">
       <div
         ref={stageRef}
         // Height must stay in step with HEADER above.
@@ -356,25 +427,39 @@ export function SushiSequence({
           {meta && <p className="mt-1.5 text-sm font-medium text-muted">{meta}</p>}
         </div>
 
+        {/* Sits under the nigiri: tap it to be taken past the sequence, or
+            keep scrolling by hand. Fades out with the same 10% of the
+            sequence the old scroll hint used to.
+            bottom-24 clears the fixed bottom nav (69px, Layout.tsx) — the old
+            hint could sit behind it because it ignored pointer events; a
+            button that lands under the tab bar simply can't be tapped. */}
         <div
-          aria-hidden
-          className={`pointer-events-none absolute inset-x-0 bottom-6 flex flex-col items-center gap-1 text-muted transition-opacity duration-500 ${
-            cueVisible && ready ? 'opacity-100' : 'opacity-0'
+          className={`absolute inset-x-0 bottom-24 flex justify-center transition-opacity duration-500 ${
+            cueVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
           }`}
         >
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Scroll</span>
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+          <button
+            type="button"
+            onClick={skipToContent}
+            tabIndex={cueVisible ? undefined : -1}
+            aria-hidden={cueVisible ? undefined : true}
+            className="btn-primary"
           >
-            <path d="m6 9 6 6 6-6" />
-          </svg>
+            Get started
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
         </div>
 
         {/* Quiet progress hairline while the frames arrive. */}
