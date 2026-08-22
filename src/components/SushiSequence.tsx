@@ -10,12 +10,22 @@
 // Reduced motion gets no pin and no scrub: just the first frame, cut once to
 // the last frame when the hero reaches the middle of the screen.
 //
-// "Get started" is the escape hatch: scrubbing 150% of a viewport by hand is a
-// chore on a phone, so the button tweens the window past the pinned hero for
-// you. It moves the scroll position rather than jumping it, so the sequence
-// still plays — it just plays itself, in the background, on the way down.
+// Scrubbing 150% of a viewport by hand to reach the countdown is a chore on a
+// phone, so the hero always offers a way out. Which way is the `mode` prop
+// (src/lib/hero-mode.ts), three variants live at once so they can be compared
+// on a real device:
+//
+//   skip    — a "Get started" pill that tweens the window down past the hero.
+//             The sequence still plays; it just plays itself, on the way down.
+//   fold    — nothing scrolls: the hero shrinks in place to a slim banner
+//             while the sushi fast-forwards inside it, and the content below
+//             rises into the space it vacates. Tap the banner to unfold again.
+//   stories — the sequence becomes something you drive: a segmented progress
+//             bar, tap the right/left half of the hero to step a chapter
+//             forward or back, and "Skip" leaves at any moment.
 import { useEffect, useRef, useState } from 'react'
 import { ASSET_VERSION, FRAME_COUNT, FRAME_HEIGHT, FRAME_WIDTH } from '../generated/sushi-frames'
+import type { HeroMode } from '../lib/hero-mode'
 
 const DIR = '/sushi/'
 const FIRST = 1
@@ -41,6 +51,14 @@ const MAX_DPR = 2
 // The hero fills everything below it, and pins exactly where it already sits
 // so nothing jumps on the first scroll.
 const HEADER = 72
+
+// What the hero shrinks to in `fold` mode: tall enough to keep the nigiri
+// recognisable as a strip behind the title, short enough that the countdown
+// clears the fold on every phone.
+const COLLAPSED_H = 168
+
+// `stories` mode: whole nigiri → nori loosening → fully apart.
+const CHAPTERS = 3
 
 // The version query is what keeps a regenerated sequence from being served as
 // a mix of old cached frames and new network ones by the CacheFirst rule in
@@ -131,10 +149,33 @@ function preload(urls: string[], onProgress: (ratio: number) => void, alive: () 
   })
 }
 
+const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2)
+
+const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+/**
+ * The handle the buttons need on the sequence itself: the effect below owns
+ * the canvas, the frames and the pin, and publishes this so the click handlers
+ * can drive them without any of it leaking into render.
+ */
+type Control = {
+  frameCount: () => number
+  /** Paint one frame directly, ignoring wherever the scroll happens to be. */
+  setFrame: (i: number) => void
+  currentFrame: () => number
+  /** Re-measure the canvas and repaint — the fold resizes the stage per frame. */
+  relayout: () => void
+  /** Scroll offsets the pin runs between, or null when nothing is pinned. */
+  pinRange: () => { start: number; end: number } | null
+  disablePin: () => void
+  enablePin: () => void
+}
+
 export function SushiSequence({
   title,
   meta,
   eyebrow = 'Our trip',
+  mode = 'skip',
   // How much scroll the sequence consumes once pinned. Shorten this to bring
   // the countdown up sooner; '+=0%' effectively disables the pin.
   scrollLength = '+=150%',
@@ -142,19 +183,30 @@ export function SushiSequence({
   title: string
   meta?: string
   eyebrow?: string
+  mode?: HeroMode
   scrollLength?: string
 }) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  // Stops the "get started" scroll tween mid-flight (and unbinds its
-  // listeners); null whenever no tween is running.
-  const skipTweenRef = useRef<(() => void) | null>(null)
+  // Stops the running scroll tween mid-flight (and unbinds its listeners);
+  // null whenever no tween is running.
+  const scrollTweenRef = useRef<(() => void) | null>(null)
+  // Same, for the fold's height animation.
+  const foldTweenRef = useRef<(() => void) | null>(null)
+  const controlRef = useRef<Control | null>(null)
+  // `stories` steps between whole chapters, so it tracks the one it last
+  // asked for rather than the frame the (lagging) scrub happens to be on.
+  const chapterRef = useRef(0)
+  const segmentRefs = useRef<(HTMLDivElement | null)[]>([])
+
   const [progress, setProgress] = useState(0)
   const [ready, setReady] = useState(false)
   // The hero fills the screen, so the countdown below it is out of sight until
-  // the pin releases — the hint says there's more down there.
+  // the pin releases — the affordance says there's more down there.
   const [cueVisible, setCueVisible] = useState(true)
+  const [collapsed, setCollapsed] = useState(false)
+  const [folding, setFolding] = useState(false)
 
   useEffect(() => {
     const stage = stageRef.current
@@ -167,7 +219,7 @@ export function SushiSequence({
     if (!ctx) return
 
     let alive = true
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const reduced = prefersReducedMotion()
 
     let images: (HTMLImageElement | null)[] = []
     let view: View | null = null
@@ -211,6 +263,17 @@ export function SushiSequence({
       if (gapR > 0) ctx.drawImage(img, IW - 2, 0, 2, IH, dx + dw - 1, dy, gapR + 1, dh)
     }
 
+    // Fill the segmented bar in `stories` mode. It runs on every frame change,
+    // so it writes to the DOM directly instead of re-rendering the hero 160
+    // times on the way down.
+    const paintSegments = (ratio: number) => {
+      for (let k = 0; k < CHAPTERS; k++) {
+        const el = segmentRefs.current[k]
+        if (!el) continue
+        el.style.transform = `scaleX(${Math.max(0, Math.min(1, ratio * CHAPTERS - k))})`
+      }
+    }
+
     // Match the card to the frames' backdrop so the canvas edges disappear.
     const sampleBackground = (img: HTMLImageElement | null) => {
       if (!img) return
@@ -230,6 +293,20 @@ export function SushiSequence({
     }
 
     let cleanupAnimation: (() => void) | undefined
+    // Reassigned once GSAP is up; until then (and under reduced motion) the
+    // hero simply has no pin to hand out.
+    let createPin = () => {}
+    let destroyPin = () => {}
+    let pinRange: Control['pinRange'] = () => null
+
+    const setFrame = (i: number) => {
+      if (!images.length) return
+      const next = Math.max(0, Math.min(images.length - 1, Math.round(i)))
+      if (next === index && !dirty) return
+      index = next
+      paint()
+      paintSegments(images.length > 1 ? index / (images.length - 1) : 0)
+    }
 
     const urls = reduced ? [frameUrl(FIRST), frameUrl(LAST)] : frameUrls(pickStep())
 
@@ -253,12 +330,24 @@ export function SushiSequence({
       paint()
       setReady(true)
 
+      controlRef.current = {
+        frameCount: () => images.length,
+        setFrame,
+        currentFrame: () => index,
+        relayout: () => {
+          layout()
+          paint()
+        },
+        pinRange: () => pinRange(),
+        disablePin: () => destroyPin(),
+        enablePin: () => createPin(),
+      }
+
       if (reduced) {
         // No pin, no scrub — one cut from the first frame to the last.
         const io = new IntersectionObserver(
           ([entry]) => {
-            index = entry.isIntersecting ? images.length - 1 : 0
-            paint()
+            setFrame(entry.isIntersecting ? images.length - 1 : 0)
           },
           { rootMargin: '-50% 0px -50% 0px' }
         )
@@ -273,34 +362,64 @@ export function SushiSequence({
           gsap.registerPlugin(ScrollTrigger)
           ScrollTrigger.config({ ignoreMobileResize: true })
 
-          const state = { frame: 0 }
-          const tween = gsap.to(state, {
-            frame: images.length - 1,
-            ease: 'none',
-            snap: { frame: 1 },
-            scrollTrigger: {
-              trigger: stage,
-              // Pin below the sticky app header rather than under it.
-              start: `top ${HEADER}px`,
-              end: scrollLength,
-              pin: stage,
-              pinSpacing: true,
-              anticipatePin: 1,
-              scrub: 0.6,
-              invalidateOnRefresh: true,
-            },
-            onUpdate: () => {
-              const i = Math.round(state.frame)
-              if (i !== index) {
-                index = i
-                dirty = true
-                // Hide the "keep scrolling" hint once the sequence is moving.
-                // React bails out when the boolean is unchanged, so this is a
-                // no-op on all but the two frames where it flips.
-                setCueVisible(i < images.length * 0.1)
-              }
-            },
-          })
+          let tween: gsap.core.Tween | null = null
+
+          const makePin = () => {
+            const state = { frame: index }
+            return gsap.to(state, {
+              frame: images.length - 1,
+              ease: 'none',
+              snap: { frame: 1 },
+              scrollTrigger: {
+                trigger: stage,
+                // Pin below the sticky app header rather than under it.
+                start: `top ${HEADER}px`,
+                end: scrollLength,
+                pin: stage,
+                pinSpacing: true,
+                anticipatePin: 1,
+                scrub: 0.6,
+                invalidateOnRefresh: true,
+              },
+              onUpdate: () => {
+                const i = Math.round(state.frame)
+                if (i !== index) {
+                  index = i
+                  dirty = true
+                  const ratio = i / (images.length - 1)
+                  paintSegments(ratio)
+                  // Follow a hand scroll, but never while a chapter tween is
+                  // flying: the scrub trails it by 0.6s, so mid-flight frames
+                  // would keep resetting the chapter the reader just asked
+                  // for. Rounding (not flooring) is what makes a landed
+                  // chapter read as that chapter despite the lag.
+                  if (!scrollTweenRef.current)
+                    chapterRef.current = Math.min(CHAPTERS, Math.round(ratio * CHAPTERS))
+                  // Hide the "there's more below" affordance once the sequence
+                  // is moving. React bails out when the boolean is unchanged,
+                  // so this is a no-op on all but the two frames where it flips.
+                  setCueVisible(i < images.length * 0.1)
+                }
+              },
+            })
+          }
+
+          createPin = () => {
+            if (tween) return
+            tween = makePin()
+          }
+          destroyPin = () => {
+            // revert: true puts the pin-spacer away and hands the stage back
+            // to normal flow, which is what lets the fold animate its height.
+            tween?.scrollTrigger?.kill(true)
+            tween?.kill()
+            tween = null
+          }
+          pinRange = () => {
+            const st = tween?.scrollTrigger
+            return st ? { start: st.start, end: st.end } : null
+          }
+          createPin()
 
           // Repaint at most once per frame, and only when the index moved.
           const tick = () => {
@@ -325,8 +444,7 @@ export function SushiSequence({
             clearTimeout(resizeTimer)
             window.removeEventListener('resize', onResize)
             gsap.ticker.remove(tick)
-            tween.scrollTrigger?.kill()
-            tween.kill()
+            destroyPin()
           }
         })
         .catch(() => {
@@ -336,41 +454,34 @@ export function SushiSequence({
 
     return () => {
       alive = false
+      controlRef.current = null
       cleanupAnimation?.()
     }
   }, [scrollLength])
 
-  useEffect(() => () => skipTweenRef.current?.(), [])
+  useEffect(
+    () => () => {
+      scrollTweenRef.current?.()
+      foldTweenRef.current?.()
+    },
+    []
+  )
 
   /**
-   * Scroll the window to just past the hero, so the content below lands under
-   * the sticky header. The pin is driven by scroll position, so animating that
-   * position plays the sequence out on the way rather than cutting past it.
+   * Animate the window's scroll position. The sequence is scroll-linked, so
+   * moving that position is what plays it — a jump would cut past it. Any real
+   * scroll input hands control straight back to the reader.
    */
-  const skipToContent = () => {
-    const wrapper = wrapperRef.current
-    if (!wrapper) return
-    skipTweenRef.current?.()
-
-    // Once ScrollTrigger pins the stage it wraps it in a pin-spacer, which
-    // this wrapper still contains — so its bottom is the end of the hero
-    // whether the sequence is pinned, reduced-motion, or never loaded at all.
-    const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
-    const to = Math.min(wrapper.getBoundingClientRect().bottom + window.scrollY - HEADER, max)
+  const tweenScrollTo = (to: number, duration: number) => {
+    scrollTweenRef.current?.()
     const from = window.scrollY
     const distance = to - from
-    if (distance <= 0) return
+    if (Math.abs(distance) < 1) return
 
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduced || typeof requestAnimationFrame !== 'function') {
+    if (prefersReducedMotion() || typeof requestAnimationFrame !== 'function') {
       window.scrollTo(0, to)
       return
     }
-
-    // Long enough that the nigiri visibly comes apart on the way down, short
-    // enough that it never feels like a cutscene you have to sit through.
-    const duration = Math.min(1600, Math.max(900, distance * 0.6))
-    const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2)
 
     let raf = 0
     let started = 0
@@ -379,27 +490,144 @@ export function SushiSequence({
       window.removeEventListener('wheel', stop)
       window.removeEventListener('touchstart', stop)
       window.removeEventListener('keydown', stop)
-      skipTweenRef.current = null
+      scrollTweenRef.current = null
     }
     const step = (now: number) => {
       const t = Math.min(1, (now - started) / duration)
-      window.scrollTo(0, from + distance * ease(t))
+      window.scrollTo(0, from + distance * easeInOut(t))
       if (t < 1) raf = requestAnimationFrame(step)
       else stop()
     }
 
-    // Bound on the next frame, not now: activating the button with the
-    // keyboard is still dispatching its own keydown, which would otherwise
-    // cancel the tween the moment it starts.
+    // Bound on the next frame, not now: activating a button with the keyboard
+    // is still dispatching its own keydown, which would otherwise cancel the
+    // tween the moment it starts.
     raf = requestAnimationFrame((now) => {
       started = now
-      // Any real scroll input hands control straight back to the reader.
       window.addEventListener('wheel', stop, { passive: true })
       window.addEventListener('touchstart', stop, { passive: true })
       window.addEventListener('keydown', stop)
       step(now)
     })
-    skipTweenRef.current = stop
+    scrollTweenRef.current = stop
+  }
+
+  /**
+   * Scroll to just past the hero, so the content below lands under the sticky
+   * header.
+   */
+  const skipToContent = () => {
+    const wrapper = wrapperRef.current
+    if (!wrapper) return
+
+    // Once ScrollTrigger pins the stage it wraps it in a pin-spacer, which
+    // this wrapper still contains — so its bottom is the end of the hero
+    // whether the sequence is pinned, reduced-motion, or never loaded at all.
+    const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+    const to = Math.min(wrapper.getBoundingClientRect().bottom + window.scrollY - HEADER, max)
+    const distance = to - window.scrollY
+    if (distance <= 0) return
+
+    // Long enough that the nigiri visibly comes apart on the way down, short
+    // enough that it never feels like a cutscene you have to sit through.
+    tweenScrollTo(to, Math.min(1600, Math.max(900, distance * 0.6)))
+  }
+
+  /**
+   * `fold`: shrink the hero in place instead of travelling anywhere. The pin
+   * is dropped first (a pinned element cannot change height under you), then
+   * the stage's own height is animated while the sequence fast-forwards inside
+   * the shrinking frame — so the content below rises into view without the
+   * scroll position ever moving.
+   */
+  const foldHero = (collapse: boolean) => {
+    const stage = stageRef.current
+    if (!stage || folding) return
+    foldTweenRef.current?.()
+    scrollTweenRef.current?.()
+
+    const control = controlRef.current
+    // The fold reads as the hero shrinking, which only works from the top.
+    const range = control?.pinRange()
+    window.scrollTo(0, range ? range.start : 0)
+    control?.disablePin()
+
+    const from = stage.getBoundingClientRect().height
+    const to = collapse ? COLLAPSED_H : window.innerHeight - HEADER
+    const frames = control ? control.frameCount() - 1 : 0
+    const frameFrom = control ? control.currentFrame() : 0
+    const frameTo = collapse ? frames : 0
+
+    const settle = () => {
+      setFolding(false)
+      setCollapsed(collapse)
+      setCueVisible(!collapse)
+      if (collapse) {
+        stage.style.height = `${COLLAPSED_H}px`
+      } else {
+        // Back to the class-driven height, so it tracks the viewport again.
+        stage.style.height = ''
+        control?.relayout()
+        control?.enablePin()
+      }
+      foldTweenRef.current = null
+    }
+
+    if (prefersReducedMotion() || typeof requestAnimationFrame !== 'function') {
+      control?.setFrame(frameTo)
+      settle()
+      return
+    }
+
+    setFolding(true)
+    let raf = 0
+    let started = 0
+    const step = (now: number) => {
+      if (!started) started = now
+      const t = Math.min(1, (now - started) / 900)
+      const e = easeInOut(t)
+      stage.style.height = `${Math.round(from + (to - from) * e)}px`
+      control?.relayout()
+      control?.setFrame(frameFrom + (frameTo - frameFrom) * e)
+      if (t < 1) raf = requestAnimationFrame(step)
+      else settle()
+    }
+    raf = requestAnimationFrame(step)
+    foldTweenRef.current = () => {
+      cancelAnimationFrame(raf)
+      setFolding(false)
+      foldTweenRef.current = null
+    }
+  }
+
+  /**
+   * `stories`: step the sequence a chapter at a time. Chapters are positions
+   * in the pinned scroll range rather than raw frame numbers, so tapping and
+   * scrolling stay the same gesture — one just moves in bigger steps.
+   */
+  const goToChapter = (chapter: number) => {
+    const control = controlRef.current
+    if (chapter > CHAPTERS) {
+      skipToContent()
+      return
+    }
+    const next = Math.max(0, chapter)
+    chapterRef.current = next
+
+    const range = control?.pinRange()
+    if (!range) {
+      // No pin (reduced motion, or GSAP never arrived): move the frames alone.
+      control?.setFrame(((control.frameCount() - 1) * next) / CHAPTERS)
+      return
+    }
+    tweenScrollTo(range.start + ((range.end - range.start) * next) / CHAPTERS, 380)
+  }
+
+  const onStageTap = (event: React.MouseEvent<HTMLDivElement>) => {
+    const { left, width } = event.currentTarget.getBoundingClientRect()
+    const forward = event.clientX - left > width / 2
+    setCueVisible(false)
+    goToChapter(chapterRef.current + (forward ? 1 : -1))
   }
 
   return (
@@ -411,7 +639,8 @@ export function SushiSequence({
     <div ref={wrapperRef} className="-mx-5 -mt-1">
       <div
         ref={stageRef}
-        // Height must stay in step with HEADER above.
+        // Height must stay in step with HEADER above. The fold overrides it
+        // with an inline height and hands it back on the way out.
         className="relative isolate h-[calc(100svh-72px)] overflow-hidden bg-[#e9ebec]"
       >
         <canvas ref={canvasRef} aria-hidden className="absolute inset-0 h-full w-full" />
@@ -419,52 +648,150 @@ export function SushiSequence({
         {/* Keeps the title readable over the lighter part of the backdrop. */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-2/5 bg-gradient-to-b from-white/75 to-transparent" />
 
-        <div className="relative flex h-full flex-col p-5">
-          <p className="section-title text-brand">{eyebrow}</p>
-          <h1 className="mt-1 max-w-[9ch] font-display text-4xl font-extrabold leading-[1.03] tracking-tight drop-shadow-[0_1px_0_rgba(255,255,255,0.6)]">
+        {/* stories: tap the right half to step forward, the left half to go
+            back. A transparent overlay, so swiping still scrolls normally —
+            only a tap without movement counts. */}
+        {mode === 'stories' && (
+          <div aria-hidden onClick={onStageTap} className="absolute inset-0 z-10" />
+        )}
+
+        <div
+          className={`pointer-events-none relative z-20 flex h-full flex-col ${
+            collapsed ? 'justify-center px-5' : 'p-5'
+          } ${mode === 'stories' ? 'pt-8' : ''}`}
+        >
+          {!collapsed && <p className="section-title text-brand">{eyebrow}</p>}
+          <h1
+            className={
+              collapsed
+                ? 'max-w-[70%] font-display text-lg font-extrabold leading-tight tracking-tight drop-shadow-[0_1px_0_rgba(255,255,255,0.6)]'
+                : 'mt-1 max-w-[9ch] font-display text-4xl font-extrabold leading-[1.03] tracking-tight drop-shadow-[0_1px_0_rgba(255,255,255,0.6)]'
+            }
+          >
             {title}
           </h1>
-          {meta && <p className="mt-1.5 text-sm font-medium text-muted">{meta}</p>}
+          {meta && !collapsed && <p className="mt-1.5 text-sm font-medium text-muted">{meta}</p>}
         </div>
 
-        {/* Sits under the nigiri: tap it to be taken past the sequence, or
-            keep scrolling by hand. Fades out with the same 10% of the
-            sequence the old scroll hint used to.
-            bottom-24 clears the fixed bottom nav (69px, Layout.tsx) — the old
-            hint could sit behind it because it ignored pointer events; a
-            button that lands under the tab bar simply can't be tapped. */}
-        <div
-          className={`absolute inset-x-0 bottom-24 flex justify-center transition-opacity duration-500 ${
-            cueVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
-          }`}
-        >
+        {/* stories: one segment per chapter, filled by the scrub itself. */}
+        {mode === 'stories' && (
+          <div aria-hidden className="absolute inset-x-4 top-3 z-20 flex gap-1.5">
+            {Array.from({ length: CHAPTERS }, (_, k) => (
+              <div key={k} className="h-1 flex-1 overflow-hidden rounded-full bg-ink/15">
+                <div
+                  ref={(el) => (segmentRefs.current[k] = el)}
+                  style={{ transform: 'scaleX(0)' }}
+                  className="h-full origin-left rounded-full bg-ink/70"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {mode === 'stories' && (
           <button
             type="button"
             onClick={skipToContent}
-            tabIndex={cueVisible ? undefined : -1}
-            aria-hidden={cueVisible ? undefined : true}
-            className="btn-primary"
+            className="absolute right-4 top-7 z-30 rounded-full bg-white/80 px-3 py-1.5 text-xs font-bold text-ink shadow-card backdrop-blur"
           >
-            Get started
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <path d="m6 9 6 6 6-6" />
-            </svg>
+            Skip
           </button>
-        </div>
+        )}
+
+        {/* skip / stories both hang their bottom affordance here. bottom-24
+            clears the fixed bottom nav (69px, Layout.tsx) — a hint could sit
+            behind it because it ignored pointer events, a button cannot. */}
+        {mode !== 'fold' && (
+          <div
+            className={`absolute inset-x-0 bottom-24 z-20 flex justify-center transition-opacity duration-500 ${
+              cueVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
+            }`}
+          >
+            {mode === 'stories' ? (
+              <p className="rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-muted backdrop-blur">
+                Tap to advance
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={skipToContent}
+                tabIndex={cueVisible ? undefined : -1}
+                aria-hidden={cueVisible ? undefined : true}
+                className="btn-primary"
+              >
+                Get started
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
+
+        {mode === 'fold' && !collapsed && (
+          <div
+            className={`absolute inset-x-0 bottom-24 z-20 flex justify-center transition-opacity duration-300 ${
+              folding ? 'pointer-events-none opacity-0' : 'opacity-100'
+            }`}
+          >
+            <button type="button" onClick={() => foldHero(true)} className="btn-primary">
+              Get started
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {/* Folded away: the whole banner is the way back into the animation. */}
+        {mode === 'fold' && collapsed && (
+          <button
+            type="button"
+            onClick={() => foldHero(false)}
+            aria-label="Show the trip hero again"
+            className="absolute inset-0 z-10 flex items-center justify-end px-5 text-ink"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 shadow-card backdrop-blur">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="m6 15 6-6 6 6" />
+              </svg>
+            </span>
+          </button>
+        )}
 
         {/* Quiet progress hairline while the frames arrive. */}
         {!ready && (
-          <div className="absolute inset-x-0 bottom-0 h-0.5 bg-black/5">
+          <div className="absolute inset-x-0 bottom-0 z-20 h-0.5 bg-black/5">
             <div
               className="h-full bg-brand/70 transition-[width] duration-200 ease-out"
               style={{ width: `${Math.round(progress * 100)}%` }}

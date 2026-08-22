@@ -64,3 +64,44 @@ describe('SushiSequence hero', () => {
     restore()
   })
 })
+
+describe('SushiSequence hero — fold mode', () => {
+  it('collapses the hero in place and offers a way back into it', async () => {
+    vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true } as MediaQueryList)
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+
+    render(<SushiSequence mode="fold" title="Yuval & Luciana in Japan" />)
+    await userEvent.click(screen.getByRole('button', { name: /get started/i }))
+
+    // The fold never travels: the hero's own height is what changed.
+    expect(window.scrollTo).toHaveBeenCalledWith(0, 0)
+    expect(screen.getByRole('button', { name: /show the trip hero again/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /get started/i })).not.toBeInTheDocument()
+  })
+
+  it('unfolds again from the collapsed banner', async () => {
+    vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true } as MediaQueryList)
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+
+    render(<SushiSequence mode="fold" title="Yuval & Luciana in Japan" />)
+    await userEvent.click(screen.getByRole('button', { name: /get started/i }))
+    await userEvent.click(screen.getByRole('button', { name: /show the trip hero again/i }))
+
+    expect(screen.getByRole('button', { name: /get started/i })).toBeInTheDocument()
+  })
+})
+
+describe('SushiSequence hero — stories mode', () => {
+  it('shows a segment per chapter and a permanent way out', async () => {
+    vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true } as MediaQueryList)
+    const restore = stubGeometry({ heroBottom: 2000, pageHeight: 4000 })
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+
+    const { container } = render(<SushiSequence mode="stories" title="Yuval & Luciana in Japan" />)
+    expect(container.querySelectorAll('[style*="scaleX"]')).toHaveLength(3)
+
+    await userEvent.click(screen.getByRole('button', { name: /^skip$/i }))
+    expect(scrollTo).toHaveBeenCalledWith(0, 2000 - HEADER)
+    restore()
+  })
+})

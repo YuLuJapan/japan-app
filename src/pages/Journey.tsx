@@ -7,6 +7,7 @@ import { JourneyStepsSlider } from '../components/JourneyStepsSlider'
 import { Loading } from '../components/Loading'
 import { Schedule } from '../components/Schedule'
 import { SushiSequence } from '../components/SushiSequence'
+import { useHeroMode } from '../lib/hero-mode'
 import { enumerateDays, toISODate } from '../lib/schedule'
 import { useCanEdit, useCanSeeBookings } from '../lib/session'
 import { travellersLabel, useTripId } from '../lib/trip'
@@ -22,6 +23,8 @@ const isJapanTrip = (name: string) => /\bjapan\b/i.test(name)
 
 export default function Journey() {
   const canEdit = useCanEdit()
+  // Which way out of the hero animation this device gets — see hero-mode.ts.
+  const heroMode = useHeroMode()
   const canSeeBookings = useCanSeeBookings()
   const tripId = useTripId()
   const { data, isPending, isError, refetch } = useTrip(tripId)
@@ -42,6 +45,7 @@ export default function Journey() {
     <div className="space-y-6">
       {japan ? (
         <SushiSequence
+          mode={heroMode}
           title={heroTitle}
           meta={`${fmt(data.trip.start_date)} – ${fmt(data.trip.end_date)} · ${data.steps.length} stops`}
         />
