@@ -20,8 +20,10 @@
 // that shipped once already. Frame count lives there too, so it can't drift
 // from the files on disk.
 //
-// Re-run it if the source clip is ever replaced; the output is committed, so
-// this is not part of the normal build.
+// This is stage one. `scripts/remove-sushi-background.py` then cuts the studio
+// backdrop out of these frames and rewrites them (and the generated module) as
+// WebP with alpha — that is what actually ships, so re-run both stages in
+// order. The output is committed, so neither is part of the normal build.
 import sharp from 'sharp'
 import { createHash } from 'node:crypto'
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -100,6 +102,7 @@ writeFileSync(
 export const FRAME_COUNT = ${sources.length}
 export const FRAME_WIDTH = ${WIDTH}
 export const FRAME_HEIGHT = ${height}
+export const FRAME_EXT = 'jpg'
 export const ASSET_VERSION = '${version}'
 `
 )
