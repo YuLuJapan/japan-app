@@ -402,6 +402,22 @@ export function useRemoveMember(tripId: string) {
   })
 }
 
+/** Accept or decline from the inbox — by id, with no link involved. */
+function useInvitationAction(action: 'accept' | 'decline') {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (inviteId: string) =>
+      api.post<{ trip_id?: string }>(`/invitations/${inviteId}/${action}`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['invitations'] })
+      qc.invalidateQueries({ queryKey: ['trips'] })
+    },
+  })
+}
+
+export const useAcceptInvitation = () => useInvitationAction('accept')
+export const useDeclineInvitation = () => useInvitationAction('decline')
+
 export function useAcceptInvite() {
   const qc = useQueryClient()
   return useMutation({

@@ -29,7 +29,7 @@ npm run build      # production bundle (~157 KB gzip JS)
 
 ## Sharing a trip (read-only, and finer)
 
-Invite a friend from **Who's on this trip** and pick what they get:
+Invite a friend from **Who's on this trip** and pick what they get. Add their email and the invitation is simply _there_ when they next sign in — nothing to send. Leave the email blank and you get a link to share instead.
 
 - **Viewer** — reads everything you let them, changes nothing. Every add/edit/delete button is gone, and the API answers `403` to any write, so nothing is lost from a stale tab.
 - **Partner** — edits alongside you, and can invite further viewers but not another partner.
@@ -41,6 +41,8 @@ For a viewer, three independent switches decide the _content_:
 - **Documents.** The Documents tab, and files attached to a place or city. A file attached to a _hotel_ follows the stays; one attached to the trip is a blob with a name the app cannot look inside, so it is governed by this switch alone.
 
 All of it is withheld server-side — never sent, not merely hidden. Writes are refused in one place (`requireTripAccess`, `server/src/lib/trip-context.ts`); content is decided by the member's row and applied in the services that could surface it (`server/src/lib/trip-view.ts`). The frontend only hides buttons and softens the empty screens.
+
+An invitation addressed to an email is claimed by matching the account's **confirmed** sign-in address — anyone can type someone else's email at sign-up, so an unconfirmed one is shown nothing and told to check its inbox. Declining is its own state: your invitations list says "declined" rather than dropping the row, so you know which of the two happened.
 
 **Signing out**: the button in the header (next to search) drops the session and the cached data and returns to the gate.
 

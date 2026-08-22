@@ -188,6 +188,17 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         .map(toInvite)
     },
 
+    async listInvitesForEmail(email) {
+      const wanted = email.trim().toLowerCase()
+      if (!wanted) return []
+      return invites.filter((i) => i.email?.toLowerCase() === wanted).map(toInvite)
+    },
+
+    async getInviteById(inviteId) {
+      const found = invites.find((i) => i.id === inviteId)
+      return found ? toInvite(found) : null
+    },
+
     async getInviteByTokenHash(tokenHash) {
       const found = invites.find((i) => i.token_hash === tokenHash)
       return found ? toInvite(found) : null
@@ -213,6 +224,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         accepted_at: null,
         accepted_by: null,
         revoked_at: null,
+        declined_at: null,
         created_at: new Date().toISOString(),
       }
       invites.push(invite)
@@ -223,7 +235,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       const invite = invites.find((i) => i.id === inviteId)
       if (!invite) return null
       // Single use: only an invite that is still open can be stamped.
-      if (invite.accepted_at || invite.revoked_at) return null
+      if (invite.accepted_at || invite.revoked_at || invite.declined_at) return null
       Object.assign(invite, patch)
       return toInvite(invite)
     },

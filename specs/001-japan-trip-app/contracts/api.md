@@ -41,6 +41,14 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
 
   Routes: `GET/PATCH/DELETE /api/trips/:tripId/members[/:userId]`, `GET/POST /api/trips/:tripId/invites`, `DELETE /api/trips/:tripId/invites/:inviteId`, plus `GET /api/invites/:token` (preview) and `POST /api/invites/:token/accept`. Accepting is single-use, idempotent for an existing member, and never a downgrade.
 
+- **The invitation inbox (2026-08-22, feature 002 phase 7)**: an invitation that names an email address is also claimable by the account holding that address, with **no link at all** — `GET /api/invitations`, `POST /api/invitations/:inviteId/accept`, `POST /api/invitations/:inviteId/decline`. This is what makes sending an email optional rather than the mechanism.
+
+  The two entry points authorize differently, and deliberately: the link is authorized by **holding the token**, the inbox by **your confirmed sign-in email matching the invitation**. Confirmed is the whole of it — anyone can type someone else's address at sign-up, so `AuthUser.email_confirmed` (from Supabase's `email_confirmed_at`) gates both listing and claiming. An unconfirmed account gets `{"invitations": [], "email_unconfirmed": true}` rather than a 403: it has done nothing wrong, and nothing leaks, since it already knows its own address.
+
+  An invitation addressed to somebody else answers **404, never 403** — an invitation id is not worth confirming to a caller it does not name. One for a trip you are already on is filtered out rather than offered, since accepting would be a no-op.
+
+  `declined_at` is a state of its own, not a reuse of `revoked_at`: revoked means the inviter withdrew it, declined means the invitee said no, and `GET /api/trips/:tripId/invites` keeps declined rows (labelled) so an invitation never just vanishes from the inviter's list.
+
 - **Per-member visibility (phase 4)**: three flags on `trip_members` — `can_see_stays`, `can_see_flight`, `can_see_documents` — collapse into one `TripView` (`server/src/lib/trip-view.ts`) that rides on the trip context. Writers always get the full view: the flags are _ignored_ for owner and partner rather than validated, so an owner cannot lock themselves out of their own bookings.
 
   Enforcement points: place detail (`403` on a hidden stay), zone detail and its category counts, the zone place list including the map's all-categories sweep, the trip bundle's `flight` block (the key is absent, not null), search, and files.
@@ -121,6 +129,22 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
 - **2026-07-11 addition**: zones and places carry an optional `image_url` (http(s) photo). It appears in zone summaries (GET /api/trip), zone detail, place list items, and place detail; accepted on place POST/PATCH (validated as http(s) URL).
 
 ## Auth
+
+### GET /api/invitations
+
+Invitations waiting for the signed-in account — those addressed to its email. Carries no trip content; an unaccepted invitation is not access.
+
+- 200: `{"invitations": [{"id","trip_name","role","invited_by","email","expires_at","shows":{…}}]}`
+- 200: `{"invitations": [], "email_unconfirmed": true}` when Supabase has not confirmed the address. Not an error — the account simply hasn't proved the address is theirs.
+- `trip_name` is the computed `display_title`, never the raw `name` (which is null for a trip that goes by its built title).
+
+### POST /api/invitations/:inviteId/accept
+
+- 200: `{"trip_id","role","already_member"}` · 403 when the address is unconfirmed · 404 for an invitation that is not open, or is addressed to someone else.
+
+### POST /api/invitations/:inviteId/decline
+
+- 204 · 403 unconfirmed · 404 as above. Stamps `declined_at`; the invitation cannot then be accepted.
 
 ### GET /api/me
 

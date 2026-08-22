@@ -179,9 +179,19 @@ export interface TripInvite {
   can_see_flight: boolean
   can_see_documents: boolean
   expires_at: string
+  /** Set when the invitee said no. Distinct from an invite you revoked. */
+  declined_at?: string | null
 }
 
+/**
+ * What someone is told about an invitation before they hold it. Never any trip
+ * content — an unaccepted invitation is not access.
+ *
+ * `id` is present on an invitation read from your own inbox and absent from a
+ * link preview, which is addressed by its token instead.
+ */
 export interface InvitePreview {
+  id?: string
   trip_name: string
   role: 'partner' | 'viewer'
   invited_by: string | null

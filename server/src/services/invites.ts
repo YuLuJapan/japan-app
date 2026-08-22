@@ -1,18 +1,25 @@
-// Sharing a trip.
+// Sharing a trip. Two ways in, and they authorize differently.
 //
-// An invite is a link, not an email: the server mints a token, returns the
-// plaintext exactly once, and stores only its SHA-256. Whoever opens the link
-// and signs in becomes a member with the role and visibility the invite
-// promised. No mail infrastructure, which keeps this inside the free tier and
-// matches how `trips.people` already offers a mailto: invite.
+// **The link.** The server mints a token, returns the plaintext exactly once,
+// and stores only its SHA-256. Whoever opens the link and signs in becomes a
+// member with the role and visibility the invite promised. The plaintext is
+// unrecoverable afterwards — the same discipline as a password reset token,
+// and the reason a leaked backup hands out no working invites.
 //
-// The plaintext is unrecoverable afterwards — the same discipline as a
-// password reset token, and the reason a leaked backup hands out no working
-// invites.
+// **The inbox.** An invitation addressed to an email address is also claimable
+// by the account that owns that address, with no link at all: it simply
+// appears when they next sign in. This is what makes the email optional rather
+// than load-bearing — the link can be shared over WhatsApp, or not shared at
+// all, and the invitation still arrives.
+//
+// The authorization there is "your *confirmed* sign-in email matches the
+// invitation". Confirmed is the whole of it: anyone can type someone else's
+// address at sign-up, so an unconfirmed one proves nothing about who holds it.
 import { createHash, randomBytes } from 'node:crypto'
 import type { DataStore, TripInvite } from '../lib/datastore.js'
 import { forbidden, notFound, validation } from '../lib/errors.js'
 import { canInvite, type InviteRole, type TripRole } from '../lib/permissions.js'
+import { tripTitle } from './trips.js'
 
 const INVITE_TTL_DAYS = 14
 const INVITE_ROLES: InviteRole[] = ['partner', 'viewer']
@@ -23,7 +30,14 @@ const mintToken = () => randomBytes(32).toString('base64url')
 export const hashToken = (token: string) => createHash('sha256').update(token).digest('hex')
 
 const isOpen = (invite: TripInvite, now: Date) =>
-  !invite.accepted_at && !invite.revoked_at && new Date(invite.expires_at) > now
+  !invite.accepted_at &&
+  !invite.revoked_at &&
+  !invite.declined_at &&
+  new Date(invite.expires_at) > now
+
+/** Case-insensitive, trimmed: email addresses are, and people paste them. */
+const sameAddress = (a: string | null, b: string) =>
+  !!a && a.trim().toLowerCase() === b.trim().toLowerCase()
 
 export interface InviteInput {
   role?: unknown
@@ -39,7 +53,9 @@ export async function listInvites(store: DataStore, tripId: string, actorRole: T
   }
   const invites = await store.listTripInvites(tripId)
   const now = new Date()
-  return { invites: invites.filter((i) => isOpen(i, now)) }
+  // Declined ones are kept, and say so. An invitation that quietly disappears
+  // leaves the inviter wondering whether they sent it at all.
+  return { invites: invites.filter((i) => isOpen(i, now) || i.declined_at) }
 }
 
 export async function createInvite(
@@ -118,23 +134,38 @@ export async function revokeInvite(
 export async function previewInvite(store: DataStore, token: string, now: Date = new Date()) {
   const invite = await store.getInviteByTokenHash(hashToken(String(token ?? '')))
   if (!invite || !isOpen(invite, now)) throw notFound('Invitation')
+  return { invite: await summarize(store, invite) }
+}
+
+/**
+ * What someone is told about an invitation *before* they hold it: the trip's
+ * title, who asked them, and what they would be shown. Never any trip content
+ * — an unaccepted invitation is not access.
+ *
+ * The title is the computed one, not the raw `name`: a trip that goes by
+ * "Yuval and Luciana in Japan" has no `name` at all (feature 002 phase 5), and
+ * an invitation to a blank was the shape of the bug this avoids.
+ */
+async function summarize(store: DataStore, invite: TripInvite) {
   const [trip, inviter] = await Promise.all([
     store.getTrip(invite.trip_id),
     invite.invited_by ? store.getProfile(invite.invited_by) : Promise.resolve(null),
   ])
   if (!trip) throw notFound('Invitation')
+  const writer = invite.role !== 'viewer'
   return {
-    invite: {
-      trip_name: trip.name,
-      role: invite.role,
-      invited_by: inviter?.display_name ?? inviter?.email ?? null,
-      email: invite.email,
-      expires_at: invite.expires_at,
-      shows: {
-        stays: invite.role === 'viewer' ? invite.can_see_stays : true,
-        flight: invite.role === 'viewer' ? invite.can_see_flight : true,
-        documents: invite.role === 'viewer' ? invite.can_see_documents : true,
-      },
+    id: invite.id,
+    trip_name: await tripTitle(store, trip),
+    role: invite.role,
+    invited_by: inviter?.display_name ?? inviter?.email ?? null,
+    email: invite.email,
+    expires_at: invite.expires_at,
+    // Writers see everything regardless of the flags — same rule tripView
+    // applies, stated here so the promise matches what accepting delivers.
+    shows: {
+      stays: writer || invite.can_see_stays,
+      flight: writer || invite.can_see_flight,
+      documents: writer || invite.can_see_documents,
     },
   }
 }
@@ -148,10 +179,25 @@ export async function acceptInvite(
   const invite = await store.getInviteByTokenHash(hashToken(String(token ?? '')))
   if (!invite || !isOpen(invite, now)) throw notFound('Invitation')
 
-  if (invite.email && invite.email.toLowerCase() !== user.email.trim().toLowerCase()) {
+  if (invite.email && !sameAddress(invite.email, user.email)) {
     throw forbidden('This invitation was sent to a different email address')
   }
 
+  return claim(store, user, invite, now)
+}
+
+/**
+ * Stamp the invitation and put the account on the trip. Shared by both routes
+ * in: the link (authorized by the token) and the inbox (authorized by the
+ * confirmed address). Everything above this line decides *whether*; this
+ * decides *what happens*, once.
+ */
+async function claim(
+  store: DataStore,
+  user: { id: string; email: string },
+  invite: TripInvite,
+  now: Date
+) {
   const existing = await store.getTripMember(invite.trip_id, user.id)
   if (existing) {
     // Idempotent, and never a downgrade: re-opening the link with a higher
@@ -180,4 +226,74 @@ export async function acceptInvite(
     can_see_documents: invite.can_see_documents,
   })
   return { trip_id: invite.trip_id, role: invite.role, already_member: false }
+}
+
+// --- the invitee's side ------------------------------------------------------
+// Everything above is addressed to a *trip*: its owner mints, lists and revokes.
+// What follows is addressed to a *person*, so none of it takes a tripId — the
+// invitee does not know the trip yet, which is rather the point.
+
+/** An account whose address Supabase has confirmed, or `null` if it hasn't. */
+type Invitee = { id: string; email: string; email_confirmed: boolean }
+
+/**
+ * Every open invitation waiting for this account.
+ *
+ * An unconfirmed address returns nothing and says so, rather than 403-ing: the
+ * caller has done nothing wrong, they just haven't proved the address is
+ * theirs yet, and the UI can point them at their inbox. Nothing leaks either
+ * way — they already know their own email and its confirmation state.
+ */
+export async function listMyInvitations(store: DataStore, user: Invitee, now: Date = new Date()) {
+  if (!user.email_confirmed) return { invitations: [], email_unconfirmed: true as const }
+  const invites = await store.listInvitesForEmail(user.email)
+  const open = invites.filter((i) => isOpen(i, now))
+  // A trip they are already on is not an invitation any more — accepting it
+  // would be a no-op, and offering it reads as an error.
+  const memberships = new Set((await store.listMembershipsForUser(user.id)).map((m) => m.trip_id))
+  const pending = open.filter((i) => !memberships.has(i.trip_id))
+  return { invitations: await Promise.all(pending.map((i) => summarize(store, i))) }
+}
+
+/**
+ * The invitation this account is about to act on, or a refusal.
+ *
+ * 404 rather than 403 for one addressed to somebody else: an invitation id is
+ * not a secret worth confirming to a caller it does not name.
+ */
+async function requireMine(store: DataStore, user: Invitee, inviteId: string, now: Date) {
+  if (!user.email_confirmed) {
+    throw forbidden('Confirm your email address first — check your inbox for the link')
+  }
+  const invite = await store.getInviteById(String(inviteId ?? ''))
+  if (!invite || !isOpen(invite, now)) throw notFound('Invitation')
+  if (!sameAddress(invite.email, user.email)) throw notFound('Invitation')
+  return invite
+}
+
+/** Accept without ever having seen the link. */
+export async function acceptInvitation(
+  store: DataStore,
+  user: Invitee,
+  inviteId: string,
+  now: Date = new Date()
+) {
+  return claim(store, user, await requireMine(store, user, inviteId, now), now)
+}
+
+/**
+ * Say no. Stamped as its own state rather than as a revocation, so the
+ * inviter's list can say "declined" instead of dropping the row and leaving
+ * them to wonder whether they ever sent it.
+ */
+export async function declineInvitation(
+  store: DataStore,
+  user: Invitee,
+  inviteId: string,
+  now: Date = new Date()
+) {
+  const invite = await requireMine(store, user, inviteId, now)
+  const declined = await store.updateTripInvite(invite.id, { declined_at: now.toISOString() })
+  // Only a still-open row can be stamped, so a lost race reads as "gone".
+  if (!declined) throw notFound('Invitation')
 }

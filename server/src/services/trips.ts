@@ -29,14 +29,18 @@ const PEOPLE_MAX = 12
  * roster answers "who is going", membership answers "who can open the app",
  * and those differ the moment a trip is shared with a friend.
  */
-async function withTitle(store: DataStore, trip: Trip) {
+export async function tripTitle(store: DataStore, trip: Trip): Promise<string> {
   let memberNames: string[] = []
   if (!trip.people.some((p) => p.name.trim())) {
     const members = await store.listTripMembers(trip.id)
     const profiles = await Promise.all(members.map((m) => store.getProfile(m.user_id)))
     memberNames = profiles.map((p) => p?.display_name ?? '').filter(Boolean)
   }
-  return { ...trip, display_title: displayTitle({ ...trip, memberNames }) }
+  return displayTitle({ ...trip, memberNames })
+}
+
+async function withTitle(store: DataStore, trip: Trip) {
+  return { ...trip, display_title: await tripTitle(store, trip) }
 }
 
 export async function listTrips(store: DataStore, access: AccessContext) {
