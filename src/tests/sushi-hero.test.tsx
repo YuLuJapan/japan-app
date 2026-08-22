@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { SushiSequence, pinLengthFor } from '../components/SushiSequence'
+import { SushiSequence, pinLengthFor, skipLegs } from '../components/SushiSequence'
 
 // jsdom has no 2D context, so the canvas half of the hero bails out early and
 // what is left is exactly what these tests care about: the escape hatch out of
@@ -78,5 +78,34 @@ describe('pinLengthFor', () => {
 
   it('leaves an end it cannot do the arithmetic on alone', () => {
     expect(pinLengthFor('+=800px')).toBe('+=800px')
+  })
+})
+
+describe('skipLegs', () => {
+  // A 390×844 phone: a 772-tall stage over a 125% pin, so the hero's spacer
+  // ends 1827px down and the pin lets go 772px before that.
+  const phone = () => skipLegs(0, 1827, 772, 844)
+
+  it('gives the page-and-sequence-together stretch a second of its own', () => {
+    const [, drift] = phone()
+    // 25% of the viewport, at a steady pace, starting the moment the pin lets
+    // go: one second of the hero rising while the last frames land.
+    expect(drift).toEqual({ to: 1055 + 211, ms: 1000, steady: true })
+  })
+
+  it('runs the pinned sequence first and the leftover hero last', () => {
+    const [scrub, , exit] = phone()
+    expect(scrub).toEqual({ to: 1055, ms: 1500 })
+    expect(exit).toEqual({ to: 1827, ms: 600 })
+  })
+
+  it('just leaves when there is no pinned sequence to keep company', () => {
+    // Nothing pinned (GSAP blocked, say): the hero is exactly its own height,
+    // so there is no sequence still playing for the drift to sit alongside.
+    expect(skipLegs(0, 772, 772, 844)).toEqual([{ to: 772, ms: 600 }])
+    // Same from below the release point, where the sequence is already over.
+    expect(skipLegs(1500, 1827, 772, 844)).toEqual([{ to: 1827, ms: 600 }])
+    // And nothing at all to do when the hero is already behind us.
+    expect(skipLegs(1827, 1827, 772, 844)).toEqual([])
   })
 })

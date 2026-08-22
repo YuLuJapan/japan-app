@@ -24,7 +24,8 @@
 // pinned hero for you. It moves the scroll position rather than jumping it, so
 // the sequence still plays — it just plays itself, in the background, on the
 // way down (and, thanks to the short pin, the tail of it plays over a moving
-// page), and any real scroll input hands control straight back.
+// page — a second of it, which is what the three beats in skipLegs are for),
+// and any real scroll input hands control straight back.
 //
 // The mark is deliberately almost nothing: a letterspaced label over a rule
 // with a segment tracing down it. No container, no fill, no shadow — the
@@ -98,6 +99,51 @@ export function pinLengthFor(scrollLength: string) {
   const match = /^\+=(\d+(?:\.\d+)?)%$/.exec(scrollLength.trim())
   if (!match) return scrollLength
   return `+=${Math.max(0, Number(match[1]) - OVERLAP_VH)}%`
+}
+
+// The three beats of the "Get started" scroll, in milliseconds.
+//
+// They are timed, not derived from distance, because the point of the middle
+// one is a duration: DRIFT is the stretch where the page is rising and the
+// last frames are still landing, and it is meant to read as about a second of
+// the two happening together. Left to one ease over the whole hero that beat
+// lasted ~0.2s — it falls in the fastest part of the travel, so the page shot
+// through the overlap almost as soon as it started moving.
+const SCRUB_MS = 1500 // pinned: the nigiri comes apart, the page holds still
+const DRIFT_MS = 1000 // both at once: the hero starts to rise, the sequence ends
+const EXIT_MS = 600 // done animating; clear the rest of the hero
+
+export type SkipLeg = { to: number; ms: number; steady?: boolean }
+
+/**
+ * The tap-to-skip scroll, as a scroll position to reach and a time to take
+ * over each of the three beats above.
+ *
+ * `release` is where the pin lets go — and it needs no help from ScrollTrigger
+ * to find: once the hero unpins, exactly the stage's own height is left
+ * between there and the end of the pin-spacer.
+ *
+ * A beat with nothing to travel is dropped rather than run for its full
+ * duration against a distance of zero — which is also what turns a hero that
+ * never pinned, or a tap from below the release point, into a plain scroll out.
+ */
+export function skipLegs(from: number, to: number, stageHeight: number, viewport: number) {
+  const release = to - stageHeight
+
+  // Nothing pinned ahead of us — a hero that never pinned because GSAP was
+  // blocked, or a tap from below the release point. There is no sequence for
+  // the drift to keep company, so it would only be a slow crawl: leave instead.
+  if (release <= from) return to > from ? [{ to, ms: EXIT_MS }] : []
+
+  const drift = Math.min(release + (OVERLAP_VH / 100) * viewport, to)
+  const legs: SkipLeg[] = [
+    { to: release, ms: SCRUB_MS },
+    // Steady: no ease. This beat is a drift, and an ease-in-out over a second
+    // of it would spend most of that second barely moving.
+    { to: drift, ms: DRIFT_MS, steady: true },
+  ]
+  if (to > drift) legs.push({ to, ms: EXIT_MS })
+  return legs
 }
 
 // The version query is what keeps a regenerated sequence from being served as
@@ -401,10 +447,15 @@ export function SushiSequence({
    * Scroll the window to just past the hero, so the content below lands under
    * the sticky header. The pin is driven by scroll position, so animating that
    * position plays the sequence out on the way rather than cutting past it.
+   *
+   * Paced in three beats (see skipLegs) rather than one ease end to end, so
+   * the moment where the page is moving and the sequence is still running gets
+   * a second of its own instead of the fraction it takes at full tilt.
    */
   const skipToContent = () => {
     const wrapper = wrapperRef.current
-    if (!wrapper) return
+    const stage = stageRef.current
+    if (!wrapper || !stage) return
     skipTweenRef.current?.()
 
     // Once ScrollTrigger pins the stage it wraps it in a pin-spacer, which
@@ -427,7 +478,9 @@ export function SushiSequence({
     // reads as a smear. About 3s for a full hero — slow enough to watch, and
     // interruptible on the first swipe, which is what keeps it from feeling
     // like a cutscene you have to sit through.
-    const duration = Math.min(3200, Math.max(1800, distance * 1.5))
+    const legs = skipLegs(from, to, stage.clientHeight, window.innerHeight)
+    if (!legs.length) return
+
     // Sine rather than cubic. Over three seconds a cubic ease-in is dead for
     // the first half-second (36px of 2038) — the tap reads as a dropped input
     // — and then hurries the middle, which is exactly where the nigiri is
@@ -436,6 +489,8 @@ export function SushiSequence({
 
     let raf = 0
     let started = 0
+    let leg = 0
+    let legFrom = from
     const stop = () => {
       cancelAnimationFrame(raf)
       window.removeEventListener('wheel', stop)
@@ -444,10 +499,21 @@ export function SushiSequence({
       skipTweenRef.current = null
     }
     const step = (now: number) => {
-      const t = Math.min(1, (now - started) / duration)
-      window.scrollTo(0, from + distance * ease(t))
-      if (t < 1) raf = requestAnimationFrame(step)
-      else stop()
+      const { to: legTo, ms, steady } = legs[leg]
+      const t = Math.min(1, (now - started) / ms)
+      window.scrollTo(0, legFrom + (legTo - legFrom) * (steady ? t : ease(t)))
+      if (t < 1) {
+        raf = requestAnimationFrame(step)
+        return
+      }
+      // Hand over to the next beat from where this one landed. The joins are
+      // where the pace changes — into the drift and out of it — and a change
+      // of a couple of hundred pixels a second is not a jolt.
+      leg += 1
+      if (leg === legs.length) return stop()
+      legFrom = legTo
+      started = now
+      raf = requestAnimationFrame(step)
     }
 
     // Bound on the next frame, not now: activating the button with the
