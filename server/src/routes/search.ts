@@ -1,12 +1,14 @@
 import { Router } from 'express'
-import { accessOf, isGuest } from '../lib/auth.js'
+import { isGuest } from '../lib/auth.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import { searchAll } from '../services/search.js'
 
 const search = asyncHandler(async (req, res) => {
   const q = String(req.query.q ?? '')
-  res.json(await searchAll(await getDataStore(), accessOf(req), q, { includeStays: !isGuest(req) }))
+  res.json(
+    await searchAll(await getDataStore(), req.params.tripId, q, { includeStays: !isGuest(req) })
+  )
 })
 
 /** Mounted under /api/trips/:tripId, behind requireTripAccess. */

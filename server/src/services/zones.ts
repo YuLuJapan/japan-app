@@ -1,29 +1,32 @@
 import type { Category, DataStore } from '../lib/datastore.js'
 import { CATEGORIES } from '../lib/datastore.js'
-import { assertZoneAccess, reachableZoneIds, type AccessContext } from '../lib/access.js'
 import { notFound, validation } from '../lib/errors.js'
 import { hideStayCounts, isStay } from '../lib/guest-view.js'
 
 /**
- * `includeFiles: false` is the guest view — attachments never leave the server.
- * `includeStays: false` drops the stays from the counts (lib/guest-view.ts).
+ * A zone belongs to exactly one trip since migration 0013, so the store answers
+ * "not in this trip" and "no such zone" identically — which is what we want an
+ * outsider to see. The reachability workaround this replaced lived in
+ * lib/access.ts and had to walk journey steps on every read.
+ *
+ * `includeFiles: false` keeps attachments on the server; `includeStays: false`
+ * drops the stays from the counts (lib/guest-view.ts).
  */
 export async function getZoneDetail(
   store: DataStore,
-  access: AccessContext,
+  tripId: string,
   zoneId: string,
   {
     includeFiles = true,
     includeStays = true,
   }: { includeFiles?: boolean; includeStays?: boolean } = {}
 ) {
-  assertZoneAccess(await reachableZoneIds(store, access), zoneId)
-  const zone = await store.getZone(zoneId)
+  const zone = await store.getZone(tripId, zoneId)
   if (!zone) throw notFound('Zone')
   const [tips, files, place_counts] = await Promise.all([
-    store.listTips({ zone_id: zoneId }),
-    includeFiles ? store.listFiles({ zone_id: zoneId }) : [],
-    store.countPlacesByCategory(zoneId),
+    store.listTips(tripId, { zone_id: zoneId }),
+    includeFiles ? store.listFiles(tripId, { zone_id: zoneId }) : [],
+    store.countPlacesByCategory(tripId, zoneId),
   ])
   return {
     zone,
@@ -42,7 +45,7 @@ export async function getZoneDetail(
 // all of a zone's places and filters client-side).
 export async function listZonePlaces(
   store: DataStore,
-  access: AccessContext,
+  tripId: string,
   zoneId: string,
   category: string,
   { includeStays = true }: { includeStays?: boolean } = {}
@@ -50,12 +53,11 @@ export async function listZonePlaces(
   if (category !== '' && !CATEGORIES.includes(category as Category)) {
     throw validation([`category must be one of: ${CATEGORIES.join(', ')}`])
   }
-  assertZoneAccess(await reachableZoneIds(store, access), zoneId)
-  const zone = await store.getZone(zoneId)
+  const zone = await store.getZone(tripId, zoneId)
   if (!zone) throw notFound('Zone')
   const all = category
-    ? await store.listPlaces(zoneId, category as Category)
-    : await store.listPlacesInZone(zoneId)
+    ? await store.listPlaces(tripId, zoneId, category as Category)
+    : await store.listPlacesInZone(tripId, zoneId)
   // Covers both shapes: asking for the stays themselves, and the map's
   // all-categories sweep that would otherwise carry them along.
   const places = includeStays ? all : all.filter((p) => !isStay(p))

@@ -101,6 +101,22 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
   let latestRates: ExchangeRates | null = null
   const subscriptions: PushSubscriptionRecord[] = []
 
+  // Since migration 0013 a zone belongs to exactly one trip, so "is this row
+  // in that trip?" is a zone lookup for anything hanging off a zone.
+  const zoneIn = (tripId: string, zoneId: string) =>
+    db.zones.some((z) => z.id === zoneId && z.trip_id === tripId)
+  const placesIn = (tripId: string) => db.places.filter((p) => zoneIn(tripId, p.zone_id))
+  const placeIn = (tripId: string, placeId: string) =>
+    db.places.some((p) => p.id === placeId && zoneIn(tripId, p.zone_id))
+  /** A tip hangs off exactly one parent, and inherits that parent's trip. */
+  const tipIn = (tripId: string, tip: Tip) =>
+    tip.zone_id ? zoneIn(tripId, tip.zone_id) : !!tip.place_id && placeIn(tripId, tip.place_id)
+  /** A file hangs off the trip directly, or off one of its zones or places. */
+  const fileIn = (tripId: string, f: FileAttachment) =>
+    f.trip_id === tripId ||
+    (!!f.zone_id && zoneIn(tripId, f.zone_id)) ||
+    (!!f.place_id && placeIn(tripId, f.place_id))
+
   const emptyCounts = (): Record<Category, number> =>
     Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<Category, number>
 
@@ -242,8 +258,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return db.steps.filter((s) => s.trip_id === tripId).sort(compareSteps)
     },
 
-    async getStep(stepId) {
-      return db.steps.find((s) => s.id === stepId) ?? null
+    async getStep(tripId, stepId) {
+      return db.steps.find((s) => s.id === stepId && s.trip_id === tripId) ?? null
     },
 
     async createStep(input: JourneyStepInput) {
@@ -259,9 +275,10 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return structuredClone(step)
     },
 
-    async updateStep(stepId, patch) {
-      const step = db.steps.find((s) => s.id === stepId)
+    async updateStep(tripId, stepId, patch) {
+      const step = db.steps.find((s) => s.id === stepId && s.trip_id === tripId)
       if (!step) return null
+      if (patch.zone_id !== undefined && !zoneIn(tripId, patch.zone_id)) return null
       if (patch.zone_id !== undefined) step.zone_id = patch.zone_id
       if (patch.position !== undefined) step.position = patch.position
       if (patch.start_date !== undefined) step.start_date = patch.start_date
@@ -269,24 +286,25 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return structuredClone(step)
     },
 
-    async deleteStep(stepId) {
-      const idx = db.steps.findIndex((s) => s.id === stepId)
+    async deleteStep(tripId, stepId) {
+      const idx = db.steps.findIndex((s) => s.id === stepId && s.trip_id === tripId)
       if (idx === -1) return false
       db.steps.splice(idx, 1)
       return true
     },
 
-    async listZones() {
-      return db.zones.map((z) => structuredClone(z))
+    async listZones(tripId) {
+      return db.zones.filter((z) => z.trip_id === tripId).map((z) => structuredClone(z))
     },
 
-    async getZone(zoneId) {
-      return db.zones.find((z) => z.id === zoneId) ?? null
+    async getZone(tripId, zoneId) {
+      return db.zones.find((z) => z.id === zoneId && z.trip_id === tripId) ?? null
     },
 
     async createZone(input: ZoneInput) {
       const zone: Zone = {
         id: randomUUID(),
+        trip_id: input.trip_id,
         name: input.name,
         name_ja: input.name_ja ?? null,
         summary: input.summary ?? null,
@@ -298,29 +316,36 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return structuredClone(zone)
     },
 
-    async countPlacesByCategory(zoneId) {
+    async countPlacesByCategory(tripId, zoneId) {
       const counts = emptyCounts()
+      if (!zoneIn(tripId, zoneId)) return counts
       for (const p of db.places) if (p.zone_id === zoneId) counts[p.category]++
       return counts
     },
 
-    async listPlaces(zoneId, category) {
+    async listPlaces(tripId, zoneId, category) {
+      if (!zoneIn(tripId, zoneId)) return []
       return db.places.filter((p) => p.zone_id === zoneId && p.category === category)
     },
 
-    async listPlacesInZone(zoneId) {
+    async listPlacesInZone(tripId, zoneId) {
+      if (!zoneIn(tripId, zoneId)) return []
       return db.places.filter((p) => p.zone_id === zoneId)
     },
 
-    async getPlace(placeId) {
-      return db.places.find((p) => p.id === placeId) ?? null
+    async getPlace(tripId, placeId) {
+      const place = db.places.find((p) => p.id === placeId)
+      return place && zoneIn(tripId, place.zone_id) ? place : null
     },
 
-    async listPlaceIdsByCategory(category) {
-      return db.places.filter((p) => p.category === category).map((p) => p.id)
+    async listPlaceIdsByCategory(tripId, category) {
+      return placesIn(tripId)
+        .filter((p) => p.category === category)
+        .map((p) => p.id)
     },
 
-    async createPlace(input: PlaceInput) {
+    async createPlace(tripId, input: PlaceInput) {
+      if (!zoneIn(tripId, input.zone_id)) throw new Error('zone does not belong to this trip')
       const place: Place = {
         id: randomUUID(),
         zone_id: input.zone_id,
@@ -338,9 +363,12 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return structuredClone(place)
     },
 
-    async updatePlace(placeId, patch) {
+    async updatePlace(tripId, placeId, patch) {
       const place = db.places.find((p) => p.id === placeId)
-      if (!place) return null
+      if (!place || !zoneIn(tripId, place.zone_id)) return null
+      // Both ends have to be in this trip, or a place could be moved into
+      // someone else's city.
+      if (patch.zone_id !== undefined && !zoneIn(tripId, patch.zone_id)) return null
       // last write wins (spec edge case: concurrent edits)
       if (patch.zone_id !== undefined) place.zone_id = patch.zone_id
       if (patch.category !== undefined) place.category = patch.category
@@ -355,8 +383,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return structuredClone(place)
     },
 
-    async deletePlace(placeId) {
-      const idx = db.places.findIndex((p) => p.id === placeId)
+    async deletePlace(tripId, placeId) {
+      const idx = db.places.findIndex((p) => p.id === placeId && zoneIn(tripId, p.zone_id))
       if (idx === -1) return false
       db.places.splice(idx, 1)
       db.tips = db.tips.filter((t) => t.place_id !== placeId) // cascade
@@ -369,8 +397,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return db.itinerary!.filter((i) => i.trip_id === tripId).sort(compareItinerary)
     },
 
-    async getItineraryItem(itemId) {
-      const item = db.itinerary!.find((i) => i.id === itemId)
+    async getItineraryItem(tripId, itemId) {
+      const item = db.itinerary!.find((i) => i.id === itemId && i.trip_id === tripId)
       return item ? structuredClone(item) : null
     },
 
@@ -392,8 +420,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return structuredClone(item)
     },
 
-    async updateItineraryItem(itemId, patch) {
-      const item = db.itinerary!.find((i) => i.id === itemId)
+    async updateItineraryItem(tripId, itemId, patch) {
+      const item = db.itinerary!.find((i) => i.id === itemId && i.trip_id === tripId)
       if (!item) return null
       if (patch.zone_id !== undefined) item.zone_id = patch.zone_id ?? null
       if (patch.place_id !== undefined) item.place_id = patch.place_id ?? null
@@ -407,8 +435,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return structuredClone(item)
     },
 
-    async deleteItineraryItem(itemId) {
-      const i = db.itinerary!.findIndex((x) => x.id === itemId)
+    async deleteItineraryItem(tripId, itemId) {
+      const i = db.itinerary!.findIndex((x) => x.id === itemId && x.trip_id === tripId)
       if (i === -1) return false
       db.itinerary!.splice(i, 1)
       return true
@@ -437,8 +465,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return structuredClone(item)
     },
 
-    async updateShoppingItem(itemId, patch) {
-      const item = db.shopping!.find((s) => s.id === itemId)
+    async updateShoppingItem(tripId, itemId, patch) {
+      const item = db.shopping!.find((s) => s.id === itemId && s.trip_id === tripId)
       if (!item) return null
       if (patch.name !== undefined) item.name = patch.name
       if (patch.category !== undefined) item.category = patch.category ?? 'other'
@@ -453,19 +481,27 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return structuredClone(item)
     },
 
-    async deleteShoppingItem(itemId) {
-      const i = db.shopping!.findIndex((s) => s.id === itemId)
+    async deleteShoppingItem(tripId, itemId) {
+      const i = db.shopping!.findIndex((s) => s.id === itemId && s.trip_id === tripId)
       if (i === -1) return false
       db.shopping!.splice(i, 1)
       return true
     },
 
-    async listTips(parent) {
-      if ('zone_id' in parent) return db.tips.filter((t) => t.zone_id === parent.zone_id)
+    async listTips(tripId, parent) {
+      if ('zone_id' in parent) {
+        if (!zoneIn(tripId, parent.zone_id)) return []
+        return db.tips.filter((t) => t.zone_id === parent.zone_id)
+      }
+      if (!placeIn(tripId, parent.place_id)) return []
       return db.tips.filter((t) => t.place_id === parent.place_id)
     },
 
-    async createTip(input: TipInput) {
+    async createTip(tripId, input: TipInput) {
+      const parentInTrip = input.zone_id
+        ? zoneIn(tripId, input.zone_id)
+        : !!input.place_id && placeIn(tripId, input.place_id)
+      if (!parentInTrip) throw new Error('tip parent does not belong to this trip')
       const tip: Tip = {
         id: randomUUID(),
         zone_id: input.zone_id ?? null,
@@ -476,24 +512,25 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return structuredClone(tip)
     },
 
-    async updateTip(tipId, body) {
-      const tip = db.tips.find((t) => t.id === tipId)
+    async updateTip(tripId, tipId, body) {
+      const tip = db.tips.find((t) => t.id === tipId && tipIn(tripId, t))
       if (!tip) return null
       tip.body = body
       return structuredClone(tip)
     },
 
-    async deleteTip(tipId) {
-      const idx = db.tips.findIndex((t) => t.id === tipId)
+    async deleteTip(tripId, tipId) {
+      const idx = db.tips.findIndex((t) => t.id === tipId && tipIn(tripId, t))
       if (idx === -1) return false
       db.tips.splice(idx, 1)
       return true
     },
 
-    async listFiles(parent) {
-      if ('trip_id' in parent) return db.files.filter((f) => f.trip_id === parent.trip_id)
-      if ('zone_id' in parent) return db.files.filter((f) => f.zone_id === parent.zone_id)
-      return db.files.filter((f) => f.place_id === parent.place_id)
+    async listFiles(tripId, parent) {
+      const mine = db.files.filter((f) => fileIn(tripId, f))
+      if ('trip_id' in parent) return mine.filter((f) => f.trip_id === parent.trip_id)
+      if ('zone_id' in parent) return mine.filter((f) => f.zone_id === parent.zone_id)
+      return mine.filter((f) => f.place_id === parent.place_id)
     },
 
     async listAllFiles(tripId) {
@@ -513,8 +550,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return db.files.filter((f) => f.trip_id === tripId).length
     },
 
-    async getFile(fileId) {
-      return db.files.find((f) => f.id === fileId) ?? null
+    async getFile(tripId, fileId) {
+      return db.files.find((f) => f.id === fileId && fileIn(tripId, f)) ?? null
     },
 
     async createFile(input: FileInput, bytes: Buffer) {
@@ -533,8 +570,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return structuredClone(file)
     },
 
-    async deleteFile(fileId) {
-      const idx = db.files.findIndex((f) => f.id === fileId)
+    async deleteFile(tripId, fileId) {
+      const idx = db.files.findIndex((f) => f.id === fileId && fileIn(tripId, f))
       if (idx === -1) return false
       db.files.splice(idx, 1)
       blobs.delete(fileId)
@@ -586,8 +623,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         .map((r) => structuredClone(r))
     },
 
-    async getReminder(reminderId) {
-      const found = db.reminders!.find((r) => r.id === reminderId)
+    async getReminder(tripId, reminderId) {
+      const found = db.reminders!.find((r) => r.id === reminderId && r.trip_id === tripId)
       return found ? structuredClone(found) : null
     },
 
@@ -607,8 +644,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return structuredClone(reminder)
     },
 
-    async updateReminder(reminderId, patch) {
-      const reminder = db.reminders!.find((r) => r.id === reminderId)
+    async updateReminder(tripId, reminderId, patch) {
+      const reminder = db.reminders!.find((r) => r.id === reminderId && r.trip_id === tripId)
       if (!reminder) return null
       if (patch.title !== undefined) reminder.title = patch.title
       if (patch.body !== undefined) reminder.body = patch.body ?? null
@@ -619,8 +656,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return structuredClone(reminder)
     },
 
-    async deleteReminder(reminderId) {
-      const idx = db.reminders!.findIndex((r) => r.id === reminderId)
+    async deleteReminder(tripId, reminderId) {
+      const idx = db.reminders!.findIndex((r) => r.id === reminderId && r.trip_id === tripId)
       if (idx === -1) return false
       db.reminders!.splice(idx, 1)
       return true
@@ -663,15 +700,17 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return true
     },
 
-    async search(query) {
+    async search(tripId, query) {
       const q = query.trim().toLowerCase()
       const has = (s?: string | null) => !!s && s.toLowerCase().includes(q)
       return {
-        places: db.places.filter(
+        places: placesIn(tripId).filter(
           (p) => has(p.name) || has(p.name_ja) || has(p.description) || has(p.address)
         ),
-        zones: db.zones.filter((z) => has(z.name) || has(z.name_ja) || has(z.summary)),
-        tips: db.tips.filter((t) => has(t.body)),
+        zones: db.zones
+          .filter((z) => z.trip_id === tripId)
+          .filter((z) => has(z.name) || has(z.name_ja) || has(z.summary)),
+        tips: db.tips.filter((t) => has(t.body) && tipIn(tripId, t)),
       }
     },
   }

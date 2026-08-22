@@ -44,9 +44,15 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
 
   Still at `/api`, none of them trip content: `/health`, `/auth/*`, `/me`, `/trips` (the collection — listing and creating happen before there is a trip to be a member of), `/rates`, `/geocode`, `/images`, `/product-preview`, `/translate`, `/push/*`, and `/reminders/dispatch` (called by an external scheduler with no trip in hand, guarding itself with `CRON_SECRET`).
 
-  **What nesting does not yet prove**: that a resource named later in the path belongs to the trip named earlier. `/api/trips/A/places/<place-in-B>` still resolves, because zones are not trip-scoped in the schema until phase 3b. `server/tests/tenancy.test.ts` carries those cases as `it.todo`; 3b is the commit that turns them on.
+  **Nesting proves membership; scoping proves ownership.** The router check answers "are you a member of the trip in the path"; the store's trip id answers "does this row belong to that trip". Both are needed, and `server/tests/tenancy.test.ts` sweeps both — 60 cases, derived from the router's own Express stack so a new route is covered automatically.
 
-  **Zones, places and search are gated by reachability.** They are not trip-scoped in the schema until phase 3b, so `GET /api/zones/:zoneId`, `/api/zones/:zoneId/places`, `/api/places/:placeId` and `/api/search` check that the zone is reachable from one of the caller's trips (via its journey steps) and `404` (or, for search, return no results) otherwise. Zone ids are human-readable seed values like `zone-tokyo`, so without this a signed-up stranger could guess one and read a city's stays.
+  **Zones belong to a trip (2026-08-22, phase 3b, migration 0013).** Every row in the system now resolves to exactly one trip, and every trip-owned `DataStore` method takes the trip id as its first argument — scope lives in the query, so a forgotten check is a TypeScript error rather than a code-review note.
+
+  Two consequences worth knowing:
+  - `/api/trips/A/places/<place-in-B>` answers `404`, and so does every other cross-resource combination. A place cannot be moved into another trip's zone, a tip cannot be hung off one, and a journey step cannot point at one.
+  - **Find-or-create is per trip.** Adding "Tokyo" to a second trip creates that trip's own Tokyo, with its own places and notes, rather than sharing the first trip's. Two trips to the same city no longer see each other's restaurants.
+
+  The reachability workaround this replaced (walking journey steps on every read) is gone.
 
   > **Correction (phase 3a-ii)**: phase 2 documented search as scoped when it was not — `GET /api/search` ran catalog-wide with no access check, so any account could read place names, zone names and the first 80 characters of any tip from any trip. Fixed and covered by regression tests in `server/tests/membership.test.ts`.
 

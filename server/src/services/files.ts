@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { DataStore, FileAttachment } from '../lib/datastore.js'
-import { resolveTrip, type AccessContext } from '../lib/access.js'
+import { requireTrip } from '../lib/access.js'
 import { ApiError, notFound, validation } from '../lib/errors.js'
 
 const MAX_BYTES = 3 * 1024 * 1024 // 3 MB — stays under Vercel's request-body limit once base64-encoded
@@ -35,8 +35,8 @@ export function downloadName(file: FileAttachment) {
   return base.toLowerCase().endsWith(`.${ext}`) ? base : `${base}.${ext}`
 }
 
-export async function listTripDocuments(store: DataStore, access: AccessContext, tripId: string) {
-  const trip = await resolveTrip(store, access, tripId)
+export async function listTripDocuments(store: DataStore, tripId: string) {
+  const trip = await requireTrip(store, tripId)
   const files = await store.listAllFiles(trip.id)
 
   const zoneNames = new Map<string, string>()
@@ -46,11 +46,11 @@ export async function listTripDocuments(store: DataStore, access: AccessContext,
       let attached_to: { kind: 'trip' | 'zone' | 'place'; id: string; name: string }
       if (f.place_id) {
         if (!placeNames.has(f.place_id))
-          placeNames.set(f.place_id, (await store.getPlace(f.place_id))?.name ?? 'Place')
+          placeNames.set(f.place_id, (await store.getPlace(trip.id, f.place_id))?.name ?? 'Place')
         attached_to = { kind: 'place', id: f.place_id, name: placeNames.get(f.place_id)! }
       } else if (f.zone_id) {
         if (!zoneNames.has(f.zone_id))
-          zoneNames.set(f.zone_id, (await store.getZone(f.zone_id))?.name ?? 'City')
+          zoneNames.set(f.zone_id, (await store.getZone(trip.id, f.zone_id))?.name ?? 'City')
         attached_to = { kind: 'zone', id: f.zone_id, name: zoneNames.get(f.zone_id)! }
       } else {
         attached_to = { kind: 'trip', id: trip.id, name: 'Trip' }
@@ -61,8 +61,8 @@ export async function listTripDocuments(store: DataStore, access: AccessContext,
   return { files: documents }
 }
 
-export async function getFileUrl(store: DataStore, fileId: string) {
-  const file = await store.getFile(fileId)
+export async function getFileUrl(store: DataStore, tripId: string, fileId: string) {
+  const file = await store.getFile(tripId, fileId)
   if (!file) throw notFound('File')
   const result = await store.getFileUrl(file)
   if (result === 'FILE_MISSING') throw fileMissing()
@@ -70,8 +70,8 @@ export async function getFileUrl(store: DataStore, fileId: string) {
 }
 
 /** Raw bytes + metadata for the in-app preview screen (GET /api/files/:id/content). */
-export async function getFileContent(store: DataStore, fileId: string) {
-  const file = await store.getFile(fileId)
+export async function getFileContent(store: DataStore, tripId: string, fileId: string) {
+  const file = await store.getFile(tripId, fileId)
   if (!file) throw notFound('File')
   const result = await store.getFileBytes(file)
   if (result === 'FILE_MISSING') throw fileMissing()
@@ -85,12 +85,7 @@ interface UploadBody {
   data_base64?: string
 }
 
-export async function createFile(
-  store: DataStore,
-  access: AccessContext,
-  body: UploadBody,
-  tripId: string
-) {
+export async function createFile(store: DataStore, tripId: string, body: UploadBody) {
   const errors: string[] = []
   const display_name = (body.display_name ?? '').trim()
   if (!display_name) errors.push('display_name is required')
@@ -116,7 +111,7 @@ export async function createFile(
   if (bytes.length > MAX_BYTES)
     throw validation([`file is too large (max ${Math.round(MAX_BYTES / 1024 / 1024)} MB)`])
 
-  const trip = await resolveTrip(store, access, tripId)
+  const trip = await requireTrip(store, tripId)
 
   const input = {
     display_name,
@@ -128,14 +123,14 @@ export async function createFile(
     place_id: kind === 'place' ? body.parent!.id! : null,
   }
 
-  if (kind === 'zone' && !(await store.getZone(input.zone_id!))) throw notFound('Zone')
-  if (kind === 'place' && !(await store.getPlace(input.place_id!))) throw notFound('Place')
+  if (kind === 'zone' && !(await store.getZone(trip.id, input.zone_id!))) throw notFound('Zone')
+  if (kind === 'place' && !(await store.getPlace(trip.id, input.place_id!))) throw notFound('Place')
 
   const file = await store.createFile(input, bytes)
   return { file: meta(file) }
 }
 
-export async function deleteFile(store: DataStore, fileId: string) {
-  const ok = await store.deleteFile(fileId)
+export async function deleteFile(store: DataStore, tripId: string, fileId: string) {
+  const ok = await store.deleteFile(tripId, fileId)
   if (!ok) throw notFound('File')
 }

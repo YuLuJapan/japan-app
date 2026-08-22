@@ -124,7 +124,10 @@ describe('supabase itinerary store — migration 0004 tolerance', () => {
   it('updates an item even when the columns are missing', async () => {
     hasNewColumns = false
     const store = createSupabaseStore()
-    const item = await store.updateItineraryItem('itin-1', { title: 'Edited', highlight: true })
+    const item = await store.updateItineraryItem('trip-1', 'itin-1', {
+      title: 'Edited',
+      highlight: true,
+    })
     expect(item?.title).toBe('Edited')
   })
 })

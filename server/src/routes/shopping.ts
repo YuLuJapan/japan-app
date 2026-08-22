@@ -1,5 +1,4 @@
 import { Router } from 'express'
-import { accessOf } from '../lib/auth.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import {
@@ -10,28 +9,28 @@ import {
 } from '../services/shopping.js'
 
 const list = asyncHandler(async (req, res) => {
-  res.json(await listShoppingItems(await getDataStore(), accessOf(req), req.params.tripId))
+  res.json(await listShoppingItems(await getDataStore(), req.params.tripId))
 })
 
 const create = asyncHandler(async (req, res) => {
   res
     .status(201)
-    .json(
-      await createShoppingItem(
-        await getDataStore(),
-        accessOf(req),
-        req.body ?? {},
-        req.params.tripId
-      )
-    )
+    .json(await createShoppingItem(await getDataStore(), req.params.tripId, req.body ?? {}))
 })
 
 const update = asyncHandler(async (req, res) => {
-  res.json(await updateShoppingItem(await getDataStore(), req.params.itemId, req.body ?? {}))
+  res.json(
+    await updateShoppingItem(
+      await getDataStore(),
+      req.params.tripId,
+      req.params.itemId,
+      req.body ?? {}
+    )
+  )
 })
 
 const remove = asyncHandler(async (req, res) => {
-  await deleteShoppingItem(await getDataStore(), req.params.itemId)
+  await deleteShoppingItem(await getDataStore(), req.params.tripId, req.params.itemId)
   res.status(204).end()
 })
 

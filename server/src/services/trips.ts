@@ -53,8 +53,8 @@ export async function getTripBundle(
   const steps = await store.listSteps(trip.id)
   const stepsWithZones = await Promise.all(
     steps.map(async (step) => {
-      const zone = await store.getZone(step.zone_id)
-      const counts = await store.countPlacesByCategory(step.zone_id)
+      const zone = await store.getZone(trip.id, step.zone_id)
+      const counts = await store.countPlacesByCategory(trip.id, step.zone_id)
       const place_counts = includeStays ? counts : hideStayCounts(counts)
       return {
         id: step.id,
@@ -224,7 +224,7 @@ export async function getDateImpact(
   const range = await resolveRange(store, tripId, query)
   const stranded = await findStranded(store, tripId, range)
   const zoneNames = await Promise.all(
-    stranded.steps.map(async (s) => (await store.getZone(s.zone_id))?.name ?? null)
+    stranded.steps.map(async (s) => (await store.getZone(tripId, s.zone_id))?.name ?? null)
   )
   return {
     range,
@@ -343,15 +343,15 @@ export async function updateTrip(
   const deleted: string[] = []
   if (range) {
     for (const step of strandedSteps) {
-      await store.updateStep(step.id, movedStepDates(step, range))
+      await store.updateStep(tripId, step.id, movedStepDates(step, range))
       movedStops.push(step.id)
     }
     for (const item of strandedItems) {
       if (resolution === 'delete') {
-        await store.deleteItineraryItem(item.id)
+        await store.deleteItineraryItem(tripId, item.id)
         deleted.push(item.id)
       } else {
-        await store.updateItineraryItem(item.id, { day: range.start_date })
+        await store.updateItineraryItem(tripId, item.id, { day: range.start_date })
         moved.push(item.id)
       }
     }

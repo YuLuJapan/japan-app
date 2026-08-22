@@ -243,7 +243,7 @@ describe('DELETE /api/trips/trip-1/steps/:stepId', () => {
 })
 
 describe('POST /api/trips/:tripId/steps', () => {
-  it('creates the step under the given trip, not the legacy default trip', async () => {
+  it('creates the step under the given trip, with its own zone', async () => {
     const trip2 = await auth(request(app).post('/api/trips')).send({
       name: 'Dolomites',
       start_date: '2027-02-06',
@@ -251,13 +251,25 @@ describe('POST /api/trips/:tripId/steps', () => {
     })
     const tripId = trip2.body.trip.id
 
-    const res = await auth(request(app).post(`/api/trips/${tripId}/steps`)).send({
+    // A new trip cannot borrow another trip's city: since migration 0013 a
+    // zone belongs to exactly one trip, so this is the same answer an
+    // outsider gets.
+    const borrowed = await auth(request(app).post(`/api/trips/${tripId}/steps`)).send({
       zone_id: 'zone-tokyo',
+      start_date: '2027-02-07',
+      end_date: '2027-02-10',
+    })
+    expect(borrowed.status).toBe(404)
+
+    // It gets its own Tokyo instead — same name, different row, its own places.
+    const res = await auth(request(app).post(`/api/trips/${tripId}/steps`)).send({
+      destination: { name: 'Tokyo', address: 'Tokyo, Japan', lat: 35.68, lng: 139.76 },
       start_date: '2027-02-07',
       end_date: '2027-02-10',
     })
     expect(res.status).toBe(201)
     expect(res.body.step.trip_id).toBe(tripId)
+    expect(res.body.step.zone_id).not.toBe('zone-tokyo')
 
     // trip-1's steps are untouched
     const trip = await auth(request(app).get('/api/trips/trip-1'))

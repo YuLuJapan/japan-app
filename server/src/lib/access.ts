@@ -61,49 +61,14 @@ export function assertTripAccess(access: AccessContext, tripId: string): void {
 }
 
 /**
- * Every zone reachable from the caller's trips, via their journey steps.
+ * The trip row, for a caller whose access has already been established.
  *
- * Zones are not trip-scoped in the schema yet — that is phase 3b, and it needs
- * a migration that duplicates zones shared by two trips. Until then this closes
- * the hole that scoping would close structurally: zone ids are human-readable
- * seed values like `zone-tokyo`, so without it any signed-up stranger could
- * guess one and read a city's places — stays included, and a stay's description
- * *is* the accommodation booking.
- *
- * Returns 'all' for the legacy codes, unchanged from today.
+ * Every content route runs behind `requireTripAccess`, which checks membership
+ * before the handler is entered — so services below it need the trip, not the
+ * access context. Loading it again is one indexed lookup and keeps them free of
+ * Express.
  */
-export async function reachableZoneIds(
-  store: DataStore,
-  access: AccessContext
-): Promise<ReadonlySet<string> | 'all'> {
-  if (access.tripIds === 'all') return 'all'
-  const stepLists = await Promise.all(access.tripIds.map((id) => store.listSteps(id)))
-  return new Set(stepLists.flat().map((s) => s.zone_id))
-}
-
-export const canReachZone = (zones: ReadonlySet<string> | 'all', zoneId: string): boolean =>
-  zones === 'all' || zones.has(zoneId)
-
-/** 404 for a zone outside the caller's trips, for the same reason as trips. */
-export function assertZoneAccess(zones: ReadonlySet<string> | 'all', zoneId: string): void {
-  if (!canReachZone(zones, zoneId)) throw notFound('Zone')
-}
-
-/**
- * The trip a request operates on, named explicitly in the path.
- *
- * This used to fall back to "the caller's oldest trip" for the single-trip-era
- * routes that carried no id — and before membership existed, to the oldest trip
- * in the database. Both fallbacks are gone: every content route is now mounted
- * under /api/trips/:tripId, so reaching trip content without naming the trip is
- * no longer expressible.
- */
-export async function resolveTrip(
-  store: DataStore,
-  access: AccessContext,
-  tripId: string
-): Promise<Trip> {
-  assertTripAccess(access, tripId)
+export async function requireTrip(store: DataStore, tripId: string): Promise<Trip> {
   const trip = await store.getTrip(tripId)
   if (!trip) throw notFound('Trip')
   return trip

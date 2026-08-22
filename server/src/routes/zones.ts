@@ -1,12 +1,12 @@
 import { Router } from 'express'
-import { accessOf, isGuest } from '../lib/auth.js'
+import { isGuest } from '../lib/auth.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import { getZoneDetail, listZonePlaces } from '../services/zones.js'
 
 const zoneDetail = asyncHandler(async (req, res) => {
   res.json(
-    await getZoneDetail(await getDataStore(), accessOf(req), req.params.zoneId, {
+    await getZoneDetail(await getDataStore(), req.params.tripId, req.params.zoneId, {
       includeFiles: !isGuest(req),
       includeStays: !isGuest(req),
     })
@@ -16,7 +16,7 @@ const zoneDetail = asyncHandler(async (req, res) => {
 const zonePlaces = asyncHandler(async (req, res) => {
   const category = String(req.query.category ?? '')
   res.json(
-    await listZonePlaces(await getDataStore(), accessOf(req), req.params.zoneId, category, {
+    await listZonePlaces(await getDataStore(), req.params.tripId, req.params.zoneId, category, {
       includeStays: !isGuest(req),
     })
   )
