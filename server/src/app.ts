@@ -7,6 +7,7 @@ import { geocodeRouter } from './routes/geocode.js'
 import { healthRouter } from './routes/health.js'
 import { imagesRouter } from './routes/images.js'
 import { itineraryRouter } from './routes/itinerary.js'
+import { meRouter } from './routes/me.js'
 import { placesRouter } from './routes/places.js'
 import { productUrlRouter } from './routes/producturl.js'
 import { pushRouter } from './routes/push.js'
@@ -37,6 +38,7 @@ export function createApp() {
 
   app.use('/api', healthRouter)
   app.use('/api', authRouter)
+  app.use('/api', meRouter)
   app.use('/api', tripRouter)
   app.use('/api', itineraryRouter)
   app.use('/api', stepsRouter)

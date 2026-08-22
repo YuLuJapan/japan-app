@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url'
 import type {
   Category,
   DataStore,
+  Profile,
+  TripMember,
   ExchangeRates,
   FileAttachment,
   FileBytesResult,
@@ -36,6 +38,8 @@ import type {
 import { CATEGORIES } from './datastore.js'
 
 export interface MemoryData {
+  profiles?: Profile[]
+  members?: TripMember[]
   trips: Trip[]
   steps: JourneyStep[]
   zones: Zone[]
@@ -100,13 +104,93 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
   const emptyCounts = (): Record<Category, number> =>
     Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<Category, number>
 
+  const profiles: Profile[] = db.profiles ? db.profiles.map((p) => structuredClone(p)) : []
+  const members: TripMember[] = db.members ? db.members.map((m) => structuredClone(m)) : []
+
+  const tripsForUser = (userId: string) => {
+    const mine = new Set(members.filter((m) => m.user_id === userId).map((m) => m.trip_id))
+    return db.trips.filter((t) => mine.has(t.id))
+  }
+
   return {
     async ping() {
       if (!db.trips.length) throw new Error('memory store is empty')
     },
 
+    async getProfile(userId) {
+      const found = profiles.find((p) => p.id === userId)
+      return found ? structuredClone(found) : null
+    },
+
+    async getProfileByEmail(email) {
+      const needle = email.trim().toLowerCase()
+      const found = profiles.find((p) => p.email.toLowerCase() === needle)
+      return found ? structuredClone(found) : null
+    },
+
+    async upsertProfile(input) {
+      const existing = profiles.find((p) => p.id === input.id)
+      if (existing) {
+        // Only overwrite with values the provider actually gave us — signing in
+        // with a provider that omits a name must not blank out one we already have.
+        existing.email = input.email
+        if (input.display_name != null) existing.display_name = input.display_name
+        if (input.avatar_url != null) existing.avatar_url = input.avatar_url
+        return structuredClone(existing)
+      }
+      const created: Profile = {
+        id: input.id,
+        email: input.email,
+        display_name: input.display_name ?? null,
+        avatar_url: input.avatar_url ?? null,
+      }
+      profiles.push(created)
+      return structuredClone(created)
+    },
+
     async listTrips() {
       return db.trips.map((t) => structuredClone(t))
+    },
+
+    async listTripsForUser(userId) {
+      return tripsForUser(userId).map((t) => structuredClone(t))
+    },
+
+    async listMembershipsForUser(userId) {
+      return members.filter((m) => m.user_id === userId).map((m) => structuredClone(m))
+    },
+
+    async listTripMembers(tripId) {
+      return members.filter((m) => m.trip_id === tripId).map((m) => structuredClone(m))
+    },
+
+    async getTripMember(tripId, userId) {
+      const found = members.find((m) => m.trip_id === tripId && m.user_id === userId)
+      return found ? structuredClone(found) : null
+    },
+
+    async upsertTripMember(input) {
+      const existing = members.find(
+        (m) => m.trip_id === input.trip_id && m.user_id === input.user_id
+      )
+      const next: TripMember = {
+        trip_id: input.trip_id,
+        user_id: input.user_id,
+        role: input.role,
+        can_see_stays: input.can_see_stays ?? existing?.can_see_stays ?? true,
+        can_see_flight: input.can_see_flight ?? existing?.can_see_flight ?? true,
+        can_see_documents: input.can_see_documents ?? existing?.can_see_documents ?? false,
+      }
+      if (existing) Object.assign(existing, next)
+      else members.push(next)
+      return structuredClone(next)
+    },
+
+    async removeTripMember(tripId, userId) {
+      const i = members.findIndex((m) => m.trip_id === tripId && m.user_id === userId)
+      if (i === -1) return false
+      members.splice(i, 1)
+      return true
     },
 
     async getTrip(tripId) {
@@ -143,6 +227,9 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       if (idx === -1) return false
       db.trips.splice(idx, 1)
       // mirror the DB's `on delete cascade` on trip_id (real Postgres does this for free)
+      for (let i = members.length - 1; i >= 0; i--) {
+        if (members[i].trip_id === tripId) members.splice(i, 1)
+      }
       db.steps = db.steps.filter((s) => s.trip_id !== tripId)
       db.itinerary = (db.itinerary ?? []).filter((i) => i.trip_id !== tripId)
       db.shopping = (db.shopping ?? []).filter((s) => s.trip_id !== tripId)

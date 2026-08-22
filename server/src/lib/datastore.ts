@@ -1,5 +1,6 @@
 // Datastore interface — every service depends on this, never on a concrete
 // backend. DATA_BACKEND=memory (placeholder JSON, default) | supabase (Phase 8).
+import type { TripRole } from './permissions.js'
 
 export const CATEGORIES = ['hotel', 'attraction', 'food', 'shopping', 'other'] as const
 export type Category = (typeof CATEGORIES)[number]
@@ -9,6 +10,56 @@ export type Category = (typeof CATEGORIES)[number]
 export interface Traveller {
   name: string
   email?: string
+}
+
+/**
+ * A person with an account. Mirrors the Supabase Auth user for the fields the
+ * app itself owns — upserted on first authenticated request rather than by a
+ * trigger, so the memory backend behaves identically (lib/identity.ts).
+ *
+ * Distinct from `Traveller`: a Traveller is a free-text name on a trip's
+ * roster, a Profile is a login. Someone can be either, both, or neither.
+ */
+export interface Profile {
+  id: string
+  email: string
+  display_name: string | null
+  avatar_url: string | null
+}
+
+export interface ProfileInput {
+  id: string
+  email: string
+  display_name?: string | null
+  avatar_url?: string | null
+}
+
+/**
+ * One account's membership of one trip. The table that replaced the
+ * TRIP_OWNER_EMAILS allow-list: the app no longer asks "is this email one of
+ * the travellers?" but "is this account a member of this trip?", which is what
+ * lets anyone register without seeing anyone else's trip.
+ *
+ * `role` controls which verbs; the `can_see_*` flags control which content and
+ * apply to viewers only (see lib/permissions.ts and, from phase 4,
+ * lib/trip-view.ts).
+ */
+export interface TripMember {
+  trip_id: string
+  user_id: string
+  role: TripRole
+  can_see_stays: boolean
+  can_see_flight: boolean
+  can_see_documents: boolean
+}
+
+export interface TripMemberInput {
+  trip_id: string
+  user_id: string
+  role: TripRole
+  can_see_stays?: boolean
+  can_see_flight?: boolean
+  can_see_documents?: boolean
 }
 
 export interface Trip {
@@ -265,8 +316,29 @@ export interface DataStore {
   /** Trivial read used by /api/health (keep-alive). Throws if the backend is unreachable. */
   ping(): Promise<void>
 
-  /** Every trip, oldest first. Powers the "Where to next?" trips list. */
+  getProfile(userId: string): Promise<Profile | null>
+  /** Case-insensitive — how an invite finds the account it was addressed to. */
+  getProfileByEmail(email: string): Promise<Profile | null>
+  /**
+   * Create or refresh the row for a signed-in user. Called on the first
+   * authenticated request of a session, so it must stay cheap and idempotent.
+   */
+  upsertProfile(input: ProfileInput): Promise<Profile>
+
+  /**
+   * Every trip, oldest first. **Unscoped** — only the deprecated static access
+   * codes may see this. Signed-in accounts go through `listTripsForUser`.
+   */
   listTrips(): Promise<Trip[]>
+  /** The caller's trips, oldest first. Powers the "Where to next?" trips list. */
+  listTripsForUser(userId: string): Promise<Trip[]>
+
+  listMembershipsForUser(userId: string): Promise<TripMember[]>
+  listTripMembers(tripId: string): Promise<TripMember[]>
+  getTripMember(tripId: string, userId: string): Promise<TripMember | null>
+  /** Idempotent: re-adding an existing member updates their role and visibility. */
+  upsertTripMember(input: TripMemberInput): Promise<TripMember>
+  removeTripMember(tripId: string, userId: string): Promise<boolean>
   getTrip(tripId: string): Promise<Trip | null>
   createTrip(input: TripInput): Promise<Trip>
   updateTrip(tripId: string, patch: Partial<TripInput>): Promise<Trip | null>
@@ -400,13 +472,21 @@ export function setDataStore(next: DataStore | null): void {
 
 /**
  * The trip that single-trip-era routes (itinerary/steps/shopping/reminders/
- * files) still implicitly operate on: the oldest one. Multi-trip support so
- * far only covers listing/creating/editing/deleting trips themselves — these
- * other routes stay scoped to one trip until the UI can actually switch
- * between trips (tracked as a follow-up), so this preserves exactly the
- * pre-multi-trip behavior for them.
+ * files) still implicitly operate on: the caller's oldest.
+ *
+ * **The `userId` argument is load-bearing, not cosmetic.** This used to return
+ * the oldest trip in the database full stop, which was harmless while the only
+ * way in was a shared code held by the two travellers. The moment anyone can
+ * register, that same lookup hands a stranger the first trip ever created — so
+ * every one of these routes is scoped to the caller until phase 3a nests them
+ * under an explicit /api/trips/:tripId and this function disappears.
+ *
+ * `null` userId is the legacy access code, which keeps the old behaviour.
  */
-export async function getDefaultTrip(store: DataStore): Promise<Trip | null> {
-  const trips = await store.listTrips()
+export async function getDefaultTrip(
+  store: DataStore,
+  userId: string | null
+): Promise<Trip | null> {
+  const trips = userId ? await store.listTripsForUser(userId) : await store.listTrips()
   return trips[0] ?? null
 }

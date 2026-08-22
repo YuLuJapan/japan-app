@@ -2,8 +2,15 @@
 // them all (the "Where to next?" screen); GET /api/trips/:tripId returns the
 // full journey skeleton for one (steps + zones + flight + file count).
 import type { DataStore, ItineraryItem, JourneyStep, Trip, TripInput } from '../lib/datastore.js'
-import { getDefaultTrip, normalizeTraveller } from '../lib/datastore.js'
-import { notFound, validation } from '../lib/errors.js'
+import { normalizeTraveller } from '../lib/datastore.js'
+import {
+  assertTripAccess,
+  resolveTrip,
+  roleForTrip,
+  type AccessContext,
+} from '../lib/access.js'
+import { canDeleteTrip, canEditTrip } from '../lib/permissions.js'
+import { forbidden, notFound, validation } from '../lib/errors.js'
 import { FLIGHT } from '../lib/flight.js'
 import { hideStayCounts } from '../lib/guest-view.js'
 import type { DateRange } from '../lib/trip-dates.js'
@@ -15,8 +22,14 @@ const NAME_MAX = 120
 const PERSON_MAX = 60
 const PEOPLE_MAX = 12
 
-export async function listTrips(store: DataStore) {
-  return { trips: await store.listTrips() }
+/**
+ * The caller's trips. A brand-new account gets an empty list rather than
+ * everybody's — this one line is what makes open registration safe, and the
+ * reason `listTrips()` on the store is documented as unscoped.
+ */
+export async function listTrips(store: DataStore, access: AccessContext) {
+  const trips = access.userId ? await store.listTripsForUser(access.userId) : await store.listTrips()
+  return { trips }
 }
 
 /**
@@ -31,9 +44,13 @@ export interface TripBundleOptions {
 
 export async function getTripBundle(
   store: DataStore,
+  access: AccessContext,
   tripId: string,
   { includeFlight = true, includeStays = true }: TripBundleOptions = {}
 ) {
+  // 404 rather than 403 for a trip that isn't yours: a 403 would confirm it
+  // exists to someone with no business knowing that.
+  assertTripAccess(access, tripId)
   const trip = await store.getTrip(tripId)
   if (!trip) throw notFound('Trip')
   const steps = await store.listSteps(trip.id)
@@ -56,15 +73,21 @@ export async function getTripBundle(
     trip,
     steps: stepsWithZones,
     trip_files_count,
+    // What this caller may do here. The frontend uses it to decide which
+    // buttons to offer; it is never what decides whether a write succeeds.
+    my_role: roleForTrip(access, trip.id),
     ...(includeFlight ? { flight: FLIGHT } : {}),
   }
 }
 
-/** Legacy GET /api/trip: whichever trip is oldest, kept for the pre-multi-trip UI. */
-export async function getDefaultTripBundle(store: DataStore, options: TripBundleOptions = {}) {
-  const trip = await getDefaultTrip(store)
-  if (!trip) throw notFound('Trip')
-  return getTripBundle(store, trip.id, options)
+/** Legacy GET /api/trip: the caller's oldest trip, kept for the pre-multi-trip UI. */
+export async function getDefaultTripBundle(
+  store: DataStore,
+  access: AccessContext,
+  options: TripBundleOptions = {}
+) {
+  const trip = await resolveTrip(store, access)
+  return getTripBundle(store, access, trip.id, options)
 }
 
 function cleanPeople(people: unknown[] | undefined) {
@@ -199,9 +222,11 @@ async function resolveRange(
  */
 export async function getDateImpact(
   store: DataStore,
+  access: AccessContext,
   tripId: string,
   query: { start_date?: string; end_date?: string }
 ) {
+  assertTripAccess(access, tripId)
   const errors: string[] = []
   if (query.start_date !== undefined && !DATE_RE.test(query.start_date))
     errors.push('start_date must be an ISO date (YYYY-MM-DD)')
@@ -236,7 +261,11 @@ export async function getDateImpact(
   }
 }
 
-export async function createTrip(store: DataStore, input: Partial<TripInput>) {
+export async function createTrip(
+  store: DataStore,
+  access: AccessContext,
+  input: Partial<TripInput>
+) {
   const errors = collectTripErrors(input, false)
   if (errors.length) throw validation(errors)
   const trip = await store.createTrip({
@@ -246,7 +275,13 @@ export async function createTrip(store: DataStore, input: Partial<TripInput>) {
     description: input.description?.trim() || null,
     people: cleanPeople(input.people) ?? [],
   })
-  return { trip }
+  // Whoever creates a trip owns it. Without this the trip would have no
+  // members at all, which makes it invisible to everyone including its author
+  // — the "every trip keeps at least one owner" invariant starts here.
+  if (access.userId) {
+    await store.upsertTripMember({ trip_id: trip.id, user_id: access.userId, role: 'owner' })
+  }
+  return { trip, my_role: access.userId ? 'owner' : roleForTrip(access, trip.id) }
 }
 
 /** What to do with activities the new dates would leave outside the trip. */
@@ -268,7 +303,17 @@ export interface TripPatch extends Partial<TripInput> {
   stranded_stops?: StopResolution
 }
 
-export async function updateTrip(store: DataStore, tripId: string, patch: TripPatch) {
+export async function updateTrip(
+  store: DataStore,
+  access: AccessContext,
+  tripId: string,
+  patch: TripPatch
+) {
+  assertTripAccess(access, tripId)
+  const role = roleForTrip(access, tripId)
+  // A member who lacks the verb gets 403, not 404 — they already know the trip
+  // exists, so there is nothing left to conceal.
+  if (!role || !canEditTrip(role)) throw forbidden('Only the travellers on this trip can edit it')
   const { stranded_activities: resolution, stranded_stops: stopResolution, ...fields } = patch
   const errors = collectTripErrors(fields, true)
   if (resolution !== undefined && !STRANDED_RESOLUTIONS.includes(resolution))
@@ -333,7 +378,10 @@ export async function updateTrip(store: DataStore, tripId: string, patch: TripPa
   }
 }
 
-export async function deleteTrip(store: DataStore, tripId: string) {
+export async function deleteTrip(store: DataStore, access: AccessContext, tripId: string) {
+  assertTripAccess(access, tripId)
+  const role = roleForTrip(access, tripId)
+  if (!role || !canDeleteTrip(role)) throw forbidden('Only an owner can delete this trip')
   const ok = await store.deleteTrip(tripId)
   if (!ok) throw notFound('Trip')
 }

@@ -5,6 +5,7 @@ import { RingMark } from '../components/RingMark'
 import { getSupabaseClient } from '../lib/supabaseClient'
 
 type Screen = 'choose' | 'email' | 'sent'
+type Mode = 'signin' | 'signup'
 
 /** Shared with session.tsx's onAuthStateChange sync — resolves the role for
  * whatever bearer token is stored (shared code or a Supabase JWT) the same
@@ -16,17 +17,30 @@ async function completeSignIn(token: string, navigate: (path: string, opts?: obj
   navigate('/trips', { replace: true })
 }
 
+/** Supabase returns provider-shaped messages; these are the ones worth rewording. */
+function readableAuthError(message: string): string {
+  const m = message.toLowerCase()
+  if (m.includes('invalid login credentials')) return 'Wrong email or password.'
+  if (m.includes('email not confirmed')) return 'Confirm your email first — check your inbox.'
+  if (m.includes('already registered'))
+    return 'That email already has an account — sign in instead.'
+  if (m.includes('password')) return 'Password must be at least 6 characters.'
+  return 'Could not sign in — try again, or use an access code.'
+}
+
 export default function AccessGate() {
   const [screen, setScreen] = useState<Screen>('choose')
+  const [mode, setMode] = useState<Mode>('signin')
   const [code, setCode] = useState('')
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const navigate = useNavigate()
   const supabase = getSupabaseClient()
 
-  // Landing back here after tapping the magic link: Supabase has already
-  // parsed the session out of the URL by the time this runs.
+  // Landing back here after tapping the magic link or returning from Google:
+  // Supabase has already parsed the session out of the URL by the time this runs.
   useEffect(() => {
     if (!supabase) return
     let cancelled = false
@@ -60,8 +74,56 @@ export default function AccessGate() {
     }
   }
 
-  async function sendMagicLink(e: React.FormEvent) {
+  async function signInWithGoogle() {
+    if (!supabase || busy) return
+    setBusy(true)
+    setError(null)
+    // Redirects away; the useEffect above finishes the job on the way back.
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/gate` },
+    })
+    if (oauthError) {
+      setError('Could not reach Google — try again, or use an access code.')
+      setBusy(false)
+    }
+  }
+
+  async function submitPassword(e: React.FormEvent) {
     e.preventDefault()
+    if (!email.trim() || !password || busy || !supabase) return
+    setBusy(true)
+    setError(null)
+    try {
+      const credentials = { email: email.trim(), password }
+      const { data, error: authError } =
+        mode === 'signup'
+          ? await supabase.auth.signUp({
+              ...credentials,
+              options: { emailRedirectTo: `${window.location.origin}/gate` },
+            })
+          : await supabase.auth.signInWithPassword(credentials)
+      if (authError) throw authError
+      // Sign-up with email confirmation on returns no session — the account
+      // exists but cannot be used until the link is tapped.
+      if (!data.session) {
+        setScreen('sent')
+        return
+      }
+      await completeSignIn(data.session.access_token, navigate)
+    } catch (err) {
+      clearAccessCode()
+      setError(
+        err instanceof Error && err.message
+          ? readableAuthError(err.message)
+          : 'Could not sign in — try again, or use an access code.'
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function sendMagicLink() {
     if (!email.trim() || busy || !supabase) return
     setBusy(true)
     setError(null)
@@ -113,7 +175,7 @@ export default function AccessGate() {
         )}
 
         {screen === 'email' && (
-          <form onSubmit={sendMagicLink} className="mt-10 flex w-full flex-col gap-3 text-left">
+          <form onSubmit={submitPassword} className="mt-10 flex w-full flex-col gap-3 text-left">
             <input
               type="email"
               inputMode="email"
@@ -125,13 +187,40 @@ export default function AccessGate() {
               onChange={(e) => setEmail(e.target.value)}
               aria-label="Email"
             />
+            <input
+              type="password"
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+              className="field border-transparent text-center shadow-pop"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              aria-label="Password"
+            />
             {error && <p className="text-center text-sm font-semibold text-white">{error}</p>}
             <button
               type="submit"
               className="btn min-h-12 bg-ink text-white shadow-pop hover:bg-ink/90"
               disabled={busy}
             >
-              {busy ? 'Sending…' : 'Continue'}
+              {busy ? 'Working…' : mode === 'signup' ? 'Create account' : 'Sign in'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setError(null)
+                setMode(mode === 'signup' ? 'signin' : 'signup')
+              }}
+              className="py-1 text-center text-sm text-white/85 underline underline-offset-2"
+            >
+              {mode === 'signup' ? 'I already have an account' : 'Create an account'}
+            </button>
+            <button
+              type="button"
+              onClick={sendMagicLink}
+              disabled={busy}
+              className="py-1 text-center text-sm text-white/85 underline underline-offset-2"
+            >
+              Email me a sign-in link instead
             </button>
             <button
               type="button"
@@ -147,12 +236,17 @@ export default function AccessGate() {
           <div className="mt-10 flex w-full flex-col gap-2.5">
             <button
               type="button"
-              disabled
-              title="Coming soon — needs Google sign-in set up"
-              className="btn min-h-12 cursor-not-allowed justify-start gap-3 bg-white/70 px-5 text-ink/50 shadow-pop"
+              disabled={!supabase || busy}
+              title={supabase ? undefined : 'Google sign-in isn’t set up yet — use an access code'}
+              onClick={signInWithGoogle}
+              className={`btn min-h-12 justify-start gap-3 px-5 shadow-pop ${
+                supabase
+                  ? 'bg-white text-ink hover:bg-white/90'
+                  : 'cursor-not-allowed bg-white/70 text-ink/50'
+              }`}
             >
               <span
-                className="h-5 w-5 rounded-full opacity-60"
+                className={`h-5 w-5 rounded-full ${supabase ? '' : 'opacity-60'}`}
                 style={{
                   background: 'conic-gradient(#EA4335 0 25%,#FBBC05 0 50%,#34A853 0 75%,#4285F4 0)',
                 }}
@@ -175,6 +269,7 @@ export default function AccessGate() {
               title={supabase ? undefined : 'Email sign-in isn’t set up yet — use an access code'}
               onClick={() => {
                 setError(null)
+                setMode('signin')
                 setScreen('email')
               }}
               className={`btn min-h-12 border-[1.5px] ${

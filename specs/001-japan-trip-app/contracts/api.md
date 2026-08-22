@@ -6,11 +6,30 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
 
 ## Conventions
 
-- **Auth**: every route except `GET /api/health` requires `Authorization: Bearer <ACCESS_CODE>`. Two codes are accepted, and which one is sent decides the caller's **role**:
-  - `TRIP_ACCESS_CODE` → role `owner` — the travelers, full read/write.
-  - `TRIP_GUEST_CODE` (optional; unset = no guest view) → role `guest` — read-only, and no documents, stays or flight.
+- **Auth**: every route except `GET /api/health` requires `Authorization: Bearer <token>`. Three tokens are accepted:
+  - `TRIP_ACCESS_CODE` → role `owner` — full read/write, and reaches **every** trip. _Deprecated._
+  - `TRIP_GUEST_CODE` (optional; unset = no guest view) → role `guest` — read-only, no documents, stays or flight. _Deprecated._
+  - a **Supabase Auth JWT** (Google OAuth, email + password, or magic-link) → role `owner`, reaching **only the trips they are a member of**.
 
   Missing/wrong → `401 {"error":{"code":"UNAUTHORIZED"}}`. If both env vars hold the same value, `owner` wins.
+
+- **Membership (2026-08-22, feature 002 phase 2)**: `TRIP_OWNER_EMAILS` is **gone**. Registration is open — anyone may create an account, and sees nothing until they create a trip or are invited to one. Two separate checks run on every request:
+  - **role** (`req.role`) — the pre-accounts verb check. Any signed-in account is `owner` here; it says nothing about _whose_ trip.
+  - **access** (`req.access`, `server/src/lib/access.ts`) — which trips this caller can reach. For an account that is their `trip_members` rows; for the deprecated codes it is every trip, so their behaviour is unchanged.
+
+  A trip that isn't yours answers **`404`, never `403`** — a 403 would confirm it exists. A member who merely lacks the verb (a viewer writing) gets `403`, because they already know it exists.
+
+  Per-trip roles are `owner` > `partner` > `viewer` (`server/src/lib/permissions.ts`). Phase 2 only ever creates `owner`; invites arrive in phase 4.
+
+  **The single-trip-era routes are scoped too.** `GET /api/trip`, `/api/itinerary`, `/api/shopping`, `/api/reminders`, `/api/files` and `/api/steps` carry no trip id and used to resolve to the oldest trip _in the database_. They now resolve to the caller's oldest trip, and `404` when they have none.
+
+  **Zones and places are gated by reachability.** They are not trip-scoped in the schema until phase 3b, so `GET /api/zones/:zoneId`, `/api/zones/:zoneId/places` and `/api/places/:placeId` check that the zone is reachable from one of the caller's trips (via its journey steps) and `404` otherwise. Zone ids are human-readable seed values like `zone-tokyo`, so without this a signed-up stranger could guess one and read a city's stays.
+
+- **Accounts (2026-08-22 addition, feature 002 phase 1)**: authentication and authorization are now separate steps. `server/src/lib/identity.ts` resolves a token to a **principal** — either a signed-in account or one of the deprecated static codes — and says nothing about permissions; `server/src/lib/auth.ts` then decides the role. A token can therefore verify perfectly and still buy nothing: a Google account that isn't allow-listed gets `401`, not `403`, because it holds no role at all.
+
+  Verified JWTs are cached in-process for 60s (rejections for 10s) so a warm serverless instance doesn't re-verify on every call. A signed-in account is mirrored into the `profiles` table on its first authenticated request of each 5-minute window; that write is **best-effort and never fails the request** — an unmigrated database degrades to "no profile row", not to a 500.
+
+  (Phase 1 gated this on a `TRIP_OWNER_EMAILS` allow-list; phase 2 replaced it with the membership rules above.)
 
 - **Guest restrictions**, part 1 — the bookings (enforced in `authMiddleware`, before any route runs):
   - any method other than `GET`/`HEAD`/`OPTIONS` → `403 {"error":{"code":"FORBIDDEN"}}`;
@@ -43,6 +62,16 @@ The role of the code this client is already holding. Lets a session that predate
 
 - 200: `{"role": "owner" | "guest"}` · 401 when the stored code is no longer valid.
 
+### GET /api/me
+
+The signed-in account, as the app knows it.
+
+- 200: `{"user": {"id":"…","email":"…","display_name":"…|null","avatar_url":"…|null"}, "role": "owner" | "guest"}`
+- 200: `{"user": null, "role": "owner"}` when the caller used a static access code — a code proves a right, not an identity, so there is nobody to name.
+- 401 when the token is not valid.
+
+`user` prefers the stored `profiles` row over the token's claims, so a display name edited in the app wins over the one the provider last sent.
+
 ## Trip & journey
 
 **Multi-trip (2026-08-08 addition):** the app now supports more than one trip — `GET /api/trips` lists them, `POST /api/trips` creates one, and `GET/PATCH/DELETE /api/trips/:tripId` operate on a specific trip. `people` is a free-text array of travellers on the trip itself (not linked accounts — there is no per-trip membership/sharing model, login, or delivered email; `email` is optional and only ever used client-side to open a `mailto:` invite). `GET /api/trip` (singular, no id) is kept as a **legacy alias** for `GET /api/trips/:tripId` on whichever trip is oldest, so the pre-multi-trip UI keeps working; new code should call the plural routes. Journey steps, itinerary, shopping, reminders and file upload are **not yet trip-scoped in their routes** — they still operate on that same oldest trip regardless of how many trips exist, until the UI can actually switch between trips (tracked as a follow-up; trip CRUD itself has no such limitation).
@@ -51,7 +80,7 @@ The role of the code this client is already holding. Lets a session that predate
 
 ### GET /api/trips
 
-List every trip, oldest first (powers the "Where to next?" trips list).
+The caller's trips, oldest first (powers the "Where to next?" trips list). An account that is a member of nothing gets `{"trips": []}` — not everybody else's.
 
 - 200: `{"trips": [{"id":"…","name":"…","start_date":"…","end_date":"…","description":"…","people":[{"name":"Yuval"},{"name":"Luciana","email":"luciana@example.com"}]}]}`
 
@@ -59,6 +88,8 @@ List every trip, oldest first (powers the "Where to next?" trips list).
 
 - Request: `{"name":"…","start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","description?":"…","people?":[{"name":"…","email?":"…"} | "…"]}`
 - 201: `{"trip": {…}}` · 400 `VALIDATION` (missing/blank name, bad dates, end before start, name/description too long, more than 12 travellers, a traveller missing a name, a traveller name too long, or an `email` that isn't a valid address).
+
+> **`my_role` (2026-08-22)**: the trip bundle (`GET /api/trip` and `GET /api/trips/:tripId`) and `POST /api/trips` now carry `"my_role": "owner" | "partner" | "viewer"` — what this caller may do on this trip. It drives which buttons the UI offers, and is never what decides whether a write succeeds. `POST /api/trips` always makes its creator an `owner`.
 
 ### GET /api/trips/:tripId
 

@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { accessOf } from '../lib/auth.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import {
@@ -12,22 +13,22 @@ export const shoppingRouter = Router()
 
 shoppingRouter.get(
   '/shopping',
-  asyncHandler(async (_req, res) => {
-    res.json(await listShoppingItems(await getDataStore()))
+  asyncHandler(async (req, res) => {
+    res.json(await listShoppingItems(await getDataStore(), accessOf(req)))
   })
 )
 
 shoppingRouter.post(
   '/shopping',
   asyncHandler(async (req, res) => {
-    res.status(201).json(await createShoppingItem(await getDataStore(), req.body ?? {}))
+    res.status(201).json(await createShoppingItem(await getDataStore(), accessOf(req), req.body ?? {}))
   })
 )
 
 shoppingRouter.get(
   '/trips/:tripId/shopping',
   asyncHandler(async (req, res) => {
-    res.json(await listShoppingItems(await getDataStore(), req.params.tripId))
+    res.json(await listShoppingItems(await getDataStore(), accessOf(req), req.params.tripId))
   })
 )
 
@@ -36,7 +37,7 @@ shoppingRouter.post(
   asyncHandler(async (req, res) => {
     res
       .status(201)
-      .json(await createShoppingItem(await getDataStore(), req.body ?? {}, req.params.tripId))
+      .json(await createShoppingItem(await getDataStore(), accessOf(req), req.body ?? {}, req.params.tripId))
   })
 )
 

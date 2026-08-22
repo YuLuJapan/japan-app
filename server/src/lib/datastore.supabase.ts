@@ -5,6 +5,8 @@ import { randomUUID } from 'node:crypto'
 import type {
   Category,
   DataStore,
+  Profile,
+  TripMember,
   ExchangeRates,
   FileAttachment,
   FileBytesResult,
@@ -33,6 +35,21 @@ import { CATEGORIES, normalizeTraveller } from './datastore.js'
 import { FILES_BUCKET, getSupabase } from './supabase.js'
 
 const SIGNED_URL_TTL = 300 // seconds
+
+// profiles (migration 0010). Reads degrade to "no profile" when the table
+// isn't there yet, matching how the column-level fallbacks below let an old
+// deploy run against a not-yet-migrated database. Writes are deliberately not
+// forgiving — a failed upsert is swallowed by the caller (lib/identity.ts),
+// which is where "profile sync must never fail a request" is decided.
+const PROFILE_COLS = 'id,email,display_name,avatar_url'
+
+// trip_members (migration 0012).
+const MEMBER_COLS = 'trip_id,user_id,role,can_see_stays,can_see_flight,can_see_documents'
+
+function isMissingProfilesTable(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false
+  return error.code === '42P01' || /relation .*profiles.* does not exist/i.test(error.message ?? '')
+}
 
 // Columns added in migration 0004. If a deployment ships this code before that
 // migration is applied, Postgres/PostgREST reports an "undefined column" error;
@@ -125,6 +142,124 @@ export function createSupabaseStore(): DataStore {
     async ping() {
       const { error } = await db.from('trips').select('id').limit(1)
       if (error) throw new Error(`Supabase unreachable: ${error.message}`)
+    },
+
+    async getProfile(userId) {
+      const { data, error } = await db
+        .from('profiles')
+        .select(PROFILE_COLS)
+        .eq('id', userId)
+        .maybeSingle()
+      if (error) {
+        if (isMissingProfilesTable(error)) return null
+        throw new Error(error.message)
+      }
+      return (data as Profile | null) ?? null
+    },
+
+    async getProfileByEmail(email) {
+      const { data, error } = await db
+        .from('profiles')
+        .select(PROFILE_COLS)
+        .ilike('email', email.trim())
+        .maybeSingle()
+      if (error) {
+        if (isMissingProfilesTable(error)) return null
+        throw new Error(error.message)
+      }
+      return (data as Profile | null) ?? null
+    },
+
+    async upsertProfile(input) {
+      // `ignoreDuplicates: false` = update on conflict. Undefined fields are
+      // stripped first so a provider that omits the name doesn't blank one we
+      // already stored.
+      const row: Record<string, unknown> = { id: input.id, email: input.email }
+      if (input.display_name != null) row.display_name = input.display_name
+      if (input.avatar_url != null) row.avatar_url = input.avatar_url
+      const { data, error } = await db
+        .from('profiles')
+        .upsert(row, { onConflict: 'id' })
+        .select(PROFILE_COLS)
+        .single()
+      if (error) throw new Error(error.message)
+      return data as Profile
+    },
+
+    async listTripsForUser(userId) {
+      const { data: memberships, error: memberError } = await db
+        .from('trip_members')
+        .select('trip_id')
+        .eq('user_id', userId)
+      if (memberError) throw new Error(memberError.message)
+      const ids = (memberships ?? []).map((m) => m.trip_id as string)
+      // `.in()` with an empty list is a valid query but a pointless round-trip.
+      if (!ids.length) return []
+
+      const run = (cols: string) =>
+        db.from('trips').select(cols).in('id', ids).order('created_at', { ascending: true })
+      let { data, error } = await run(TRIP_COLS)
+      if (error && isMissingPeopleColumn(error)) ({ data, error } = await run(TRIP_BASE_COLS))
+      if (error) throw new Error(error.message)
+      return ((data as unknown as Record<string, unknown>[]) ?? []).map(withPeopleDefault)
+    },
+
+    async listMembershipsForUser(userId) {
+      const { data, error } = await db.from('trip_members').select(MEMBER_COLS).eq('user_id', userId)
+      if (error) throw new Error(error.message)
+      return (data as unknown as TripMember[]) ?? []
+    },
+
+    async listTripMembers(tripId) {
+      const { data, error } = await db
+        .from('trip_members')
+        .select(MEMBER_COLS)
+        .eq('trip_id', tripId)
+        .order('created_at', { ascending: true })
+      if (error) throw new Error(error.message)
+      return (data as unknown as TripMember[]) ?? []
+    },
+
+    async getTripMember(tripId, userId) {
+      const { data, error } = await db
+        .from('trip_members')
+        .select(MEMBER_COLS)
+        .eq('trip_id', tripId)
+        .eq('user_id', userId)
+        .maybeSingle()
+      if (error) throw new Error(error.message)
+      return (data as unknown as TripMember | null) ?? null
+    },
+
+    async upsertTripMember(input) {
+      const row: Record<string, unknown> = {
+        trip_id: input.trip_id,
+        user_id: input.user_id,
+        role: input.role,
+      }
+      // Undefined flags are left to the column defaults on insert, and left
+      // untouched on update — the owner's visibility choices survive a role change.
+      if (input.can_see_stays !== undefined) row.can_see_stays = input.can_see_stays
+      if (input.can_see_flight !== undefined) row.can_see_flight = input.can_see_flight
+      if (input.can_see_documents !== undefined) row.can_see_documents = input.can_see_documents
+      const { data, error } = await db
+        .from('trip_members')
+        .upsert(row, { onConflict: 'trip_id,user_id' })
+        .select(MEMBER_COLS)
+        .single()
+      if (error) throw new Error(error.message)
+      return data as unknown as TripMember
+    },
+
+    async removeTripMember(tripId, userId) {
+      const { data, error } = await db
+        .from('trip_members')
+        .delete()
+        .eq('trip_id', tripId)
+        .eq('user_id', userId)
+        .select('user_id')
+      if (error) throw new Error(error.message)
+      return (data ?? []).length > 0
     },
 
     async listTrips() {

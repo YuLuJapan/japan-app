@@ -3,7 +3,7 @@
 // time agree on when it fires; `time_zone` only records which wall clock the
 // user typed, for display.
 import type { DataStore, Reminder, ReminderInput } from '../lib/datastore.js'
-import { getDefaultTrip } from '../lib/datastore.js'
+import { resolveTrip, type AccessContext } from '../lib/access.js'
 import { notFound, validation } from '../lib/errors.js'
 import { sendPush, type PushSender } from '../lib/push.js'
 
@@ -76,25 +76,34 @@ function normalize(input: Partial<ReminderInput>): Partial<ReminderInput> {
   return next
 }
 
-async function requireTripId(store: DataStore, tripId?: string): Promise<string> {
-  const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
-  if (!trip) throw notFound('Trip')
+async function requireTripId(
+  store: DataStore,
+  access: AccessContext,
+  tripId?: string
+): Promise<string> {
+  const trip = await resolveTrip(store, access, tripId)
   return trip.id
 }
 
 export async function listReminders(
   store: DataStore,
+  access: AccessContext,
   tripId?: string
 ): Promise<{ reminders: Reminder[] }> {
-  const resolvedTripId = await requireTripId(store, tripId)
+  const resolvedTripId = await requireTripId(store, access, tripId)
   return { reminders: await store.listReminders(resolvedTripId) }
 }
 
-export async function createReminder(store: DataStore, body: unknown, tripId?: string) {
+export async function createReminder(
+  store: DataStore,
+  access: AccessContext,
+  body: unknown,
+  tripId?: string
+) {
   const input = (body ?? {}) as Partial<ReminderInput>
   const errors = collectReminderErrors(input, false)
   if (errors.length) throw validation(errors)
-  const resolvedTripId = await requireTripId(store, tripId)
+  const resolvedTripId = await requireTripId(store, access, tripId)
   const normalized = normalize(input)
   const reminder = await store.createReminder({
     trip_id: resolvedTripId,

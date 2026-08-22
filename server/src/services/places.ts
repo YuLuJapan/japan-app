@@ -1,5 +1,12 @@
 import type { Category, DataStore, PlaceInput, PlaceLink } from '../lib/datastore.js'
-import { CATEGORIES, getDefaultTrip } from '../lib/datastore.js'
+import { CATEGORIES } from '../lib/datastore.js'
+import {
+  assertZoneAccess,
+  canReachZone,
+  reachableZoneIds,
+  resolveTrip,
+  type AccessContext,
+} from '../lib/access.js'
 import { forbidden, notFound, validation } from '../lib/errors.js'
 import { isStay } from '../lib/guest-view.js'
 
@@ -10,6 +17,7 @@ import { isStay } from '../lib/guest-view.js'
  */
 export async function getPlaceDetail(
   store: DataStore,
+  access: AccessContext,
   placeId: string,
   {
     includeFiles = true,
@@ -18,6 +26,9 @@ export async function getPlaceDetail(
 ) {
   const place = await store.getPlace(placeId)
   if (!place) throw notFound('Place')
+  // A place is only as reachable as its zone. Reported as a missing *place*
+  // so an outsider cannot tell "no such place" from "not your city".
+  if (!canReachZone(await reachableZoneIds(store, access), place.zone_id)) throw notFound('Place')
   if (!includeStays && isStay(place)) {
     throw forbidden('Stays are not part of the guest view')
   }
@@ -87,19 +98,32 @@ function collectPlaceErrors(input: Partial<PlaceInput>, partial: boolean): strin
   return errors
 }
 
-export async function createPlace(store: DataStore, input: PlaceInput) {
+export async function createPlace(store: DataStore, access: AccessContext, input: PlaceInput) {
   const errors = collectPlaceErrors(input, false)
   if (errors.length) throw validation(errors)
+  assertZoneAccess(await reachableZoneIds(store, access), input.zone_id)
   const zone = await store.getZone(input.zone_id)
   if (!zone) throw notFound('Zone')
   const place = await store.createPlace({ ...input, name: input.name.trim() })
   return { place }
 }
 
-export async function updatePlace(store: DataStore, placeId: string, patch: Partial<PlaceInput>) {
+export async function updatePlace(
+  store: DataStore,
+  access: AccessContext,
+  placeId: string,
+  patch: Partial<PlaceInput>
+) {
   const errors = collectPlaceErrors(patch, true)
   if (errors.length) throw validation(errors)
+  const zones = await reachableZoneIds(store, access)
+  const existing = await store.getPlace(placeId)
+  if (!existing) throw notFound('Place')
+  assertZoneAccess(zones, existing.zone_id)
   if (patch.zone_id) {
+    // Both ends have to be yours, or a place could be moved into someone
+    // else's city.
+    assertZoneAccess(zones, patch.zone_id)
     const zone = await store.getZone(patch.zone_id)
     if (!zone) throw notFound('Zone')
   }
@@ -108,11 +132,12 @@ export async function updatePlace(store: DataStore, placeId: string, patch: Part
   return { place }
 }
 
-export async function deletePlace(store: DataStore, placeId: string) {
+export async function deletePlace(store: DataStore, access: AccessContext, placeId: string) {
   const place = await store.getPlace(placeId)
   if (!place) throw notFound('Place')
+  assertZoneAccess(await reachableZoneIds(store, access), place.zone_id)
   // no silent file loss (data-model.md): move the place's files to the trip first
-  const trip = await getDefaultTrip(store)
-  if (trip) await store.reparentFilesToTrip(placeId, trip.id)
+  const trip = await resolveTrip(store, access)
+  await store.reparentFilesToTrip(placeId, trip.id)
   await store.deletePlace(placeId)
 }
