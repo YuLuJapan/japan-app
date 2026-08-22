@@ -1,16 +1,26 @@
 // Scroll-linked image sequence for the homepage hero: a piece of nigiri that
 // comes apart as you scroll, with the trip title sitting on top of it.
 //
-// Frames live in `public/sushi/` (see scripts/build-sushi-frames.mjs) and are
-// drawn to a canvas — 322 <img> tags would be far heavier than one canvas we
-// repaint. GSAP + ScrollTrigger are loaded dynamically so they land in their
-// own chunk instead of the main bundle; the hero renders a still frame while
-// that chunk arrives, so nothing pops in.
+// Frames live in `public/sushi/` (built by scripts/build-sushi-frames.mjs, then
+// cut out of their studio backdrop by scripts/remove-sushi-background.py) and
+// are drawn to a canvas — 322 <img> tags would be far heavier than one canvas
+// we repaint. They carry alpha, so the food sits directly on the page's own
+// canvas colour with nothing behind it.
+//
+// GSAP + ScrollTrigger are loaded dynamically so they land in their own chunk
+// instead of the main bundle; the hero renders a still frame while that chunk
+// arrives, so nothing pops in.
 //
 // Reduced motion gets no pin and no scrub: just the first frame, cut once to
 // the last frame when the hero reaches the middle of the screen.
 import { useEffect, useRef, useState } from 'react'
-import { ASSET_VERSION, FRAME_COUNT, FRAME_HEIGHT, FRAME_WIDTH } from '../generated/sushi-frames'
+import {
+  ASSET_VERSION,
+  FRAME_COUNT,
+  FRAME_EXT,
+  FRAME_HEIGHT,
+  FRAME_WIDTH,
+} from '../generated/sushi-frames'
 
 const DIR = '/sushi/'
 const FIRST = 1
@@ -20,14 +30,15 @@ const LAST = FRAME_COUNT
 
 // Intrinsic size of the generated frames — kept at the source's native width.
 // The hero crops to roughly the middle 40% of each frame, so downscaling the
-// files first would just mean upscaling that crop back on screen.
+// files first would just mean upscaling that crop back on screen. The rest of
+// the frame is transparent, which costs almost nothing to store.
 const IW = FRAME_WIDTH
 const IH = FRAME_HEIGHT
 
 // The part of the frame that must stay on screen, in source pixels: the
 // nigiri plus a little air. Framing is computed from this rather than from the
-// whole image, so the food stays large on a phone instead of floating in the
-// middle of the studio backdrop.
+// whole image, so the food stays large on a phone instead of sitting small in
+// the middle of a mostly empty frame.
 const SAFE = { cx: 640, cy: 355, w: 533, h: 613 }
 
 const MAX_DPR = 2
@@ -40,7 +51,8 @@ const HEADER = 72
 // The version query is what keeps a regenerated sequence from being served as
 // a mix of old cached frames and new network ones by the CacheFirst rule in
 // vite.config.ts. Without it the animation replays its second half mid-scroll.
-const frameUrl = (n: number) => `${DIR}frame-${String(n).padStart(3, '0')}.jpg?v=${ASSET_VERSION}`
+const frameUrl = (n: number) =>
+  `${DIR}frame-${String(n).padStart(3, '0')}.${FRAME_EXT}?v=${ASSET_VERSION}`
 
 /**
  * Every Nth frame. The source is ~60fps; a phone sampling every 2nd frame
@@ -153,8 +165,9 @@ export function SushiSequence({
     if (!stage || !canvas) return
 
     // jsdom has no 2D context — the hero degrades to its title, which is what
-    // the page tests assert on.
-    const ctx = canvas.getContext('2d', { alpha: false })
+    // the page tests assert on. The context must keep its alpha channel: the
+    // frames are cut-outs, and the page's canvas colour shows through them.
+    const ctx = canvas.getContext('2d')
     if (!ctx) return
 
     let alive = true
@@ -162,7 +175,6 @@ export function SushiSequence({
 
     let images: (HTMLImageElement | null)[] = []
     let view: View | null = null
-    let bg = '#e9ebec'
     let index = 0
     let dirty = true
 
@@ -188,36 +200,10 @@ export function SushiSequence({
       if (!img) return
 
       const { dx, dy, dw, dh, cssW, cssH } = view
-      ctx.fillStyle = bg
-      ctx.fillRect(0, 0, cssW, cssH)
+      // Clear rather than fill: the stage's own background is the backdrop now,
+      // and letterboxing needs no hiding when the frame's edges are empty.
+      ctx.clearRect(0, 0, cssW, cssH)
       ctx.drawImage(img, dx, dy, dw, dh)
-
-      // Where letterboxing is unavoidable, stretch the frame's own edge pixels
-      // into the gap so there's no seam against the studio backdrop.
-      if (dy > 0) ctx.drawImage(img, 0, 0, IW, 2, dx, 0, dw, dy + 1)
-      const gapB = cssH - (dy + dh)
-      if (gapB > 0) ctx.drawImage(img, 0, IH - 2, IW, 2, dx, dy + dh - 1, dw, gapB + 1)
-      if (dx > 0) ctx.drawImage(img, 0, 0, 2, IH, 0, dy, dx + 1, dh)
-      const gapR = cssW - (dx + dw)
-      if (gapR > 0) ctx.drawImage(img, IW - 2, 0, 2, IH, dx + dw - 1, dy, gapR + 1, dh)
-    }
-
-    // Match the card to the frames' backdrop so the canvas edges disappear.
-    const sampleBackground = (img: HTMLImageElement | null) => {
-      if (!img) return
-      try {
-        const c = document.createElement('canvas')
-        c.width = 1
-        c.height = 1
-        const c2 = c.getContext('2d')
-        if (!c2) return
-        c2.drawImage(img, 2, 2, 1, 1, 0, 0, 1, 1)
-        const [r, g, b] = c2.getImageData(0, 0, 1, 1).data
-        bg = `rgb(${r},${g},${b})`
-        stage.style.backgroundColor = bg
-      } catch {
-        /* keep the fallback colour */
-      }
     }
 
     let cleanupAnimation: (() => void) | undefined
@@ -230,7 +216,6 @@ export function SushiSequence({
     firstFrame.onload = () => {
       if (!alive || images.length) return
       images = [firstFrame]
-      sampleBackground(firstFrame)
       layout()
       paint()
     }
@@ -239,7 +224,6 @@ export function SushiSequence({
     preload(urls, setProgress, () => alive).then((loaded) => {
       if (!alive) return
       images = loaded
-      sampleBackground(images[0])
       layout()
       paint()
       setReady(true)
@@ -341,12 +325,12 @@ export function SushiSequence({
       <div
         ref={stageRef}
         // Height must stay in step with HEADER above.
-        className="relative isolate h-[calc(100svh-72px)] overflow-hidden bg-[#e9ebec]"
+        className="relative isolate h-[calc(100svh-72px)] overflow-hidden bg-canvas"
       >
         <canvas ref={canvasRef} aria-hidden className="absolute inset-0 h-full w-full" />
 
-        {/* Keeps the title readable over the lighter part of the backdrop. */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-2/5 bg-gradient-to-b from-white/75 to-transparent" />
+        {/* Keeps the title readable where a frame's food reaches up behind it. */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-2/5 bg-gradient-to-b from-canvas/85 to-transparent" />
 
         <div className="relative flex h-full flex-col p-5">
           <p className="section-title text-brand">{eyebrow}</p>
