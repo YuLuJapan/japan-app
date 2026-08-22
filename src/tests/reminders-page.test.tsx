@@ -64,6 +64,19 @@ describe('Reminders page', () => {
     expect(screen.getByText(/Tokyo/)).toBeInTheDocument()
   })
 
+  it('links out to a safe url, and refuses to render one that leaves the origin', async () => {
+    stubApi([reminder, { ...reminder, id: 'rem-2', title: 'Phish me', url: '//evil.example' }])
+    render()
+
+    // The server rejects `//evil.example` on write now; a row stored before it
+    // did must not become a link on render either.
+    expect(await screen.findByText('Phish me')).toBeInTheDocument()
+    const links = screen.getAllByRole('link', { name: /open link/i })
+    expect(links).toHaveLength(1)
+    expect(links[0]).toHaveAttribute('href', 'https://booking.example.com')
+    expect(links[0]).toHaveAttribute('rel', 'noreferrer noopener')
+  })
+
   it('says nothing is scheduled when the list is empty', async () => {
     stubApi([])
     render()
@@ -71,7 +84,9 @@ describe('Reminders page', () => {
   })
 
   it('shows a sent reminder under Done, struck through, with no edit control', async () => {
-    stubApi([{ ...reminder, remind_at: '2020-01-01T00:00:00.000Z', sent_at: '2020-01-01T00:00:00.000Z' }])
+    stubApi([
+      { ...reminder, remind_at: '2020-01-01T00:00:00.000Z', sent_at: '2020-01-01T00:00:00.000Z' },
+    ])
     render()
 
     expect(await screen.findByText('Book the ryokan')).toHaveClass('line-through')

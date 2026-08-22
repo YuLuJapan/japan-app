@@ -5,6 +5,7 @@
 import type { DataStore, Reminder, ReminderInput } from '../lib/datastore.js'
 import { requireTrip } from '../lib/access.js'
 import { notFound, validation } from '../lib/errors.js'
+import { isSafeLinkTarget } from '../lib/safe-url.js'
 import { sendPush, type PushSender } from '../lib/push.js'
 
 // Reminders are planned in Israel time unless the client says otherwise (the
@@ -42,9 +43,9 @@ function collectReminderErrors(input: Partial<ReminderInput>, partial: boolean):
   if (input.url != null && String(input.url).trim()) {
     const url = String(input.url).trim()
     if (url.length > MAX_URL) errors.push(`url must be at most ${MAX_URL} characters`)
-    // absolute link (booking site) or in-app path (/places/…)
-    else if (!/^https?:\/\//i.test(url) && !url.startsWith('/'))
-      errors.push('url must start with http://, https:// or /')
+    // An absolute link (booking site) or a path inside the app. `isSafeLinkTarget`
+    // is what stops "//evil.com" passing as the latter — see lib/safe-url.ts.
+    else if (!isSafeLinkTarget(url)) errors.push('url must start with http://, https:// or /')
   }
 
   if (input.remind_at !== undefined || !partial) {

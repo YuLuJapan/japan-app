@@ -21,6 +21,7 @@ import {
   timeZoneLabel,
   wallClockToInstant,
 } from '../lib/reminders'
+import { isInAppPath, isSafeLinkTarget } from '../lib/safe-url'
 import { useCanEdit } from '../lib/session'
 import { useTripId } from '../lib/trip'
 
@@ -176,11 +177,11 @@ function UpcomingReminderCard({
         </p>
         {reminder.body && <p className="mt-1.5 text-sm text-ink/80">{reminder.body}</p>}
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          {reminder.url && (
+          {reminder.url && isSafeLinkTarget(reminder.url) && (
             <a
               href={reminder.url}
-              target={reminder.url.startsWith('/') ? undefined : '_blank'}
-              rel="noreferrer"
+              target={isInAppPath(reminder.url) ? undefined : '_blank'}
+              rel="noreferrer noopener"
               className="text-xs font-bold text-brand"
             >
               Open link ›

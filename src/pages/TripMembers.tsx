@@ -37,6 +37,7 @@ function toDraft(m: TripMember): MemberDraft {
     can_see_stays: m.can_see_stays,
     can_see_flight: m.can_see_flight,
     can_see_documents: m.can_see_documents,
+    can_see_shopping: m.can_see_shopping,
   }
 }
 
@@ -45,6 +46,7 @@ const DRAFT_KEYS: (keyof MemberDraft)[] = [
   'can_see_stays',
   'can_see_flight',
   'can_see_documents',
+  'can_see_shopping',
 ]
 
 /**
@@ -55,7 +57,7 @@ const DRAFT_KEYS: (keyof MemberDraft)[] = [
  * some of these (demoting the last owner), and a change that saves itself has
  * nowhere to put the refusal — the control just sprang back with no
  * explanation. An explicit Save gives the failure somewhere to land, and the
- * three visibility flags a way to move together in one request.
+ * visibility flags a way to move together in one request.
  */
 function MemberCard({
   member,
