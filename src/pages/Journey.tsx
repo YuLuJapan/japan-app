@@ -32,25 +32,35 @@ export default function Journey() {
   if (isError) return <ErrorState message="Could not load the trip." onRetry={() => refetch()} />
 
   const today = new Date()
-  const japan = isJapanTrip(data.trip.name)
+  // The name is what the server promises, not what the row always holds — a
+  // trip whose name is missing keeps the travellers and drops the "in …" half
+  // rather than rendering the word "null".
+  const destination = data.trip.name?.trim() || null
+  const japan = isJapanTrip(destination ?? '')
   const hasSteps = data.steps.length > 0
   // "Yuval & Luciana in Japan" — travellers and destination are stored
   // separately (trip.name is just the destination) and composed here, same as
   // the design prototype's travellersLabel + tripName.
-  const heroTitle = `${travellersLabel(data.trip.people)} in ${data.trip.name}`
+  const travellers = travellersLabel(data.trip.people)
+  const heroTitle = destination ? `${travellers} in ${destination}` : travellers
 
   return (
     <div className="space-y-6">
       {japan ? (
         <SushiSequence
           title={heroTitle}
-          destination={data.trip.name}
+          destination={destination ?? undefined}
           meta={`${fmt(data.trip.start_date)} – ${fmt(data.trip.end_date)} · ${data.steps.length} stops`}
         />
       ) : (
         <div>
           <p className="section-title">Our trip</p>
-          <HeroTitle title={heroTitle} destination={data.trip.name} max={34} className="mt-1" />
+          <HeroTitle
+            title={heroTitle}
+            destination={destination ?? undefined}
+            max={34}
+            className="mt-1"
+          />
           <p className="mt-1.5 text-sm text-muted">
             {fmt(data.trip.start_date)} – {fmt(data.trip.end_date)} · {data.steps.length} stops
           </p>

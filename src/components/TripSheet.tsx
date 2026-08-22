@@ -277,7 +277,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
     if (mode === 'edit' && trip) {
       const start = splitDate(trip.start_date)
       const end = splitDate(trip.end_date)
-      setName(trip.name)
+      setName(trip.name ?? '')
       setSy(start.y)
       setSm(start.m)
       setSd(start.d)
@@ -590,7 +590,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
                   style={{ background: avatarBg(p.name) }}
                   aria-hidden
                 >
-                  {p.name[0]?.toUpperCase()}
+                  {p.name?.[0]?.toUpperCase()}
                 </span>
                 <span className="text-sm font-semibold">{p.name}</span>
                 {p.email && (

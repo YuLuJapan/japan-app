@@ -61,11 +61,13 @@ function TripCard({ trip, onEdit }: { trip: Trip; onEdit: () => void }) {
         aria-hidden
       >
         <span className="font-display text-4xl font-bold leading-none text-white/90">
-          {trip.name[0]?.toUpperCase()}
+          {trip.name?.[0]?.toUpperCase() ?? '·'}
         </span>
       </div>
       <div className="min-w-0 flex-1">
-        <p className="font-display text-lg font-bold tracking-tight">{trip.name}</p>
+        <p className="font-display text-lg font-bold tracking-tight">
+          {trip.name || 'Untitled trip'}
+        </p>
         <p className="mt-0.5 text-xs text-muted">{dateRange(trip)}</p>
         {trip.people.length > 0 && (
           <div className="mt-2 flex items-center gap-1.5">
@@ -76,7 +78,7 @@ function TripCard({ trip, onEdit }: { trip: Trip; onEdit: () => void }) {
                 style={{ background: avatarBg(p.name) }}
                 aria-hidden
               >
-                {p.name[0]?.toUpperCase()}
+                {p.name?.[0]?.toUpperCase()}
               </span>
             ))}
           </div>
