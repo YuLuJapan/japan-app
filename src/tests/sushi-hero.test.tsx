@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { SushiSequence } from '../components/SushiSequence'
+import { SushiSequence, pinLengthFor } from '../components/SushiSequence'
 
 // jsdom has no 2D context, so the canvas half of the hero bails out early and
 // what is left is exactly what these tests care about: the escape hatch out of
@@ -62,5 +62,21 @@ describe('SushiSequence hero', () => {
 
     expect(scrollTo).toHaveBeenCalledWith(0, 1200 - window.innerHeight)
     restore()
+  })
+})
+
+describe('pinLengthFor', () => {
+  it('releases the pin before the sequence ends, so the page moves while it plays', () => {
+    // The whole point: a pin shorter than the scrub leaves a stretch of scroll
+    // where the hero is sliding away and the last frames are still running.
+    expect(pinLengthFor('+=150%')).toBe('+=125%')
+  })
+
+  it('never asks for a negative pin, however short the sequence', () => {
+    expect(pinLengthFor('+=10%')).toBe('+=0%')
+  })
+
+  it('leaves an end it cannot do the arithmetic on alone', () => {
+    expect(pinLengthFor('+=800px')).toBe('+=800px')
   })
 })

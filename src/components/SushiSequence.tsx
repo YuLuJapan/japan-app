@@ -14,11 +14,17 @@
 // Reduced motion gets no pin and no scrub: just the first frame, cut once to
 // the last frame when the hero reaches the middle of the screen.
 //
+// The pin is deliberately shorter than the scrub (see pinLengthFor): the hero
+// lets go a quarter of a viewport before the last frame, so the page is
+// already sliding while the nigiri finishes coming apart, rather than sitting
+// still for the whole sequence and only then moving.
+//
 // "Get started" is the escape hatch: scrubbing 150% of a viewport by hand is a
 // chore on a phone, so the mark under the nigiri tweens the window past the
 // pinned hero for you. It moves the scroll position rather than jumping it, so
 // the sequence still plays — it just plays itself, in the background, on the
-// way down, and any real scroll input hands control straight back.
+// way down (and, thanks to the short pin, the tail of it plays over a moving
+// page), and any real scroll input hands control straight back.
 //
 // The mark is deliberately almost nothing: a letterspaced label over a rule
 // with a segment tracing down it. No container, no fill, no shadow — the
@@ -68,6 +74,31 @@ const MAX_DPR = 2
 // The hero fills everything below it, and pins exactly where it already sits
 // so nothing jumps on the first scroll.
 const HEADER = 72
+
+// How much of the viewport the page is already moving through while the last
+// frames still play. 0 is the old behaviour — the pin holds until the very
+// last frame, so nothing on screen moves until the sequence is over.
+//
+// 25 is close to the most this can be. On a 390×800 phone the stage is 728
+// tall and SAFE fills it ~463 tall, so the artwork reaches ~231px either side
+// of centre; a 25% (200px) rise puts its top edge right at the top of the
+// screen exactly as the last frame lands. Any more and the nigiri is climbing
+// out of frame before it has finished coming apart.
+const OVERLAP_VH = 25
+
+/**
+ * The pin's end, derived from the scrub's: the same stretch of scroll minus
+ * the overlap. Exported because that relationship — pin ends first — is the
+ * whole behaviour, and it is the one part of it a test can see.
+ *
+ * An end that isn't a viewport percentage (pixels, a custom string) is handed
+ * back untouched: there is nothing to subtract from safely.
+ */
+export function pinLengthFor(scrollLength: string) {
+  const match = /^\+=(\d+(?:\.\d+)?)%$/.exec(scrollLength.trim())
+  if (!match) return scrollLength
+  return `+=${Math.max(0, Number(match[1]) - OVERLAP_VH)}%`
+}
 
 // The version query is what keeps a regenerated sequence from being served as
 // a mix of old cached frames and new network ones by the CacheFirst rule in
@@ -187,9 +218,10 @@ export function SushiSequence({
   const [cueVisible, setCueVisible] = useState(true)
 
   useEffect(() => {
+    const wrapper = wrapperRef.current
     const stage = stageRef.current
     const canvas = canvasRef.current
-    if (!stage || !canvas) return
+    if (!wrapper || !stage || !canvas) return
 
     // jsdom has no 2D context — the hero degrades to its title, which is what
     // the page tests assert on. The context must keep its alpha channel: the
@@ -275,19 +307,39 @@ export function SushiSequence({
           gsap.registerPlugin(ScrollTrigger)
           ScrollTrigger.config({ ignoreMobileResize: true })
 
+          // Two triggers over the same stretch of scroll, and deliberately
+          // not the same length. A single trigger cannot do this: its pin and
+          // its scrub necessarily end together, which is exactly why the hero
+          // used to hold still for the entire sequence and only start moving
+          // once the last frame had landed.
+          const pin = ScrollTrigger.create({
+            trigger: stage,
+            // Pin below the sticky app header rather than under it.
+            start: `top ${HEADER}px`,
+            end: pinLengthFor(scrollLength),
+            pin: stage,
+            pinSpacing: true,
+            anticipatePin: 1,
+            invalidateOnRefresh: true,
+            // Pins measure first: the scrub below shares this trigger element
+            // and would otherwise take its start from an already-pinned stage.
+            refreshPriority: 1,
+          })
+
           const state = { frame: 0 }
           const tween = gsap.to(state, {
             frame: images.length - 1,
             ease: 'none',
             snap: { frame: 1 },
             scrollTrigger: {
-              trigger: stage,
-              // Pin below the sticky app header rather than under it.
+              // The wrapper, not the stage: a pinned element measures at its
+              // pinned position on refresh, which would put this trigger's
+              // start at the pin's *end* and leave the whole sequence to play
+              // after the pin let go. The wrapper sits at the same place and
+              // never moves. (Verified in a browser — jsdom can't run GSAP.)
+              trigger: wrapper,
               start: `top ${HEADER}px`,
               end: scrollLength,
-              pin: stage,
-              pinSpacing: true,
-              anticipatePin: 1,
               scrub: 0.6,
               invalidateOnRefresh: true,
             },
@@ -329,6 +381,7 @@ export function SushiSequence({
             gsap.ticker.remove(tick)
             tween.scrollTrigger?.kill()
             tween.kill()
+            pin.kill()
           }
         })
         .catch(() => {
