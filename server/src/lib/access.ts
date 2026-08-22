@@ -10,7 +10,6 @@
 // deployment. The travellers' code behaves exactly as it did before
 // membership existed, while accounts get the scoped view.
 import type { DataStore, Trip, TripMember } from './datastore.js'
-import { getDefaultTrip } from './datastore.js'
 import { notFound } from './errors.js'
 import type { TripRole } from './permissions.js'
 
@@ -91,30 +90,21 @@ export function assertZoneAccess(zones: ReadonlySet<string> | 'all', zoneId: str
 }
 
 /**
- * The trip a request operates on: the one named in the path, or — for the
- * single-trip-era routes that carry no trip id — the caller's oldest.
+ * The trip a request operates on, named explicitly in the path.
  *
- * Nine services repeated `tripId ? getTrip(tripId) : getDefaultTrip(store)`,
- * which had no notion of who was asking. Folding them into one helper is what
- * adds the membership check everywhere at once, rather than nine chances to
- * forget it. Phase 3a deletes the second half of this when every route carries
- * an explicit /api/trips/:tripId.
+ * This used to fall back to "the caller's oldest trip" for the single-trip-era
+ * routes that carried no id — and before membership existed, to the oldest trip
+ * in the database. Both fallbacks are gone: every content route is now mounted
+ * under /api/trips/:tripId, so reaching trip content without naming the trip is
+ * no longer expressible.
  */
 export async function resolveTrip(
   store: DataStore,
   access: AccessContext,
-  tripId?: string
+  tripId: string
 ): Promise<Trip> {
-  if (tripId) {
-    assertTripAccess(access, tripId)
-    const trip = await store.getTrip(tripId)
-    if (!trip) throw notFound('Trip')
-    return trip
-  }
-  const trip = await getDefaultTrip(store, access.userId)
-  // A brand-new account with no trips yet lands here, and so does anyone
-  // poking at a legacy route for a trip that is not theirs. Both get the same
-  // answer, which is the point.
+  assertTripAccess(access, tripId)
+  const trip = await store.getTrip(tripId)
   if (!trip) throw notFound('Trip')
   return trip
 }

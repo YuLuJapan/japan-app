@@ -93,7 +93,7 @@ export async function createStep(
   store: DataStore,
   access: AccessContext,
   input: StepFields,
-  tripId?: string
+  tripId: string
 ) {
   const errors = collectErrors(input, false)
   if (errors.length) throw validation(errors)

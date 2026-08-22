@@ -11,9 +11,9 @@ const auth = (r: request.Test) => r.set('Authorization', `Bearer ${TEST_CODE}`)
 
 beforeEach(() => setDataStore(createMemoryStore(fixture())))
 
-describe('GET /api/search', () => {
+describe('GET /api/trips/trip-1/search', () => {
   it('finds a place by name and links to it', async () => {
-    const res = await auth(request(app).get('/api/search?q=ramen'))
+    const res = await auth(request(app).get('/api/trips/trip-1/search?q=ramen'))
     expect(res.status).toBe(200)
     const place = res.body.results.find((r: { type: string }) => r.type === 'place')
     expect(place.title).toBe('Ramen Bar')
@@ -21,22 +21,26 @@ describe('GET /api/search', () => {
   })
 
   it('finds a zone by name', async () => {
-    const res = await auth(request(app).get('/api/search?q=kyoto'))
-    expect(res.body.results.some((r: { type: string; title: string }) => r.type === 'zone' && r.title === 'Kyoto')).toBe(true)
+    const res = await auth(request(app).get('/api/trips/trip-1/search?q=kyoto'))
+    expect(
+      res.body.results.some(
+        (r: { type: string; title: string }) => r.type === 'zone' && r.title === 'Kyoto'
+      )
+    ).toBe(true)
   })
 
   it('finds a tip by body and links to its parent', async () => {
-    const res = await auth(request(app).get('/api/search?q=suica'))
+    const res = await auth(request(app).get('/api/trips/trip-1/search?q=suica'))
     const tip = res.body.results.find((r: { type: string }) => r.type === 'tip')
     expect(tip.href).toBe('/zones/zone-tokyo')
   })
 
   it('returns empty for queries under 2 chars', async () => {
-    const res = await auth(request(app).get('/api/search?q=a'))
+    const res = await auth(request(app).get('/api/trips/trip-1/search?q=a'))
     expect(res.body.results).toEqual([])
   })
 
   it('requires auth', async () => {
-    expect((await request(app).get('/api/search?q=ramen')).status).toBe(401)
+    expect((await request(app).get('/api/trips/trip-1/search?q=ramen')).status).toBe(401)
   })
 })

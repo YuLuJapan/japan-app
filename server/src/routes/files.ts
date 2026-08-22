@@ -48,14 +48,6 @@ const remove = asyncHandler(async (req, res) => {
   res.status(204).end()
 })
 
-/** Legacy flat mount at /api. Removed once every client uses the nested form. */
-export const filesRouter = Router()
-filesRouter.get('/files', list)
-filesRouter.post('/files', create)
-filesRouter.get('/files/:fileId/url', fileUrl)
-filesRouter.get('/files/:fileId/content', fileContent)
-filesRouter.delete('/files/:fileId', remove)
-
 /** Mounted under /api/trips/:tripId, behind requireTripAccess. */
 export const filesTripRouter = Router({ mergeParams: true })
 filesTripRouter.get('/files', list)

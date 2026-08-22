@@ -38,11 +38,17 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
   /api/trips/:tripId/files      /files/:fileId · /files/:fileId/url · /files/:fileId/content
   ```
 
-  The flat equivalents (`/api/places/:placeId`, `/api/itinerary/:itemId`, …) and the singleton routes still answer, guarded individually as before, and are removed in phase 3b once no client calls them. The trip collection (`GET`/`POST /api/trips`) stays at `/api` by definition — listing and creating happen before there is a trip to be a member of.
+  `/api/trips/:tripId/search` joins them (phase 3a-ii).
+
+  **The flat and singleton routes are gone (phase 3a-ii).** `/api/trip`, `/api/itinerary`, `/api/shopping`, `/api/reminders`, `/api/files`, `/api/steps`, `/api/places`, `/api/tips`, `/api/zones/:zoneId` and `/api/search` all answer `404`. Reaching trip content without naming the trip is no longer expressible, and `getDefaultTrip` — which once resolved to "the oldest trip in the database" — no longer exists.
+
+  Still at `/api`, none of them trip content: `/health`, `/auth/*`, `/me`, `/trips` (the collection — listing and creating happen before there is a trip to be a member of), `/rates`, `/geocode`, `/images`, `/product-preview`, `/translate`, `/push/*`, and `/reminders/dispatch` (called by an external scheduler with no trip in hand, guarding itself with `CRON_SECRET`).
 
   **What nesting does not yet prove**: that a resource named later in the path belongs to the trip named earlier. `/api/trips/A/places/<place-in-B>` still resolves, because zones are not trip-scoped in the schema until phase 3b. `server/tests/tenancy.test.ts` carries those cases as `it.todo`; 3b is the commit that turns them on.
 
-  **Zones and places are gated by reachability.** They are not trip-scoped in the schema until phase 3b, so `GET /api/zones/:zoneId`, `/api/zones/:zoneId/places` and `/api/places/:placeId` check that the zone is reachable from one of the caller's trips (via its journey steps) and `404` otherwise. Zone ids are human-readable seed values like `zone-tokyo`, so without this a signed-up stranger could guess one and read a city's stays.
+  **Zones, places and search are gated by reachability.** They are not trip-scoped in the schema until phase 3b, so `GET /api/zones/:zoneId`, `/api/zones/:zoneId/places`, `/api/places/:placeId` and `/api/search` check that the zone is reachable from one of the caller's trips (via its journey steps) and `404` (or, for search, return no results) otherwise. Zone ids are human-readable seed values like `zone-tokyo`, so without this a signed-up stranger could guess one and read a city's stays.
+
+  > **Correction (phase 3a-ii)**: phase 2 documented search as scoped when it was not — `GET /api/search` ran catalog-wide with no access check, so any account could read place names, zone names and the first 80 characters of any tip from any trip. Fixed and covered by regression tests in `server/tests/membership.test.ts`.
 
 - **Accounts (2026-08-22 addition, feature 002 phase 1)**: authentication and authorization are now separate steps. `server/src/lib/identity.ts` resolves a token to a **principal** — either a signed-in account or one of the deprecated static codes — and says nothing about permissions; `server/src/lib/auth.ts` then decides the role. A token can therefore verify perfectly and still buy nothing: a Google account that isn't allow-listed gets `401`, not `403`, because it holds no role at all.
 

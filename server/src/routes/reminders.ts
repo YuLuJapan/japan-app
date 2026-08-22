@@ -11,6 +11,11 @@ import {
   updateReminder,
 } from '../services/reminders.js'
 
+/**
+ * Only the cron dispatch endpoint lives here now. It is called by an external
+ * scheduler with no trip in hand and guards itself with CRON_SECRET, so it is
+ * the one reminder route that cannot be trip-scoped.
+ */
 export const remindersRouter = Router()
 
 /**
@@ -57,12 +62,6 @@ const remove = asyncHandler(async (req, res) => {
   await deleteReminder(await getDataStore(), req.params.reminderId)
   res.status(204).end()
 })
-
-/** Legacy flat mount at /api. Removed once every client uses the nested form. */
-remindersRouter.get('/reminders', list)
-remindersRouter.post('/reminders', create)
-remindersRouter.patch('/reminders/:reminderId', update)
-remindersRouter.delete('/reminders/:reminderId', remove)
 
 /** Mounted under /api/trips/:tripId, behind requireTripAccess. */
 export const remindersTripRouter = Router({ mergeParams: true })

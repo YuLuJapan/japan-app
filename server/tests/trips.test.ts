@@ -41,7 +41,9 @@ describe('trips', () => {
   it('GET /api/trips lists the seeded trip with its travellers', async () => {
     const res = await auth()
     expect(res.status).toBe(200)
-    expect(res.body.trips).toHaveLength(1)
+    // The fixture holds a second trip belonging to another account; the
+    // deprecated access code reaches every trip, so both come back here.
+    expect(res.body.trips).toHaveLength(2)
     expect(res.body.trips[0]).toMatchObject({
       id: 'trip-1',
       name: 'Test Trip',
@@ -49,8 +51,10 @@ describe('trips', () => {
     })
   })
 
-  it('GET /api/trip (legacy) still returns the oldest trip bundle', async () => {
-    const res = await request(app).get('/api/trip').set('Authorization', `Bearer ${TEST_CODE}`)
+  it('GET /api/trips/trip-1 (legacy) still returns the oldest trip bundle', async () => {
+    const res = await request(app)
+      .get('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
     expect(res.status).toBe(200)
     expect(res.body.trip.id).toBe('trip-1')
   })
@@ -73,10 +77,16 @@ describe('trips', () => {
     })
 
     const list = await auth()
-    expect(list.body.trips.map((t: { name: string }) => t.name)).toEqual(['Test Trip', 'Dolomites'])
+    expect(list.body.trips.map((t: { name: string }) => t.name)).toEqual([
+      'Test Trip',
+      'Someone Else’s Trip',
+      'Dolomites',
+    ])
 
     // legacy single-trip route is unaffected by the new trip existing
-    const legacy = await request(app).get('/api/trip').set('Authorization', `Bearer ${TEST_CODE}`)
+    const legacy = await request(app)
+      .get('/api/trips/trip-1')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
     expect(legacy.body.trip.id).toBe('trip-1')
   })
 
@@ -274,7 +284,7 @@ describe('trips', () => {
       ])
     )
     const items = await request(app)
-      .get('/api/itinerary')
+      .get('/api/trips/trip-1/itinerary')
       .set('Authorization', `Bearer ${TEST_CODE}`)
     for (const i of items.body.items) expect(i.day).toBe('2027-01-10')
   })
@@ -348,7 +358,7 @@ describe('trips', () => {
     expect(res.status).toBe(200)
     expect(res.body.deleted).toBeUndefined()
     const items = await request(app)
-      .get('/api/itinerary')
+      .get('/api/trips/trip-1/itinerary')
       .set('Authorization', `Bearer ${TEST_CODE}`)
     expect(items.body.items).toHaveLength(2)
   })
@@ -369,13 +379,14 @@ describe('trips', () => {
     expect(del.status).toBe(204)
 
     const list = await auth()
-    expect(list.body.trips).toEqual([])
+    // Only the other account's trip is left; deleting one trip never touches another.
+    expect(list.body.trips.map((t: { id: string }) => t.id)).toEqual(['trip-2'])
 
     // children scoped to trip-1 (steps, itinerary, shopping) go with it
     const itinerary = await request(app)
-      .get('/api/itinerary')
+      .get('/api/trips/trip-1/itinerary')
       .set('Authorization', `Bearer ${TEST_CODE}`)
-    expect(itinerary.status).toBe(404) // no trips left for the legacy default-trip routes to fall back to
+    expect(itinerary.status).toBe(404) // the trip itself is gone
   })
 
   it('guests cannot create, update or delete trips', async () => {
