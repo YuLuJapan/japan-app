@@ -54,7 +54,13 @@ const IH = FRAME_HEIGHT
 // nigiri plus a little air. Framing is computed from this rather than from the
 // whole image, so the food stays large on a phone instead of sitting small in
 // the middle of a mostly empty frame.
-const SAFE = { cx: 640, cy: 355, w: 533, h: 613 }
+//
+// Measured, not estimated: across the sequence the opaque pixels span x 435–882
+// and y 98–629 (the piece rises and spreads as it comes apart), so the box is
+// 447 × 531 around (658, 364), plus ~4% air. The earlier hand-set box was a
+// fifth wider than the artwork ever gets, which drew everything ~15% smaller
+// than it needed to be and left the hero looking empty.
+const SAFE = { cx: 658, cy: 364, w: 465, h: 552 }
 
 const MAX_DPR = 2
 
@@ -414,7 +420,10 @@ export function SushiSequence({
     <div ref={wrapperRef} className="-mx-5 -mt-1">
       <div
         ref={stageRef}
-        // Height must stay in step with HEADER above.
+        // Height must stay in step with HEADER above. It also cannot be made
+        // shorter to show the section below: the pin reserves the scrub's
+        // scroll distance in a spacer, so anything under the stage is that
+        // spacer's empty background until the sequence has played out.
         className="relative isolate h-[calc(100svh-72px)] overflow-hidden bg-canvas"
       >
         <canvas ref={canvasRef} aria-hidden className="absolute inset-0 h-full w-full" />

@@ -41,8 +41,9 @@ describe('a trip with no name override', () => {
     mocks.get.mockResolvedValue({ trip: unnamedTrip, steps: [], flight: null })
     renderAt('/trips/trip-1', [{ path: '/trips/:tripId', element: <Journey /> }])
 
-    const heading = await screen.findByRole('heading', { name: 'Yuval and Luciana in Japan' })
-    expect(heading).toHaveClass('whitespace-nowrap')
+    await screen.findByRole('heading', { name: 'Yuval and Luciana in Japan' })
+    // The travellers hold the first line, the destination gets its own.
+    expect(screen.getByText('Yuval and Luciana')).toHaveClass('block')
     expect(screen.getByText('Japan')).toHaveClass('text-brand')
   })
 
