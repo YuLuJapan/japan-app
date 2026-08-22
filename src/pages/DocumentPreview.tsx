@@ -5,10 +5,11 @@
 // same. Download and full-screen stay available for anything the browser
 // cannot render inline (and for saving to the phone's wallet/files).
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { ApiError, api } from '../api/client'
 import { useTripFiles } from '../api/hooks'
 import type { TripDocument } from '../api/types'
+import { Breadcrumbs } from '../components/Breadcrumbs'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
 import { useTripId } from '../lib/trip'
@@ -125,7 +126,6 @@ function Viewer({ doc, url }: { doc: TripDocument; url: string }) {
 
 export default function DocumentPreview() {
   const { fileId = '' } = useParams()
-  const navigate = useNavigate()
   const tripId = useTripId()
   const { data, isPending, isError, refetch } = useTripFiles(tripId)
   const content = useFileContent(fileId)
@@ -140,13 +140,7 @@ export default function DocumentPreview() {
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => navigate(-1)}
-        className="text-sm font-semibold text-muted"
-      >
-        ‹ Back
-      </button>
+      <Breadcrumbs trail={[{ label: 'Documents', to: `/trips/${tripId}/files` }]} />
 
       <h1 className="mt-2 font-display text-xl font-bold">{doc.display_name}</h1>
       <p className="mt-1 text-xs text-muted">

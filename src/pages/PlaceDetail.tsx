@@ -4,6 +4,7 @@ import { ApiError } from '../api/client'
 import { usePlace, useTrip } from '../api/hooks'
 import { useDeletePlace } from '../api/mutations'
 import { CATEGORY_META } from '../api/types'
+import { Breadcrumbs } from '../components/Breadcrumbs'
 import { AddPlaceToDay } from '../components/AddPlaceToDay'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorState } from '../components/ErrorState'
@@ -45,12 +46,16 @@ export default function PlaceDetail() {
   return (
     <div className="space-y-8">
       <div>
-        <Link
-          to={`/trips/${tripId}/zones/${place.zone_id}/c/${place.category}`}
-          className="text-sm font-semibold text-muted"
-        >
-          ‹ {meta.label}
-        </Link>
+        <Breadcrumbs
+          trail={[
+            { label: 'Journey', to: `/trips/${tripId}` },
+            ...(city ? [{ label: city, to: `/trips/${tripId}/zones/${place.zone_id}` }] : []),
+            {
+              label: meta.label,
+              to: `/trips/${tripId}/zones/${place.zone_id}/c/${place.category}`,
+            },
+          ]}
+        />
         {place.image_url && (
           <div className="mt-3 overflow-hidden rounded-3xl shadow-card">
             <ZoneImage

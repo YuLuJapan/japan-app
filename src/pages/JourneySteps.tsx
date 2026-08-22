@@ -4,10 +4,10 @@
 // Destinations are free text, validated against real places via the geocode
 // autocomplete (Nominatim) rather than picked from a fixed zone list.
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { geocode, useTrip } from '../api/hooks'
 import { useCreateStep, useDeleteStep, useUpdateStep } from '../api/mutations'
 import type { GeocodeResult, JourneyStepInput, TripStep } from '../api/types'
+import { Breadcrumbs } from '../components/Breadcrumbs'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
@@ -40,9 +40,7 @@ export default function JourneySteps() {
 
   return (
     <div className="space-y-4">
-      <Link to={`/trips/${tripId}`} className="text-sm font-semibold text-muted">
-        ‹ Back
-      </Link>
+      <Breadcrumbs trail={[{ label: 'Journey', to: `/trips/${tripId}` }]} />
       <div>
         <h1 className="font-display text-2xl font-bold">Edit the journey</h1>
         <p className="mt-1 text-sm text-muted">

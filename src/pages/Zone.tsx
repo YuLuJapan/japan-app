@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import { useItinerary, useTrip, useZone } from '../api/hooks'
 import { CATEGORIES, CATEGORY_META } from '../api/types'
+import { Breadcrumbs } from '../components/Breadcrumbs'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { FileList } from '../components/FileList'
@@ -36,9 +37,7 @@ export default function Zone() {
   return (
     <div className="space-y-8">
       <div>
-        <Link to={`/trips/${tripId}`} className="text-sm font-semibold text-muted">
-          ‹ Journey
-        </Link>
+        <Breadcrumbs trail={[{ label: 'Journey', to: `/trips/${tripId}` }]} />
         <div className="relative mt-3 overflow-hidden rounded-3xl shadow-card">
           <ZoneImage src={zone.image_url} alt={zone.name} className="h-52 w-full" />
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-5 pb-4 pt-10">

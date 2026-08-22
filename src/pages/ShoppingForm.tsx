@@ -1,7 +1,7 @@
 // Add/edit a shopping-list item. Same failure contract as PlaceForm (FR-019):
 // on a failed save the entered text stays put and a retry is offered.
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   containsJapanese,
   fetchProductPreview,
@@ -12,6 +12,7 @@ import {
 import { useCreateShoppingItem, useUpdateShoppingItem } from '../api/mutations'
 import type { ShoppingCategory, ShoppingItemInput } from '../api/types'
 import { SHOPPING_CATEGORIES, SHOPPING_CATEGORY_META } from '../api/types'
+import { Breadcrumbs } from '../components/Breadcrumbs'
 import { ImagePicker } from '../components/ImagePicker'
 import { Loading } from '../components/Loading'
 import { ZoneImage } from '../components/ZoneImage'
@@ -173,12 +174,14 @@ export default function ShoppingForm() {
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <Link
-        to={editing ? `/trips/${tripId}/shopping/${itemId}` : `/trips/${tripId}/shopping`}
-        className="text-sm font-semibold text-muted"
-      >
-        ‹ {editing ? 'Item' : 'Shopping'}
-      </Link>
+      <Breadcrumbs
+        trail={[
+          { label: 'Shopping', to: `/trips/${tripId}/shopping` },
+          ...(editing
+            ? [{ label: name || 'This item', to: `/trips/${tripId}/shopping/${itemId}` }]
+            : []),
+        ]}
+      />
       <h1 className="font-display text-2xl font-bold">
         {editing ? 'Edit item' : 'Add something to buy'}
       </h1>

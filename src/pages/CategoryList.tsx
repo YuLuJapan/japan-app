@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useZone, useZonePlaces } from '../api/hooks'
 import type { Category } from '../api/types'
 import { CATEGORY_META } from '../api/types'
+import { Breadcrumbs } from '../components/Breadcrumbs'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
@@ -24,9 +25,12 @@ export default function CategoryList() {
 
   return (
     <div>
-      <Link to={`/trips/${tripId}/zones/${zoneId}`} className="text-sm font-semibold text-muted">
-        ‹ {zone.data?.zone.name ?? 'Zone'}
-      </Link>
+      <Breadcrumbs
+        trail={[
+          { label: 'Journey', to: `/trips/${tripId}` },
+          { label: zone.data?.zone.name ?? 'Zone', to: `/trips/${tripId}/zones/${zoneId}` },
+        ]}
+      />
       <div className="m-0 mt-2 flex items-center justify-between">
         <h1 className="font-display text-2xl font-bold">
           <span className="mr-2">{meta.icon}</span>

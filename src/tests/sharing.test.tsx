@@ -2,6 +2,7 @@
 // link you land on when someone shares a trip with you.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
+import { ApiError } from '../api/client'
 import userEvent from '@testing-library/user-event'
 import AcceptInvite from '../pages/AcceptInvite'
 import TripMembers from '../pages/TripMembers'
@@ -72,6 +73,60 @@ describe('the roster adapts to your role', () => {
     // The owner is not offered any — writers ignore the flags entirely.
     expect(screen.getAllByText('Where we’re staying')).toHaveLength(2)
     expect(screen.queryByLabelText('Access for Yuval')).toBeInTheDocument()
+  })
+
+  it('saves a member’s access on a button, not on every click', async () => {
+    mockApi('owner')
+    mocks.patch.mockResolvedValue({ member: {} })
+    renderAt('/trips/trip-1/members', membersRoutes)
+
+    expect(await screen.findByText('Friend')).toBeInTheDocument()
+    // Nothing to save until something is changed.
+    expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument()
+
+    // The viewer's own row is the first of the two 'Flights' toggles; the
+    // second belongs to the invite form below it.
+    await userEvent.click(screen.getAllByLabelText(/Flights/)[0])
+    expect(mocks.patch).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    // Role and all three flags travel together in one patch.
+    expect(mocks.patch).toHaveBeenCalledWith('/trips/trip-1/members/u-friend', {
+      role: 'viewer',
+      can_see_stays: true,
+      can_see_flight: true,
+      can_see_documents: false,
+    })
+    expect(await screen.findByText('Saved.')).toBeInTheDocument()
+  })
+
+  it('keeps the edit and says why when the server refuses it', async () => {
+    mockApi('owner')
+    mocks.patch.mockRejectedValue(
+      new ApiError(400, 'VALIDATION', 'Invalid', ['This trip would be left with no owner.'])
+    )
+    renderAt('/trips/trip-1/members', membersRoutes)
+
+    expect(await screen.findByText('Yuval')).toBeInTheDocument()
+    await userEvent.selectOptions(screen.getByLabelText('Access for Yuval'), 'viewer')
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(await screen.findByText(/left with no owner/)).toBeInTheDocument()
+    // The refusal does not silently snap the control back — the choice is
+    // still there to correct or discard.
+    expect(screen.getByLabelText('Access for Yuval')).toHaveValue('viewer')
+    expect(screen.getByRole('button', { name: 'Discard' })).toBeInTheDocument()
+  })
+
+  it('offers a way back to Essentials, the only screen that leads here', async () => {
+    mockApi('viewer')
+    renderAt('/trips/trip-1/members', membersRoutes)
+
+    expect(await screen.findByRole('link', { name: 'Essentials' })).toHaveAttribute(
+      'href',
+      '/trips/trip-1/essentials'
+    )
   })
 
   it('shows a partner the roster read-only, with a viewer-only invite', async () => {
