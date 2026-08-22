@@ -6,16 +6,17 @@ import { createMemoryStore } from '../src/lib/datastore.memory.js'
 import type { PushPayload, PushResult } from '../src/lib/push.js'
 import { dispatchDueReminders } from '../src/services/reminders.js'
 import { sendTestPush } from '../src/services/push.js'
-import { TEST_CODE, fixture } from './fixture.js'
+import { OWNER_USER, PARTNER_USER, TEST_CODE, fixture } from './fixture.js'
+import { asOwner as auth, useTestTokens } from './auth.js'
 
 process.env.TRIP_ACCESS_CODE = TEST_CODE
 const app = createApp()
-const auth = (r: request.Test) => r.set('Authorization', `Bearer ${TEST_CODE}`)
 
 let store: DataStore
 beforeEach(() => {
   store = createMemoryStore(fixture())
   setDataStore(store)
+  useTestTokens()
   delete process.env.CRON_SECRET
   delete process.env.VAPID_PUBLIC_KEY
   delete process.env.VAPID_PRIVATE_KEY
@@ -40,8 +41,18 @@ function stubSender(outcome: PushResult | ((endpoint: string) => PushResult) = '
   return { calls, send: send as Parameters<typeof dispatchDueReminders>[2] }
 }
 
-const subscribe = (endpoint: string) =>
-  store.savePushSubscription({ endpoint, p256dh: 'key-p256dh', auth: 'key-auth', label: 'iPhone' })
+/** Registers a device for someone — the trip-1 owner unless told otherwise. */
+const subscribe = (endpoint: string, userId: string = OWNER_USER.id) =>
+  store.savePushSubscription({
+    user_id: userId,
+    endpoint,
+    p256dh: 'key-p256dh',
+    auth: 'key-auth',
+    label: 'iPhone',
+  })
+
+const devicesOf = async (userId: string) =>
+  (await store.listPushSubscriptionsForUsers([userId])).map((s) => s.endpoint)
 
 describe('reminders CRUD', () => {
   it('creates a reminder and lists it', async () => {
@@ -168,7 +179,7 @@ describe('dispatch', () => {
       time_zone: 'Asia/Tokyo',
     })
 
-  it('sends due reminders to every subscribed device and marks them sent', async () => {
+  it("sends due reminders to the trip members' devices and marks them sent", async () => {
     const reminder = await due()
     await subscribe('https://push.example.com/a')
     await subscribe('https://push.example.com/b')
@@ -183,6 +194,52 @@ describe('dispatch', () => {
       url: 'https://booking.example.com',
     })
     expect((await store.getReminder('trip-1', reminder.id))!.sent_at).not.toBeNull()
+  })
+
+  // The whole point of push_subscriptions.user_id. Before it, dispatch read
+  // every registered device and sent every due reminder to all of them: a
+  // stranger who turned notifications on received the travellers' reminder
+  // titles, which are free text.
+  it("never reaches a device belonging to someone who isn't on the trip", async () => {
+    await due()
+    await subscribe('https://push.example.com/member')
+    // PARTNER_USER owns trip-2 and is not a member of trip-1.
+    await subscribe('https://push.example.com/stranger', PARTNER_USER.id)
+    const push = stubSender()
+
+    const result = await dispatchDueReminders(store, new Date('2026-09-12T09:04:00Z'), push.send)
+
+    expect(push.calls.map((c) => c.endpoint)).toEqual(['https://push.example.com/member'])
+    expect(result).toMatchObject({ due: 1, subscriptions: 1, sent: 1 })
+  })
+
+  it("sends each trip's reminders only to that trip, in one run", async () => {
+    await due()
+    await store.createReminder({
+      trip_id: 'trip-2',
+      title: 'Someone else’s errand',
+      body: null,
+      url: null,
+      remind_at: '2026-09-12T09:00:00.000Z',
+      time_zone: 'Europe/Rome',
+    })
+    await subscribe('https://push.example.com/mine')
+    await subscribe('https://push.example.com/theirs', PARTNER_USER.id)
+    const push = stubSender()
+
+    const result = await dispatchDueReminders(store, new Date('2026-09-12T09:04:00Z'), push.send)
+
+    expect(result).toMatchObject({ due: 2, subscriptions: 2, sent: 2 })
+    expect(push.calls).toEqual([
+      expect.objectContaining({
+        endpoint: 'https://push.example.com/mine',
+        payload: expect.objectContaining({ title: 'Book the ryokan' }),
+      }),
+      expect.objectContaining({
+        endpoint: 'https://push.example.com/theirs',
+        payload: expect.objectContaining({ title: 'Someone else’s errand' }),
+      }),
+    ])
   })
 
   it('leaves future reminders alone', async () => {
@@ -216,9 +273,7 @@ describe('dispatch', () => {
     const result = await dispatchDueReminders(store, new Date('2026-09-12T09:04:00Z'), push.send)
 
     expect(result).toMatchObject({ sent: 1, dropped: 1 })
-    expect((await store.listPushSubscriptions()).map((s) => s.endpoint)).toEqual([
-      'https://push.example.com/live',
-    ])
+    expect(await devicesOf(OWNER_USER.id)).toEqual(['https://push.example.com/live'])
   })
 })
 
@@ -244,7 +299,10 @@ describe('dispatch endpoint auth', () => {
   })
 
   it('falls back to the trip access code when no cron secret is set', async () => {
-    const res = await auth(request(app).get('/api/reminders/dispatch'))
+    // The deprecated code, not an account: the scheduler has no session.
+    const res = await request(app)
+      .get('/api/reminders/dispatch')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
     expect(res.status).toBe(200)
   })
 })
@@ -277,7 +335,7 @@ describe('push subscriptions', () => {
     expect((await auth(request(app).post('/api/push/subscriptions')).send(body)).status).toBe(201)
     await auth(request(app).post('/api/push/subscriptions')).send({ ...body, p256dh: 'p2' })
 
-    const saved = await (await getDataStore()).listPushSubscriptions()
+    const saved = await (await getDataStore()).listPushSubscriptionsForUsers([OWNER_USER.id])
     expect(saved).toHaveLength(1)
     expect(saved[0].p256dh).toBe('p2')
 
@@ -285,7 +343,7 @@ describe('push subscriptions', () => {
       request(app).delete(`/api/push/subscriptions?endpoint=${encodeURIComponent(body.endpoint)}`)
     )
     expect(removed.status).toBe(204)
-    expect(await (await getDataStore()).listPushSubscriptions()).toHaveLength(0)
+    expect(await devicesOf(OWNER_USER.id)).toHaveLength(0)
   })
 
   it('rejects a malformed subscription', async () => {
@@ -308,11 +366,41 @@ describe('push subscriptions', () => {
     expect(res.status).toBe(503)
   })
 
-  it('sends a test notification to every device', async () => {
-    await subscribe('https://push.example.com/a')
+  it('sends a test notification to my devices, and only mine', async () => {
+    await subscribe('https://push.example.com/mine')
+    await subscribe('https://push.example.com/theirs', PARTNER_USER.id)
     const push = stubSender()
-    const result = await sendTestPush(store, push.send as Parameters<typeof sendTestPush>[1])
+    const result = await sendTestPush(
+      store,
+      OWNER_USER.id,
+      push.send as Parameters<typeof sendTestPush>[2]
+    )
     expect(result).toMatchObject({ subscriptions: 1, sent: 1, failed: 0 })
+    expect(push.calls.map((c) => c.endpoint)).toEqual(['https://push.example.com/mine'])
     expect(push.calls[0].payload.title).toMatch(/test/i)
+  })
+
+  it("refuses to unregister someone else's device", async () => {
+    await subscribe('https://push.example.com/theirs', PARTNER_USER.id)
+    const res = await auth(
+      request(app).delete(
+        `/api/push/subscriptions?endpoint=${encodeURIComponent('https://push.example.com/theirs')}`
+      )
+    )
+    // 404, not 403: there is nothing to confirm to a caller it isn't theirs.
+    expect(res.status).toBe(404)
+    expect(await devicesOf(PARTNER_USER.id)).toHaveLength(1)
+  })
+
+  it('re-registering moves the device to whoever is signed in now', async () => {
+    await subscribe('https://push.example.com/shared', PARTNER_USER.id)
+    const res = await auth(request(app).post('/api/push/subscriptions')).send({
+      endpoint: 'https://push.example.com/shared',
+      p256dh: 'p1',
+      auth: 'a1',
+    })
+    expect(res.status).toBe(201)
+    expect(await devicesOf(OWNER_USER.id)).toEqual(['https://push.example.com/shared'])
+    expect(await devicesOf(PARTNER_USER.id)).toHaveLength(0)
   })
 })

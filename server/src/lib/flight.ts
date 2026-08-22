@@ -1,6 +1,11 @@
-// Flight facts, from the Ethiopian Airlines e-tickets (booking AOXIUF).
-// Trip-level metadata that isn't in the DB; served only via the authenticated
-// /api/trip bundle so the booking reference never ships in the public JS bundle.
+// The shape of a trip's flight, and the one rule for reading it back.
+//
+// This used to be a module constant holding the travellers' own Ethiopian
+// Airlines booking, served with every trip bundle — which was fine while there
+// was one trip and became indefensible the moment anyone could sign up: a
+// stranger's brand-new trip to Rome came with someone else's booking reference
+// on it. The data now lives on the trip it belongs to (`trips.flight`, jsonb,
+// migration 0017) and a trip without one simply has none.
 //
 // Times are absolute instants; each direction also carries the IANA zone of its
 // departure/arrival airport so the ticket's local times render identically on a
@@ -33,27 +38,49 @@ export interface FlightInfo {
   return_flight: FlightItinerary
 }
 
-export const FLIGHT: FlightInfo = {
-  airline: 'Ethiopian Airlines',
-  booking_ref: 'AOXIUF',
-  outbound: {
-    depart_at: '2026-09-18T15:35:00+03:00',
-    depart_tz: 'Asia/Jerusalem',
-    arrive_at: '2026-09-19T19:40:00+09:00',
-    arrive_tz: 'Asia/Tokyo',
-    legs: [
-      { flight_no: 'ET 419', from: 'Tel Aviv (TLV)', to: 'Addis Ababa (ADD)' },
-      { flight_no: 'ET 672', from: 'Addis Ababa (ADD)', to: 'Narita (NRT)' },
-    ],
-  },
-  return_flight: {
-    depart_at: '2026-10-16T20:40:00+09:00',
-    depart_tz: 'Asia/Tokyo',
-    arrive_at: '2026-10-17T14:35:00+03:00',
-    arrive_tz: 'Asia/Jerusalem',
-    legs: [
-      { flight_no: 'ET 673', from: 'Narita (NRT)', to: 'Addis Ababa (ADD)' },
-      { flight_no: 'ET 418', from: 'Addis Ababa (ADD)', to: 'Tel Aviv (TLV)' },
-    ],
-  },
+/**
+ * A `trips.flight` jsonb value, or null when there isn't a usable one.
+ *
+ * jsonb is schemaless, so this is the only place the shape is enforced: a row
+ * hand-edited in the SQL editor, or written before a field existed, must not
+ * reach the countdown as a half-object. Anything that doesn't hold up reads as
+ * "no flight booked", which the UI already has a card for.
+ */
+export function normalizeFlight(value: unknown): FlightInfo | null {
+  if (!value || typeof value !== 'object') return null
+  const flight = value as Record<string, unknown>
+  const outbound = normalizeItinerary(flight.outbound)
+  const returnFlight = normalizeItinerary(flight.return_flight)
+  if (!outbound || !returnFlight) return null
+  if (typeof flight.airline !== 'string' || typeof flight.booking_ref !== 'string') return null
+  return {
+    airline: flight.airline,
+    booking_ref: flight.booking_ref,
+    outbound,
+    return_flight: returnFlight,
+  }
+}
+
+function normalizeItinerary(value: unknown): FlightItinerary | null {
+  if (!value || typeof value !== 'object') return null
+  const itinerary = value as Record<string, unknown>
+  const strings = ['depart_at', 'depart_tz', 'arrive_at', 'arrive_tz'] as const
+  if (strings.some((key) => typeof itinerary[key] !== 'string')) return null
+  if (!Array.isArray(itinerary.legs)) return null
+  const legs = itinerary.legs.filter(
+    (leg): leg is FlightLeg =>
+      !!leg &&
+      typeof leg === 'object' &&
+      typeof (leg as FlightLeg).flight_no === 'string' &&
+      typeof (leg as FlightLeg).from === 'string' &&
+      typeof (leg as FlightLeg).to === 'string'
+  )
+  if (!legs.length) return null
+  return {
+    depart_at: itinerary.depart_at as string,
+    depart_tz: itinerary.depart_tz as string,
+    arrive_at: itinerary.arrive_at as string,
+    arrive_tz: itinerary.arrive_tz as string,
+    legs,
+  }
 }

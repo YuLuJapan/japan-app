@@ -133,6 +133,7 @@ export async function deleteReminder(store: DataStore, tripId: string, reminderI
 
 export interface DispatchResult {
   due: number
+  /** Distinct devices addressed by this run — i.e. the trips' members' phones. */
   subscriptions: number
   sent: number
   failed: number
@@ -143,6 +144,17 @@ export interface DispatchResult {
  * Fire every reminder whose time has passed. Called by the cron pinger every
  * few minutes — see README "Reminders & notifications". Claims first, so a
  * slow run overlapping the next one can't double-send.
+ *
+ * Each reminder goes to the people on *its* trip, and to nobody else. This
+ * used to read every registered device and send every due reminder to all of
+ * them, which was invisible while the only two devices belonged to the only
+ * two travellers and became a cross-account leak the moment anyone else
+ * signed up: reminder titles are free text, so it leaked content and not just
+ * the fact that a schedule exists.
+ *
+ * Everyone on the trip is notified, viewers included. A viewer can already
+ * read the reminder list through the API, so this adds no visibility — and a
+ * device only ever hears about a trip after its owner accepted an invite to it.
  */
 export async function dispatchDueReminders(
   store: DataStore,
@@ -159,26 +171,40 @@ export async function dispatchDueReminders(
   }
   if (!due.length) return result
 
-  const subscriptions = await store.listPushSubscriptions()
-  result.subscriptions = subscriptions.length
+  // Group by trip so a trip's membership and devices are resolved once, not
+  // once per reminder — a batch is usually several reminders on one trip.
+  const byTrip = new Map<string, Reminder[]>()
+  for (const reminder of due) {
+    const bucket = byTrip.get(reminder.trip_id)
+    if (bucket) bucket.push(reminder)
+    else byTrip.set(reminder.trip_id, [reminder])
+  }
 
   const dropped = new Set<string>()
-  for (const reminder of due) {
-    for (const subscription of subscriptions) {
-      if (dropped.has(subscription.endpoint)) continue
-      const outcome = await send(subscription, {
-        title: reminder.title,
-        body: reminder.body,
-        url: reminder.url,
-        tag: `reminder-${reminder.id}`,
-      })
-      if (outcome === 'sent') result.sent++
-      else if (outcome === 'gone') {
-        dropped.add(subscription.endpoint)
-        await store.deletePushSubscription(subscription.endpoint)
-        result.dropped++
-      } else result.failed++
+  const targeted = new Set<string>()
+  for (const [tripId, reminders] of byTrip) {
+    const members = await store.listTripMembers(tripId)
+    const subscriptions = await store.listPushSubscriptionsForUsers(members.map((m) => m.user_id))
+    for (const reminder of reminders) {
+      for (const subscription of subscriptions) {
+        if (dropped.has(subscription.endpoint)) continue
+        targeted.add(subscription.endpoint)
+        const outcome = await send(subscription, {
+          title: reminder.title,
+          body: reminder.body,
+          url: reminder.url,
+          tag: `reminder-${reminder.id}`,
+        })
+        if (outcome === 'sent') result.sent++
+        else if (outcome === 'gone') {
+          dropped.add(subscription.endpoint)
+          await store.deletePushSubscription(subscription.user_id, subscription.endpoint)
+          result.dropped++
+        } else result.failed++
+      }
     }
   }
+  // Distinct devices this run actually addressed, not every device on record.
+  result.subscriptions = targeted.size
   return result
 }

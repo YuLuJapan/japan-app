@@ -1,5 +1,6 @@
 // The "turn notifications on for this phone" card. Each device subscribes
-// separately, so both travelers get their own row and both get every reminder.
+// separately, against the account signed in on it, and receives the reminders
+// of every trip that account is on.
 //
 // The awkward cases it has to explain:
 //  - iOS only allows web push from the Home Screen app, never a Safari tab
@@ -7,7 +8,12 @@
 //  - the server may have no VAPID keys yet (see README → Reminders)
 import { useEffect, useState } from 'react'
 import { usePushKey } from '../api/hooks'
-import { useRegisterPush, useSendTestPush, useUnregisterPush } from '../api/mutations'
+import {
+  syncPushSubscription,
+  useRegisterPush,
+  useSendTestPush,
+  useUnregisterPush,
+} from '../api/mutations'
 import {
   PushError,
   currentSubscription,
@@ -16,6 +22,7 @@ import {
   enablePush,
   notificationPermission,
   pushSupport,
+  subscriptionPayload,
 } from '../lib/push'
 
 export function NotificationSetup() {
@@ -33,7 +40,16 @@ export function NotificationSetup() {
     let active = true
     currentSubscription()
       .then((subscription) => {
-        if (active) setEnabled(Boolean(subscription) && notificationPermission() === 'granted')
+        const on = Boolean(subscription) && notificationPermission() === 'granted'
+        if (active) setEnabled(on)
+        // Tell the server this device is *ours* — see syncPushSubscription.
+        // Deliberately not awaited and deliberately silent: it corrects
+        // bookkeeping, and a failure is not something to put on this card.
+        if (on && subscription) {
+          syncPushSubscription(subscriptionPayload(subscription, deviceLabel())).catch(
+            () => undefined
+          )
+        }
       })
       .catch(() => active && setEnabled(false))
     return () => {

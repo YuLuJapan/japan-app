@@ -12,13 +12,13 @@ Status: **awaiting approval — no implementation yet.**
 
 Five properties of today's codebase drive every decision below.
 
-| Finding | Where | Consequence |
-| --- | --- | --- |
-| `zones` and `places` are a **global catalog** — `zones` has no `trip_id`, `places` hang off zones | `supabase/migrations/0001_init.sql`, `datastore.ts` | Every trip shares one place list. With users, this is a cross-tenant leak by construction. |
-| ~8 route families are addressed by **bare resource id** (`/places/:id`, `/tips/:id`, `/files/:id`, `/itinerary/:id`, `/shopping/:id`, `/steps/:id`, `/reminders/:id`, `/zones/:id`) | `server/src/routes/*` | Each is an IDOR the moment more than one tenant exists. |
-| `push_subscriptions` has **no user column**; dispatch broadcasts every due reminder to every device | `services/reminders.ts:158`, `datastore.ts` | Shipping accounts without fixing this leaks reminder titles across accounts. |
-| `FLIGHT` is a **hardcoded module constant** (booking ref `AOXIUF`) served with every trip bundle | `lib/flight.ts`, `services/trips.ts` | Every new signup would receive the owners' real booking reference. |
-| **No `country` field** exists anywhere in the schema | — | The auto-title needs a new source of truth. |
+| Finding                                                                                                                                                                             | Where                                               | Consequence                                                                                |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `zones` and `places` are a **global catalog** — `zones` has no `trip_id`, `places` hang off zones                                                                                   | `supabase/migrations/0001_init.sql`, `datastore.ts` | Every trip shares one place list. With users, this is a cross-tenant leak by construction. |
+| ~8 route families are addressed by **bare resource id** (`/places/:id`, `/tips/:id`, `/files/:id`, `/itinerary/:id`, `/shopping/:id`, `/steps/:id`, `/reminders/:id`, `/zones/:id`) | `server/src/routes/*`                               | Each is an IDOR the moment more than one tenant exists.                                    |
+| `push_subscriptions` has **no user column**; dispatch broadcasts every due reminder to every device                                                                                 | `services/reminders.ts:158`, `datastore.ts`         | Shipping accounts without fixing this leaks reminder titles across accounts.               |
+| `FLIGHT` is a **hardcoded module constant** (booking ref `AOXIUF`) served with every trip bundle                                                                                    | `lib/flight.ts`, `services/trips.ts`                | Every new signup would receive the owners' real booking reference.                         |
+| **No `country` field** exists anywhere in the schema                                                                                                                                | —                                                   | The auto-title needs a new source of truth.                                                |
 
 Two things already exist and are reused rather than rebuilt: Supabase Auth JWT
 verification (`lib/supabaseAuth.ts`) and the browser Supabase client
@@ -30,7 +30,7 @@ verification (`lib/supabaseAuth.ts`) and the browser Supabase client
 2. **Access codes kept as deprecated compat** behind `LEGACY_ACCESS_CODES`, removed in phase 6.
 3. **Viewer content visibility is per-member.** The trip owner independently
    toggles `stays`, `flight` and `documents` for each viewer. Role controls
-   *verbs*; three flags control *content*. (Revised from the initial
+   _verbs_; three flags control _content_. (Revised from the initial
    "viewer sees everything" — see §2 Layer 2b.)
 4. **Explicit `trips.country`** field feeds the auto-title.
 
@@ -40,7 +40,7 @@ verification (`lib/supabaseAuth.ts`) and the browser Supabase client
 
 Six layers. Each one is a module boundary, not just a concept.
 
-### Layer 1 — Identity: *who you are*
+### Layer 1 — Identity: _who you are_
 
 `authMiddleware` today does authentication **and** authorization. That coupling
 is why a new route has to be guarded by hand. Split it:
@@ -48,12 +48,11 @@ is why a new route has to be guarded by hand. Split it:
 ```ts
 // server/src/lib/identity.ts
 export type Principal =
-  | { kind: 'user'; userId: string; email: string }
-  | { kind: 'legacy'; code: 'owner' | 'guest' }   // deprecated, phase 6 removes
+  { kind: 'user'; userId: string; email: string } | { kind: 'legacy'; code: 'owner' | 'guest' } // deprecated, phase 6 removes
 
 export async function resolvePrincipal(
   token: string,
-  verify: TokenVerifier = verifySupabaseJwt   // injectable — same idiom as PushSender
+  verify: TokenVerifier = verifySupabaseJwt // injectable — same idiom as PushSender
 ): Promise<Principal | null>
 ```
 
@@ -82,10 +81,10 @@ request — no DB trigger, which keeps memory/Supabase parity.
 **Token caching (do not skip).** Verifying a JWT is a network round-trip to
 Supabase. Doing it per request adds latency to every call. A bounded in-process
 TTL cache (60s, ~500 entries, keyed by token) fixes it; Vercel functions are
-warm-reused, so the hit rate is high. Cache the *failure* too, briefly, so a
+warm-reused, so the hit rate is high. Cache the _failure_ too, briefly, so a
 bad token can't be used to hammer Supabase.
 
-### Layer 2 — Membership: *what you can reach*
+### Layer 2 — Membership: _what you can reach_
 
 ```sql
 create table trip_members (
@@ -101,18 +100,18 @@ create index trip_members_user_idx on trip_members (user_id);
 Capability matrix, in one pure module (`lib/permissions.ts`) so no route ever
 writes `role === 'owner'` inline:
 
-| capability | owner | partner | viewer |
-| --- | :-: | :-: | :-: |
-| read trip content (zones, places, day plan, shopping) | ✓ | ✓ | ✓ |
-| read stays · flight · documents | ✓ | ✓ | **per-member flags** |
-| create / edit / delete content | ✓ | ✓ | ✗ |
-| edit trip dates, title, country | ✓ | ✓ | ✗ |
-| invite a **viewer** (and set that invite's visibility) | ✓ | ✓ | ✗ |
-| invite a **partner** | ✓ | ✗ | ✗ |
-| change a member's role or visibility · remove a member | ✓ | ✗ | ✗ |
-| revoke an invite | any | **own only** | ✗ |
-| delete trip | ✓ | ✗ | ✗ |
-| leave trip | — | ✓ | ✓ |
+| capability                                             | owner |   partner    |        viewer        |
+| ------------------------------------------------------ | :---: | :----------: | :------------------: |
+| read trip content (zones, places, day plan, shopping)  |   ✓   |      ✓       |          ✓           |
+| read stays · flight · documents                        |   ✓   |      ✓       | **per-member flags** |
+| create / edit / delete content                         |   ✓   |      ✓       |          ✗           |
+| edit trip dates, title, country                        |   ✓   |      ✓       |          ✗           |
+| invite a **viewer** (and set that invite's visibility) |   ✓   |      ✓       |          ✗           |
+| invite a **partner**                                   |   ✓   |      ✗       |          ✗           |
+| change a member's role or visibility · remove a member |   ✓   |      ✗       |          ✗           |
+| revoke an invite                                       |  any  | **own only** |          ✗           |
+| delete trip                                            |   ✓   |      ✗       |          ✗           |
+| leave trip                                             |   —   |      ✓       |          ✓           |
 
 ```ts
 // server/src/lib/permissions.ts — pure, exhaustively unit-tested
@@ -120,8 +119,8 @@ export type TripRole = 'owner' | 'partner' | 'viewer'
 /** `owner` is deliberately ungrantable by invite — see the table's check constraint. */
 export type InviteRole = Exclude<TripRole, 'owner'>
 
-export const canWrite        = (r: TripRole) => r === 'owner' || r === 'partner'
-export const canDeleteTrip   = (r: TripRole) => r === 'owner'
+export const canWrite = (r: TripRole) => r === 'owner' || r === 'partner'
+export const canDeleteTrip = (r: TripRole) => r === 'owner'
 
 /** Editing the member list itself — role changes, visibility changes, removal. */
 export const canManageMembers = (r: TripRole) => r === 'owner'
@@ -141,8 +140,8 @@ the loop. The schema already makes `owner` ungrantable by invite
 (`check (role in ('partner','viewer'))`), so this closes the remaining hole. It
 is a one-line rule and a four-row truth table in the tests.
 
-**A deliberate asymmetry:** a partner *sets* visibility on an invite they issue,
-but cannot *change* it afterwards — issuing an invite is one act, editing a
+**A deliberate asymmetry:** a partner _sets_ visibility on an invite they issue,
+but cannot _change_ it afterwards — issuing an invite is one act, editing a
 member is another, and only the latter is owner-gated. The alternative (partners
 get the defaults and may not customise) is more restrictive without being safer,
 since the partner chose to bring that person in either way.
@@ -152,7 +151,7 @@ the last owner cannot be demoted, removed, or leave. A trip with zero members
 is invisible to everyone forever, so this is a data-integrity rule, not a
 politeness.
 
-### Layer 2b — Visibility: *what a viewer is shown*
+### Layer 2b — Visibility: _what a viewer is shown_
 
 Role answers "which verbs?". A second, independent question is "which
 content?" — and the answer is per-member, chosen by the trip owner.
@@ -169,7 +168,11 @@ along with the trip context:
 
 ```ts
 // server/src/lib/trip-view.ts  (generalises today's lib/guest-view.ts)
-export interface TripView { stays: boolean; flight: boolean; documents: boolean }
+export interface TripView {
+  stays: boolean
+  flight: boolean
+  documents: boolean
+}
 
 export const FULL_VIEW: TripView = { stays: true, flight: true, documents: true }
 
@@ -196,15 +199,15 @@ already threaded through six services today — they are just fed by
 
 Same map the existing guest view already covers, now driven by `view` instead of a role:
 
-| path | rule |
-| --- | --- |
-| `GET place/:id` | 404 a stay when `!view.stays` |
-| zone detail · zone place list | filter stays out |
-| `countPlacesByCategory` | zero the `hotel` count so the category card never renders |
-| trip bundle | drop the `flight` block when `!view.flight` |
-| search | drop stays **and** tips whose parent is a stay |
-| itinerary | null a stay's `place_id` so the day plan doesn't link into a 404 |
-| files list · file content | see below |
+| path                          | rule                                                             |
+| ----------------------------- | ---------------------------------------------------------------- |
+| `GET place/:id`               | 404 a stay when `!view.stays`                                    |
+| zone detail · zone place list | filter stays out                                                 |
+| `countPlacesByCategory`       | zero the `hotel` count so the category card never renders        |
+| trip bundle                   | drop the `flight` block when `!view.flight`                      |
+| search                        | drop stays **and** tips whose parent is a stay                   |
+| itinerary                     | null a stay's `place_id` so the day plan doesn't link into a 404 |
+| files list · file content     | see below                                                        |
 
 #### The one genuinely new problem
 
@@ -224,7 +227,7 @@ otherwise, the members screen says so in one line. This matches the reasoning
 already recorded in `guest-view.ts` — withhold a whole category instead of
 redacting content you cannot reliably classify.
 
-*Upgrade path if that isn't good enough:* a `files.kind` tag
+_Upgrade path if that isn't good enough:_ a `files.kind` tag
 (`stay | flight | other`) set at upload, letting the flight flag reach
 trip-level documents. Deferred — it adds a field to every upload for a case one
 sentence of UI copy covers.
@@ -237,7 +240,7 @@ contents the owner cannot audit at a glance (confirmation numbers, prices,
 passport scans). All three are shown as toggles at invite time, so it is always
 a deliberate choice rather than a default someone discovers later.
 
-### Layer 3 — Scope: *structural isolation*
+### Layer 3 — Scope: _structural isolation_
 
 Three reinforcing mechanisms. Any one alone is a promise; together they're a guarantee.
 
@@ -245,7 +248,7 @@ Three reinforcing mechanisms. Any one alone is a promise; together they're a gua
 
 ```ts
 const tripScoped = Router({ mergeParams: true })
-tripScoped.use(requireTripAccess)     // resolves membership → req.tripAccess, 404 if none
+tripScoped.use(requireTripAccess) // resolves membership → req.tripAccess, 404 if none
 app.use('/api/trips/:tripId', tripScoped)
 ```
 
@@ -340,7 +343,7 @@ Deliberate choices:
 - **Partners may issue viewer invites only** (`canInvite`), and revoke only their own. The members screen shows them the roster read-only, with the invite button limited to the viewer role.
 - **Single-use, 14-day expiry, revocable.**
 - `GET /api/invites/:token` returns a deliberately minimal preview — trip display title, inviter name, offered role **and the visibility it grants**. Not trip content: an unaccepted invite is not access.
-- **Idempotent re-accept**: already a member → success, and never downgrade an existing higher role *or narrower visibility*.
+- **Idempotent re-accept**: already a member → success, and never downgrade an existing higher role _or narrower visibility_.
 - The invite carries the visibility it promises; accepting copies those flags onto the member row, after which the owner changes them on the members screen.
 - Token is 256-bit, so no accept rate-limiting is warranted.
 
@@ -357,16 +360,16 @@ two when an invited user's email matches a traveller entry.
 
 ```ts
 // server/src/lib/trip-title.ts — pure, no I/O
-export function displayTitle(trip: Pick<Trip,'name'|'people'|'country'>): string
+export function displayTitle(trip: Pick<Trip, 'name' | 'people' | 'country'>): string
 ```
 
-| condition | result |
-| --- | --- |
-| `name` non-empty | `name` |
-| names + country | `Alex and Sam in Japan` |
-| country only | `Trip to Japan` |
-| names only | `Alex and Sam's trip` |
-| neither | `Untitled trip` |
+| condition        | result                  |
+| ---------------- | ----------------------- |
+| `name` non-empty | `name`                  |
+| names + country  | `Alex and Sam in Japan` |
+| country only     | `Trip to Japan`         |
+| names only       | `Alex and Sam's trip`   |
+| neither          | `Untitled trip`         |
 
 `formatNames`: 1 → `Alex` · 2 → `Alex and Sam` · 3 → `Alex, Sam and Jo` · 4+ →
 `Alex, Sam and 2 others`.
@@ -380,7 +383,7 @@ empty.
 
 1. **Push/reminder privacy (non-optional).** `push_subscriptions.user_id`; dispatch resolves due reminder → trip's members → their subscriptions via a new `listPushSubscriptionsForUsers(userIds)`. Without it, accounts ship with a cross-account notification leak.
 2. **The hardcoded flight.** Move `FLIGHT` into `trips.flight jsonb`, seeded onto the legacy trip only. (A `trip_flights` table is the alternative if legs ever become individually editable; jsonb is one migration and zero new store methods, so start there.)
-3. **`lib/guest-view.ts` → `lib/trip-view.ts`.** Per-member visibility keeps this machinery alive; it is generalised rather than deleted (§2 Layer 2b). The six services stop taking loose `includeStays` / `includeFlight` / `includeFiles` booleans and take one `TripContext` instead. What phase 6 *does* delete is the `isGuest(req)` call sites that currently feed them.
+3. **`lib/guest-view.ts` → `lib/trip-view.ts`.** Per-member visibility keeps this machinery alive; it is generalised rather than deleted (§2 Layer 2b). The six services stop taking loose `includeStays` / `includeFlight` / `includeFiles` booleans and take one `TripContext` instead. What phase 6 _does_ delete is the `isGuest(req)` call sites that currently feed them.
 
 ---
 
@@ -390,14 +393,22 @@ Live Supabase, **no migration runner**, real data in it. Check the highest
 migration number on `main` before naming these (CLAUDE.md warns about parallel
 branches claiming the same number).
 
-| file | contents |
-| --- | --- |
-| `0010_profiles.sql` | profiles table + trigger |
-| `0011_trip_members.sql` | members table + index + the three `can_see_*` visibility columns |
-| `0012_zone_trip_scope.sql` | **the risky one** — see below |
-| `0013_trip_invites.sql` | invites table |
-| `0014_trip_title_country.sql` | `name` drop-not-null, `country`, `flight jsonb` |
-| `0015_push_user_scope.sql` | `push_subscriptions.user_id` |
+| file                           | contents                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `0010_trip_local_currency.sql` | not this feature — the drift found on the way in (§below)                                         |
+| `0011_profiles.sql`            | profiles table + trigger                                                                          |
+| `0012_trip_members.sql`        | members table + index + the three `can_see_*` visibility columns                                  |
+| `0013_zone_trip_scope.sql`     | **the risky one** — see below                                                                     |
+| `0014_trip_invites.sql`        | invites table                                                                                     |
+| `0015_trip_title_country.sql`  | `name` drop-not-null, `country`                                                                   |
+| `0016_push_user_scope.sql`     | `push_subscriptions.user_id`, and the backfill that attributes the two devices predating accounts |
+| `0017_trip_flight.sql`         | `trips.flight jsonb`, seeded onto the legacy trip only                                            |
+
+Numbered one higher than planned throughout: `0010` was already taken by the
+schema drift this feature turned up (`trips.local_currency`, applied straight to
+production in August with no migration file, so the repo could not rebuild the
+database). The flight column moved out of the title migration into its own,
+since it ships in a different phase.
 
 **`0012` in four steps**, because a zone reachable from two trips can't simply
 get one `trip_id`:
@@ -416,22 +427,22 @@ against `auth.users`, and inserts `owner` memberships for every existing trip.
 Its post-condition is asserted, not assumed: **no trip may have zero members.**
 
 **Order is load-bearing:** apply migrations → run backfill → verify the invariant
-→ *then* deploy code. The new code requires memberships to exist; deploying it
+→ _then_ deploy code. The new code requires memberships to exist; deploying it
 first makes every existing trip invisible.
 
 ---
 
 ## 4. Frontend
 
-| file | change |
-| --- | --- |
-| `src/lib/auth.tsx` *(new)* | `AuthProvider` — signed-in user, Supabase session, token refresh (the `onAuthStateChange` sync currently in `session.tsx` moves here), sign-out |
-| `src/lib/session.tsx` → `trip-access.tsx` | `TripAccessProvider` keyed on `:tripId`, fed by `my_role` from `GET /api/trips/:tripId`. **`useCanEdit()` keeps its signature — call sites unchanged.** `useCanSeeBookings()` deleted |
-| `src/pages/SignIn.tsx` | replaces `AccessGate`: Google button, email/password (sign-in · sign-up · reset), access code collapsed under a deprecated disclosure |
-| `src/pages/TripMembers.tsx` *(new)* | invite (role picker, **three visibility toggles**, copy link), member list, role change, per-viewer visibility edit, remove, leave. Partners see the roster read-only with a viewer-only invite button. Carries the one-line note about trip-level documents (§2 Layer 2b) |
-| `src/pages/AcceptInvite.tsx` *(new)* | invite preview (trip, inviter, role, what you'll be shown) → sign in → accept |
-| `src/router.tsx` | `RequireAuth` replaces `RequireAccess`; `RequireOwner` → `RequireWrite` (owner\|partner) plus `RequireTripOwner` for the members page; public `/invite/:token` |
-| `src/api/client.ts` | bearer token from the Supabase session (legacy localStorage code path retained); 401 → `/signin` |
+| file                                      | change                                                                                                                                                                                                                                                                     |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/auth.tsx` _(new)_                | `AuthProvider` — signed-in user, Supabase session, token refresh (the `onAuthStateChange` sync currently in `session.tsx` moves here), sign-out                                                                                                                            |
+| `src/lib/session.tsx` → `trip-access.tsx` | `TripAccessProvider` keyed on `:tripId`, fed by `my_role` from `GET /api/trips/:tripId`. **`useCanEdit()` keeps its signature — call sites unchanged.** `useCanSeeBookings()` deleted                                                                                      |
+| `src/pages/SignIn.tsx`                    | replaces `AccessGate`: Google button, email/password (sign-in · sign-up · reset), access code collapsed under a deprecated disclosure                                                                                                                                      |
+| `src/pages/TripMembers.tsx` _(new)_       | invite (role picker, **three visibility toggles**, copy link), member list, role change, per-viewer visibility edit, remove, leave. Partners see the roster read-only with a viewer-only invite button. Carries the one-line note about trip-level documents (§2 Layer 2b) |
+| `src/pages/AcceptInvite.tsx` _(new)_      | invite preview (trip, inviter, role, what you'll be shown) → sign in → accept                                                                                                                                                                                              |
+| `src/router.tsx`                          | `RequireAuth` replaces `RequireAccess`; `RequireOwner` → `RequireWrite` (owner\|partner) plus `RequireTripOwner` for the members page; public `/invite/:token`                                                                                                             |
+| `src/api/client.ts`                       | bearer token from the Supabase session (legacy localStorage code path retained); 401 → `/signin`                                                                                                                                                                           |
 
 ---
 
@@ -463,15 +474,29 @@ already uses for `PushSender`. Reuse it rather than inventing a mock layer.
 
 ## 6. Phasing — six PRs, each green and deployable
 
-| # | Phase | Ships | Risk | ~files |
-| --- | --- | --- | :-: | :-: |
-| 1 | **Identity** | profiles, Google + password sign-in, `req.principal`, `/api/me`. Access codes untouched | low | 8 |
-| 2 | **Membership** | `trip_members`, `/api/trips` filtered to yours, `my_role`, backfill + invariant check | med | 10 |
-| 3a | **Membership boundary** | Nested `/api/trips/:tripId` router, `requireTripAccess` mounted once, delete `getDefaultTrip` + the legacy singleton routes, introduce `TripContext` (view still fed by `isGuest`). No migration | med | ~20 |
-| 3b | **Resource scoping** | `tripId` as first arg on every trip-owned DataStore method, `zones.trip_id` + the duplication migration, tenancy sweep completed | **high** | ~30 |
-| 4 | **Sharing** | invites, members UI, role enforcement, per-member visibility flags + `trip-view.ts`, visibility matrix test | low | 20 |
-| 5 | **Title** | nullable `name`, `country`, `display_title` | low | 8 |
-| 6 | **Cleanup** | push per-user, flight per-trip, remove access codes + `guest-view.ts` | med | 12 |
+| #   | Phase                       | Ships                                                                                                                                                                                            |   Risk   | ~files |
+| --- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :------: | :----: |
+| 1   | **Identity**                | profiles, Google + password sign-in, `req.principal`, `/api/me`. Access codes untouched                                                                                                          |   low    |   8    |
+| 2   | **Membership**              | `trip_members`, `/api/trips` filtered to yours, `my_role`, backfill + invariant check                                                                                                            |   med    |   10   |
+| 3a  | **Membership boundary**     | Nested `/api/trips/:tripId` router, `requireTripAccess` mounted once, delete `getDefaultTrip` + the legacy singleton routes, introduce `TripContext` (view still fed by `isGuest`). No migration |   med    |  ~20   |
+| 3b  | **Resource scoping**        | `tripId` as first arg on every trip-owned DataStore method, `zones.trip_id` + the duplication migration, tenancy sweep completed                                                                 | **high** |  ~30   |
+| 4   | **Sharing**                 | invites, members UI, role enforcement, per-member visibility flags + `trip-view.ts`, visibility matrix test                                                                                      |   low    |   20   |
+| 5   | **Title**                   | nullable `name`, `country`, `display_title`                                                                                                                                                      |   low    |   8    |
+| 6a  | **De-globalise**            | `push_subscriptions.user_id` + dispatch by membership, `trips.flight`                                                                                                                            |   med    |   16   |
+| 6b  | **Remove the access codes** | `TRIP_ACCESS_CODE` / `TRIP_GUEST_CODE`, `Principal.legacy`, `LEGACY_ACCESS`, `GUEST_VIEW`, `isGuest`, `guest-view.ts`, the frontend `Role` plumbing                                              |   med    |  ~45   |
+
+### Why phase 6 is split
+
+Same reason as phase 3, in the same shape. 6a is two genuine data changes with
+a live migration each and a security fix that should not wait behind anything.
+6b is a deletion whose _server_ diff is small and whose _test_ diff is not:
+every server test authenticates with the shared code today, so removing it
+touches every test file. Merged, the leak fix would be reviewed alongside 250
+mechanical bearer-token edits.
+
+6a first, because the push leak is live and reachable — a third account
+registered while phase 5 was in review, and any device it registers currently
+receives the travellers' reminder titles.
 
 ### Why phase 3 is split
 
@@ -479,7 +504,7 @@ Unsplit it is ~45 files, and the two halves have opposite review profiles. The
 DataStore signature change is a huge mechanical diff — ~30 methods across two
 implementations and every call site — that no one reads line by line, and that
 `tsc` plus the suite verify better than a human can. The route nesting is small
-in line count but is *where the security boundary actually lands*. Merged, the
+in line count but is _where the security boundary actually lands_. Merged, the
 200 lines that matter drown in the 2000 that don't.
 
 **Order matters, and only one order avoids throwaway code.** Nesting first means
@@ -487,8 +512,8 @@ each route reads `:tripId` straight from its path. Scoping first would need a
 `findTripIdForPlace`-style resolver per entity purely to feed the new signatures
 — a bridge built and then demolished.
 
-**3a does not finish the job, and says so.** It enforces *"you are a member of
-this trip"*, not *"this resource belongs to this trip"* —
+**3a does not finish the job, and says so.** It enforces _"you are a member of
+this trip"_, not _"this resource belongs to this trip"_ —
 `/trips/A/places/<place-in-B>` still resolves after 3a. So the full sweep test is
 written in 3a with the cross-resource cases as `it.todo`, and **3b is the PR that
 turns them on**. Self-documenting: the commit that removes the todos is the
