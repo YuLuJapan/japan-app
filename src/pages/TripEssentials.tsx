@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { useTrip } from '../api/hooks'
 import { CurrencyCalculator } from '../components/CurrencyCalculator'
 
 // Curated static reference for the trip. Phrases are romaji (Latin script) +
@@ -206,6 +207,9 @@ const PACK_EXTRA_KEY = 'trip_packing_extra_v1'
 
 export default function TripEssentials() {
   const { tripId = '' } = useParams<{ tripId: string }>()
+  // The calculator's two sides, chosen on the trip sheet. Until the bundle
+  // lands, the pair every trip had before it was a choice.
+  const trip = useTrip(tripId).data?.trip
   const [checked, setChecked] = useState<Record<string, boolean>>({})
   const [extra, setExtra] = useState<string[]>([])
   const [packInput, setPackInput] = useState('')
@@ -266,7 +270,10 @@ export default function TripEssentials() {
         </h1>
       </div>
 
-      <CurrencyCalculator />
+      <CurrencyCalculator
+        local={trip?.local_currency ?? 'JPY'}
+        home={trip?.home_currencies ?? ['USD', 'ILS']}
+      />
 
       <Link
         to={`/trips/${tripId}/members`}

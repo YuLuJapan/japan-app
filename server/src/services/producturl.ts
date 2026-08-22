@@ -429,14 +429,14 @@ async function toYen(
   const currency = price.currency ?? 'JPY' // a Japanese shop quoting no currency means yen
   if (currency === 'JPY') return { price_yen: Math.round(price.amount), price_note: null }
 
-  if (currency === 'USD' || currency === 'ILS') {
-    try {
-      const rates = await getRates(store)
-      const perYen = currency === 'USD' ? rates.usd : rates.ils
-      if (perYen > 0) return { price_yen: Math.round(price.amount / perYen), price_note: null }
-    } catch {
-      /* no rate available — fall through to the note */
-    }
+  try {
+    // Quoted from yen, so the rate is "1 JPY in <currency>" and the conversion
+    // divides. Any currency the provider quotes works, not just USD/ILS.
+    const rates = await getRates(store, 'JPY')
+    const perYen = rates.rates[currency.toUpperCase()]
+    if (perYen > 0) return { price_yen: Math.round(price.amount / perYen), price_note: null }
+  } catch {
+    /* no rate available — fall through to the note */
   }
   return {
     price_yen: null,

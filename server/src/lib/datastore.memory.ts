@@ -38,6 +38,15 @@ import type {
 } from './datastore.js'
 import { CATEGORIES } from './datastore.js'
 import { normalizeFlight } from './flight.js'
+import { DEFAULT_HOME_CURRENCIES, DEFAULT_LOCAL_CURRENCY, normalizeCurrency } from './currencies.js'
+
+/** Keeps only codes we can quote; falls back to the pair the app always had. */
+function cleanHomeCurrencies(value: unknown): string[] {
+  const codes = Array.isArray(value)
+    ? [...new Set(value.map(normalizeCurrency).filter((c): c is string => !!c))]
+    : []
+  return codes.length ? codes : [...DEFAULT_HOME_CURRENCIES]
+}
 
 export interface MemoryData {
   profiles?: Profile[]
@@ -101,10 +110,18 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
   }
   // The flight is jsonb in Postgres and free-form JSON here, so it is checked
   // on the way in exactly as the Supabase store checks it (lib/flight.ts).
-  for (const t of db.trips) t.flight = normalizeFlight(t.flight)
+  for (const t of db.trips) {
+    t.flight = normalizeFlight(t.flight)
+    // Seeded/legacy rows predate the currency pickers — default them the same
+    // way the Postgres columns do, so every trip has a calculator that works.
+    t.local_currency = normalizeCurrency(t.local_currency) ?? DEFAULT_LOCAL_CURRENCY
+    t.home_currencies = cleanHomeCurrencies(t.home_currencies)
+  }
   // uploaded blobs live in memory only (dev/tests); seeded samples come from public/
   const blobs = new Map<string, { bytes: Buffer; mime: string }>()
-  let latestRates: ExchangeRates | null = null
+  // One entry per base currency: a trip in euros and a trip in yen each keep
+  // their own last-known rate to fall back on.
+  const latestRates = new Map<string, ExchangeRates>()
   const subscriptions: PushSubscriptionRecord[] = []
 
   // Since migration 0013 a zone belongs to exactly one trip, so "is this row
@@ -296,6 +313,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         // No API writes this yet: a new trip has no flight until one is
         // seeded onto it. See lib/flight.ts.
         flight: null,
+        local_currency: input.local_currency ?? DEFAULT_LOCAL_CURRENCY,
+        home_currencies: input.home_currencies ?? [...DEFAULT_HOME_CURRENCIES],
       }
       db.trips.push(trip)
       return structuredClone(trip)
@@ -309,6 +328,9 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       if (patch.end_date !== undefined) trip.end_date = patch.end_date
       if (patch.description !== undefined) trip.description = patch.description ?? null
       if (patch.people !== undefined) trip.people = patch.people ?? []
+      if (patch.country !== undefined) trip.country = patch.country ?? null
+      if (patch.local_currency !== undefined) trip.local_currency = patch.local_currency
+      if (patch.home_currencies !== undefined) trip.home_currencies = patch.home_currencies
       return structuredClone(trip)
     },
 
@@ -682,12 +704,13 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return { bytes: readFileSync(abs), mime_type: file.mime_type }
     },
 
-    async getLatestRates() {
-      return latestRates ? { ...latestRates } : null
+    async getLatestRates(base: string) {
+      const found = latestRates.get(base.toUpperCase())
+      return found ? structuredClone(found) : null
     },
 
     async saveRates(rates: ExchangeRates) {
-      latestRates = { ...rates }
+      latestRates.set(rates.base.toUpperCase(), structuredClone(rates))
     },
 
     async listReminders(tripId) {

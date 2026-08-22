@@ -9,13 +9,26 @@
 // anything is written.
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { tripDateImpact, useTrip, useTripInvites, useTripMembers } from '../api/hooks'
+import {
+  tripDateImpact,
+  useCurrencies,
+  useTrip,
+  useTripInvites,
+  useTripMembers,
+} from '../api/hooks'
 import { useCreateInvite, useCreateTrip, useDeleteTrip, useUpdateTrip } from '../api/mutations'
 import type { StrandedResolution, Traveller, Trip, TripDateImpact } from '../api/types'
 import { saveErrorMessage } from '../lib/errors'
 import { AccessPicker, DEFAULT_SHOWS, type InviteRole, type Shows } from './AccessPicker'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+// What a trip is calculated in until someone says otherwise — the pair the
+// exchange calculator was hard-coded to before it could be chosen.
+const DEFAULT_LOCAL_CURRENCY = 'JPY'
+const DEFAULT_HOME_CURRENCIES = ['USD', 'ILS']
+/** More than a few conversion cards stops being a glance on a phone. */
+const MAX_HOME_CURRENCIES = 3
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const DAY_OPTS = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0'))
@@ -247,6 +260,9 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   // Sharing, from the roster. Only meaningful once the trip exists — an
   // invitation belongs to a trip, and in add mode there isn't one yet.
   const bundle = useTrip(tripId)
+  // The currencies a trip can be priced in, plus the guess to make from a
+  // country. Served rather than bundled so it matches what the API validates.
+  const catalogue = useCurrencies()
   const members = useTripMembers(tripId)
   const invites = useTripInvites(tripId)
   const createInvite = useCreateInvite(tripId)
@@ -260,6 +276,13 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   const [em, setEm] = useState('')
   const [ed, setEd] = useState('')
   const [people, setPeople] = useState<Traveller[]>([])
+  // The exchange calculator's two sides: what you spend there, and what you
+  // want it converted into.
+  const [localCurrency, setLocalCurrency] = useState(DEFAULT_LOCAL_CURRENCY)
+  const [homeCurrencies, setHomeCurrencies] = useState<string[]>([...DEFAULT_HOME_CURRENCIES])
+  // Once the traveller picks a currency themselves, typing a country stops
+  // overruling them.
+  const [currencyPicked, setCurrencyPicked] = useState(false)
   const [personName, setPersonName] = useState('')
   const [personEmail, setPersonEmail] = useState('')
   const [confirm, setConfirm] = useState<0 | 1 | 2>(0)
@@ -342,6 +365,9 @@ export function TripSheet({ mode, trip, onClose }: Props) {
       setEm(end.m)
       setEd(end.d)
       setPeople(trip.people)
+      setLocalCurrency(trip.local_currency)
+      setHomeCurrencies(trip.home_currencies)
+      setCurrencyPicked(true)
     } else {
       setName('')
       setSy('')
@@ -351,6 +377,10 @@ export function TripSheet({ mode, trip, onClose }: Props) {
       setEm('')
       setEd('')
       setPeople([])
+      setCountry('')
+      setLocalCurrency(DEFAULT_LOCAL_CURRENCY)
+      setHomeCurrencies([...DEFAULT_HOME_CURRENCIES])
+      setCurrencyPicked(false)
     }
     setPersonName('')
     setPersonEmail('')
@@ -368,10 +398,30 @@ export function TripSheet({ mode, trip, onClose }: Props) {
 
   if (!mode) return null
 
+  const currencies = catalogue.data?.currencies ?? []
+  const currencyName = (code: string) => currencies.find((c) => c.code === code)?.name ?? code
+  /** Every code offered, with whatever is already chosen always among them. */
+  const options = currencies.length
+    ? currencies
+    : [...new Set([localCurrency, ...homeCurrencies])].map((code) => ({ code, name: code }))
+  const addable = options.filter((c) => !homeCurrencies.includes(c.code))
+
+  /**
+   * A country usually settles the currency, so typing one fills it in — until
+   * the traveller picks for themselves, after which their choice stands.
+   */
+  const onCountry = (value: string) => {
+    setCountry(value)
+    if (currencyPicked) return
+    const guess = catalogue.data?.by_country[value.trim().toLowerCase()]
+    if (guess) setLocalCurrency(guess)
+  }
+
   const startDate = joinDate(sy, sm, sd)
   const endDate = joinDate(ey, em, ed)
   const mutation = mode === 'edit' ? update : create
-  const canSubmit = name.trim() && startDate && endDate && endDate >= startDate
+  const canSubmit =
+    name.trim() && startDate && endDate && endDate >= startDate && homeCurrencies.length > 0
   const datesChanged =
     mode === 'edit' && !!trip && (startDate !== trip.start_date || endDate !== trip.end_date)
 
@@ -396,6 +446,8 @@ export function TripSheet({ mode, trip, onClose }: Props) {
       start_date: startDate,
       end_date: endDate,
       people,
+      local_currency: localCurrency,
+      home_currencies: homeCurrencies,
     }
     if (mode !== 'edit') {
       create.mutate(input, { onSuccess: onClose })
@@ -474,7 +526,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
           className="field mt-1"
           placeholder="Japan"
           value={country}
-          onChange={(e) => setCountry(e.target.value)}
+          onChange={(e) => onCountry(e.target.value)}
           maxLength={80}
         />
 
@@ -494,6 +546,72 @@ export function TripSheet({ mode, trip, onClose }: Props) {
             would drift. The real one arrives with the very next response. */}
         <p className="mt-1 text-xs text-muted">
           Leave it empty and we’ll name it after whoever’s coming and where you’re going.
+        </p>
+
+        <label className="label mt-4 block" htmlFor="trip-local-currency">
+          Money spent there
+        </label>
+        <select
+          id="trip-local-currency"
+          className="field mt-1"
+          value={localCurrency}
+          onChange={(e) => {
+            setLocalCurrency(e.target.value)
+            setCurrencyPicked(true)
+          }}
+        >
+          {options.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.code} · {c.name}
+            </option>
+          ))}
+        </select>
+
+        <span className="label mt-3 block">Converted to</span>
+        <div className="mt-1 flex flex-wrap gap-2">
+          {homeCurrencies.map((code) => (
+            <span
+              key={code}
+              className="flex items-center gap-2 rounded-full border border-line bg-white py-1.5 pl-3 pr-2 text-sm font-semibold"
+            >
+              {code}
+              <span className="font-normal text-muted">{currencyName(code)}</span>
+              {/* The last one can't go: a calculator with nothing on the right
+                  side has nothing to say. */}
+              {homeCurrencies.length > 1 && (
+                <button
+                  type="button"
+                  aria-label={`Remove ${code}`}
+                  className="text-muted"
+                  onClick={() => setHomeCurrencies((cs) => cs.filter((c) => c !== code))}
+                >
+                  ×
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+        {homeCurrencies.length < MAX_HOME_CURRENCIES && addable.length > 0 && (
+          <select
+            className="field mt-2"
+            aria-label="Add a currency to convert to"
+            value=""
+            onChange={(e) => {
+              const code = e.target.value
+              if (code) setHomeCurrencies((cs) => (cs.includes(code) ? cs : [...cs, code]))
+            }}
+          >
+            <option value="">Add another currency…</option>
+            {addable.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code} · {c.name}
+              </option>
+            ))}
+          </select>
+        )}
+        <p className="mt-1 text-xs text-muted">
+          What the exchange calculator converts: {localCurrency} into{' '}
+          {homeCurrencies.join(', ') || '…'}.
         </p>
 
         <span className="label mt-4 block">Starts</span>

@@ -54,15 +54,20 @@ const shampoo = item({
 function mockApi(items: ShoppingItem[]) {
   mocks.get.mockImplementation((path: string) => {
     if (path === '/trips/trip-1/shopping') return Promise.resolve({ items })
-    if (path === '/rates')
-      return Promise.resolve({ base: 'JPY', date: '2026-08-01', usd: 0.0067, ils: 0.025 })
+    if (path.startsWith('/rates'))
+      return Promise.resolve({
+        base: 'JPY',
+        date: '2026-08-01',
+        rates: { USD: 0.0067, ILS: 0.025 },
+        missing: [],
+      })
     if (path === '/trips/trip-1')
       return Promise.resolve({
         trip: {
           id: 'trip-1',
           name: 'Japan',
-    country: 'Japan',
-    display_title: 'Japan',
+          country: 'Japan',
+          display_title: 'Japan',
           start_date: '2026-09-19',
           end_date: '2026-10-16',
           description: null,

@@ -130,6 +130,14 @@ export interface Trip {
    * gets one only by being seeded with it (migration 0017).
    */
   flight: FlightInfo | null
+  /**
+   * What money is spent in at the destination — the exchange calculator's
+   * input side. Defaults to JPY, which is what every trip was before it could
+   * be chosen (lib/currencies.ts).
+   */
+  local_currency: string
+  /** What to convert into: 1–3 codes, the calculator's output cards. */
+  home_currencies: string[]
 }
 
 export interface TripInput {
@@ -139,6 +147,8 @@ export interface TripInput {
   end_date: string
   description?: string | null
   people?: Traveller[]
+  local_currency?: string
+  home_currencies?: string[]
 }
 
 /** Coerces a legacy plain-string traveller (old seed/DB rows) or a loose object into a Traveller. */
@@ -328,10 +338,11 @@ export interface FileInput {
 }
 
 export interface ExchangeRates {
-  base: 'JPY'
+  /** The currency amounts are quoted *from* (a trip's local currency). */
+  base: string
   date: string // YYYY-MM-DD
-  usd: number // 1 JPY in USD
-  ils: number // 1 JPY in ILS
+  /** 1 unit of `base` in each currency, keyed by uppercase ISO code. */
+  rates: Record<string, number>
 }
 
 /** A scheduled nudge ("book the ryokan") delivered as a web push notification. */
@@ -537,7 +548,8 @@ export interface DataStore {
   search(tripId: string, query: string): Promise<{ places: Place[]; zones: Zone[]; tips: Tip[] }>
 
   /** Last exchange rate we successfully fetched (durable fallback), or null. */
-  getLatestRates(): Promise<ExchangeRates | null>
+  /** The last rate stored for this base currency, or null if none ever was. */
+  getLatestRates(base: string): Promise<ExchangeRates | null>
   /** Persist the latest fetched exchange rate (one row per base currency). */
   saveRates(rates: ExchangeRates): Promise<void>
 

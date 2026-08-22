@@ -14,7 +14,8 @@ const ilsFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'IL
 /** "¥1,500 ≈ ₪36" — the conversion appears once today's rate has loaded. */
 export function priceLabel(priceYen: number, rates?: Rates): string {
   const base = `¥${yen.format(priceYen)}`
-  return rates ? `${base} ≈ ${ilsFmt.format(priceYen * rates.ils)}` : base
+  const perYen = rates?.rates?.ILS
+  return perYen ? `${base} ≈ ${ilsFmt.format(priceYen * perYen)}` : base
 }
 
 export function categoryIcon(item: ShoppingItem): string {

@@ -3,6 +3,7 @@ import { api } from './client'
 import { useTripId, useTripPath } from './tripPath'
 import type {
   Category,
+  CurrencyCatalogue,
   GeocodeResult,
   ImageResult,
   ItineraryItem,
@@ -82,11 +83,27 @@ export const useTripFiles = (tripId: string) =>
     queryFn: () => api.get<{ files: TripDocument[] }>(`/trips/${tripId}/files`),
   })
 
-export const useRates = () =>
-  useQuery({
-    queryKey: ['rates'],
-    queryFn: () => api.get<Rates>('/rates'),
+/**
+ * Today's rate from one currency into the handful the trip converts to.
+ * Both arguments come from the trip (`local_currency` / `home_currencies`);
+ * the defaults are what the calculator was fixed to before it could be chosen.
+ */
+export const useRates = (base = 'JPY', symbols: string[] = ['USD', 'ILS']) => {
+  const wanted = symbols.join(',')
+  return useQuery({
+    queryKey: ['rates', base, wanted],
+    queryFn: () =>
+      api.get<Rates>(`/rates?${new URLSearchParams({ base, symbols: wanted }).toString()}`),
     staleTime: 1000 * 60 * 60 * 6, // refetch at most every ~6h
+  })
+}
+
+/** The currencies a trip can be priced in. Static — fetched once per session. */
+export const useCurrencies = () =>
+  useQuery({
+    queryKey: ['currencies'],
+    queryFn: () => api.get<CurrencyCatalogue>('/currencies'),
+    staleTime: Infinity,
   })
 
 // Free OpenStreetMap place search (proxied by the server). Called on demand

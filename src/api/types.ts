@@ -44,6 +44,10 @@ export interface Trip {
   end_date: string
   description: string | null
   people: Traveller[]
+  /** What money is spent in there — the calculator's input side. */
+  local_currency: string
+  /** What to convert it into: 1–3 codes, the calculator's output cards. */
+  home_currencies: string[]
 }
 
 export interface TripInput {
@@ -52,6 +56,8 @@ export interface TripInput {
   end_date: string
   description?: string | null
   people?: Traveller[]
+  local_currency?: string
+  home_currencies?: string[]
 }
 
 /** What a date change would leave outside the trip (GET /trips/:id/date-impact). */
@@ -412,10 +418,24 @@ export interface ImageResult {
 }
 
 export interface Rates {
-  base: 'JPY'
+  /** What amounts are quoted from — a trip's local currency. */
+  base: string
   date: string
-  usd: number // 1 JPY in USD
-  ils: number // 1 JPY in ILS
+  /** 1 unit of `base` in each requested currency, keyed by ISO code. */
+  rates: Record<string, number>
+  /** Requested codes the provider had no rate for today. */
+  missing: string[]
+}
+
+export interface Currency {
+  code: string
+  name: string
+}
+
+export interface CurrencyCatalogue {
+  currencies: Currency[]
+  /** Lowercased country → the currency it is likely spent in. A hint only. */
+  by_country: Record<string, string>
 }
 
 export interface Reminder {

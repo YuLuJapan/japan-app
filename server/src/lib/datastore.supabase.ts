@@ -34,6 +34,7 @@ import type {
 } from './datastore.js'
 import { CATEGORIES, normalizeTraveller } from './datastore.js'
 import { normalizeFlight } from './flight.js'
+import { DEFAULT_HOME_CURRENCIES, DEFAULT_LOCAL_CURRENCY, normalizeCurrency } from './currencies.js'
 import { FILES_BUCKET, getSupabase } from './supabase.js'
 
 const SIGNED_URL_TTL = 300 // seconds
@@ -110,13 +111,29 @@ const SHOPPING_COLS =
 const TRIP_BASE_COLS = 'id,name,start_date,end_date,description'
 // country arrives in 0015 and flight in 0017; `people` in 0009. All three
 // degrade the same way.
-const TRIP_COLS = `${TRIP_BASE_COLS},people,country,flight`
+const TRIP_COLS = `${TRIP_BASE_COLS},people,country,flight,local_currency,home_currencies`
 
 function isMissingPeopleColumn(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false
   return (
     error.code === '42703' || error.code === 'PGRST204' || /\bpeople\b/i.test(error.message ?? '')
   )
+}
+
+/** A pre-0019 exchange_rates row, read through the shape the app uses now. */
+function usdIlsRates(row: Record<string, unknown>): Record<string, number> {
+  const out: Record<string, number> = {}
+  if (typeof row.usd === 'number') out.USD = row.usd
+  if (typeof row.ils === 'number') out.ILS = row.ils
+  return out
+}
+
+/** Keeps only codes we can quote; falls back to the pair the app always had. */
+function cleanHomeCurrencies(value: unknown): string[] {
+  const codes = Array.isArray(value)
+    ? [...new Set(value.map(normalizeCurrency).filter((c): c is string => !!c))]
+    : []
+  return codes.length ? codes : [...DEFAULT_HOME_CURRENCIES]
 }
 
 // Also normalizes legacy rows where people was a plain string array (pre
@@ -131,6 +148,10 @@ function withPeopleDefault(row: Record<string, unknown>): Trip {
     people,
     country: (row.country as string | null) ?? null,
     flight: normalizeFlight(row.flight),
+    // 0010/0019. Same story again: a row from before the currency pickers (or
+    // a database that hasn't run 0019) still gets a working calculator.
+    local_currency: normalizeCurrency(row.local_currency) ?? DEFAULT_LOCAL_CURRENCY,
+    home_currencies: cleanHomeCurrencies(row.home_currencies),
   } as unknown as Trip
 }
 
@@ -451,7 +472,13 @@ export function createSupabaseStore(): DataStore {
         end_date: input.end_date,
         description: input.description ?? null,
       }
-      const row = { ...base, people: input.people ?? [], country: input.country ?? null }
+      const row = {
+        ...base,
+        people: input.people ?? [],
+        country: input.country ?? null,
+        local_currency: input.local_currency ?? DEFAULT_LOCAL_CURRENCY,
+        home_currencies: input.home_currencies ?? [...DEFAULT_HOME_CURRENCIES],
+      }
       let { data, error } = await db.from('trips').insert(row).select(TRIP_COLS).single()
       if (error && isMissingPeopleColumn(error))
         ({ data, error } = await db.from('trips').insert(base).select(TRIP_BASE_COLS).single())
@@ -467,6 +494,8 @@ export function createSupabaseStore(): DataStore {
       if (patch.end_date !== undefined) fields.end_date = patch.end_date
       if (patch.description !== undefined) fields.description = patch.description ?? null
       if (patch.people !== undefined) fields.people = patch.people ?? []
+      if (patch.local_currency !== undefined) fields.local_currency = patch.local_currency
+      if (patch.home_currencies !== undefined) fields.home_currencies = patch.home_currencies
       const run = (f: Record<string, unknown>, cols: string) =>
         db.from('trips').update(f).eq('id', tripId).select(cols).maybeSingle()
       let { data, error } = await run(fields, TRIP_COLS)
@@ -474,6 +503,8 @@ export function createSupabaseStore(): DataStore {
         const rest = { ...fields }
         delete rest.people
         delete rest.country
+        delete rest.local_currency
+        delete rest.home_currencies
         if (Object.keys(rest).length === 0) {
           throw new Error(
             'Cannot save travellers: the trips.people column is missing — run supabase/migrations/0009_multi_trip.sql'
@@ -1043,22 +1074,33 @@ export function createSupabaseStore(): DataStore {
       return { bytes: Buffer.from(await data.arrayBuffer()), mime_type: file.mime_type }
     },
 
-    async getLatestRates() {
+    async getLatestRates(base: string) {
       const { data } = await db
         .from('exchange_rates')
-        .select('base,date,usd,ils')
-        .eq('base', 'JPY')
+        .select('base,date,rates,usd,ils')
+        .eq('base', base.toUpperCase())
         .maybeSingle()
-      return (data as ExchangeRates) ?? null
+      const row = data as Record<string, unknown> | null
+      if (!row) return null
+      const rates =
+        row.rates && typeof row.rates === 'object'
+          ? (row.rates as Record<string, number>)
+          : // A row written before 0019 only has the two hard-coded columns.
+            usdIlsRates(row)
+      if (!Object.keys(rates).length) return null
+      return { base: row.base as string, date: row.date as string, rates }
     },
 
     async saveRates(rates: ExchangeRates) {
+      // usd/ils are written alongside for as long as the pre-0019 columns are
+      // there: a rollback to the old code then still finds a usable row.
       await db.from('exchange_rates').upsert(
         {
           base: rates.base,
           date: rates.date,
-          usd: rates.usd,
-          ils: rates.ils,
+          rates: rates.rates,
+          usd: rates.rates.USD ?? null,
+          ils: rates.rates.ILS ?? null,
           fetched_at: new Date().toISOString(),
         },
         { onConflict: 'base' }

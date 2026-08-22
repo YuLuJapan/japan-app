@@ -91,10 +91,10 @@ export default function ShoppingItemDetail() {
         <section className="rounded-3xl border border-brand/20 bg-brand/5 px-4 py-3">
           <h2 className="section-title">Should cost about</h2>
           <p className="mt-0.5 font-display text-2xl font-bold">¥{yen.format(item.price_yen)}</p>
-          {rates && (
+          {rates?.rates?.ILS && rates.rates.USD && (
             <p className="mt-0.5 text-sm text-muted">
-              ≈ {ilsFmt.format(item.price_yen * rates.ils)} ≈{' '}
-              {usdFmt.format(item.price_yen * rates.usd)}
+              ≈ {ilsFmt.format(item.price_yen * rates.rates.ILS)} ≈{' '}
+              {usdFmt.format(item.price_yen * rates.rates.USD)}
             </p>
           )}
         </section>

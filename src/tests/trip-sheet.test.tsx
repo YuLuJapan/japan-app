@@ -26,6 +26,8 @@ const TRIP: Trip = {
   end_date: '2027-03-08',
   description: null,
   people: [],
+  local_currency: 'JPY',
+  home_currencies: ['USD', 'ILS'],
 }
 
 function renderSheet(props: Partial<Parameters<typeof TripSheet>[0]> = {}) {

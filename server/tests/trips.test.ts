@@ -88,6 +88,64 @@ describe('trips', () => {
     expect(legacy.body.trip.id).toBe('trip-1')
   })
 
+  it('POST /api/trips takes the destination’s currency and what to convert it into', async () => {
+    const create = await request(app)
+      .post('/api/trips')
+      .set(OWNER_BEARER)
+      .send({
+        name: 'Bangkok',
+        start_date: '2027-02-06',
+        end_date: '2027-02-14',
+        local_currency: 'thb',
+        home_currencies: ['usd', 'ILS', 'USD'],
+      })
+    expect(create.status).toBe(201)
+    // uppercased and de-duplicated on the way in
+    expect(create.body.trip).toMatchObject({
+      local_currency: 'THB',
+      home_currencies: ['USD', 'ILS'],
+    })
+
+    const patched = await request(app)
+      .patch(`/api/trips/${create.body.trip.id}`)
+      .set(OWNER_BEARER)
+      .send({ home_currencies: ['EUR'] })
+    expect(patched.status).toBe(200)
+    expect(patched.body.trip.home_currencies).toEqual(['EUR'])
+    expect(patched.body.trip.local_currency).toBe('THB')
+  })
+
+  it('a trip created without currencies keeps the calculator’s old pair', async () => {
+    const create = await request(app)
+      .post('/api/trips')
+      .set(OWNER_BEARER)
+      .send({ name: 'Anywhere', start_date: '2027-02-06', end_date: '2027-02-14' })
+    expect(create.body.trip).toMatchObject({
+      local_currency: 'JPY',
+      home_currencies: ['USD', 'ILS'],
+    })
+  })
+
+  it('POST /api/trips rejects currencies it could never quote', async () => {
+    const send = (body: object) =>
+      request(app)
+        .post('/api/trips')
+        .set(OWNER_BEARER)
+        .send({ start_date: '2027-02-06', end_date: '2027-02-14', ...body })
+
+    const bad = await send({ local_currency: 'XYZ' })
+    expect(bad.status).toBe(400)
+    expect(bad.body.error.details.join(' ')).toContain('local_currency')
+
+    const empty = await send({ home_currencies: [] })
+    expect(empty.status).toBe(400)
+    expect(empty.body.error.details.join(' ')).toContain('at least one')
+
+    const tooMany = await send({ home_currencies: ['USD', 'ILS', 'EUR', 'GBP'] })
+    expect(tooMany.status).toBe(400)
+    expect(tooMany.body.error.details.join(' ')).toContain('at most 3')
+  })
+
   it('POST /api/trips rejects end before start', async () => {
     const res = await request(app)
       .post('/api/trips')
