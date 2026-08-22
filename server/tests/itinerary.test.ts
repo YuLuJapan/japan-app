@@ -13,14 +13,14 @@ beforeEach(() => setDataStore(createMemoryStore(fixture())))
 
 describe('itinerary', () => {
   it('GET /api/itinerary returns the trip items sorted (timed before untimed)', async () => {
-    const res = await auth(request(app).get('/api/itinerary'))
+    const res = await auth(request(app).get('/api/trips/trip-1/itinerary'))
     expect(res.status).toBe(200)
     const ids = res.body.items.map((i: { id: string }) => i.id)
     expect(ids).toEqual(['itin-ramen', 'itin-walk']) // 20:00 before "anytime"
   })
 
   it('POST /api/itinerary creates an item and it appears in the list', async () => {
-    const res = await auth(request(app).post('/api/itinerary')).send({
+    const res = await auth(request(app).post('/api/trips/trip-1/itinerary')).send({
       zone_id: 'zone-kyoto',
       day: '2026-10-10',
       start_time: '09:30',
@@ -30,12 +30,12 @@ describe('itinerary', () => {
     expect(res.body.item.id).toBeTruthy()
     expect(res.body.item.trip_id).toBe('trip-1') // trip id is derived, not client-supplied
 
-    const list = await auth(request(app).get('/api/itinerary'))
+    const list = await auth(request(app).get('/api/trips/trip-1/itinerary'))
     expect(list.body.items.map((i: { title: string }) => i.title)).toContain('Fushimi Inari')
   })
 
   it('POST 400 on missing title, bad day, and bad time', async () => {
-    const bad = await auth(request(app).post('/api/itinerary')).send({
+    const bad = await auth(request(app).post('/api/trips/trip-1/itinerary')).send({
       title: '  ',
       day: '10/10/2026',
       start_time: '25:00',
@@ -50,7 +50,10 @@ describe('itinerary', () => {
   it("POST 400 when the day falls outside the trip's own dates", async () => {
     // fixture trip-1 runs 2026-10-01 → 2026-10-14
     for (const day of ['2026-09-30', '2026-10-15']) {
-      const res = await auth(request(app).post('/api/itinerary')).send({ day, title: 'Too early' })
+      const res = await auth(request(app).post('/api/trips/trip-1/itinerary')).send({
+        day,
+        title: 'Too early',
+      })
       expect(res.status).toBe(400)
       expect(res.body.error.code).toBe('VALIDATION')
       expect(res.body.error.details.join(' ')).toMatch(/day must fall within the trip's dates/)
@@ -59,7 +62,10 @@ describe('itinerary', () => {
 
   it("POST accepts the trip's first and last day", async () => {
     for (const day of ['2026-10-01', '2026-10-14']) {
-      const res = await auth(request(app).post('/api/itinerary')).send({ day, title: 'Edge day' })
+      const res = await auth(request(app).post('/api/trips/trip-1/itinerary')).send({
+        day,
+        title: 'Edge day',
+      })
       expect(res.status).toBe(201)
     }
   })
@@ -87,26 +93,26 @@ describe('itinerary', () => {
   })
 
   it("PATCH 400 when the new day falls outside the trip's dates; 404 for an unknown item", async () => {
-    const res = await auth(request(app).patch('/api/itinerary/itin-ramen')).send({
+    const res = await auth(request(app).patch('/api/trips/trip-1/itinerary/itin-ramen')).send({
       day: '2026-10-20',
     })
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('VALIDATION')
 
-    const moved = await auth(request(app).patch('/api/itinerary/itin-ramen')).send({
+    const moved = await auth(request(app).patch('/api/trips/trip-1/itinerary/itin-ramen')).send({
       day: '2026-10-07',
     })
     expect(moved.status).toBe(200)
     expect(moved.body.item.day).toBe('2026-10-07')
 
-    const gone = await auth(request(app).patch('/api/itinerary/itin-nope')).send({
+    const gone = await auth(request(app).patch('/api/trips/trip-1/itinerary/itin-nope')).send({
       day: '2026-10-07',
     })
     expect(gone.status).toBe(404)
   })
 
   it('POST 404 for an unknown zone', async () => {
-    const res = await auth(request(app).post('/api/itinerary')).send({
+    const res = await auth(request(app).post('/api/trips/trip-1/itinerary')).send({
       zone_id: 'zone-nope',
       day: '2026-10-10',
       title: 'Ghost stop',
@@ -114,8 +120,8 @@ describe('itinerary', () => {
     expect(res.status).toBe(404)
   })
 
-  it('PATCH /api/itinerary/:id updates fields; clearing the time is allowed', async () => {
-    const res = await auth(request(app).patch('/api/itinerary/itin-ramen')).send({
+  it('PATCH /api/trips/trip-1/itinerary/:id updates fields; clearing the time is allowed', async () => {
+    const res = await auth(request(app).patch('/api/trips/trip-1/itinerary/itin-ramen')).send({
       title: 'Late-night ramen',
       start_time: '',
     })
@@ -124,16 +130,20 @@ describe('itinerary', () => {
     expect(res.body.item.start_time).toBeNull()
   })
 
-  it('DELETE /api/itinerary/:id removes it; 404 when unknown', async () => {
-    expect((await auth(request(app).delete('/api/itinerary/itin-walk'))).status).toBe(204)
-    expect((await auth(request(app).delete('/api/itinerary/itin-walk'))).status).toBe(404)
+  it('DELETE /api/trips/trip-1/itinerary/:id removes it; 404 when unknown', async () => {
+    expect((await auth(request(app).delete('/api/trips/trip-1/itinerary/itin-walk'))).status).toBe(
+      204
+    )
+    expect((await auth(request(app).delete('/api/trips/trip-1/itinerary/itin-walk'))).status).toBe(
+      404
+    )
   })
 
   it('deleting a place keeps its day plan but unlinks it (place_id → null)', async () => {
-    const del = await auth(request(app).delete('/api/places/place-ramen'))
+    const del = await auth(request(app).delete('/api/trips/trip-1/places/place-ramen'))
     expect(del.status).toBe(204)
 
-    const list = await auth(request(app).get('/api/itinerary'))
+    const list = await auth(request(app).get('/api/trips/trip-1/itinerary'))
     const item = list.body.items.find((i: { id: string }) => i.id === 'itin-ramen')
     expect(item).toBeTruthy() // still there
     expect(item.place_id).toBeNull() // but no longer linked

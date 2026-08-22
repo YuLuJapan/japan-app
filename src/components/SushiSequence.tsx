@@ -13,6 +13,20 @@
 //
 // Reduced motion gets no pin and no scrub: just the first frame, cut once to
 // the last frame when the hero reaches the middle of the screen.
+//
+// "Get started" is the escape hatch: scrubbing 150% of a viewport by hand is a
+// chore on a phone, so the mark under the nigiri tweens the window past the
+// pinned hero for you. It moves the scroll position rather than jumping it, so
+// the sequence still plays — it just plays itself, in the background, on the
+// way down, and any real scroll input hands control straight back.
+//
+// The mark is deliberately almost nothing: a letterspaced label over a rule
+// with a segment tracing down it. No container, no fill, no shadow — the
+// artwork stays the hero rather than competing with a solid button. Seven
+// other treatments (a coral pill, a frosted chip, a full-width bar, a
+// fold-in-place hero, a tap-through stories bar…) were built and compared on
+// device before this one won; they are in the history around 3701e19 if a
+// comparison is ever wanted again.
 import { useEffect, useRef, useState } from 'react'
 import {
   ASSET_VERSION,
@@ -151,8 +165,12 @@ export function SushiSequence({
   eyebrow?: string
   scrollLength?: string
 }) {
+  const wrapperRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  // Stops the "get started" scroll tween mid-flight (and unbinds its
+  // listeners); null whenever no tween is running.
+  const skipTweenRef = useRef<(() => void) | null>(null)
   const [progress, setProgress] = useState(0)
   const [ready, setReady] = useState(false)
   // The hero fills the screen, so the countdown below it is out of sight until
@@ -315,13 +333,82 @@ export function SushiSequence({
     }
   }, [scrollLength])
 
+  useEffect(() => () => skipTweenRef.current?.(), [])
+
+  /**
+   * Scroll the window to just past the hero, so the content below lands under
+   * the sticky header. The pin is driven by scroll position, so animating that
+   * position plays the sequence out on the way rather than cutting past it.
+   */
+  const skipToContent = () => {
+    const wrapper = wrapperRef.current
+    if (!wrapper) return
+    skipTweenRef.current?.()
+
+    // Once ScrollTrigger pins the stage it wraps it in a pin-spacer, which
+    // this wrapper still contains — so its bottom is the end of the hero
+    // whether the sequence is pinned, reduced-motion, or never loaded at all.
+    const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+    const to = Math.min(wrapper.getBoundingClientRect().bottom + window.scrollY - HEADER, max)
+    const from = window.scrollY
+    const distance = to - from
+    if (distance <= 0) return
+
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduced || typeof requestAnimationFrame !== 'function') {
+      window.scrollTo(0, to)
+      return
+    }
+
+    // Deliberately unhurried: the point of moving the scroll instead of
+    // jumping it is that the nigiri comes apart on the way, and at speed that
+    // reads as a smear. About 3s for a full hero — slow enough to watch, and
+    // interruptible on the first swipe, which is what keeps it from feeling
+    // like a cutscene you have to sit through.
+    const duration = Math.min(3200, Math.max(1800, distance * 1.5))
+    // Sine rather than cubic. Over three seconds a cubic ease-in is dead for
+    // the first half-second (36px of 2038) — the tap reads as a dropped input
+    // — and then hurries the middle, which is exactly where the nigiri is
+    // coming apart. Sine leaves immediately and holds a near-even pace.
+    const ease = (t: number) => -(Math.cos(Math.PI * t) - 1) / 2
+
+    let raf = 0
+    let started = 0
+    const stop = () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('wheel', stop)
+      window.removeEventListener('touchstart', stop)
+      window.removeEventListener('keydown', stop)
+      skipTweenRef.current = null
+    }
+    const step = (now: number) => {
+      const t = Math.min(1, (now - started) / duration)
+      window.scrollTo(0, from + distance * ease(t))
+      if (t < 1) raf = requestAnimationFrame(step)
+      else stop()
+    }
+
+    // Bound on the next frame, not now: activating the button with the
+    // keyboard is still dispatching its own keydown, which would otherwise
+    // cancel the tween the moment it starts.
+    raf = requestAnimationFrame((now) => {
+      started = now
+      // Any real scroll input hands control straight back to the reader.
+      window.addEventListener('wheel', stop, { passive: true })
+      window.addEventListener('touchstart', stop, { passive: true })
+      window.addEventListener('keydown', stop)
+      step(now)
+    })
+    skipTweenRef.current = stop
+  }
+
   return (
     // Full-bleed: -mx-5 cancels the padding on <main>, -mt-1 its top padding,
     // so the hero runs edge to edge and fills the screen under the header.
     // The margins live on this wrapper rather than on the stage itself —
     // ScrollTrigger copies a pinned element's margins onto its pin-spacer, and
     // negative ones would then be applied twice and drag the hero off-screen.
-    <div className="-mx-5 -mt-1">
+    <div ref={wrapperRef} className="-mx-5 -mt-1">
       <div
         ref={stageRef}
         // Height must stay in step with HEADER above.
@@ -340,25 +427,39 @@ export function SushiSequence({
           {meta && <p className="mt-1.5 text-sm font-medium text-muted">{meta}</p>}
         </div>
 
+        {/* Sits under the nigiri: tap it to be taken past the sequence, or
+            keep scrolling by hand. Fades out over the first 10% of the
+            sequence, the same way the old scroll hint did.
+            bottom-28 clears the fixed bottom nav (69px, Layout.tsx) with air
+            to spare — the old hint could sit behind the tab bar because it
+            ignored pointer events; something tappable cannot. */}
         <div
-          aria-hidden
-          className={`pointer-events-none absolute inset-x-0 bottom-6 flex flex-col items-center gap-1 text-muted transition-opacity duration-500 ${
-            cueVisible && ready ? 'opacity-100' : 'opacity-0'
+          className={`absolute inset-x-0 bottom-28 flex justify-center transition-opacity duration-500 ${
+            cueVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
           }`}
         >
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Scroll</span>
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+          <button
+            type="button"
+            onClick={skipToContent}
+            tabIndex={cueVisible ? undefined : -1}
+            aria-hidden={cueVisible ? undefined : true}
+            // The padding is what keeps the tap target at 44px while the mark
+            // itself stays small.
+            className="flex flex-col items-center gap-2.5 px-6 py-2 transition-opacity active:opacity-60"
           >
-            <path d="m6 9 6 6 6-6" />
-          </svg>
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-ink/65">
+              Get started
+            </span>
+            {/* A segment falling down a rule: the quietest way to say
+                "downwards" without an arrow. The rule fades out at the bottom
+                so it dissolves into the artwork instead of stopping dead. */}
+            <span
+              aria-hidden
+              className="relative h-9 w-px overflow-hidden rounded-full bg-gradient-to-b from-ink/20 to-ink/5"
+            >
+              <span className="absolute inset-x-0 h-3 rounded-full bg-ink/55 motion-safe:animate-trace" />
+            </span>
+          </button>
         </div>
 
         {/* Quiet progress hairline while the frames arrive. */}

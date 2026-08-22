@@ -11,7 +11,11 @@ let hasCoordColumns = true
 const UNDEFINED_COLUMN = { code: '42703', message: 'column places.lat does not exist' }
 
 function fakeBuilder() {
-  const state: { op: 'select' | 'insert' | 'update'; cols: string; row: Record<string, unknown> | null } = {
+  const state: {
+    op: 'select' | 'insert' | 'update'
+    cols: string
+    row: Record<string, unknown> | null
+  } = {
     op: 'select',
     cols: '',
     row: null,
@@ -67,6 +71,10 @@ function fakeBuilder() {
       return builder
     },
     eq: () => builder,
+    // Places are scoped through their zone since migration 0013, so the store
+    // narrows by `.in('zone_id', …)`. Pass-through: this file is about the
+    // 0005 column tolerance, not about the scoping.
+    in: () => builder,
     order: () => builder,
     single: async () => result(true),
     maybeSingle: async () => result(true),
@@ -75,8 +83,26 @@ function fakeBuilder() {
   return builder
 }
 
+// `zones` answers with a zone the store can scope by; everything else answers
+// with the place row these cases are actually about.
+const zonesBuilder = () => {
+  const b: Record<string, unknown> = {
+    select: () => b,
+    eq: () => b,
+    in: () => b,
+    order: () => b,
+    single: async () => ({ data: { id: 'zone-1', trip_id: 'trip-1' }, error: null }),
+    maybeSingle: async () => ({ data: { id: 'zone-1', trip_id: 'trip-1' }, error: null }),
+    then: (resolve: (v: unknown) => unknown) =>
+      resolve({ data: [{ id: 'zone-1', trip_id: 'trip-1' }], error: null }),
+  }
+  return b
+}
+
 vi.mock('../src/lib/supabase.js', () => ({
-  getSupabase: () => ({ from: () => fakeBuilder() }),
+  getSupabase: () => ({
+    from: (table: string) => (table === 'zones' ? zonesBuilder() : fakeBuilder()),
+  }),
   FILES_BUCKET: 'trip-files',
 }))
 
@@ -89,7 +115,7 @@ describe('supabase places store — migration 0005 tolerance', () => {
 
   it('returns lat/lng when the columns exist', async () => {
     const store = createSupabaseStore()
-    const place = await store.getPlace('place-1')
+    const place = await store.getPlace('trip-1', 'place-1')
     expect(place?.lat).toBe(35.6)
     expect(place?.lng).toBe(139.7)
   })
@@ -97,21 +123,25 @@ describe('supabase places store — migration 0005 tolerance', () => {
   it('still returns the place when the columns are missing (falls back)', async () => {
     hasCoordColumns = false
     const store = createSupabaseStore()
-    const place = await store.getPlace('place-1')
+    const place = await store.getPlace('trip-1', 'place-1')
     expect(place?.name).toBe('Test Place')
   })
 
   it('updates other fields even when the coordinate columns are missing', async () => {
     hasCoordColumns = false
     const store = createSupabaseStore()
-    const place = await store.updatePlace('place-1', { name: 'Renamed', lat: 35.6, lng: 139.7 })
+    const place = await store.updatePlace('trip-1', 'place-1', {
+      name: 'Renamed',
+      lat: 35.6,
+      lng: 139.7,
+    })
     expect(place?.name).toBe('Renamed')
   })
 
   it('fails loudly (not a false "not found") when only coordinates are patched and the migration has not run', async () => {
     hasCoordColumns = false
     const store = createSupabaseStore()
-    await expect(store.updatePlace('place-1', { lat: 35.6, lng: 139.7 })).rejects.toThrow(
+    await expect(store.updatePlace('trip-1', 'place-1', { lat: 35.6, lng: 139.7 })).rejects.toThrow(
       /0005_place_coords/
     )
   })

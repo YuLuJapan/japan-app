@@ -11,10 +11,10 @@ const auth = (r: request.Test) => r.set('Authorization', `Bearer ${TEST_CODE}`)
 
 beforeEach(() => setDataStore(createMemoryStore(fixture())))
 
-describe('POST /api/steps', () => {
+describe('POST /api/trips/trip-1/steps', () => {
   it('creates a step for an existing zone', async () => {
     const res = await auth(
-      request(app).post('/api/steps').send({
+      request(app).post('/api/trips/trip-1/steps').send({
         zone_id: 'zone-kyoto',
         start_date: '2026-10-12',
         end_date: '2026-10-14',
@@ -30,7 +30,9 @@ describe('POST /api/steps', () => {
 
   it('400 VALIDATION for missing zone_id/destination or bad dates', async () => {
     const res = await auth(
-      request(app).post('/api/steps').send({ start_date: 'nope', end_date: '2026-10-14' })
+      request(app)
+        .post('/api/trips/trip-1/steps')
+        .send({ start_date: 'nope', end_date: '2026-10-14' })
     )
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('VALIDATION')
@@ -38,7 +40,7 @@ describe('POST /api/steps', () => {
 
   it('400 VALIDATION when end_date is before start_date', async () => {
     const res = await auth(
-      request(app).post('/api/steps').send({
+      request(app).post('/api/trips/trip-1/steps').send({
         zone_id: 'zone-kyoto',
         start_date: '2026-10-14',
         end_date: '2026-10-12',
@@ -50,7 +52,7 @@ describe('POST /api/steps', () => {
 
   it('404 for unknown zone', async () => {
     const res = await auth(
-      request(app).post('/api/steps').send({
+      request(app).post('/api/trips/trip-1/steps').send({
         zone_id: 'zone-nope',
         start_date: '2026-10-12',
         end_date: '2026-10-14',
@@ -62,7 +64,7 @@ describe('POST /api/steps', () => {
   it("400 VALIDATION when the step's dates fall outside the trip's own dates", async () => {
     // fixture trip-1 runs 2026-10-01 → 2026-10-14
     const res = await auth(
-      request(app).post('/api/steps').send({
+      request(app).post('/api/trips/trip-1/steps').send({
         zone_id: 'zone-kyoto',
         start_date: '2026-09-28',
         end_date: '2026-10-02',
@@ -78,7 +80,7 @@ describe('POST /api/steps with a free-text destination', () => {
   it('reuses an existing zone when the destination name matches (case-insensitive)', async () => {
     const res = await auth(
       request(app)
-        .post('/api/steps')
+        .post('/api/trips/trip-1/steps')
         .send({
           destination: { name: 'kyoto', address: 'Kyoto, Japan', lat: 35.0116, lng: 135.7681 },
           start_date: '2026-10-12',
@@ -92,7 +94,7 @@ describe('POST /api/steps with a free-text destination', () => {
   it('creates a new zone for a destination that matches nothing in the catalog', async () => {
     const res = await auth(
       request(app)
-        .post('/api/steps')
+        .post('/api/trips/trip-1/steps')
         .send({
           destination: { name: 'Nara', address: 'Nara, Japan', lat: 34.6851, lng: 135.8048 },
           start_date: '2026-10-12',
@@ -102,14 +104,16 @@ describe('POST /api/steps with a free-text destination', () => {
     expect(res.status).toBe(201)
     expect(['zone-tokyo', 'zone-kyoto']).not.toContain(res.body.step.zone_id)
 
-    const trip = await auth(request(app).get('/api/trip'))
+    const trip = await auth(request(app).get('/api/trips/trip-1'))
     const created = trip.body.steps.find((s: { id: string }) => s.id === res.body.step.id)
     expect(created.zone).toMatchObject({ name: 'Nara', lat: 34.6851, lng: 135.8048 })
   })
 
   it('400 VALIDATION when neither zone_id nor destination is given', async () => {
     const res = await auth(
-      request(app).post('/api/steps').send({ start_date: '2026-10-12', end_date: '2026-10-14' })
+      request(app)
+        .post('/api/trips/trip-1/steps')
+        .send({ start_date: '2026-10-12', end_date: '2026-10-14' })
     )
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('VALIDATION')
@@ -118,7 +122,7 @@ describe('POST /api/steps with a free-text destination', () => {
   it('400 VALIDATION for an out-of-range destination lat', async () => {
     const res = await auth(
       request(app)
-        .post('/api/steps')
+        .post('/api/trips/trip-1/steps')
         .send({
           destination: { name: 'Nowhere', lat: 999, lng: 0 },
           start_date: '2026-10-12',
@@ -132,7 +136,7 @@ describe('POST /api/steps with a free-text destination', () => {
   it('400 VALIDATION for a missing destination name', async () => {
     const res = await auth(
       request(app)
-        .post('/api/steps')
+        .post('/api/trips/trip-1/steps')
         .send({
           destination: { name: '  ', lat: 34.6851, lng: 135.8048 },
           start_date: '2026-10-12',
@@ -148,7 +152,7 @@ describe('step ordering', () => {
   it('orders steps by start_date, not creation order — an earlier destination sorts first', async () => {
     // fixture: step-1 zone-tokyo (2026-10-05→09), step-2 zone-kyoto (2026-10-09→12)
     const res = await auth(
-      request(app).post('/api/steps').send({
+      request(app).post('/api/trips/trip-1/steps').send({
         zone_id: 'zone-kyoto',
         start_date: '2026-10-01',
         end_date: '2026-10-05',
@@ -156,7 +160,7 @@ describe('step ordering', () => {
     )
     expect(res.status).toBe(201)
 
-    const trip = await auth(request(app).get('/api/trip'))
+    const trip = await auth(request(app).get('/api/trips/trip-1'))
     expect(trip.body.steps.map((s: { id: string }) => s.id)).toEqual([
       res.body.step.id,
       'step-1',
@@ -165,43 +169,49 @@ describe('step ordering', () => {
   })
 })
 
-describe('PATCH /api/steps/:stepId', () => {
+describe('PATCH /api/trips/trip-1/steps/:stepId', () => {
   it('updates dates, cross-checking against the merged (existing + patch) values', async () => {
-    const res = await auth(request(app).patch('/api/steps/step-1').send({ end_date: '2026-10-06' }))
+    const res = await auth(
+      request(app).patch('/api/trips/trip-1/steps/step-1').send({ end_date: '2026-10-06' })
+    )
     expect(res.status).toBe(200)
     expect(res.body.step).toMatchObject({ start_date: '2026-10-05', end_date: '2026-10-06' })
   })
 
   it('400 VALIDATION when the patched end_date would precede the existing start_date', async () => {
-    const res = await auth(request(app).patch('/api/steps/step-1').send({ end_date: '2026-10-01' }))
+    const res = await auth(
+      request(app).patch('/api/trips/trip-1/steps/step-1').send({ end_date: '2026-10-01' })
+    )
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('VALIDATION')
   })
 
   it('404 for unknown step', async () => {
     const res = await auth(
-      request(app).patch('/api/steps/step-nope').send({ end_date: '2026-10-06' })
+      request(app).patch('/api/trips/trip-1/steps/step-nope').send({ end_date: '2026-10-06' })
     )
     expect(res.status).toBe(404)
   })
 
   it("400 VALIDATION when a patched date would fall outside the trip's own dates", async () => {
     const res = await auth(
-      request(app).patch('/api/steps/step-1').send({ end_date: '2026-10-20' })
+      request(app).patch('/api/trips/trip-1/steps/step-1').send({ end_date: '2026-10-20' })
     )
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('VALIDATION')
   })
 
   it('404 for unknown zone', async () => {
-    const res = await auth(request(app).patch('/api/steps/step-1').send({ zone_id: 'zone-nope' }))
+    const res = await auth(
+      request(app).patch('/api/trips/trip-1/steps/step-1').send({ zone_id: 'zone-nope' })
+    )
     expect(res.status).toBe(404)
   })
 
   it('changes the destination via free text, creating a new zone when unrecognized', async () => {
     const res = await auth(
       request(app)
-        .patch('/api/steps/step-1')
+        .patch('/api/trips/trip-1/steps/step-1')
         .send({ destination: { name: 'Nara', lat: 34.6851, lng: 135.8048 } })
     )
     expect(res.status).toBe(200)
@@ -209,29 +219,31 @@ describe('PATCH /api/steps/:stepId', () => {
   })
 
   it('leaves the zone unchanged when only dates are patched', async () => {
-    const res = await auth(request(app).patch('/api/steps/step-1').send({ end_date: '2026-10-07' }))
+    const res = await auth(
+      request(app).patch('/api/trips/trip-1/steps/step-1').send({ end_date: '2026-10-07' })
+    )
     expect(res.status).toBe(200)
     expect(res.body.step.zone_id).toBe('zone-tokyo')
   })
 })
 
-describe('DELETE /api/steps/:stepId', () => {
+describe('DELETE /api/trips/trip-1/steps/:stepId', () => {
   it('removes the step', async () => {
-    const del = await auth(request(app).delete('/api/steps/step-1'))
+    const del = await auth(request(app).delete('/api/trips/trip-1/steps/step-1'))
     expect(del.status).toBe(204)
 
-    const trip = await auth(request(app).get('/api/trip'))
+    const trip = await auth(request(app).get('/api/trips/trip-1'))
     expect(trip.body.steps.map((s: { id: string }) => s.id)).toEqual(['step-2'])
   })
 
   it('404 for unknown step', async () => {
-    const res = await auth(request(app).delete('/api/steps/step-nope'))
+    const res = await auth(request(app).delete('/api/trips/trip-1/steps/step-nope'))
     expect(res.status).toBe(404)
   })
 })
 
 describe('POST /api/trips/:tripId/steps', () => {
-  it('creates the step under the given trip, not the legacy default trip', async () => {
+  it('creates the step under the given trip, with its own zone', async () => {
     const trip2 = await auth(request(app).post('/api/trips')).send({
       name: 'Dolomites',
       start_date: '2027-02-06',
@@ -239,16 +251,28 @@ describe('POST /api/trips/:tripId/steps', () => {
     })
     const tripId = trip2.body.trip.id
 
-    const res = await auth(request(app).post(`/api/trips/${tripId}/steps`)).send({
+    // A new trip cannot borrow another trip's city: since migration 0013 a
+    // zone belongs to exactly one trip, so this is the same answer an
+    // outsider gets.
+    const borrowed = await auth(request(app).post(`/api/trips/${tripId}/steps`)).send({
       zone_id: 'zone-tokyo',
+      start_date: '2027-02-07',
+      end_date: '2027-02-10',
+    })
+    expect(borrowed.status).toBe(404)
+
+    // It gets its own Tokyo instead — same name, different row, its own places.
+    const res = await auth(request(app).post(`/api/trips/${tripId}/steps`)).send({
+      destination: { name: 'Tokyo', address: 'Tokyo, Japan', lat: 35.68, lng: 139.76 },
       start_date: '2027-02-07',
       end_date: '2027-02-10',
     })
     expect(res.status).toBe(201)
     expect(res.body.step.trip_id).toBe(tripId)
+    expect(res.body.step.zone_id).not.toBe('zone-tokyo')
 
     // trip-1's steps are untouched
-    const trip = await auth(request(app).get('/api/trip'))
+    const trip = await auth(request(app).get('/api/trips/trip-1'))
     expect(trip.body.steps.map((s: { id: string }) => s.id)).toEqual(['step-1', 'step-2'])
   })
 

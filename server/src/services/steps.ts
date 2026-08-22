@@ -5,7 +5,7 @@
 // client); a destination reuses an existing zone when the name matches,
 // otherwise a new zone is created on the fly.
 import type { DataStore } from '../lib/datastore.js'
-import { getDefaultTrip } from '../lib/datastore.js'
+import { requireTrip } from '../lib/access.js'
 import { notFound, validation } from '../lib/errors.js'
 import type { DateRange } from '../lib/trip-dates.js'
 import { collectRangeErrors } from '../lib/trip-dates.js'
@@ -73,30 +73,37 @@ function collectStepRangeErrors(startDate: string, endDate: string, trip: DateRa
 /** Resolve a zone_id or free-text destination to a zone id, creating the zone if needed. */
 async function resolveZoneId(
   store: DataStore,
+  tripId: string,
   zoneId: string | undefined,
   destination: GeocodeResult | undefined
 ): Promise<string> {
   if (zoneId) {
-    const zone = await store.getZone(zoneId)
+    const zone = await store.getZone(tripId, zoneId)
     if (!zone) throw notFound('Zone')
     return zone.id
   }
+  // Find-or-create is now per trip: two trips to Tokyo each get their own
+  // Tokyo, with their own places and notes, rather than sharing one.
   const name = destination!.name.trim()
-  const zones = await store.listZones()
+  const zones = await store.listZones(tripId)
   const existing = zones.find((z) => z.name.trim().toLowerCase() === name.toLowerCase())
   if (existing) return existing.id
-  const created = await store.createZone({ name, lat: destination!.lat, lng: destination!.lng })
+  const created = await store.createZone({
+    trip_id: tripId,
+    name,
+    lat: destination!.lat,
+    lng: destination!.lng,
+  })
   return created.id
 }
 
-export async function createStep(store: DataStore, input: StepFields, tripId?: string) {
+export async function createStep(store: DataStore, tripId: string, input: StepFields) {
   const errors = collectErrors(input, false)
   if (errors.length) throw validation(errors)
-  const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
-  if (!trip) throw notFound('Trip')
+  const trip = await requireTrip(store, tripId)
   const rangeErrors = collectStepRangeErrors(input.start_date!, input.end_date!, trip)
   if (rangeErrors.length) throw validation(rangeErrors)
-  const zoneId = await resolveZoneId(store, input.zone_id, input.destination)
+  const zoneId = await resolveZoneId(store, tripId, input.zone_id, input.destination)
   const steps = await store.listSteps(trip.id)
   const nextPosition = steps.reduce((max, s) => Math.max(max, s.position), 0) + 1
   const step = await store.createStep({
@@ -109,10 +116,15 @@ export async function createStep(store: DataStore, input: StepFields, tripId?: s
   return { step }
 }
 
-export async function updateStep(store: DataStore, stepId: string, patch: StepFields) {
+export async function updateStep(
+  store: DataStore,
+  tripId: string,
+  stepId: string,
+  patch: StepFields
+) {
   const errors = collectErrors(patch, true)
   if (errors.length) throw validation(errors)
-  const existing = await store.getStep(stepId)
+  const existing = await store.getStep(tripId, stepId)
   if (!existing) throw notFound('Journey step')
 
   const mergedStart = patch.start_date ?? existing.start_date
@@ -126,10 +138,10 @@ export async function updateStep(store: DataStore, stepId: string, patch: StepFi
 
   const zoneId =
     patch.zone_id || patch.destination
-      ? await resolveZoneId(store, patch.zone_id, patch.destination)
+      ? await resolveZoneId(store, tripId, patch.zone_id, patch.destination)
       : undefined
 
-  const step = await store.updateStep(stepId, {
+  const step = await store.updateStep(tripId, stepId, {
     zone_id: zoneId,
     start_date: patch.start_date,
     end_date: patch.end_date,
@@ -138,7 +150,7 @@ export async function updateStep(store: DataStore, stepId: string, patch: StepFi
   return { step }
 }
 
-export async function deleteStep(store: DataStore, stepId: string) {
-  const ok = await store.deleteStep(stepId)
+export async function deleteStep(store: DataStore, tripId: string, stepId: string) {
+  const ok = await store.deleteStep(tripId, stepId)
   if (!ok) throw notFound('Journey step')
 }

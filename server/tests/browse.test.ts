@@ -11,9 +11,9 @@ const auth = (r: request.Test) => r.set('Authorization', `Bearer ${TEST_CODE}`)
 
 beforeEach(() => setDataStore(createMemoryStore(fixture())))
 
-describe('GET /api/trip', () => {
+describe('GET /api/trips/trip-1', () => {
   it('returns the journey skeleton: ordered steps, zone summaries, counts', async () => {
-    const res = await auth(request(app).get('/api/trip'))
+    const res = await auth(request(app).get('/api/trips/trip-1'))
     expect(res.status).toBe(200)
     expect(res.body.trip.name).toBe('Test Trip')
     expect(res.body.steps.map((s: { position: number }) => s.position)).toEqual([1, 2])
@@ -24,7 +24,7 @@ describe('GET /api/trip', () => {
   })
 
   it('includes both flight directions (booking ref + legs) for the countdown', async () => {
-    const res = await auth(request(app).get('/api/trip'))
+    const res = await auth(request(app).get('/api/trips/trip-1'))
     const nos = (legs: { flight_no: string }[]) => legs.map((l) => l.flight_no)
     expect(res.body.flight.booking_ref).toBe('AOXIUF')
 
@@ -38,9 +38,9 @@ describe('GET /api/trip', () => {
   })
 })
 
-describe('GET /api/zones/:id', () => {
+describe('GET /api/trips/trip-1/zones/:id', () => {
   it('returns zone with tips, files and counts', async () => {
-    const res = await auth(request(app).get('/api/zones/zone-tokyo'))
+    const res = await auth(request(app).get('/api/trips/trip-1/zones/zone-tokyo'))
     expect(res.status).toBe(200)
     expect(res.body.zone.name_ja).toBe('東京')
     expect(res.body.tips).toHaveLength(1)
@@ -49,15 +49,17 @@ describe('GET /api/zones/:id', () => {
   })
 
   it('404 for unknown zone', async () => {
-    const res = await auth(request(app).get('/api/zones/zone-nope'))
+    const res = await auth(request(app).get('/api/trips/trip-1/zones/zone-nope'))
     expect(res.status).toBe(404)
     expect(res.body.error.code).toBe('NOT_FOUND')
   })
 })
 
-describe('GET /api/zones/:id/places', () => {
+describe('GET /api/trips/trip-1/zones/:id/places', () => {
   it('lists places of a category with summary_line', async () => {
-    const res = await auth(request(app).get('/api/zones/zone-tokyo/places?category=food'))
+    const res = await auth(
+      request(app).get('/api/trips/trip-1/zones/zone-tokyo/places?category=food')
+    )
     expect(res.status).toBe(200)
     expect(res.body.places).toHaveLength(1)
     expect(res.body.places[0].name).toBe('Ramen Bar')
@@ -65,19 +67,23 @@ describe('GET /api/zones/:id/places', () => {
   })
 
   it('returns empty list for a category with no places', async () => {
-    const res = await auth(request(app).get('/api/zones/zone-kyoto/places?category=shopping'))
+    const res = await auth(
+      request(app).get('/api/trips/trip-1/zones/zone-kyoto/places?category=shopping')
+    )
     expect(res.status).toBe(200)
     expect(res.body.places).toEqual([])
   })
 
   it('400 VALIDATION for a bad category', async () => {
-    const res = await auth(request(app).get('/api/zones/zone-tokyo/places?category=nightlife'))
+    const res = await auth(
+      request(app).get('/api/trips/trip-1/zones/zone-tokyo/places?category=nightlife')
+    )
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('VALIDATION')
   })
 
   it('lists every category (with coords) when no category is given — the map view', async () => {
-    const res = await auth(request(app).get('/api/zones/zone-tokyo/places'))
+    const res = await auth(request(app).get('/api/trips/trip-1/zones/zone-tokyo/places'))
     expect(res.status).toBe(200)
     // both the food place and the hotel, across categories
     expect(res.body.places.map((p: { name: string }) => p.name).sort()).toEqual([
@@ -93,7 +99,7 @@ describe('GET /api/zones/:id/places', () => {
 describe('place map coordinates', () => {
   it('round-trips lat/lng through create and shows up in the map listing', async () => {
     const created = await auth(
-      request(app).post('/api/places').send({
+      request(app).post('/api/trips/trip-1/places').send({
         zone_id: 'zone-tokyo',
         category: 'food',
         name: 'Blue Bottle',
@@ -104,14 +110,14 @@ describe('place map coordinates', () => {
     expect(created.status).toBe(201)
     expect(created.body.place).toMatchObject({ lat: 35.6506849, lng: 139.7219251 })
 
-    const list = await auth(request(app).get('/api/zones/zone-tokyo/places'))
+    const list = await auth(request(app).get('/api/trips/trip-1/zones/zone-tokyo/places'))
     const pin = list.body.places.find((p: { name: string }) => p.name === 'Blue Bottle')
     expect(pin).toMatchObject({ lat: 35.6506849, lng: 139.7219251, category: 'food' })
   })
 
   it('attaches coords to an existing place via PATCH (the "pin it" action)', async () => {
     const res = await auth(
-      request(app).patch('/api/places/place-hotel').send({ lat: 35.69, lng: 139.7 })
+      request(app).patch('/api/trips/trip-1/places/place-hotel').send({ lat: 35.69, lng: 139.7 })
     )
     expect(res.status).toBe(200)
     expect(res.body.place).toMatchObject({ lat: 35.69, lng: 139.7 })
@@ -119,7 +125,7 @@ describe('place map coordinates', () => {
 
   it('400 VALIDATION for out-of-range coordinates', async () => {
     const res = await auth(
-      request(app).post('/api/places').send({
+      request(app).post('/api/trips/trip-1/places').send({
         zone_id: 'zone-tokyo',
         category: 'food',
         name: 'Bad Coords',
@@ -132,9 +138,9 @@ describe('place map coordinates', () => {
   })
 })
 
-describe('GET /api/places/:id', () => {
+describe('GET /api/trips/trip-1/places/:id', () => {
   it('returns full place detail with tips and files', async () => {
-    const res = await auth(request(app).get('/api/places/place-ramen'))
+    const res = await auth(request(app).get('/api/trips/trip-1/places/place-ramen'))
     expect(res.status).toBe(200)
     expect(res.body.place.links[0].url).toBe('https://example.com')
     expect(res.body.tips[0].body).toBe('Cash only')
@@ -142,7 +148,7 @@ describe('GET /api/places/:id', () => {
   })
 
   it('404 for unknown place', async () => {
-    const res = await auth(request(app).get('/api/places/place-nope'))
+    const res = await auth(request(app).get('/api/trips/trip-1/places/place-nope'))
     expect(res.status).toBe(404)
   })
 })

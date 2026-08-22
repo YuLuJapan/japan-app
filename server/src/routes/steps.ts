@@ -6,33 +6,23 @@ import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import { createStep, deleteStep, updateStep } from '../services/steps.js'
 
-export const stepsRouter = Router()
+const create = asyncHandler(async (req, res) => {
+  res.status(201).json(await createStep(await getDataStore(), req.params.tripId, req.body ?? {}))
+})
 
-stepsRouter.post(
-  '/steps',
-  asyncHandler(async (req, res) => {
-    res.status(201).json(await createStep(await getDataStore(), req.body ?? {}))
-  })
-)
+const update = asyncHandler(async (req, res) => {
+  res.json(
+    await updateStep(await getDataStore(), req.params.tripId, req.params.stepId, req.body ?? {})
+  )
+})
 
-stepsRouter.post(
-  '/trips/:tripId/steps',
-  asyncHandler(async (req, res) => {
-    res.status(201).json(await createStep(await getDataStore(), req.body ?? {}, req.params.tripId))
-  })
-)
+const remove = asyncHandler(async (req, res) => {
+  await deleteStep(await getDataStore(), req.params.tripId, req.params.stepId)
+  res.status(204).end()
+})
 
-stepsRouter.patch(
-  '/steps/:stepId',
-  asyncHandler(async (req, res) => {
-    res.json(await updateStep(await getDataStore(), req.params.stepId, req.body ?? {}))
-  })
-)
-
-stepsRouter.delete(
-  '/steps/:stepId',
-  asyncHandler(async (req, res) => {
-    await deleteStep(await getDataStore(), req.params.stepId)
-    res.status(204).end()
-  })
-)
+/** Mounted under /api/trips/:tripId, behind requireTripAccess. */
+export const stepsTripRouter = Router({ mergeParams: true })
+stepsTripRouter.post('/steps', create)
+stepsTripRouter.patch('/steps/:stepId', update)
+stepsTripRouter.delete('/steps/:stepId', remove)

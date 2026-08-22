@@ -1,7 +1,7 @@
 // Day-by-day itinerary: a flat list of activities the client groups by day.
 // GET returns every item for the trip; the client maps each day to its city.
 import type { DataStore, ItineraryItemInput } from '../lib/datastore.js'
-import { getDefaultTrip } from '../lib/datastore.js'
+import { requireTrip } from '../lib/access.js'
 import { notFound, validation } from '../lib/errors.js'
 import { STAY_CATEGORY } from '../lib/guest-view.js'
 import { collectRangeErrors } from '../lib/trip-dates.js'
@@ -17,14 +17,13 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
  */
 export async function listItinerary(
   store: DataStore,
-  tripId?: string,
+  tripId: string,
   { includeStays = true }: { includeStays?: boolean } = {}
 ) {
-  const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
-  if (!trip) throw notFound('Trip')
+  const trip = await requireTrip(store, tripId)
   const items = await store.listItinerary(trip.id)
   if (includeStays) return { items }
-  const stayIds = new Set(await store.listPlaceIdsByCategory(STAY_CATEGORY))
+  const stayIds = new Set(await store.listPlaceIdsByCategory(trip.id, STAY_CATEGORY))
   return {
     items: items.map((item) =>
       item.place_id && stayIds.has(item.place_id) ? { ...item, place_id: null } : item
@@ -56,18 +55,17 @@ function collectErrors(input: Partial<ItineraryItemInput>, partial: boolean): st
 
 export async function createItineraryItem(
   store: DataStore,
-  input: ItineraryItemInput,
-  tripId?: string
+  tripId: string,
+  input: ItineraryItemInput
 ) {
   const errors = collectErrors(input, false)
   if (errors.length) throw validation(errors)
-  const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
-  if (!trip) throw notFound('Trip')
+  const trip = await requireTrip(store, tripId)
   // An activity only exists on a day the trip actually covers.
   const rangeErrors = collectRangeErrors('day', input.day, trip)
   if (rangeErrors.length) throw validation(rangeErrors)
   if (input.zone_id) {
-    const zone = await store.getZone(input.zone_id)
+    const zone = await store.getZone(trip.id, input.zone_id)
     if (!zone) throw notFound('Zone')
   }
   const item = await store.createItineraryItem({
@@ -81,13 +79,14 @@ export async function createItineraryItem(
 
 export async function updateItineraryItem(
   store: DataStore,
+  tripId: string,
   itemId: string,
   patch: Partial<ItineraryItemInput>
 ) {
   const errors = collectErrors(patch, true)
   if (errors.length) throw validation(errors)
   if (patch.day !== undefined) {
-    const existing = await store.getItineraryItem(itemId)
+    const existing = await store.getItineraryItem(tripId, itemId)
     if (!existing) throw notFound('Itinerary item')
     const trip = await store.getTrip(existing.trip_id)
     if (!trip) throw notFound('Trip')
@@ -95,18 +94,18 @@ export async function updateItineraryItem(
     if (rangeErrors.length) throw validation(rangeErrors)
   }
   if (patch.zone_id) {
-    const zone = await store.getZone(patch.zone_id)
+    const zone = await store.getZone(tripId, patch.zone_id)
     if (!zone) throw notFound('Zone')
   }
   const clean: Partial<ItineraryItemInput> = { ...patch }
   if (clean.title !== undefined) clean.title = clean.title.trim()
   if (clean.start_time !== undefined) clean.start_time = clean.start_time || null
-  const item = await store.updateItineraryItem(itemId, clean)
+  const item = await store.updateItineraryItem(tripId, itemId, clean)
   if (!item) throw notFound('Itinerary item')
   return { item }
 }
 
-export async function deleteItineraryItem(store: DataStore, itemId: string) {
-  const ok = await store.deleteItineraryItem(itemId)
+export async function deleteItineraryItem(store: DataStore, tripId: string, itemId: string) {
+  const ok = await store.deleteItineraryItem(tripId, itemId)
   if (!ok) throw notFound('Itinerary item')
 }

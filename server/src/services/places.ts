@@ -1,5 +1,8 @@
 import type { Category, DataStore, PlaceInput, PlaceLink } from '../lib/datastore.js'
-import { CATEGORIES, getDefaultTrip } from '../lib/datastore.js'
+import { CATEGORIES } from '../lib/datastore.js'
+// Scope is a store argument now, not a check the service has to remember —
+// see the DataStore interface. lib/access.ts's reachability helpers are gone.
+
 import { forbidden, notFound, validation } from '../lib/errors.js'
 import { isStay } from '../lib/guest-view.js'
 
@@ -10,20 +13,23 @@ import { isStay } from '../lib/guest-view.js'
  */
 export async function getPlaceDetail(
   store: DataStore,
+  tripId: string,
   placeId: string,
   {
     includeFiles = true,
     includeStays = true,
   }: { includeFiles?: boolean; includeStays?: boolean } = {}
 ) {
-  const place = await store.getPlace(placeId)
+  // The store answers "not in this trip" and "no such place" identically, so
+  // an outsider cannot tell the two apart.
+  const place = await store.getPlace(tripId, placeId)
   if (!place) throw notFound('Place')
   if (!includeStays && isStay(place)) {
     throw forbidden('Stays are not part of the guest view')
   }
   const [tips, files] = await Promise.all([
-    store.listTips({ place_id: placeId }),
-    includeFiles ? store.listFiles({ place_id: placeId }) : [],
+    store.listTips(tripId, { place_id: placeId }),
+    includeFiles ? store.listFiles(tripId, { place_id: placeId }) : [],
   ])
   return {
     place,
@@ -87,32 +93,41 @@ function collectPlaceErrors(input: Partial<PlaceInput>, partial: boolean): strin
   return errors
 }
 
-export async function createPlace(store: DataStore, input: PlaceInput) {
+export async function createPlace(store: DataStore, tripId: string, input: PlaceInput) {
   const errors = collectPlaceErrors(input, false)
   if (errors.length) throw validation(errors)
-  const zone = await store.getZone(input.zone_id)
+  const zone = await store.getZone(tripId, input.zone_id)
   if (!zone) throw notFound('Zone')
-  const place = await store.createPlace({ ...input, name: input.name.trim() })
+  const place = await store.createPlace(tripId, { ...input, name: input.name.trim() })
   return { place }
 }
 
-export async function updatePlace(store: DataStore, placeId: string, patch: Partial<PlaceInput>) {
+export async function updatePlace(
+  store: DataStore,
+  tripId: string,
+  placeId: string,
+  patch: Partial<PlaceInput>
+) {
   const errors = collectPlaceErrors(patch, true)
   if (errors.length) throw validation(errors)
   if (patch.zone_id) {
-    const zone = await store.getZone(patch.zone_id)
+    // Both ends have to be in this trip, or a place could be moved into
+    // someone else's city. The store enforces it too; this is what turns
+    // that into a 404 rather than a silent no-op.
+    const zone = await store.getZone(tripId, patch.zone_id)
     if (!zone) throw notFound('Zone')
   }
-  const place = await store.updatePlace(placeId, patch)
+  const place = await store.updatePlace(tripId, placeId, patch)
   if (!place) throw notFound('Place')
   return { place }
 }
 
-export async function deletePlace(store: DataStore, placeId: string) {
-  const place = await store.getPlace(placeId)
+export async function deletePlace(store: DataStore, tripId: string, placeId: string) {
+  const place = await store.getPlace(tripId, placeId)
   if (!place) throw notFound('Place')
-  // no silent file loss (data-model.md): move the place's files to the trip first
-  const trip = await getDefaultTrip(store)
-  if (trip) await store.reparentFilesToTrip(placeId, trip.id)
-  await store.deletePlace(placeId)
+  // no silent file loss (data-model.md): move the place's files to the trip
+  // first. That trip is the one in the path, so a place deleted from one trip
+  // cannot dump its files on another.
+  await store.reparentFilesToTrip(placeId, tripId)
+  await store.deletePlace(tripId, placeId)
 }

@@ -3,7 +3,7 @@
 // time agree on when it fires; `time_zone` only records which wall clock the
 // user typed, for display.
 import type { DataStore, Reminder, ReminderInput } from '../lib/datastore.js'
-import { getDefaultTrip } from '../lib/datastore.js'
+import { requireTrip } from '../lib/access.js'
 import { notFound, validation } from '../lib/errors.js'
 import { sendPush, type PushSender } from '../lib/push.js'
 
@@ -76,21 +76,20 @@ function normalize(input: Partial<ReminderInput>): Partial<ReminderInput> {
   return next
 }
 
-async function requireTripId(store: DataStore, tripId?: string): Promise<string> {
-  const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
-  if (!trip) throw notFound('Trip')
+async function requireTripId(store: DataStore, tripId: string): Promise<string> {
+  const trip = await requireTrip(store, tripId)
   return trip.id
 }
 
 export async function listReminders(
   store: DataStore,
-  tripId?: string
+  tripId: string
 ): Promise<{ reminders: Reminder[] }> {
   const resolvedTripId = await requireTripId(store, tripId)
   return { reminders: await store.listReminders(resolvedTripId) }
 }
 
-export async function createReminder(store: DataStore, body: unknown, tripId?: string) {
+export async function createReminder(store: DataStore, tripId: string, body: unknown) {
   const input = (body ?? {}) as Partial<ReminderInput>
   const errors = collectReminderErrors(input, false)
   if (errors.length) throw validation(errors)
@@ -107,23 +106,28 @@ export async function createReminder(store: DataStore, body: unknown, tripId?: s
   return { reminder }
 }
 
-export async function updateReminder(store: DataStore, reminderId: string, body: unknown) {
+export async function updateReminder(
+  store: DataStore,
+  tripId: string,
+  reminderId: string,
+  body: unknown
+) {
   const input = (body ?? {}) as Partial<ReminderInput>
   const errors = collectReminderErrors(input, true)
   if (errors.length) throw validation(errors)
   const patch: Partial<ReminderInput> & { sent_at?: string | null } = normalize(input)
   // Moving a fired reminder into the future re-arms it (that's the "snooze").
   if (patch.remind_at) {
-    const existing = await store.getReminder(reminderId)
+    const existing = await store.getReminder(tripId, reminderId)
     if (existing?.sent_at && patch.remind_at > existing.sent_at) patch.sent_at = null
   }
-  const reminder = await store.updateReminder(reminderId, patch)
+  const reminder = await store.updateReminder(tripId, reminderId, patch)
   if (!reminder) throw notFound('Reminder')
   return { reminder }
 }
 
-export async function deleteReminder(store: DataStore, reminderId: string) {
-  const ok = await store.deleteReminder(reminderId)
+export async function deleteReminder(store: DataStore, tripId: string, reminderId: string) {
+  const ok = await store.deleteReminder(tripId, reminderId)
   if (!ok) throw notFound('Reminder')
 }
 

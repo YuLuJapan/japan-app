@@ -114,7 +114,9 @@ describe('GET /api/product-preview', () => {
       },
     })
 
-    const res = await auth(request(app).get('/api/product-preview?url=https://shop.example.com/p/3'))
+    const res = await auth(
+      request(app).get('/api/product-preview?url=https://shop.example.com/p/3')
+    )
     expect(res.body.price_yen).toBe(10000) // 67 USD ÷ 0.0067 USD-per-yen
   })
 
@@ -147,7 +149,9 @@ describe('GET /api/product-preview', () => {
   it('returns just the link when the shop cannot be read', async () => {
     mockPages({}) // every fetch 404s
 
-    const res = await auth(request(app).get('/api/product-preview?url=https://shop.example.jp/gone'))
+    const res = await auth(
+      request(app).get('/api/product-preview?url=https://shop.example.jp/gone')
+    )
     expect(res.status).toBe(200)
     expect(res.body).toMatchObject({
       url: 'https://shop.example.jp/gone',
@@ -300,7 +304,9 @@ describe('GET /api/product-preview on a Japanese shop page', () => {
       },
     })
 
-    const res = await auth(request(app).get('/api/product-preview?url=https://shop.example.jp/p/10'))
+    const res = await auth(
+      request(app).get('/api/product-preview?url=https://shop.example.jp/p/10')
+    )
     expect(res.body.price_yen).toBe(1500)
   })
 
@@ -311,7 +317,9 @@ describe('GET /api/product-preview on a Japanese shop page', () => {
       },
     })
 
-    const res = await auth(request(app).get('/api/product-preview?url=https://shop.example.jp/p/11'))
+    const res = await auth(
+      request(app).get('/api/product-preview?url=https://shop.example.jp/p/11')
+    )
     expect(res.body.price_yen).toBe(1500)
   })
 })
@@ -364,7 +372,7 @@ describe('GET /api/translate', () => {
 
 describe('GET /api/product-preview guards', () => {
   it.each([
-    ['http://localhost:3001/api/trip', 'loopback name'],
+    ['http://localhost:3001/api/trips/trip-1', 'loopback name'],
     ['http://127.0.0.1/', 'loopback address'],
     ['http://169.254.169.254/latest/meta-data/', 'cloud metadata'],
     ['http://192.168.1.1/', 'private network'],
@@ -373,9 +381,7 @@ describe('GET /api/product-preview guards', () => {
     const fetchSpy = vi.fn()
     vi.stubGlobal('fetch', fetchSpy)
 
-    const res = await auth(
-      request(app).get(`/api/product-preview?url=${encodeURIComponent(url)}`)
-    )
+    const res = await auth(request(app).get(`/api/product-preview?url=${encodeURIComponent(url)}`))
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('VALIDATION')
     expect(fetchSpy).not.toHaveBeenCalled()
@@ -388,7 +394,9 @@ describe('GET /api/product-preview guards', () => {
     vi.stubGlobal('fetch', fetchSpy)
 
     const res = await auth(
-      request(app).get(`/api/product-preview?url=${encodeURIComponent('http://localtest.me/admin')}`)
+      request(app).get(
+        `/api/product-preview?url=${encodeURIComponent('http://localtest.me/admin')}`
+      )
     )
     expect(res.status).toBe(400)
     expect(fetchSpy).not.toHaveBeenCalled()

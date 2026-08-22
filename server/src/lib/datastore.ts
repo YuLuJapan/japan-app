@@ -1,5 +1,6 @@
 // Datastore interface — every service depends on this, never on a concrete
 // backend. DATA_BACKEND=memory (placeholder JSON, default) | supabase (Phase 8).
+import type { InviteRole, TripRole } from './permissions.js'
 
 export const CATEGORIES = ['hotel', 'attraction', 'food', 'shopping', 'other'] as const
 export type Category = (typeof CATEGORIES)[number]
@@ -11,9 +12,106 @@ export interface Traveller {
   email?: string
 }
 
+/**
+ * A person with an account. Mirrors the Supabase Auth user for the fields the
+ * app itself owns — upserted on first authenticated request rather than by a
+ * trigger, so the memory backend behaves identically (lib/identity.ts).
+ *
+ * Distinct from `Traveller`: a Traveller is a free-text name on a trip's
+ * roster, a Profile is a login. Someone can be either, both, or neither.
+ */
+export interface Profile {
+  id: string
+  email: string
+  display_name: string | null
+  avatar_url: string | null
+}
+
+export interface ProfileInput {
+  id: string
+  email: string
+  display_name?: string | null
+  avatar_url?: string | null
+}
+
+/**
+ * One account's membership of one trip. The table that replaced the
+ * TRIP_OWNER_EMAILS allow-list: the app no longer asks "is this email one of
+ * the travellers?" but "is this account a member of this trip?", which is what
+ * lets anyone register without seeing anyone else's trip.
+ *
+ * `role` controls which verbs; the `can_see_*` flags control which content and
+ * apply to viewers only (see lib/permissions.ts and, from phase 4,
+ * lib/trip-view.ts).
+ */
+export interface TripMember {
+  trip_id: string
+  user_id: string
+  role: TripRole
+  can_see_stays: boolean
+  can_see_flight: boolean
+  can_see_documents: boolean
+}
+
+export interface TripMemberInput {
+  trip_id: string
+  user_id: string
+  role: TripRole
+  can_see_stays?: boolean
+  can_see_flight?: boolean
+  can_see_documents?: boolean
+}
+
+/**
+ * A pending (or spent) invitation to a trip.
+ *
+ * `token_hash` is a SHA-256 of the token; the plaintext exists only in the
+ * response that mints it. Nothing in the app can recover a token from a row,
+ * which is the point — a leaked backup hands out no working invites.
+ */
+export interface TripInvite {
+  id: string
+  trip_id: string
+  /** null = an open link; set = only that address may accept it. */
+  email: string | null
+  role: InviteRole
+  can_see_stays: boolean
+  can_see_flight: boolean
+  can_see_documents: boolean
+  invited_by: string | null
+  expires_at: string
+  accepted_at: string | null
+  accepted_by: string | null
+  revoked_at: string | null
+  created_at: string
+}
+
+/**
+ * What a backend persists. `token_hash` is deliberately absent from
+ * `TripInvite` itself, so the hash cannot travel out of a store by accident —
+ * no service or route can reach a field its type does not have.
+ */
+export interface StoredTripInvite extends TripInvite {
+  token_hash: string
+}
+
+export interface TripInviteInput {
+  trip_id: string
+  email?: string | null
+  role: InviteRole
+  can_see_stays?: boolean
+  can_see_flight?: boolean
+  can_see_documents?: boolean
+  token_hash: string
+  invited_by: string | null
+  expires_at: string
+}
+
 export interface Trip {
   id: string
-  name: string
+  /** An override, not the title — see lib/trip-title.ts. Null means "build one". */
+  name: string | null
+  country: string | null
   start_date: string
   end_date: string
   description: string | null
@@ -21,7 +119,8 @@ export interface Trip {
 }
 
 export interface TripInput {
-  name: string
+  name?: string | null
+  country?: string | null
   start_date: string
   end_date: string
   description?: string | null
@@ -59,6 +158,7 @@ export interface JourneyStepInput {
 
 export interface Zone {
   id: string
+  trip_id: string
   name: string
   name_ja: string | null
   summary: string | null
@@ -68,6 +168,7 @@ export interface Zone {
 }
 
 export interface ZoneInput {
+  trip_id: string
   name: string
   name_ja?: string | null
   summary?: string | null
@@ -265,8 +366,41 @@ export interface DataStore {
   /** Trivial read used by /api/health (keep-alive). Throws if the backend is unreachable. */
   ping(): Promise<void>
 
-  /** Every trip, oldest first. Powers the "Where to next?" trips list. */
+  getProfile(userId: string): Promise<Profile | null>
+  /** Case-insensitive — how an invite finds the account it was addressed to. */
+  getProfileByEmail(email: string): Promise<Profile | null>
+  /**
+   * Create or refresh the row for a signed-in user. Called on the first
+   * authenticated request of a session, so it must stay cheap and idempotent.
+   */
+  upsertProfile(input: ProfileInput): Promise<Profile>
+
+  /**
+   * Every trip, oldest first. **Unscoped** — only the deprecated static access
+   * codes may see this. Signed-in accounts go through `listTripsForUser`.
+   */
   listTrips(): Promise<Trip[]>
+  /** The caller's trips, oldest first. Powers the "Where to next?" trips list. */
+  listTripsForUser(userId: string): Promise<Trip[]>
+
+  listMembershipsForUser(userId: string): Promise<TripMember[]>
+
+  /** Pending invites for a trip, newest first. Spent and revoked ones are excluded. */
+  listTripInvites(tripId: string): Promise<TripInvite[]>
+  /** The only lookup the accept flow does — by hash, never by id. */
+  getInviteByTokenHash(tokenHash: string): Promise<TripInvite | null>
+  getTripInvite(tripId: string, inviteId: string): Promise<TripInvite | null>
+  createTripInvite(input: TripInviteInput): Promise<TripInvite>
+  /** Stamps `accepted_at`/`accepted_by`, or `revoked_at`. Single-use is enforced here. */
+  updateTripInvite(
+    inviteId: string,
+    patch: { accepted_at?: string; accepted_by?: string; revoked_at?: string }
+  ): Promise<TripInvite | null>
+  listTripMembers(tripId: string): Promise<TripMember[]>
+  getTripMember(tripId: string, userId: string): Promise<TripMember | null>
+  /** Idempotent: re-adding an existing member updates their role and visibility. */
+  upsertTripMember(input: TripMemberInput): Promise<TripMember>
+  removeTripMember(tripId: string, userId: string): Promise<boolean>
   getTrip(tripId: string): Promise<Trip | null>
   createTrip(input: TripInput): Promise<Trip>
   updateTrip(tripId: string, patch: Partial<TripInput>): Promise<Trip | null>
@@ -274,54 +408,67 @@ export interface DataStore {
   deleteTrip(tripId: string): Promise<boolean>
 
   listSteps(tripId: string): Promise<JourneyStep[]>
-  getStep(stepId: string): Promise<JourneyStep | null>
+  getStep(tripId: string, stepId: string): Promise<JourneyStep | null>
   createStep(input: JourneyStepInput): Promise<JourneyStep>
-  updateStep(stepId: string, patch: Partial<JourneyStepInput>): Promise<JourneyStep | null>
+  updateStep(
+    tripId: string,
+    stepId: string,
+    patch: Partial<JourneyStepInput>
+  ): Promise<JourneyStep | null>
   /** Hard delete. Callers are responsible for compacting positions afterward. */
-  deleteStep(stepId: string): Promise<boolean>
+  deleteStep(tripId: string, stepId: string): Promise<boolean>
 
-  /** Every zone in the trip's catalog (used to find-or-create a zone for a free-text destination). */
-  listZones(): Promise<Zone[]>
-  getZone(zoneId: string): Promise<Zone | null>
+  /**
+   * Every zone belonging to this trip (used to find-or-create a zone for a
+   * free-text destination).
+   *
+   * Since 0013 a zone belongs to exactly one trip. That is what lets every
+   * method below take the trip id as its first argument: scope lives in the
+   * query, so a forgotten check is a type error rather than a code review note.
+   */
+  listZones(tripId: string): Promise<Zone[]>
+  getZone(tripId: string, zoneId: string): Promise<Zone | null>
   /** Create a zone on the fly for a destination that doesn't match an existing one. */
   createZone(input: ZoneInput): Promise<Zone>
-  countPlacesByCategory(zoneId: string): Promise<Record<Category, number>>
+  countPlacesByCategory(tripId: string, zoneId: string): Promise<Record<Category, number>>
 
-  listPlaces(zoneId: string, category: Category): Promise<Place[]>
+  listPlaces(tripId: string, zoneId: string, category: Category): Promise<Place[]>
   /** Every place in a zone, all categories (used by the city map). */
-  listPlacesInZone(zoneId: string): Promise<Place[]>
-  getPlace(placeId: string): Promise<Place | null>
-  /** Ids of every place in one category — one query, so the guest view can drop stays cheaply. */
-  listPlaceIdsByCategory(category: Category): Promise<string[]>
-  createPlace(input: PlaceInput): Promise<Place>
-  updatePlace(placeId: string, patch: Partial<PlaceInput>): Promise<Place | null>
+  listPlacesInZone(tripId: string, zoneId: string): Promise<Place[]>
+  getPlace(tripId: string, placeId: string): Promise<Place | null>
+  /** Ids of every place in one category — one query, so a restricted view can drop stays cheaply. */
+  listPlaceIdsByCategory(tripId: string, category: Category): Promise<string[]>
+  createPlace(tripId: string, input: PlaceInput): Promise<Place>
+  updatePlace(tripId: string, placeId: string, patch: Partial<PlaceInput>): Promise<Place | null>
   /** Hard delete; the place's tips are deleted with it. Returns false if not found. */
-  deletePlace(placeId: string): Promise<boolean>
+  deletePlace(tripId: string, placeId: string): Promise<boolean>
 
   listItinerary(tripId: string): Promise<ItineraryItem[]>
-  /** One item by id — used to find its trip before validating a patched day. */
-  getItineraryItem(itemId: string): Promise<ItineraryItem | null>
+  getItineraryItem(tripId: string, itemId: string): Promise<ItineraryItem | null>
   createItineraryItem(input: ItineraryItemInput): Promise<ItineraryItem>
   updateItineraryItem(
+    tripId: string,
     itemId: string,
     patch: Partial<ItineraryItemInput>
   ): Promise<ItineraryItem | null>
-  deleteItineraryItem(itemId: string): Promise<boolean>
+  deleteItineraryItem(tripId: string, itemId: string): Promise<boolean>
 
   listShoppingItems(tripId: string): Promise<ShoppingItem[]>
   createShoppingItem(input: ShoppingItemInput): Promise<ShoppingItem>
   updateShoppingItem(
+    tripId: string,
     itemId: string,
     patch: Partial<ShoppingItemInput>
   ): Promise<ShoppingItem | null>
-  deleteShoppingItem(itemId: string): Promise<boolean>
+  deleteShoppingItem(tripId: string, itemId: string): Promise<boolean>
 
-  listTips(parent: { zone_id: string } | { place_id: string }): Promise<Tip[]>
-  createTip(input: TipInput): Promise<Tip>
-  updateTip(tipId: string, body: string): Promise<Tip | null>
-  deleteTip(tipId: string): Promise<boolean>
+  listTips(tripId: string, parent: { zone_id: string } | { place_id: string }): Promise<Tip[]>
+  createTip(tripId: string, input: TipInput): Promise<Tip>
+  updateTip(tripId: string, tipId: string, body: string): Promise<Tip | null>
+  deleteTip(tripId: string, tipId: string): Promise<boolean>
 
   listFiles(
+    tripId: string,
     parent: { trip_id: string } | { zone_id: string } | { place_id: string }
   ): Promise<FileAttachment[]>
   /**
@@ -331,11 +478,11 @@ export interface DataStore {
    */
   listAllFiles(tripId: string): Promise<FileAttachment[]>
   countTripFiles(tripId: string): Promise<number>
-  getFile(fileId: string): Promise<FileAttachment | null>
+  getFile(tripId: string, fileId: string): Promise<FileAttachment | null>
   /** Store an uploaded blob and its metadata row. */
   createFile(input: FileInput, bytes: Buffer): Promise<FileAttachment>
   /** Delete the metadata row and its blob. Returns false if the row is missing. */
-  deleteFile(fileId: string): Promise<boolean>
+  deleteFile(tripId: string, fileId: string): Promise<boolean>
   /** Move a place's files to the trip (used before place deletion — no silent file loss). */
   reparentFilesToTrip(placeId: string, tripId: string): Promise<void>
   /** Resolve an openable URL for the blob, or FILE_MISSING when the row exists but the blob is gone. */
@@ -343,8 +490,8 @@ export interface DataStore {
   /** Raw bytes for the blob, streamed by GET /api/files/:id/content so the app can preview it inline. */
   getFileBytes(file: FileAttachment): Promise<FileBytesResult>
 
-  /** Free-text search across places, zones, and tips (case-insensitive). */
-  search(query: string): Promise<{ places: Place[]; zones: Zone[]; tips: Tip[] }>
+  /** Free-text search across one trip's places, zones and tips (case-insensitive). */
+  search(tripId: string, query: string): Promise<{ places: Place[]; zones: Zone[]; tips: Tip[] }>
 
   /** Last exchange rate we successfully fetched (durable fallback), or null. */
   getLatestRates(): Promise<ExchangeRates | null>
@@ -353,13 +500,14 @@ export interface DataStore {
 
   /** Every reminder for the trip, soonest first. */
   listReminders(tripId: string): Promise<Reminder[]>
-  getReminder(reminderId: string): Promise<Reminder | null>
+  getReminder(tripId: string, reminderId: string): Promise<Reminder | null>
   createReminder(input: ReminderInput): Promise<Reminder>
   updateReminder(
+    tripId: string,
     reminderId: string,
     patch: Partial<ReminderInput> & { sent_at?: string | null }
   ): Promise<Reminder | null>
-  deleteReminder(reminderId: string): Promise<boolean>
+  deleteReminder(tripId: string, reminderId: string): Promise<boolean>
   /**
    * Atomically hand out every unsent reminder whose time has come, stamping
    * `sent_at` in the same operation. Claim-then-send means a reminder is sent
@@ -396,17 +544,4 @@ export async function getDataStore(): Promise<DataStore> {
 /** Test hook: replace the process-wide store (pass null to reset to env selection). */
 export function setDataStore(next: DataStore | null): void {
   store = next
-}
-
-/**
- * The trip that single-trip-era routes (itinerary/steps/shopping/reminders/
- * files) still implicitly operate on: the oldest one. Multi-trip support so
- * far only covers listing/creating/editing/deleting trips themselves — these
- * other routes stay scoped to one trip until the UI can actually switch
- * between trips (tracked as a follow-up), so this preserves exactly the
- * pre-multi-trip behavior for them.
- */
-export async function getDefaultTrip(store: DataStore): Promise<Trip | null> {
-  const trips = await store.listTrips()
-  return trips[0] ?? null
 }

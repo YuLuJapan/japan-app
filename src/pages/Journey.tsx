@@ -9,7 +9,7 @@ import { Schedule } from '../components/Schedule'
 import { SushiSequence } from '../components/SushiSequence'
 import { enumerateDays, toISODate } from '../lib/schedule'
 import { useCanEdit, useCanSeeBookings } from '../lib/session'
-import { travellersLabel, useTripId } from '../lib/trip'
+import { useTripId } from '../lib/trip'
 
 const fmt = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString('en', { month: 'short', day: 'numeric' })
@@ -31,12 +31,13 @@ export default function Journey() {
   if (isError) return <ErrorState message="Could not load the trip." onRetry={() => refetch()} />
 
   const today = new Date()
-  const japan = isJapanTrip(data.trip.name)
+  const japan = isJapanTrip(data.trip.country ?? data.trip.name ?? '')
   const hasSteps = data.steps.length > 0
-  // "Yuval & Luciana in Japan" — travellers and destination are stored
-  // separately (trip.name is just the destination) and composed here, same as
-  // the design prototype's travellersLabel + tripName.
-  const heroTitle = `${travellersLabel(data.trip.people)} in ${data.trip.name}`
+  // "Yuval and Luciana in Japan" — composed on the server now (display_title),
+  // so every screen and every client agree on what a trip is called. This used
+  // to be built here from trip.name plus travellersLabel, which meant the title
+  // differed depending on which screen you were looking at.
+  const heroTitle = data.trip.display_title
 
   return (
     <div className="space-y-6">

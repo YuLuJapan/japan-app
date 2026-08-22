@@ -8,13 +8,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // "exist" in the schema.
 let hasNewColumns = true
 
-const UNDEFINED_COLUMN = { code: '42703', message: 'column itinerary_items.highlight does not exist' }
+const UNDEFINED_COLUMN = {
+  code: '42703',
+  message: 'column itinerary_items.highlight does not exist',
+}
 
 // A minimal chainable stand-in for the Supabase query builder. It records the
 // requested columns / written row, then resolves success or an undefined_column
 // error depending on `hasNewColumns`.
 function fakeBuilder() {
-  const state: { op: 'select' | 'insert' | 'update'; cols: string; row: Record<string, unknown> | null } = {
+  const state: {
+    op: 'select' | 'insert' | 'update'
+    cols: string
+    row: Record<string, unknown> | null
+  } = {
     op: 'select',
     cols: '',
     row: null,
@@ -28,7 +35,17 @@ function fakeBuilder() {
   const result = () => {
     if (!hasNewColumns && referencesNewColumns()) return { data: null, error: UNDEFINED_COLUMN }
     if (state.op === 'select') {
-      const base = { id: 'itin-1', trip_id: 't1', zone_id: null, place_id: null, day: '2026-09-20', start_time: null, title: 'Test', note: null, position: 0 }
+      const base = {
+        id: 'itin-1',
+        trip_id: 't1',
+        zone_id: null,
+        place_id: null,
+        day: '2026-09-20',
+        start_time: null,
+        title: 'Test',
+        note: null,
+        position: 0,
+      }
       const row = hasNewColumns ? { ...base, highlight: true, icon: '🎂' } : base
       return { data: [row], error: null }
     }
@@ -107,7 +124,10 @@ describe('supabase itinerary store — migration 0004 tolerance', () => {
   it('updates an item even when the columns are missing', async () => {
     hasNewColumns = false
     const store = createSupabaseStore()
-    const item = await store.updateItineraryItem('itin-1', { title: 'Edited', highlight: true })
+    const item = await store.updateItineraryItem('trip-1', 'itin-1', {
+      title: 'Edited',
+      highlight: true,
+    })
     expect(item?.title).toBe('Edited')
   })
 })

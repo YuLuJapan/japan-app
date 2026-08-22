@@ -32,7 +32,14 @@ export interface Traveller {
 
 export interface Trip {
   id: string
-  name: string
+  /** An override, not the title. Null means "use display_title". */
+  name: string | null
+  country: string | null
+  /**
+   * What to show. Computed server-side from the name, the travellers and the
+   * country, so every client agrees — never build this in the UI.
+   */
+  display_title: string
   start_date: string
   end_date: string
   description: string | null
@@ -129,11 +136,46 @@ export interface FlightInfo {
   return_flight: FlightItinerary
 }
 
+/** What this caller may do on a trip. Drives which buttons the UI offers. */
+export type TripRole = 'owner' | 'partner' | 'viewer'
+
 export interface TripBundle {
   trip: Trip
   steps: TripStep[]
   trip_files_count: number
+  /** Absent only for the deprecated shared access codes, which have no membership. */
+  my_role?: TripRole | null
   flight?: FlightInfo
+}
+
+export interface TripMember {
+  user_id: string
+  role: TripRole
+  email: string
+  display_name: string | null
+  avatar_url: string | null
+  can_see_stays: boolean
+  can_see_flight: boolean
+  can_see_documents: boolean
+}
+
+export interface TripInvite {
+  id: string
+  email: string | null
+  role: 'partner' | 'viewer'
+  can_see_stays: boolean
+  can_see_flight: boolean
+  can_see_documents: boolean
+  expires_at: string
+}
+
+export interface InvitePreview {
+  trip_name: string
+  role: 'partner' | 'viewer'
+  invited_by: string | null
+  email: string | null
+  expires_at: string
+  shows: { stays: boolean; flight: boolean; documents: boolean }
 }
 
 export interface Tip {

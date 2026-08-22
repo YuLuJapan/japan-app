@@ -61,11 +61,11 @@ function TripCard({ trip, onEdit }: { trip: Trip; onEdit: () => void }) {
         aria-hidden
       >
         <span className="font-display text-4xl font-extrabold leading-none text-white/90">
-          {trip.name[0]?.toUpperCase()}
+          {trip.display_title[0]?.toUpperCase()}
         </span>
       </div>
       <div className="min-w-0 flex-1">
-        <p className="font-display text-lg font-extrabold tracking-tight">{trip.name}</p>
+        <p className="font-display text-lg font-extrabold tracking-tight">{trip.display_title}</p>
         <p className="mt-0.5 text-xs text-muted">{dateRange(trip)}</p>
         {trip.people.length > 0 && (
           <div className="mt-2 flex items-center gap-1.5">
@@ -165,7 +165,7 @@ export default function TripsList() {
                   className="flex items-center justify-between rounded-3xl bg-white/60 px-4.5 py-3.5"
                 >
                   <div>
-                    <p className="text-sm font-semibold text-ink/70">{t.name}</p>
+                    <p className="text-sm font-semibold text-ink/70">{t.display_title}</p>
                     <p className="mt-0.5 text-xs text-muted">{dateRange(t)}</p>
                   </div>
                   <span className="text-[11px] font-bold tracking-wide text-muted">ARCHIVED</span>

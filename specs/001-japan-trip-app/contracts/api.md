@@ -6,11 +6,104 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
 
 ## Conventions
 
-- **Auth**: every route except `GET /api/health` requires `Authorization: Bearer <ACCESS_CODE>`. Two codes are accepted, and which one is sent decides the caller's **role**:
-  - `TRIP_ACCESS_CODE` → role `owner` — the travelers, full read/write.
-  - `TRIP_GUEST_CODE` (optional; unset = no guest view) → role `guest` — read-only, and no documents, stays or flight.
+- **Auth**: every route except `GET /api/health` requires `Authorization: Bearer <token>`. Three tokens are accepted:
+  - `TRIP_ACCESS_CODE` → role `owner` — full read/write, and reaches **every** trip. _Deprecated._
+  - `TRIP_GUEST_CODE` (optional; unset = no guest view) → role `guest` — read-only, no documents, stays or flight. _Deprecated._
+  - a **Supabase Auth JWT** (Google OAuth, email + password, or magic-link) → role `owner`, reaching **only the trips they are a member of**.
 
   Missing/wrong → `401 {"error":{"code":"UNAUTHORIZED"}}`. If both env vars hold the same value, `owner` wins.
+
+- **Membership (2026-08-22, feature 002 phase 2)**: `TRIP_OWNER_EMAILS` is **gone**. Registration is open — anyone may create an account, and sees nothing until they create a trip or are invited to one. Two separate checks run on every request:
+  - **role** (`req.role`) — the pre-accounts verb check. Any signed-in account is `owner` here; it says nothing about _whose_ trip.
+  - **access** (`req.access`, `server/src/lib/access.ts`) — which trips this caller can reach. For an account that is their `trip_members` rows; for the deprecated codes it is every trip, so their behaviour is unchanged.
+
+  A trip that isn't yours answers **`404`, never `403`** — a 403 would confirm it exists. A member who merely lacks the verb (a viewer writing) gets `403`, because they already know it exists.
+
+  Per-trip roles are `owner` > `partner` > `viewer` (`server/src/lib/permissions.ts`).
+
+- **Sharing (2026-08-22, feature 002 phase 4)**: a trip is shared with a link, not an email. `POST /api/trips/:tripId/invites` mints one and returns the plaintext **exactly once**; only its SHA-256 is stored, so a leaked backup hands out no working invites. `owner` is ungrantable by invite (a schema check constraint, not a service rule).
+
+  | capability                                  | owner | partner  |        viewer        |
+  | ------------------------------------------- | :---: | :------: | :------------------: |
+  | read trip content                           |   ✓   |    ✓     |          ✓           |
+  | read stays · flight · documents             |   ✓   |    ✓     | **per-member flags** |
+  | create / edit / delete content              |   ✓   |    ✓     |          ✗           |
+  | invite a **viewer**                         |   ✓   |    ✓     |          ✗           |
+  | invite a **partner**                        |   ✓   |    ✗     |          ✗           |
+  | change roles / visibility · remove a member |   ✓   |    ✗     |          ✗           |
+  | revoke an invite                            |  any  | own only |          ✗           |
+  | leave the trip                              |   —   |    ✓     |          ✓           |
+
+  `canInvite` takes the **target** role, which is what stops a partner inviting another partner and spreading write access sideways with no owner in the loop.
+
+  **Every trip keeps at least one owner** — enforced in the service, since Postgres cannot express it without a deferred constraint trigger. A trip with no owner is unreachable by anyone, forever.
+
+  **Read-only is enforced at the router.** `authMiddleware` blocks writes for the deprecated guest _code_, but a viewer is an ordinary signed-in account and passes straight through it; `requireTripAccess` refuses non-`GET` for any role that cannot write. The single exception is `DELETE /members/:userId` on yourself — leaving a trip is a write anyone may make.
+
+  Routes: `GET/PATCH/DELETE /api/trips/:tripId/members[/:userId]`, `GET/POST /api/trips/:tripId/invites`, `DELETE /api/trips/:tripId/invites/:inviteId`, plus `GET /api/invites/:token` (preview) and `POST /api/invites/:token/accept`. Accepting is single-use, idempotent for an existing member, and never a downgrade. A shared access code cannot accept — a code proves a right, not an identity.
+
+- **Per-member visibility (phase 4)**: three flags on `trip_members` — `can_see_stays`, `can_see_flight`, `can_see_documents` — collapse into one `TripView` (`server/src/lib/trip-view.ts`) that rides on the trip context. Writers always get the full view: the flags are _ignored_ for owner and partner rather than validated, so an owner cannot lock themselves out of their own bookings.
+
+  Enforcement points: place detail (`403` on a hidden stay), zone detail and its category counts, the zone place list including the map's all-categories sweep, the trip bundle's `flight` block (the key is absent, not null), search, and files.
+
+  **Files: place-attached ones inherit their place.** A hotel's reservation PDF disappears exactly when the stays do. Trip- and zone-attached files are governed solely by `can_see_documents` — a "flight booking.pdf" attached to the trip is a blob with a display name, and the app cannot know what is inside it. So `flight: false` with `documents: true` still shows it; the members screen says so rather than pretending otherwise. Upgrade path if that is not enough: a `files.kind` tag set at upload.
+
+  Defaults on a new invite: stays **on**, flight **on**, documents **off**.
+
+- **The trip's title (2026-08-22, feature 002 phase 5)**: `trips.name` is **nullable** and is an _override_, not the title. Every trip payload carries `display_title`, computed server-side from `server/src/lib/trip-title.ts` so there is one implementation and clients cannot drift:
+
+  | given                | title                        |
+  | -------------------- | ---------------------------- |
+  | a `name`             | that name                    |
+  | `people` + `country` | `Yuval and Luciana in Japan` |
+  | `country` only       | `Trip to Japan`              |
+  | `people` only        | `Yuval and Luciana’s trip`   |
+  | neither              | `Untitled trip`              |
+
+  Names come from `trips.people` — the deliberate roster of who is going. Member display names are a fallback used **only** when that roster is empty, because membership answers "who can open the app" and includes anyone the trip was shared with.
+
+  `POST /api/trips` no longer requires `name`; sending `""` on create or patch clears the override rather than storing an empty string. `country` is a new optional field (max 80 chars).
+
+  **The single-trip-era routes are scoped too.** `GET /api/trip`, `/api/itinerary`, `/api/shopping`, `/api/reminders`, `/api/files` and `/api/steps` carry no trip id and used to resolve to the oldest trip _in the database_. They now resolve to the caller's oldest trip, and `404` when they have none.
+
+  **Every content route is now nested (2026-08-22, phase 3a).** They live under `/api/trips/:tripId/…` behind a single `requireTripAccess` middleware (`server/src/lib/trip-context.ts`), applied once to the whole router — so a route added there is access-checked by construction rather than by remembering to guard it:
+
+  ```
+  /api/trips/:tripId            GET · PATCH · DELETE   (the bundle)
+  /api/trips/:tripId/date-impact                 GET
+  /api/trips/:tripId/steps      /steps/:stepId
+  /api/trips/:tripId/zones/:zoneId               /zones/:zoneId/places
+  /api/trips/:tripId/places     /places/:placeId
+  /api/trips/:tripId/tips       /tips/:tipId
+  /api/trips/:tripId/itinerary  /itinerary/:itemId
+  /api/trips/:tripId/shopping   /shopping/:itemId
+  /api/trips/:tripId/reminders  /reminders/:reminderId
+  /api/trips/:tripId/files      /files/:fileId · /files/:fileId/url · /files/:fileId/content
+  ```
+
+  `/api/trips/:tripId/search` joins them (phase 3a-ii).
+
+  **The flat and singleton routes are gone (phase 3a-ii).** `/api/trip`, `/api/itinerary`, `/api/shopping`, `/api/reminders`, `/api/files`, `/api/steps`, `/api/places`, `/api/tips`, `/api/zones/:zoneId` and `/api/search` all answer `404`. Reaching trip content without naming the trip is no longer expressible, and `getDefaultTrip` — which once resolved to "the oldest trip in the database" — no longer exists.
+
+  Still at `/api`, none of them trip content: `/health`, `/auth/*`, `/me`, `/trips` (the collection — listing and creating happen before there is a trip to be a member of), `/rates`, `/geocode`, `/images`, `/product-preview`, `/translate`, `/push/*`, and `/reminders/dispatch` (called by an external scheduler with no trip in hand, guarding itself with `CRON_SECRET`).
+
+  **Nesting proves membership; scoping proves ownership.** The router check answers "are you a member of the trip in the path"; the store's trip id answers "does this row belong to that trip". Both are needed, and `server/tests/tenancy.test.ts` sweeps both — 60 cases, derived from the router's own Express stack so a new route is covered automatically.
+
+  **Zones belong to a trip (2026-08-22, phase 3b, migration 0013).** Every row in the system now resolves to exactly one trip, and every trip-owned `DataStore` method takes the trip id as its first argument — scope lives in the query, so a forgotten check is a TypeScript error rather than a code-review note.
+
+  Two consequences worth knowing:
+  - `/api/trips/A/places/<place-in-B>` answers `404`, and so does every other cross-resource combination. A place cannot be moved into another trip's zone, a tip cannot be hung off one, and a journey step cannot point at one.
+  - **Find-or-create is per trip.** Adding "Tokyo" to a second trip creates that trip's own Tokyo, with its own places and notes, rather than sharing the first trip's. Two trips to the same city no longer see each other's restaurants.
+
+  The reachability workaround this replaced (walking journey steps on every read) is gone.
+
+  > **Correction (phase 3a-ii)**: phase 2 documented search as scoped when it was not — `GET /api/search` ran catalog-wide with no access check, so any account could read place names, zone names and the first 80 characters of any tip from any trip. Fixed and covered by regression tests in `server/tests/membership.test.ts`.
+
+- **Accounts (2026-08-22 addition, feature 002 phase 1)**: authentication and authorization are now separate steps. `server/src/lib/identity.ts` resolves a token to a **principal** — either a signed-in account or one of the deprecated static codes — and says nothing about permissions; `server/src/lib/auth.ts` then decides the role. A token can therefore verify perfectly and still buy nothing: a Google account that isn't allow-listed gets `401`, not `403`, because it holds no role at all.
+
+  Verified JWTs are cached in-process for 60s (rejections for 10s) so a warm serverless instance doesn't re-verify on every call. A signed-in account is mirrored into the `profiles` table on its first authenticated request of each 5-minute window; that write is **best-effort and never fails the request** — an unmigrated database degrades to "no profile row", not to a 500.
+
+  (Phase 1 gated this on a `TRIP_OWNER_EMAILS` allow-list; phase 2 replaced it with the membership rules above.)
 
 - **Guest restrictions**, part 1 — the bookings (enforced in `authMiddleware`, before any route runs):
   - any method other than `GET`/`HEAD`/`OPTIONS` → `403 {"error":{"code":"FORBIDDEN"}}`;
@@ -43,6 +136,16 @@ The role of the code this client is already holding. Lets a session that predate
 
 - 200: `{"role": "owner" | "guest"}` · 401 when the stored code is no longer valid.
 
+### GET /api/me
+
+The signed-in account, as the app knows it.
+
+- 200: `{"user": {"id":"…","email":"…","display_name":"…|null","avatar_url":"…|null"}, "role": "owner" | "guest"}`
+- 200: `{"user": null, "role": "owner"}` when the caller used a static access code — a code proves a right, not an identity, so there is nobody to name.
+- 401 when the token is not valid.
+
+`user` prefers the stored `profiles` row over the token's claims, so a display name edited in the app wins over the one the provider last sent.
+
 ## Trip & journey
 
 **Multi-trip (2026-08-08 addition):** the app now supports more than one trip — `GET /api/trips` lists them, `POST /api/trips` creates one, and `GET/PATCH/DELETE /api/trips/:tripId` operate on a specific trip. `people` is a free-text array of travellers on the trip itself (not linked accounts — there is no per-trip membership/sharing model, login, or delivered email; `email` is optional and only ever used client-side to open a `mailto:` invite). `GET /api/trip` (singular, no id) is kept as a **legacy alias** for `GET /api/trips/:tripId` on whichever trip is oldest, so the pre-multi-trip UI keeps working; new code should call the plural routes. Journey steps, itinerary, shopping, reminders and file upload are **not yet trip-scoped in their routes** — they still operate on that same oldest trip regardless of how many trips exist, until the UI can actually switch between trips (tracked as a follow-up; trip CRUD itself has no such limitation).
@@ -51,7 +154,7 @@ The role of the code this client is already holding. Lets a session that predate
 
 ### GET /api/trips
 
-List every trip, oldest first (powers the "Where to next?" trips list).
+The caller's trips, oldest first (powers the "Where to next?" trips list). An account that is a member of nothing gets `{"trips": []}` — not everybody else's.
 
 - 200: `{"trips": [{"id":"…","name":"…","start_date":"…","end_date":"…","description":"…","people":[{"name":"Yuval"},{"name":"Luciana","email":"luciana@example.com"}]}]}`
 
@@ -59,6 +162,8 @@ List every trip, oldest first (powers the "Where to next?" trips list).
 
 - Request: `{"name":"…","start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","description?":"…","people?":[{"name":"…","email?":"…"} | "…"]}`
 - 201: `{"trip": {…}}` · 400 `VALIDATION` (missing/blank name, bad dates, end before start, name/description too long, more than 12 travellers, a traveller missing a name, a traveller name too long, or an `email` that isn't a valid address).
+
+> **`my_role` (2026-08-22)**: the trip bundle (`GET /api/trip` and `GET /api/trips/:tripId`) and `POST /api/trips` now carry `"my_role": "owner" | "partner" | "viewer"` — what this caller may do on this trip. It drives which buttons the UI offers, and is never what decides whether a write succeeds. `POST /api/trips` always makes its creator an `owner`.
 
 ### GET /api/trips/:tripId
 

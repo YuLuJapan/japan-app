@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { isGuest } from '../lib/auth.js'
+import { tripContextOf } from '../lib/trip-context.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import {
@@ -9,53 +9,39 @@ import {
   updateItineraryItem,
 } from '../services/itinerary.js'
 
-export const itineraryRouter = Router()
+const list = asyncHandler(async (req, res) => {
+  res.json(
+    await listItinerary(await getDataStore(), req.params.tripId, {
+      includeStays: tripContextOf(req).view.stays,
+    })
+  )
+})
 
-itineraryRouter.get(
-  '/itinerary',
-  asyncHandler(async (req, res) => {
-    res.json(await listItinerary(await getDataStore(), undefined, { includeStays: !isGuest(req) }))
-  })
-)
+const create = asyncHandler(async (req, res) => {
+  res
+    .status(201)
+    .json(await createItineraryItem(await getDataStore(), req.params.tripId, req.body ?? {}))
+})
 
-itineraryRouter.post(
-  '/itinerary',
-  asyncHandler(async (req, res) => {
-    res.status(201).json(await createItineraryItem(await getDataStore(), req.body ?? {}))
-  })
-)
-
-itineraryRouter.get(
-  '/trips/:tripId/itinerary',
-  asyncHandler(async (req, res) => {
-    res.json(
-      await listItinerary(await getDataStore(), req.params.tripId, {
-        includeStays: !isGuest(req),
-      })
+const update = asyncHandler(async (req, res) => {
+  res.json(
+    await updateItineraryItem(
+      await getDataStore(),
+      req.params.tripId,
+      req.params.itemId,
+      req.body ?? {}
     )
-  })
-)
+  )
+})
 
-itineraryRouter.post(
-  '/trips/:tripId/itinerary',
-  asyncHandler(async (req, res) => {
-    res
-      .status(201)
-      .json(await createItineraryItem(await getDataStore(), req.body ?? {}, req.params.tripId))
-  })
-)
+const remove = asyncHandler(async (req, res) => {
+  await deleteItineraryItem(await getDataStore(), req.params.tripId, req.params.itemId)
+  res.status(204).end()
+})
 
-itineraryRouter.patch(
-  '/itinerary/:itemId',
-  asyncHandler(async (req, res) => {
-    res.json(await updateItineraryItem(await getDataStore(), req.params.itemId, req.body ?? {}))
-  })
-)
-
-itineraryRouter.delete(
-  '/itinerary/:itemId',
-  asyncHandler(async (req, res) => {
-    await deleteItineraryItem(await getDataStore(), req.params.itemId)
-    res.status(204).end()
-  })
-)
+/** Mounted under /api/trips/:tripId, behind requireTripAccess. */
+export const itineraryTripRouter = Router({ mergeParams: true })
+itineraryTripRouter.get('/itinerary', list)
+itineraryTripRouter.post('/itinerary', create)
+itineraryTripRouter.patch('/itinerary/:itemId', update)
+itineraryTripRouter.delete('/itinerary/:itemId', remove)

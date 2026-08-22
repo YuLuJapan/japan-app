@@ -61,6 +61,8 @@ function mockApi(items: ShoppingItem[]) {
         trip: {
           id: 'trip-1',
           name: 'Japan',
+    country: 'Japan',
+    display_title: 'Japan',
           start_date: '2026-09-19',
           end_date: '2026-10-16',
           description: null,
@@ -143,7 +145,7 @@ describe('Shopping home (category carousels)', () => {
       await screen.findByRole('button', { name: 'Mark Onitsuka Tiger Mexico 66 as bought' })
     )
     await waitFor(() =>
-      expect(mocks.patch).toHaveBeenCalledWith('/shopping/buy-1', { bought: true })
+      expect(mocks.patch).toHaveBeenCalledWith('/trips/trip-1/shopping/buy-1', { bought: true })
     )
   })
 
@@ -205,7 +207,7 @@ describe('Shopping category page', () => {
     swipe(await rowFor('Onitsuka Tiger Mexico 66'), 120)
 
     await waitFor(() =>
-      expect(mocks.patch).toHaveBeenCalledWith('/shopping/buy-1', { bought: true })
+      expect(mocks.patch).toHaveBeenCalledWith('/trips/trip-1/shopping/buy-1', { bought: true })
     )
   })
 
@@ -224,7 +226,7 @@ describe('Shopping category page', () => {
     await userEvent.click(
       Array.from(dialog.querySelectorAll('button')).find((b) => b.textContent === 'Delete')!
     )
-    await waitFor(() => expect(mocks.delete).toHaveBeenCalledWith('/shopping/buy-1'))
+    await waitFor(() => expect(mocks.delete).toHaveBeenCalledWith('/trips/trip-1/shopping/buy-1'))
   })
 
   it('ignores a short sideways nudge and a vertical scroll', async () => {
@@ -283,7 +285,7 @@ describe('Shopping item detail', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Mark as bought' }))
     await waitFor(() =>
-      expect(mocks.patch).toHaveBeenCalledWith('/shopping/buy-1', { bought: true })
+      expect(mocks.patch).toHaveBeenCalledWith('/trips/trip-1/shopping/buy-1', { bought: true })
     )
   })
 
@@ -308,7 +310,7 @@ describe('Shopping item detail', () => {
       (b) => b.textContent === 'Delete'
     )!
     await userEvent.click(confirm)
-    await waitFor(() => expect(mocks.delete).toHaveBeenCalledWith('/shopping/buy-1'))
+    await waitFor(() => expect(mocks.delete).toHaveBeenCalledWith('/trips/trip-1/shopping/buy-1'))
   })
 
   it('offers a web photo search for an item that has none, and saves the pick', async () => {
@@ -339,7 +341,7 @@ describe('Shopping item detail', () => {
     await userEvent.click(await screen.findByRole('img', { name: 'Kit Kat' }))
 
     await waitFor(() =>
-      expect(mocks.patch).toHaveBeenCalledWith('/shopping/buy-1', {
+      expect(mocks.patch).toHaveBeenCalledWith('/trips/trip-1/shopping/buy-1', {
         image_url: 'https://upload.wikimedia.org/found.jpg',
       })
     )

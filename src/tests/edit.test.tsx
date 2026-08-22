@@ -65,7 +65,7 @@ describe('PlaceDetail delete flow (FR-017)', () => {
       (b) => b.textContent === 'Delete'
     )!
     await userEvent.click(confirm)
-    await waitFor(() => expect(mocks.delete).toHaveBeenCalledWith('/places/p1'))
+    await waitFor(() => expect(mocks.delete).toHaveBeenCalledWith('/trips/trip-1/places/p1'))
   })
 })
 
@@ -88,7 +88,7 @@ describe('PlaceForm failure path (FR-019)', () => {
     await userEvent.click(retry)
     await waitFor(() =>
       expect(mocks.post).toHaveBeenLastCalledWith(
-        '/places',
+        '/trips/trip-1/places',
         expect.objectContaining({ name: 'Hidden Gyoza Bar', zone_id: 'z1' })
       )
     )

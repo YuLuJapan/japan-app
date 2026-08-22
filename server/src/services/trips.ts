@@ -2,8 +2,11 @@
 // them all (the "Where to next?" screen); GET /api/trips/:tripId returns the
 // full journey skeleton for one (steps + zones + flight + file count).
 import type { DataStore, ItineraryItem, JourneyStep, Trip, TripInput } from '../lib/datastore.js'
-import { getDefaultTrip, normalizeTraveller } from '../lib/datastore.js'
-import { notFound, validation } from '../lib/errors.js'
+import { normalizeTraveller } from '../lib/datastore.js'
+import { assertTripAccess, roleForTrip, type AccessContext } from '../lib/access.js'
+import { canDeleteTrip, canEditTrip } from '../lib/permissions.js'
+import { forbidden, notFound, validation } from '../lib/errors.js'
+import { displayTitle } from '../lib/trip-title.js'
 import { FLIGHT } from '../lib/flight.js'
 import { hideStayCounts } from '../lib/guest-view.js'
 import type { DateRange } from '../lib/trip-dates.js'
@@ -12,11 +15,36 @@ import { addDays, daysBetween, rangeLabel, withinRange } from '../lib/trip-dates
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const NAME_MAX = 120
+const COUNTRY_MAX = 80
 const PERSON_MAX = 60
 const PEOPLE_MAX = 12
 
-export async function listTrips(store: DataStore) {
-  return { trips: await store.listTrips() }
+/**
+ * The caller's trips. A brand-new account gets an empty list rather than
+ * everybody's — this one line is what makes open registration safe, and the
+ * reason `listTrips()` on the store is documented as unscoped.
+ */
+/**
+ * The title travels with every trip, computed here rather than in each client.
+ *
+ * Member names are only ever a fallback for a trip whose roster is empty: the
+ * roster answers "who is going", membership answers "who can open the app",
+ * and those differ the moment a trip is shared with a friend.
+ */
+async function withTitle(store: DataStore, trip: Trip) {
+  let memberNames: string[] = []
+  if (!trip.people.some((p) => p.name.trim())) {
+    const members = await store.listTripMembers(trip.id)
+    const profiles = await Promise.all(members.map((m) => store.getProfile(m.user_id)))
+    memberNames = profiles.map((p) => p?.display_name ?? '').filter(Boolean)
+  }
+  return { ...trip, display_title: displayTitle({ ...trip, memberNames }) }
+}
+
+export async function listTrips(store: DataStore, access: AccessContext) {
+  const rows = access.userId ? await store.listTripsForUser(access.userId) : await store.listTrips()
+  const trips = await Promise.all(rows.map((t) => withTitle(store, t)))
+  return { trips }
 }
 
 /**
@@ -31,16 +59,20 @@ export interface TripBundleOptions {
 
 export async function getTripBundle(
   store: DataStore,
+  access: AccessContext,
   tripId: string,
   { includeFlight = true, includeStays = true }: TripBundleOptions = {}
 ) {
+  // 404 rather than 403 for a trip that isn't yours: a 403 would confirm it
+  // exists to someone with no business knowing that.
+  assertTripAccess(access, tripId)
   const trip = await store.getTrip(tripId)
   if (!trip) throw notFound('Trip')
   const steps = await store.listSteps(trip.id)
   const stepsWithZones = await Promise.all(
     steps.map(async (step) => {
-      const zone = await store.getZone(step.zone_id)
-      const counts = await store.countPlacesByCategory(step.zone_id)
+      const zone = await store.getZone(trip.id, step.zone_id)
+      const counts = await store.countPlacesByCategory(trip.id, step.zone_id)
       const place_counts = includeStays ? counts : hideStayCounts(counts)
       return {
         id: step.id,
@@ -53,18 +85,14 @@ export async function getTripBundle(
   )
   const trip_files_count = await store.countTripFiles(trip.id)
   return {
-    trip,
+    trip: await withTitle(store, trip),
     steps: stepsWithZones,
     trip_files_count,
+    // What this caller may do here. The frontend uses it to decide which
+    // buttons to offer; it is never what decides whether a write succeeds.
+    my_role: roleForTrip(access, trip.id),
     ...(includeFlight ? { flight: FLIGHT } : {}),
   }
-}
-
-/** Legacy GET /api/trip: whichever trip is oldest, kept for the pre-multi-trip UI. */
-export async function getDefaultTripBundle(store: DataStore, options: TripBundleOptions = {}) {
-  const trip = await getDefaultTrip(store)
-  if (!trip) throw notFound('Trip')
-  return getTripBundle(store, trip.id, options)
 }
 
 function cleanPeople(people: unknown[] | undefined) {
@@ -79,10 +107,16 @@ function collectTripErrors(input: Partial<TripInput>, partial: boolean): string[
   const errors: string[] = []
   const has = (k: keyof TripInput) => input[k] !== undefined
 
-  if (!partial || has('name')) {
-    const name = (input.name ?? '').trim()
-    if (!name) errors.push('name is required')
-    else if (name.length > NAME_MAX) errors.push(`name must be at most ${NAME_MAX} characters`)
+  // The name is an override now, not the title — an empty one means "build it
+  // from who is going and where" (lib/trip-title.ts), so it is never required.
+  if (has('name') && input.name != null) {
+    const name = input.name.trim()
+    if (name.length > NAME_MAX) errors.push(`name must be at most ${NAME_MAX} characters`)
+  }
+  if (has('country') && input.country != null) {
+    const country = input.country.trim()
+    if (country.length > COUNTRY_MAX)
+      errors.push(`country must be at most ${COUNTRY_MAX} characters`)
   }
   if (!partial || has('start_date')) {
     if (!input.start_date || !DATE_RE.test(input.start_date))
@@ -199,9 +233,11 @@ async function resolveRange(
  */
 export async function getDateImpact(
   store: DataStore,
+  access: AccessContext,
   tripId: string,
   query: { start_date?: string; end_date?: string }
 ) {
+  assertTripAccess(access, tripId)
   const errors: string[] = []
   if (query.start_date !== undefined && !DATE_RE.test(query.start_date))
     errors.push('start_date must be an ISO date (YYYY-MM-DD)')
@@ -212,7 +248,7 @@ export async function getDateImpact(
   const range = await resolveRange(store, tripId, query)
   const stranded = await findStranded(store, tripId, range)
   const zoneNames = await Promise.all(
-    stranded.steps.map(async (s) => (await store.getZone(s.zone_id))?.name ?? null)
+    stranded.steps.map(async (s) => (await store.getZone(tripId, s.zone_id))?.name ?? null)
   )
   return {
     range,
@@ -236,17 +272,31 @@ export async function getDateImpact(
   }
 }
 
-export async function createTrip(store: DataStore, input: Partial<TripInput>) {
+export async function createTrip(
+  store: DataStore,
+  access: AccessContext,
+  input: Partial<TripInput>
+) {
   const errors = collectTripErrors(input, false)
   if (errors.length) throw validation(errors)
   const trip = await store.createTrip({
-    name: input.name!.trim(),
+    name: input.name?.trim() || null,
+    country: input.country?.trim() || null,
     start_date: input.start_date!,
     end_date: input.end_date!,
     description: input.description?.trim() || null,
     people: cleanPeople(input.people) ?? [],
   })
-  return { trip }
+  // Whoever creates a trip owns it. Without this the trip would have no
+  // members at all, which makes it invisible to everyone including its author
+  // — the "every trip keeps at least one owner" invariant starts here.
+  if (access.userId) {
+    await store.upsertTripMember({ trip_id: trip.id, user_id: access.userId, role: 'owner' })
+  }
+  return {
+    trip: await withTitle(store, trip),
+    my_role: access.userId ? 'owner' : roleForTrip(access, trip.id),
+  }
 }
 
 /** What to do with activities the new dates would leave outside the trip. */
@@ -268,7 +318,17 @@ export interface TripPatch extends Partial<TripInput> {
   stranded_stops?: StopResolution
 }
 
-export async function updateTrip(store: DataStore, tripId: string, patch: TripPatch) {
+export async function updateTrip(
+  store: DataStore,
+  access: AccessContext,
+  tripId: string,
+  patch: TripPatch
+) {
+  assertTripAccess(access, tripId)
+  const role = roleForTrip(access, tripId)
+  // A member who lacks the verb gets 403, not 404 — they already know the trip
+  // exists, so there is nothing left to conceal.
+  if (!role || !canEditTrip(role)) throw forbidden('Only the travellers on this trip can edit it')
   const { stranded_activities: resolution, stranded_stops: stopResolution, ...fields } = patch
   const errors = collectTripErrors(fields, true)
   if (resolution !== undefined && !STRANDED_RESOLUTIONS.includes(resolution))
@@ -296,7 +356,9 @@ export async function updateTrip(store: DataStore, tripId: string, patch: TripPa
   }
 
   const clean: Partial<TripInput> = { ...fields }
-  if (clean.name !== undefined) clean.name = clean.name.trim()
+  // An emptied field clears the override rather than storing "".
+  if (clean.name !== undefined) clean.name = clean.name?.trim() || null
+  if (clean.country !== undefined) clean.country = clean.country?.trim() || null
   if (clean.description !== undefined) clean.description = clean.description?.trim() || null
   if (clean.people !== undefined) clean.people = cleanPeople(clean.people)
   const trip = await store.updateTrip(tripId, clean)
@@ -311,29 +373,32 @@ export async function updateTrip(store: DataStore, tripId: string, patch: TripPa
   const deleted: string[] = []
   if (range) {
     for (const step of strandedSteps) {
-      await store.updateStep(step.id, movedStepDates(step, range))
+      await store.updateStep(tripId, step.id, movedStepDates(step, range))
       movedStops.push(step.id)
     }
     for (const item of strandedItems) {
       if (resolution === 'delete') {
-        await store.deleteItineraryItem(item.id)
+        await store.deleteItineraryItem(tripId, item.id)
         deleted.push(item.id)
       } else {
-        await store.updateItineraryItem(item.id, { day: range.start_date })
+        await store.updateItineraryItem(tripId, item.id, { day: range.start_date })
         moved.push(item.id)
       }
     }
   }
 
   return {
-    trip,
+    trip: await withTitle(store, trip),
     ...(movedStops.length && { moved_stops: movedStops }),
     ...(moved.length && { moved }),
     ...(deleted.length && { deleted }),
   }
 }
 
-export async function deleteTrip(store: DataStore, tripId: string) {
+export async function deleteTrip(store: DataStore, access: AccessContext, tripId: string) {
+  assertTripAccess(access, tripId)
+  const role = roleForTrip(access, tripId)
+  if (!role || !canDeleteTrip(role)) throw forbidden('Only an owner can delete this trip')
   const ok = await store.deleteTrip(tripId)
   if (!ok) throw notFound('Trip')
 }

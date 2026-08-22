@@ -4,7 +4,14 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { ItineraryItem, TripStep } from '../api/types'
-import { dayZones, fmtDayLong, isTravelDay, primaryStep } from '../lib/schedule'
+import {
+  coveringSteps,
+  dayZones,
+  fmtDayLong,
+  isTravelDay,
+  movingDay,
+  primaryStep,
+} from '../lib/schedule'
 import { DayHighlights } from './DayHighlights'
 import { DayPlan } from './DayPlan'
 import { DayStrip } from './DayStrip'
@@ -26,8 +33,12 @@ export function Schedule({ steps, items, days, today, mode, zoneId, tripId }: Pr
   )
   const day = days.includes(selected) ? selected : (days[0] ?? today)
 
+  // An item pinned to a city belongs to that city; an unpinned one belongs to whichever
+  // city the day touches — so on a moving day it shows on both pages rather than
+  // disappearing from the one you're leaving.
   const belongsToZone = (i: ItineraryItem, d: string) =>
-    i.zone_id === zoneId || (i.zone_id == null && primaryStep(steps, d)?.zone?.id === zoneId)
+    i.zone_id === zoneId ||
+    (i.zone_id == null && coveringSteps(steps, d).some((s) => s.zone?.id === zoneId))
 
   const dayHasItems = useMemo(() => {
     const map = new Map<string, boolean>()
@@ -36,7 +47,7 @@ export function Schedule({ steps, items, days, today, mode, zoneId, tripId }: Pr
       map.set(i.day, true)
     }
     return (d: string) => map.get(d) ?? false
-  }, [items, mode, zoneId])
+  }, [items, mode, zoneId, steps])
 
   const itemsForDay = items.filter((i) =>
     mode === 'zone' ? i.day === day && belongsToZone(i, day) : i.day === day
@@ -44,6 +55,9 @@ export function Schedule({ steps, items, days, today, mode, zoneId, tripId }: Pr
 
   const newZoneId = mode === 'zone' ? (zoneId ?? null) : (primaryStep(steps, day)?.zone?.id ?? null)
   const zones = dayZones(steps, day)
+  const moving = mode === 'zone' && zoneId ? movingDay(steps, zoneId, day) : null
+  const isMovingDay = (d: string) =>
+    mode === 'zone' && zoneId ? movingDay(steps, zoneId, d) !== null : isTravelDay(steps, d)
   const highlights = itemsForDay.filter((i) => i.highlight)
   const planItems = itemsForDay.filter((i) => !i.highlight)
 
@@ -55,6 +69,7 @@ export function Schedule({ steps, items, days, today, mode, zoneId, tripId }: Pr
         onSelect={setSelected}
         today={today}
         hasItems={dayHasItems}
+        isMoving={isMovingDay}
       />
 
       <div className="flex flex-wrap items-center gap-2">
@@ -73,6 +88,31 @@ export function Schedule({ steps, items, days, today, mode, zoneId, tripId }: Pr
           ))}
         {mode === 'trip' && isTravelDay(steps, day) && (
           <span className="chip bg-amber-100 text-amber-700">Travel day</span>
+        )}
+        {/* On a city page the shared checkout/arrival day is easy to miss — say where
+            the day goes, and link the other city so you can flip between the two. */}
+        {moving && (
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="chip bg-amber-100 text-amber-700" data-testid="moving-day-chip">
+              Moving day
+            </span>
+            {moving.from && (
+              <Link
+                to={`/trips/${tripId}/zones/${moving.from.id}`}
+                className="chip bg-canvas font-bold text-ink"
+              >
+                {moving.from.name} →
+              </Link>
+            )}
+            {moving.to && (
+              <Link
+                to={`/trips/${tripId}/zones/${moving.to.id}`}
+                className="chip bg-canvas font-bold text-ink"
+              >
+                → {moving.to.name}
+              </Link>
+            )}
+          </span>
         )}
       </div>
 

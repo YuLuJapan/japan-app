@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from './client'
+import { useTripId, useTripPath } from './tripPath'
 import type {
   Category,
   GeocodeResult,
@@ -17,6 +18,9 @@ import type {
   TripBundle,
   TripDateImpact,
   TripDocument,
+  TripInvite,
+  TripMember,
+  InvitePreview,
   ZoneDetail,
 } from './types'
 
@@ -35,22 +39,33 @@ export const useItinerary = (tripId: string) =>
     queryFn: () => api.get<{ items: ItineraryItem[] }>(`/trips/${tripId}/itinerary`),
   })
 
-export const useZone = (zoneId: string) =>
-  useQuery({ queryKey: ['zone', zoneId], queryFn: () => api.get<ZoneDetail>(`/zones/${zoneId}`) })
+export const useZone = (zoneId: string) => {
+  const path = useTripPath()
+  return useQuery({
+    // Keyed by zone alone, not by trip: ids are globally unique, and the
+    // invalidations in mutations.ts match on this prefix.
+    queryKey: ['zone', zoneId],
+    queryFn: () => api.get<ZoneDetail>(path(`/zones/${zoneId}`)),
+  })
+}
 
-export const useZonePlaces = (zoneId: string, category: Category) =>
-  useQuery({
+export const useZonePlaces = (zoneId: string, category: Category) => {
+  const path = useTripPath()
+  return useQuery({
     queryKey: ['zone-places', zoneId, category],
     queryFn: () =>
-      api.get<{ places: PlaceListItem[] }>(`/zones/${zoneId}/places?category=${category}`),
+      api.get<{ places: PlaceListItem[] }>(path(`/zones/${zoneId}/places?category=${category}`)),
   })
+}
 
-export const usePlace = (placeId: string) =>
-  useQuery({
+export const usePlace = (placeId: string) => {
+  const path = useTripPath()
+  return useQuery({
     queryKey: ['place', placeId],
-    queryFn: () => api.get<PlaceDetail>(`/places/${placeId}`),
+    queryFn: () => api.get<PlaceDetail>(path(`/places/${placeId}`)),
     enabled: placeId !== '', // PlaceForm in add mode has no place to fetch
   })
+}
 
 export const useShoppingList = (tripId: string) =>
   useQuery({
@@ -127,9 +142,33 @@ export const fetchTranslation = (text: string) =>
 /** Kana, kanji or full-width punctuation — mirrors the server's check. */
 export const containsJapanese = (text: string) => /[぀-ゟ゠-ヿ㐀-䶿一-鿿＀-ﾟ]/.test(text)
 
-export const useSearch = (query: string) =>
-  useQuery({
-    queryKey: ['search', query],
-    queryFn: () => api.get<{ results: SearchResult[] }>(`/search?q=${encodeURIComponent(query)}`),
+export const useSearch = (query: string) => {
+  const path = useTripPath()
+  const tripId = useTripId()
+  return useQuery({
+    queryKey: ['search', tripId, query],
+    queryFn: () =>
+      api.get<{ results: SearchResult[] }>(path(`/search?q=${encodeURIComponent(query)}`)),
     enabled: query.trim().length >= 2,
+  })
+}
+
+export const useTripMembers = (tripId: string) =>
+  useQuery({
+    queryKey: ['members', tripId],
+    queryFn: () => api.get<{ members: TripMember[] }>(`/trips/${tripId}/members`),
+  })
+
+export const useTripInvites = (tripId: string) =>
+  useQuery({
+    queryKey: ['invites', tripId],
+    queryFn: () => api.get<{ invites: TripInvite[] }>(`/trips/${tripId}/invites`),
+  })
+
+// The invite link's own preview, read before signing in decides anything.
+export const useInvitePreview = (token: string) =>
+  useQuery({
+    queryKey: ['invite', token],
+    queryFn: () => api.get<{ invite: InvitePreview }>(`/invites/${token}`),
+    retry: false,
   })

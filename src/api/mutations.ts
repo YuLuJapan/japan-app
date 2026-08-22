@@ -2,6 +2,7 @@
 // the other traveler's phone via refetch-on-focus (FR-018).
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
+import { useTripPath } from './tripPath'
 import type {
   FileMeta,
   FileParent,
@@ -16,11 +17,13 @@ import type {
   ReminderInput,
   ShoppingItem,
   ShoppingItemInput,
-  Tip,
   StopResolution,
   StrandedResolution,
+  Tip,
   Trip,
   TripInput,
+  TripInvite,
+  TripMember,
 } from './types'
 import type { SubscriptionPayload } from '../lib/push'
 
@@ -37,27 +40,30 @@ function usePlaceInvalidation() {
 }
 
 export function useCreatePlace() {
+  const path = useTripPath()
   const invalidate = usePlaceInvalidation()
   return useMutation({
-    mutationFn: (input: PlaceInput) => api.post<{ place: Place }>('/places', input),
+    mutationFn: (input: PlaceInput) => api.post<{ place: Place }>(path('/places'), input),
     onSuccess: (data) => invalidate(data.place.zone_id, data.place.id),
   })
 }
 
 export function useUpdatePlace(placeId: string) {
+  const path = useTripPath()
   const invalidate = usePlaceInvalidation()
   return useMutation({
     mutationFn: (patch: Partial<PlaceInput>) =>
-      api.patch<{ place: Place }>(`/places/${placeId}`, patch),
+      api.patch<{ place: Place }>(path(`/places/${placeId}`), patch),
     onSuccess: (data) => invalidate(data.place.zone_id, placeId),
   })
 }
 
 export function useDeletePlace(zoneId: string | undefined) {
+  const path = useTripPath()
   const invalidate = usePlaceInvalidation()
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (placeId: string) => api.delete<void>(`/places/${placeId}`),
+    mutationFn: (placeId: string) => api.delete<void>(path(`/places/${placeId}`)),
     onSuccess: (_data, placeId) => {
       qc.removeQueries({ queryKey: ['place', placeId] })
       invalidate(zoneId)
@@ -81,18 +87,20 @@ export function useCreateShoppingItem(tripId: string) {
 }
 
 export function useUpdateShoppingItem() {
+  const path = useTripPath()
   const invalidate = useShoppingInvalidation()
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<ShoppingItemInput> }) =>
-      api.patch<{ item: ShoppingItem }>(`/shopping/${id}`, patch),
+      api.patch<{ item: ShoppingItem }>(path(`/shopping/${id}`), patch),
     onSuccess: invalidate,
   })
 }
 
 export function useDeleteShoppingItem() {
+  const path = useTripPath()
   const invalidate = useShoppingInvalidation()
   return useMutation({
-    mutationFn: (id: string) => api.delete<void>(`/shopping/${id}`),
+    mutationFn: (id: string) => api.delete<void>(path(`/shopping/${id}`)),
     onSuccess: invalidate,
   })
 }
@@ -113,9 +121,10 @@ export function useUploadFile(tripId: string) {
 }
 
 export function useDeleteFile(parent?: FileParent) {
+  const path = useTripPath()
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (fileId: string) => api.delete<void>(`/files/${fileId}`),
+    mutationFn: (fileId: string) => api.delete<void>(path(`/files/${fileId}`)),
     onSuccess: () => invalidateForFileParent(qc, parent),
   })
 }
@@ -135,18 +144,20 @@ export function useCreateItineraryItem(tripId: string) {
 }
 
 export function useUpdateItineraryItem() {
+  const path = useTripPath()
   const invalidate = useItineraryInvalidation()
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<ItineraryItemInput> }) =>
-      api.patch<{ item: ItineraryItem }>(`/itinerary/${id}`, patch),
+      api.patch<{ item: ItineraryItem }>(path(`/itinerary/${id}`), patch),
     onSuccess: invalidate,
   })
 }
 
 export function useDeleteItineraryItem() {
+  const path = useTripPath()
   const invalidate = useItineraryInvalidation()
   return useMutation({
-    mutationFn: (id: string) => api.delete<void>(`/itinerary/${id}`),
+    mutationFn: (id: string) => api.delete<void>(path(`/itinerary/${id}`)),
     onSuccess: invalidate,
   })
 }
@@ -166,18 +177,20 @@ export function useCreateStep(tripId: string) {
 }
 
 export function useUpdateStep() {
+  const path = useTripPath()
   const invalidate = useStepInvalidation()
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<JourneyStepInput> }) =>
-      api.patch<{ step: JourneyStep }>(`/steps/${id}`, patch),
+      api.patch<{ step: JourneyStep }>(path(`/steps/${id}`), patch),
     onSuccess: invalidate,
   })
 }
 
 export function useDeleteStep() {
+  const path = useTripPath()
   const invalidate = useStepInvalidation()
   return useMutation({
-    mutationFn: (id: string) => api.delete<void>(`/steps/${id}`),
+    mutationFn: (id: string) => api.delete<void>(path(`/steps/${id}`)),
     onSuccess: invalidate,
   })
 }
@@ -196,26 +209,29 @@ function useTipInvalidation(parent: TipParent) {
 }
 
 export function useCreateTip(parent: TipParent) {
+  const path = useTripPath()
   const invalidate = useTipInvalidation(parent)
   return useMutation({
-    mutationFn: (body: string) => api.post<{ tip: Tip }>('/tips', { body, ...parent }),
+    mutationFn: (body: string) => api.post<{ tip: Tip }>(path('/tips'), { body, ...parent }),
     onSuccess: invalidate,
   })
 }
 
 export function useUpdateTip(parent: TipParent) {
+  const path = useTripPath()
   const invalidate = useTipInvalidation(parent)
   return useMutation({
     mutationFn: ({ tipId, body }: { tipId: string; body: string }) =>
-      api.patch<{ tip: Tip }>(`/tips/${tipId}`, { body }),
+      api.patch<{ tip: Tip }>(path(`/tips/${tipId}`), { body }),
     onSuccess: invalidate,
   })
 }
 
 export function useDeleteTip(parent: TipParent) {
+  const path = useTripPath()
   const invalidate = useTipInvalidation(parent)
   return useMutation({
-    mutationFn: (tipId: string) => api.delete<void>(`/tips/${tipId}`),
+    mutationFn: (tipId: string) => api.delete<void>(path(`/tips/${tipId}`)),
     onSuccess: invalidate,
   })
 }
@@ -235,18 +251,20 @@ export function useCreateReminder(tripId: string) {
 }
 
 export function useUpdateReminder() {
+  const path = useTripPath()
   const invalidate = useReminderInvalidation()
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<ReminderInput> }) =>
-      api.patch<{ reminder: Reminder }>(`/reminders/${id}`, patch),
+      api.patch<{ reminder: Reminder }>(path(`/reminders/${id}`), patch),
     onSuccess: invalidate,
   })
 }
 
 export function useDeleteReminder() {
+  const path = useTripPath()
   const invalidate = useReminderInvalidation()
   return useMutation({
-    mutationFn: (id: string) => api.delete<void>(`/reminders/${id}`),
+    mutationFn: (id: string) => api.delete<void>(path(`/reminders/${id}`)),
     onSuccess: invalidate,
   })
 }
@@ -319,5 +337,62 @@ export function useDeleteTrip() {
   return useMutation({
     mutationFn: (tripId: string) => api.delete<void>(`/trips/${tripId}`),
     onSuccess: invalidate,
+  })
+}
+
+// --- sharing -----------------------------------------------------------------
+
+export function useCreateInvite(tripId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: {
+      role: 'partner' | 'viewer'
+      email?: string
+      can_see_stays: boolean
+      can_see_flight: boolean
+      can_see_documents: boolean
+    }) => api.post<{ invite: TripInvite; token: string }>(`/trips/${tripId}/invites`, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['invites', tripId] }),
+  })
+}
+
+export function useRevokeInvite(tripId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (inviteId: string) => api.delete<void>(`/trips/${tripId}/invites/${inviteId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['invites', tripId] }),
+  })
+}
+
+export function useUpdateMember(tripId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ userId, ...patch }: { userId: string } & Record<string, unknown>) =>
+      api.patch<{ member: TripMember }>(`/trips/${tripId}/members/${userId}`, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['members', tripId] }),
+  })
+}
+
+export function useRemoveMember(tripId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (userId: string) => api.delete<void>(`/trips/${tripId}/members/${userId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['members', tripId] })
+      // Leaving a trip removes it from your list, so that has to refetch too.
+      qc.invalidateQueries({ queryKey: ['trips'] })
+    },
+  })
+}
+
+export function useAcceptInvite() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (token: string) =>
+      api.post<{ trip_id: string; role: string; already_member: boolean }>(
+        `/invites/${token}/accept`,
+        {}
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['trips'] }),
   })
 }

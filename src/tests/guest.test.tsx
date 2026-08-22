@@ -77,6 +77,8 @@ function mockShoppingApi() {
         trip: {
           id: 'trip-1',
           name: 'Japan',
+    country: 'Japan',
+    display_title: 'Japan',
           start_date: '2026-09-19',
           end_date: '2026-10-16',
           description: null,
@@ -193,6 +195,8 @@ describe('guest view — stays and flight', () => {
     trip: {
       id: 'trip-1',
       name: 'Japan',
+    country: 'Japan',
+    display_title: 'Japan',
       start_date: '2026-09-19',
       end_date: '2026-10-16',
       description: null,
@@ -314,7 +318,7 @@ describe('signing out', () => {
     // confirmed, not instant — the header button is easy to catch by accident
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveAccessibleName('Sign out?')
-    expect(screen.getByText(/travelers’ code next to be able to edit/)).toBeInTheDocument()
+    expect(screen.getByText(/travellers’ code next to be able to edit/)).toBeInTheDocument()
 
     await userEvent.click(within(dialog).getByRole('button', { name: 'Sign out' }))
 
@@ -339,6 +343,6 @@ describe('signing out', () => {
     renderAt('/trips/trip-1', routes)
 
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
-    expect(screen.getByText(/need the access code to get back in/)).toBeInTheDocument()
+    expect(screen.getByText(/need to sign in again to get back in/)).toBeInTheDocument()
   })
 })

@@ -10,9 +10,11 @@ interface Props {
   today?: string
   /** Show a dot on days that have at least one planned activity. */
   hasItems?: (day: string) => boolean
+  /** Flag days you change city on, so a shared checkout/arrival day stands out. */
+  isMoving?: (day: string) => boolean
 }
 
-export function DayStrip({ days, selected, onSelect, today, hasItems }: Props) {
+export function DayStrip({ days, selected, onSelect, today, hasItems, isMoving }: Props) {
   const ref = useRef<HTMLDivElement>(null)
 
   // Keep the selected chip in view when it changes (e.g. jump to today).
@@ -23,8 +25,20 @@ export function DayStrip({ days, selected, onSelect, today, hasItems }: Props) {
     const strip = ref.current
     const el = strip?.querySelector<HTMLElement>('[data-selected="true"]')
     if (!strip || !el) return
-    const left = el.offsetLeft - strip.clientWidth / 2 + el.offsetWidth / 2
-    strip.scrollTo({ left: Math.max(0, left) })
+    // Measure the chip against the strip's own box. `offsetLeft` is relative to
+    // the nearest *positioned* ancestor — the strip isn't positioned, so on a
+    // wide screen that's the centred page container and the value carries the
+    // container's page offset. Scrolling by it skipped the strip several days
+    // forward, so picking Sep 29 left the strip starting at Oct 2.
+    const stripBox = strip.getBoundingClientRect()
+    const elBox = el.getBoundingClientRect()
+    const start = elBox.left - stripBox.left
+    // Already fully in view: leave the strip alone so tapping a day doesn't
+    // shuffle every other chip out from under the finger.
+    if (start >= 0 && start + elBox.width <= strip.clientWidth) return
+    const left = strip.scrollLeft + start - strip.clientWidth / 2 + elBox.width / 2
+    const max = Math.max(0, strip.scrollWidth - strip.clientWidth)
+    strip.scrollTo({ left: Math.min(Math.max(0, left), max) })
   }, [selected])
 
   return (
@@ -36,6 +50,7 @@ export function DayStrip({ days, selected, onSelect, today, hasItems }: Props) {
       {days.map((day, i) => {
         const active = day === selected
         const isToday = day === today
+        const moving = isMoving?.(day) ?? false
         // A zone's days aren't always consecutive (e.g. a return trip to a city
         // visited earlier) — mark the gap so it doesn't read as one unbroken stay.
         const gapBefore = i > 0 && !isNextDay(days[i - 1], day)
@@ -53,14 +68,27 @@ export function DayStrip({ days, selected, onSelect, today, hasItems }: Props) {
               data-selected={active}
               data-today={isToday}
               aria-pressed={active}
-              aria-label={day}
+              aria-label={moving ? `${day} (moving day)` : day}
               onClick={() => onSelect(day)}
               className={`relative flex h-16 w-[52px] shrink-0 snap-start flex-col items-center justify-center rounded-2xl border text-center transition ${
                 active
                   ? 'border-brand bg-brand text-white shadow-card'
-                  : 'border-line bg-white text-ink active:scale-95'
+                  : moving
+                    ? 'border-amber-300 bg-amber-50 text-ink active:scale-95'
+                    : 'border-line bg-white text-ink active:scale-95'
               }`}
             >
+              {moving && (
+                <span
+                  aria-hidden="true"
+                  data-testid="day-strip-moving"
+                  className={`absolute left-1.5 top-1 text-[10px] font-extrabold leading-none ${
+                    active ? 'text-white/90' : 'text-amber-600'
+                  }`}
+                >
+                  →
+                </span>
+              )}
               <span
                 className={`text-[10px] font-bold uppercase ${active ? 'text-white/80' : 'text-muted'}`}
               >

@@ -8,6 +8,7 @@
 // would just fail.
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { api, getStoredRole, setAccessCode, setStoredRole, type Role } from '../api/client'
+import type { TripRole } from '../api/types'
 import { getSupabaseClient } from './supabaseClient'
 
 // Read-only is the safe default for anything rendered outside a provider.
@@ -15,8 +16,41 @@ const RoleContext = createContext<Role>('guest')
 
 export const useRole = () => useContext(RoleContext)
 
-/** True for the travelers: add, edit, delete and the documents tab. */
-export const useCanEdit = () => useRole() === 'owner'
+/**
+ * The caller's role on the trip currently open, or null outside one (and for
+ * the deprecated access codes, which have no membership). Read from the trip
+ * bundle the screen has already fetched, so this costs no extra request.
+ */
+const TripRoleContext = createContext<TripRole | null>(null)
+export const useTripRole = () => useContext(TripRoleContext)
+export { TripRoleContext }
+
+/**
+ * True when this caller may change the trip in front of them.
+ *
+ * Two questions, and both have to hold. The global role still answers "is this
+ * a read-only guest code"; `my_role` on the trip bundle answers "and are you a
+ * writer *on this trip*" — a viewer is a perfectly ordinary signed-in account,
+ * so the global role alone would say yes.
+ *
+ * Outside a trip (the trips list, the gate) there is no per-trip role to
+ * consult and the global one decides, as before.
+ */
+export const useCanEdit = () => {
+  const role = useRole()
+  const tripRole = useTripRole()
+  if (role !== 'owner') return false
+  return tripRole === null || tripRole === 'owner' || tripRole === 'partner'
+}
+
+/** True only for a trip's owner: managing who else is on it. */
+export const useIsTripOwner = () => {
+  // Both hooks unconditionally: `&&` would short-circuit the second one and
+  // change the hook order between renders.
+  const role = useRole()
+  const tripRole = useTripRole()
+  return role === 'owner' && tripRole === 'owner'
+}
 
 /**
  * True for the travelers: the stays and the flight. Both carry the booking

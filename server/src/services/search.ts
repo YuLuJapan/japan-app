@@ -12,15 +12,24 @@ export interface SearchResult {
 
 /** `includeStays: false` keeps the guest view's hidden stays out of the results — both the
  *  stays themselves and the tips that would link straight to one. */
+/**
+ * Search within one trip.
+ *
+ * Phase 3a-ii had to filter the store's catalog-wide results back down by zone
+ * reachability. Since zones are trip-scoped (migration 0013) the store answers
+ * the scoped question directly, so that shim is gone — the trip id is the
+ * filter.
+ */
 export async function searchAll(
   store: DataStore,
+  tripId: string,
   query: string,
   { includeStays = true }: { includeStays?: boolean } = {}
 ): Promise<{ results: SearchResult[] }> {
   const q = query.trim()
   if (q.length < 2) return { results: [] }
 
-  const { places, zones, tips: allTips } = await store.search(q)
+  const { places, zones, tips: allTips } = await store.search(tripId, q)
   const zoneName = new Map(zones.map((z) => [z.id, z.name]))
 
   let matchedPlaces = places
@@ -28,7 +37,7 @@ export async function searchAll(
   if (!includeStays) {
     matchedPlaces = places.filter((p) => !isStay(p))
     // A tip's own parent may be a stay that never matched the query itself.
-    const stayIds = new Set(await store.listPlaceIdsByCategory(STAY_CATEGORY))
+    const stayIds = new Set(await store.listPlaceIdsByCategory(tripId, STAY_CATEGORY))
     tips = allTips.filter((t) => !t.place_id || !stayIds.has(t.place_id))
   }
 
