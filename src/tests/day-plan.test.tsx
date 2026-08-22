@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { DayPlan } from '../components/DayPlan'
-import { RoleContext } from '../lib/session'
+import { TripRoleContext } from '../lib/session'
 import type { ItineraryItem } from '../api/types'
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() }))
@@ -52,7 +52,7 @@ function renderPlan(items = [ITEM]) {
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <RoleContext.Provider value="owner">
+      <TripRoleContext.Provider value="owner">
         {/* Mounted on a real /trips/:tripId route: the API hooks read the
             trip from the URL, exactly as they do in the app. */}
         <MemoryRouter initialEntries={['/trips/trip-1']}>
@@ -63,7 +63,7 @@ function renderPlan(items = [ITEM]) {
             />
           </Routes>
         </MemoryRouter>
-      </RoleContext.Provider>
+      </TripRoleContext.Provider>
     </QueryClientProvider>
   )
 }

@@ -41,7 +41,7 @@ membersTripRouter.delete(
     await removeMember(
       await getDataStore(),
       req.params.tripId,
-      { role: tripContextOf(req).role, userId: currentUser(req)?.id ?? null },
+      { role: tripContextOf(req).role, userId: currentUser(req).id },
       req.params.userId
     )
     res.status(204).end()
@@ -64,7 +64,7 @@ membersTripRouter.post(
         await createInvite(
           await getDataStore(),
           req.params.tripId,
-          { role: tripContextOf(req).role, userId: currentUser(req)?.id ?? null },
+          { role: tripContextOf(req).role, userId: currentUser(req).id },
           req.body ?? {}
         )
       )
@@ -77,7 +77,7 @@ membersTripRouter.delete(
     await revokeInvite(
       await getDataStore(),
       req.params.tripId,
-      { role: tripContextOf(req).role, userId: currentUser(req)?.id ?? null },
+      { role: tripContextOf(req).role, userId: currentUser(req).id },
       req.params.inviteId
     )
     res.status(204).end()

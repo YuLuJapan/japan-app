@@ -389,11 +389,12 @@ export interface DataStore {
   upsertProfile(input: ProfileInput): Promise<Profile>
 
   /**
-   * Every trip, oldest first. **Unscoped** — only the deprecated static access
-   * codes may see this. Signed-in accounts go through `listTripsForUser`.
+   * The caller's trips, oldest first. Powers the "Where to next?" trips list.
+   *
+   * There is deliberately no unscoped `listTrips()` — the deprecated access
+   * codes were the only caller that could see one, and leaving it behind would
+   * leave a method whose only correct number of call sites is zero.
    */
-  listTrips(): Promise<Trip[]>
-  /** The caller's trips, oldest first. Powers the "Where to next?" trips list. */
   listTripsForUser(userId: string): Promise<Trip[]>
 
   listMembershipsForUser(userId: string): Promise<TripMember[]>

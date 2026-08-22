@@ -1,18 +1,16 @@
 // Sign out and go back to the gate.
 //
-// Clears the stored code *and* the query cache, so the next code in doesn't
-// briefly render the previous one's data (a guest's file-less zone payload,
-// for instance) before the refetch lands.
+// Clears the stored token *and* the query cache, so the next account in
+// doesn't briefly render the previous one's data (a viewer's file-less zone
+// payload, for instance) before the refetch lands.
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { clearAccessCode } from '../api/client'
-import { useCanEdit } from '../lib/session'
 import { getSupabaseClient } from '../lib/supabaseClient'
 import { ConfirmDialog } from './ConfirmDialog'
 
 export function SignOutButton() {
-  const canEdit = useCanEdit()
   const [confirming, setConfirming] = useState(false)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -20,7 +18,6 @@ export function SignOutButton() {
   const signOut = () => {
     clearAccessCode()
     queryClient.clear()
-    // no-op if the session wasn't a Supabase one (a shared access code)
     getSupabaseClient()?.auth.signOut()
     navigate('/gate', { replace: true })
   }
@@ -51,14 +48,10 @@ export function SignOutButton() {
       <ConfirmDialog
         open={confirming}
         title="Sign out?"
-        // Deliberately neutral about *how* you get back in: this session may be
-        // a Google or password account, or one of the deprecated shared codes,
-        // and the button cannot tell which without another round-trip.
-        message={
-          canEdit
-            ? 'You’ll need to sign in again to get back in.'
-            : 'Sign in with the travellers’ code next to be able to edit, or the guest code to come back to this view.'
-        }
+        // Neutral about *how* you get back in: the session may be a Google
+        // account, a password one or a magic link, and the button cannot tell
+        // which without another round-trip.
+        message="You’ll need to sign in again to get back in."
         confirmLabel="Sign out"
         onConfirm={signOut}
         onCancel={() => setConfirming(false)}

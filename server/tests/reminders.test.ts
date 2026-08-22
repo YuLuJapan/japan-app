@@ -6,10 +6,9 @@ import { createMemoryStore } from '../src/lib/datastore.memory.js'
 import type { PushPayload, PushResult } from '../src/lib/push.js'
 import { dispatchDueReminders } from '../src/services/reminders.js'
 import { sendTestPush } from '../src/services/push.js'
-import { OWNER_USER, PARTNER_USER, TEST_CODE, fixture } from './fixture.js'
+import { OWNER_USER, PARTNER_USER, fixture } from './fixture.js'
 import { asOwner as auth, useTestTokens } from './auth.js'
 
-process.env.TRIP_ACCESS_CODE = TEST_CODE
 const app = createApp()
 
 let store: DataStore
@@ -298,12 +297,13 @@ describe('dispatch endpoint auth', () => {
     expect(wrong.status).toBe(401)
   })
 
-  it('falls back to the trip access code when no cron secret is set', async () => {
-    // The deprecated code, not an account: the scheduler has no session.
-    const res = await request(app)
-      .get('/api/reminders/dispatch')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
-    expect(res.status).toBe(200)
+  // It used to fall back to the trip access code. With the codes gone there is
+  // nothing to fall back to, and the safe direction is closed: a reminder that
+  // goes unsent is visible, an endpoint anyone can trigger is not.
+  it('refuses everything when no cron secret is configured', async () => {
+    await request(app).get('/api/reminders/dispatch').expect(401)
+    await request(app).get('/api/reminders/dispatch?key=anything').expect(401)
+    await auth(request(app).get('/api/reminders/dispatch')).expect(401)
   })
 })
 

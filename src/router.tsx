@@ -1,9 +1,8 @@
 import { Navigate, Outlet, createBrowserRouter, useParams } from 'react-router-dom'
 import { getAccessCode } from './api/client'
 import { Layout } from './components/Layout'
-import { Loading } from './components/Loading'
 import { useTrip } from './api/hooks'
-import { RoleProvider, TripRoleContext, useCanEdit } from './lib/session'
+import { SessionProvider, TripRoleContext, TripShowsContext, useCanEdit } from './lib/session'
 import AcceptInvite from './pages/AcceptInvite'
 import AccessGate from './pages/AccessGate'
 import CategoryList from './pages/CategoryList'
@@ -25,37 +24,41 @@ import TripMembers from './pages/TripMembers'
 import TripsList from './pages/TripsList'
 import Zone from './pages/Zone'
 
-/** Route guard: without a stored access code, everything redirects to the gate. */
+/** Route guard: without a signed-in session, everything redirects to the gate. */
 function RequireAccess() {
   if (!getAccessCode()) return <Navigate to="/gate" replace />
   return (
-    <RoleProvider fallback={<Loading />}>
+    <SessionProvider>
       <Outlet />
-    </RoleProvider>
+    </SessionProvider>
   )
 }
 
 /**
- * Everything inside a trip shares the tabbed layout, and the caller's role on
- * *this* trip. The role rides along on the bundle the layout already fetches,
- * so knowing whether to offer an edit button costs no extra request.
+ * Everything inside a trip shares the tabbed layout, the caller's role on
+ * *this* trip, and what it shows them. Both ride along on the bundle the
+ * layout already fetches, so neither costs an extra request.
  */
 function TripLayout() {
   const { tripId = '' } = useParams<{ tripId: string }>()
   const trip = useTrip(tripId)
   return (
     <TripRoleContext.Provider value={trip.data?.my_role ?? null}>
-      <Layout>
-        <Outlet />
-      </Layout>
+      <TripShowsContext.Provider
+        value={trip.data?.shows ?? { stays: true, flight: true, documents: true }}
+      >
+        <Layout>
+          <Outlet />
+        </Layout>
+      </TripShowsContext.Provider>
     </TripRoleContext.Provider>
   )
 }
 
 /**
- * Screens that only exist to change things, plus the documents section. A guest
- * who lands on one (a shared link, a stale bookmark) goes to the journey rather
- * than to a form that could not save anyway.
+ * Screens that only exist to change things, plus the documents section. A
+ * viewer who lands on one (a shared link, a stale bookmark) goes to the
+ * journey rather than to a form that could not save anyway.
  */
 function RequireOwner() {
   const { tripId } = useParams<{ tripId: string }>()

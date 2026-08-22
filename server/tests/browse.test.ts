@@ -3,13 +3,15 @@ import request from 'supertest'
 import { createApp } from '../src/app.js'
 import { setDataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { TEST_CODE, fixture } from './fixture.js'
+import { fixture } from './fixture.js'
+import { asOwner as auth, asPartner, useTestTokens } from './auth.js'
 
-process.env.TRIP_ACCESS_CODE = TEST_CODE
 const app = createApp()
-const auth = (r: request.Test) => r.set('Authorization', `Bearer ${TEST_CODE}`)
 
-beforeEach(() => setDataStore(createMemoryStore(fixture())))
+beforeEach(() => {
+  setDataStore(createMemoryStore(fixture()))
+  useTestTokens()
+})
 
 describe('GET /api/trips/trip-1', () => {
   it('returns the journey skeleton: ordered steps, zone summaries, counts', async () => {
@@ -41,7 +43,8 @@ describe('GET /api/trips/trip-1', () => {
   // being read, so every trip anyone created carried the two travellers' own
   // booking reference. A trip with no booking now has no flight block.
   it('omits the flight entirely for a trip with no booking attached', async () => {
-    const res = await auth(request(app).get('/api/trips/trip-2'))
+    // trip-2 belongs to the other tenant; its owner is who can read it.
+    const res = await asPartner(request(app).get('/api/trips/trip-2'))
     expect(res.status).toBe(200)
     expect(res.body).not.toHaveProperty('flight')
   })

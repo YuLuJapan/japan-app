@@ -25,10 +25,7 @@ function TabIcon({ name, active }: { name: IconName; active: boolean }) {
   if (name === 'journey')
     return (
       <svg {...common}>
-        <path
-          d="M12 22c-4.2-4.2-7-8-7-11.5a7 7 0 0 1 14 0C19 14 16.2 17.8 12 22Z"
-          fill={fill}
-        />
+        <path d="M12 22c-4.2-4.2-7-8-7-11.5a7 7 0 0 1 14 0C19 14 16.2 17.8 12 22Z" fill={fill} />
         <circle cx="12" cy="10.3" r="2.6" fill={CANVAS} />
       </svg>
     )
@@ -167,8 +164,8 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="mx-auto flex min-h-dvh max-w-app flex-col bg-canvas">
       <header className="sticky top-0 z-20 flex items-center justify-between bg-canvas/85 px-5 py-4 backdrop-blur">
         {/* min-w-0 + truncate: the search and sign-out buttons keep their size
-            on a narrow phone, and the guest chip gives up width instead. Tapping
-            the mark + trip name goes back to the trips list, like the prototype. */}
+            on a narrow phone, and the view-only chip gives up width instead.
+            Tapping the mark + trip name goes back to the trips list. */}
         <Link to="/trips" className="flex min-w-0 items-center gap-2">
           <RingMark size={34} />
           <span className="truncate font-display text-lg font-extrabold tracking-tight">
@@ -176,7 +173,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </span>
           {!canEdit && (
             <span className="chip shrink-0 truncate bg-canvas text-[10px] font-bold text-muted">
-              Guest · view only
+              View only
             </span>
           )}
         </Link>

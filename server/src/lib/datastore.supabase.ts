@@ -406,15 +406,6 @@ export function createSupabaseStore(): DataStore {
       return (data ?? []).length > 0
     },
 
-    async listTrips() {
-      const run = (cols: string) =>
-        db.from('trips').select(cols).order('created_at', { ascending: true })
-      let { data, error } = await run(TRIP_COLS)
-      if (error && isMissingPeopleColumn(error)) ({ data, error } = await run(TRIP_BASE_COLS))
-      if (error) throw new Error(error.message)
-      return ((data as unknown as Record<string, unknown>[]) ?? []).map(withPeopleDefault)
-    },
-
     async getTrip(tripId) {
       const run = (cols: string) => db.from('trips').select(cols).eq('id', tripId).maybeSingle()
       let { data, error } = await run(TRIP_COLS)

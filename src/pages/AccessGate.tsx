@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, clearAccessCode, setAccessCode, setStoredRole, type Role } from '../api/client'
+import { api, clearAccessCode, setAccessCode } from '../api/client'
 import { RingMark } from '../components/RingMark'
 import { getSupabaseClient } from '../lib/supabaseClient'
 
 type Screen = 'choose' | 'email' | 'sent'
 type Mode = 'signin' | 'signup'
 
-/** Shared with session.tsx's onAuthStateChange sync — resolves the role for
- * whatever bearer token is stored (shared code or a Supabase JWT) the same
- * way, and lands on /trips only once the server has actually accepted it. */
+/**
+ * Store the token, then prove the API accepts it before navigating.
+ *
+ * Supabase saying yes and this app saying yes are two different things — the
+ * project could be misconfigured, or the API unreachable — and landing on a
+ * trips list that immediately bounces back here is a worse first second than
+ * an error on the gate.
+ */
 async function completeSignIn(token: string, navigate: (path: string, opts?: object) => void) {
   setAccessCode(token)
-  const { role } = await api.post<{ ok: true; role: Role }>('/auth/verify', { code: token })
-  setStoredRole(role === 'owner' ? 'owner' : 'guest')
+  await api.get<{ user: { id: string } }>('/me')
   navigate('/trips', { replace: true })
 }
 
@@ -25,13 +29,12 @@ function readableAuthError(message: string): string {
   if (m.includes('already registered'))
     return 'That email already has an account — sign in instead.'
   if (m.includes('password')) return 'Password must be at least 6 characters.'
-  return 'Could not sign in — try again, or use an access code.'
+  return 'Could not sign in — try again.'
 }
 
 export default function AccessGate() {
   const [screen, setScreen] = useState<Screen>('choose')
   const [mode, setMode] = useState<Mode>('signin')
-  const [code, setCode] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -50,7 +53,7 @@ export default function AccessGate() {
         if (cancelled) return
         clearAccessCode()
         supabase.auth.signOut()
-        setError('That email isn’t set up for owner access — try an access code instead.')
+        setError('Signed in, but this app didn’t accept the session. Try again.')
         setScreen('choose')
       })
     })
@@ -58,21 +61,6 @@ export default function AccessGate() {
       cancelled = true
     }
   }, [supabase, navigate])
-
-  async function submitCode(e: React.FormEvent) {
-    e.preventDefault()
-    if (!code.trim() || busy) return
-    setBusy(true)
-    setError(null)
-    try {
-      await completeSignIn(code.trim(), navigate)
-    } catch {
-      clearAccessCode()
-      setError('Wrong code — try again.')
-    } finally {
-      setBusy(false)
-    }
-  }
 
   async function signInWithGoogle() {
     if (!supabase || busy) return
@@ -84,7 +72,7 @@ export default function AccessGate() {
       options: { redirectTo: `${window.location.origin}/gate` },
     })
     if (oauthError) {
-      setError('Could not reach Google — try again, or use an access code.')
+      setError('Could not reach Google — try again.')
       setBusy(false)
     }
   }
@@ -116,7 +104,7 @@ export default function AccessGate() {
       setError(
         err instanceof Error && err.message
           ? readableAuthError(err.message)
-          : 'Could not sign in — try again, or use an access code.'
+          : 'Could not sign in — try again.'
       )
     } finally {
       setBusy(false)
@@ -135,7 +123,7 @@ export default function AccessGate() {
       if (sendError) throw sendError
       setScreen('sent')
     } catch {
-      setError('Could not send the link — try again, or use an access code.')
+      setError('Could not send the link — try again.')
     } finally {
       setBusy(false)
     }
@@ -237,7 +225,7 @@ export default function AccessGate() {
             <button
               type="button"
               disabled={!supabase || busy}
-              title={supabase ? undefined : 'Google sign-in isn’t set up yet — use an access code'}
+              title={supabase ? undefined : 'Google sign-in isn’t set up on this deployment yet'}
               onClick={signInWithGoogle}
               className={`btn min-h-12 justify-start gap-3 px-5 shadow-pop ${
                 supabase
@@ -266,7 +254,7 @@ export default function AccessGate() {
             <button
               type="button"
               disabled={!supabase}
-              title={supabase ? undefined : 'Email sign-in isn’t set up yet — use an access code'}
+              title={supabase ? undefined : 'Email sign-in isn’t set up on this deployment yet'}
               onClick={() => {
                 setError(null)
                 setMode('signin')
@@ -281,33 +269,7 @@ export default function AccessGate() {
               Continue with email
             </button>
 
-            <div className="my-1 flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-white/60">
-              <span className="h-px flex-1 bg-white/25" />
-              or
-              <span className="h-px flex-1 bg-white/25" />
-            </div>
-
-            <form onSubmit={submitCode} className="flex flex-col gap-3 text-left">
-              <input
-                id="code"
-                className="field border-transparent text-center text-lg tracking-widest shadow-pop"
-                type="password"
-                inputMode="text"
-                autoComplete="off"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="Access code"
-                aria-label="Access code"
-              />
-              {error && <p className="text-center text-sm font-semibold text-white">{error}</p>}
-              <button
-                type="submit"
-                className="btn min-h-12 bg-white text-brand shadow-pop hover:bg-white/90"
-                disabled={busy}
-              >
-                {busy ? 'Checking…' : 'Enter with access code'}
-              </button>
-            </form>
+            {error && <p className="mt-1 text-center text-sm font-semibold text-white">{error}</p>}
           </div>
         )}
 

@@ -10,25 +10,15 @@
 // belongs to the trip named earlier. `/trips/A/places/<place-in-B>` still
 // resolves, because zones are not trip-scoped in the schema until phase 3b.
 // Those cases are `it.todo` below, and 3b is the commit that turns them on.
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import type { Router } from 'express'
 import { createApp, tripScopedRouter } from '../src/app.js'
 import { setDataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { clearTokenCache } from '../src/lib/identity.js'
-import { OUTSIDER_USER, OWNER_USER, PARTNER_USER, TEST_CODE, fixture } from './fixture.js'
+import { fixture } from './fixture.js'
+import { useTestTokens } from './auth.js'
 
-const mocks = vi.hoisted(() => ({ resolveAuthUser: vi.fn() }))
-vi.mock('../src/lib/supabaseAuth.js', () => ({ resolveAuthUser: mocks.resolveAuthUser }))
-
-const TOKENS: Record<string, typeof OWNER_USER> = {
-  'owner.jwt': OWNER_USER,
-  'partner.jwt': PARTNER_USER,
-  'outsider.jwt': OUTSIDER_USER,
-}
-
-process.env.TRIP_ACCESS_CODE = TEST_CODE
 const app = createApp()
 
 interface RouteEntry {
@@ -74,9 +64,7 @@ const ROUTES = collectRoutes(tripScopedRouter())
 
 beforeEach(() => {
   setDataStore(createMemoryStore(fixture()))
-  clearTokenCache()
-  mocks.resolveAuthUser.mockReset()
-  mocks.resolveAuthUser.mockImplementation(async (token: string) => TOKENS[token] ?? null)
+  useTestTokens()
 })
 
 const as = (token: string) => ({ Authorization: `Bearer ${token}` })

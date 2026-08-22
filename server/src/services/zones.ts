@@ -1,7 +1,7 @@
 import type { Category, DataStore } from '../lib/datastore.js'
 import { CATEGORIES } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
-import { hideStayCounts, isStay } from '../lib/guest-view.js'
+import { hideStayCounts, isStay } from '../lib/trip-view.js'
 
 /**
  * A zone belongs to exactly one trip since migration 0013, so the store answers
@@ -10,7 +10,7 @@ import { hideStayCounts, isStay } from '../lib/guest-view.js'
  * lib/access.ts and had to walk journey steps on every read.
  *
  * `includeFiles: false` keeps attachments on the server; `includeStays: false`
- * drops the stays from the counts (lib/guest-view.ts).
+ * drops the stays from the counts (lib/trip-view.ts).
  */
 export async function getZoneDetail(
   store: DataStore,

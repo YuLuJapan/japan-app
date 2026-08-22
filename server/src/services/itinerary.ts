@@ -3,16 +3,16 @@
 import type { DataStore, ItineraryItemInput } from '../lib/datastore.js'
 import { requireTrip } from '../lib/access.js'
 import { notFound, validation } from '../lib/errors.js'
-import { STAY_CATEGORY } from '../lib/guest-view.js'
+import { STAY_CATEGORY } from '../lib/trip-view.js'
 import { collectRangeErrors } from '../lib/trip-dates.js'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
 /**
- * `includeStays: false` is the guest view: the day-by-day plan still shows
+ * `includeStays: false` is a view without the stays: the day-by-day plan still shows
  * "check in at the ryokan", but the link to the stay is cut off the item —
- * that page is refused for guests (lib/guest-view.ts), so leaving `place_id`
+ * that page is refused for them (lib/trip-view.ts), so leaving `place_id`
  * on would only render a link into a 403.
  */
 export async function listItinerary(

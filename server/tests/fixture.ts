@@ -1,8 +1,6 @@
 // Small deterministic dataset for API tests (independent of placeholder-data.json).
 import type { MemoryData } from '../src/lib/datastore.memory.js'
 
-export const TEST_CODE = 'test-code'
-
 /** Accounts the tests sign in as. `OUTSIDER` is a real, valid account that is
  *  a member of nothing — the shape every new signup arrives in. */
 export const OWNER_USER = {

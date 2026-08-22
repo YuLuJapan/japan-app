@@ -9,31 +9,19 @@
 // The cases below are therefore mostly about the *absence* of access: a
 // perfectly valid account that is a member of nothing must be able to sign in
 // and still reach none of somebody else's trip.
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
 import { setDataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { clearTokenCache } from '../src/lib/identity.js'
-import { OUTSIDER_USER, OWNER_USER, TEST_CODE, fixture } from './fixture.js'
+import { fixture } from './fixture.js'
+import { useTestTokens } from './auth.js'
 
-const mocks = vi.hoisted(() => ({ resolveAuthUser: vi.fn() }))
-vi.mock('../src/lib/supabaseAuth.js', () => ({ resolveAuthUser: mocks.resolveAuthUser }))
-
-process.env.TRIP_ACCESS_CODE = TEST_CODE
 const app = createApp()
-
-/** Bearer tokens are per-user strings the mocked verifier maps back to accounts. */
-const TOKENS: Record<string, typeof OWNER_USER> = {
-  'owner.jwt': OWNER_USER,
-  'outsider.jwt': OUTSIDER_USER,
-}
 
 beforeEach(() => {
   setDataStore(createMemoryStore(fixture()))
-  clearTokenCache()
-  mocks.resolveAuthUser.mockReset()
-  mocks.resolveAuthUser.mockImplementation(async (token: string) => TOKENS[token] ?? null)
+  useTestTokens()
 })
 
 const as = (token: string) => ({ Authorization: `Bearer ${token}` })
@@ -171,21 +159,13 @@ describe('search does not reach past the trip it is scoped to', () => {
   })
 })
 
-describe('the deprecated access codes are unaffected', () => {
-  // The whole point of resolving legacy codes to "every trip" is that this
-  // change is invisible to the existing deployment.
-  it('still sees every trip and every zone', async () => {
-    const trips = await request(app).get('/api/trips').set(as(TEST_CODE))
-    expect(trips.status).toBe(200)
-    // Both tenants' trips: the deprecated code predates membership entirely.
-    expect(trips.body.trips.map((t: { id: string }) => t.id)).toEqual(['trip-1', 'trip-2'])
-    await request(app).get('/api/trips/trip-1/zones/zone-tokyo').set(as(TEST_CODE)).expect(200)
-    await request(app).get('/api/trips/trip-1').set(as(TEST_CODE)).expect(200)
-  })
-
-  it('never calls Supabase for a static code (fast path)', async () => {
-    await request(app).get('/api/trips/trip-1').set(as(TEST_CODE)).expect(200)
-    expect(mocks.resolveAuthUser).not.toHaveBeenCalled()
+describe('there is no longer any way in that is not an account', () => {
+  // What replaced the shared access codes. The old owner code resolved to
+  // "every trip", which is precisely the thing membership exists to prevent —
+  // no per-trip rule can constrain a caller who is not a person.
+  it('refuses what used to be the owner access code', async () => {
+    await request(app).get('/api/trips').set(as('japan2026')).expect(401)
+    await request(app).get('/api/trips/trip-1').set(as('japan2026')).expect(401)
   })
 
   it('rejects a token that verifies to nothing', async () => {

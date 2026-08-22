@@ -1,4 +1,4 @@
-import { Router, type Request } from 'express'
+import { Router } from 'express'
 import { accessOf } from '../lib/auth.js'
 import { tripContextOf } from '../lib/trip-context.js'
 import { asyncHandler } from '../lib/errors.js'
@@ -12,19 +12,14 @@ import {
   updateTrip,
 } from '../services/trips.js'
 
-/**
- * What this caller is shown on the bundle. A restricted viewer loses the
- * flight (booking reference, ticket numbers) and the stay counts that would
- * otherwise put a "Stays" card on every city — see lib/trip-view.ts.
- */
-const bundleView = (req: Request) => ({
-  includeFlight: tripContextOf(req).view.flight,
-  includeStays: tripContextOf(req).view.stays,
-})
-
 const bundle = asyncHandler(async (req, res) => {
   res.json(
-    await getTripBundle(await getDataStore(), accessOf(req), req.params.tripId, bundleView(req))
+    await getTripBundle(
+      await getDataStore(),
+      accessOf(req),
+      req.params.tripId,
+      tripContextOf(req).view
+    )
   )
 })
 

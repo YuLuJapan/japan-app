@@ -1,85 +1,63 @@
-// Who is holding the phone. The access code decides it: the travelers' code is
-// 'owner', the code handed to friends is 'guest' — a read-only view with no
-// trip documents, no stays and no flight.
+// Who is holding the phone, and what this trip shows them.
 //
-// This only drives what the UI offers. The server independently refuses every
-// write and every /api/files request from a guest code, so nothing here is
-// load-bearing for safety; it exists so a guest is never shown a button that
-// would just fail.
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { api, getStoredRole, setAccessCode, setStoredRole, type Role } from '../api/client'
-import type { TripRole } from '../api/types'
+// There is one kind of caller now: a signed-in account. The app used to also
+// carry a *global* role, because a shared access code reached every trip and
+// "may you write?" had a single answer for the whole app. Both codes are gone,
+// so the question is per trip and the answer rides on the bundle each screen
+// has already fetched — `my_role` for the verbs, `shows` for the content.
+//
+// None of this is load-bearing for safety. The server independently refuses
+// every write a viewer attempts and withholds whatever their membership says
+// they may not see; this exists so nobody is offered a button that would fail,
+// or shown an empty list where the honest answer is "not shared with you".
+import { createContext, useContext, useEffect, type ReactNode } from 'react'
+import { setAccessCode } from '../api/client'
+import type { TripRole, TripShows } from '../api/types'
 import { getSupabaseClient } from './supabaseClient'
 
-// Read-only is the safe default for anything rendered outside a provider.
-const RoleContext = createContext<Role>('guest')
-
-export const useRole = () => useContext(RoleContext)
-
 /**
- * The caller's role on the trip currently open, or null outside one (and for
- * the deprecated access codes, which have no membership). Read from the trip
- * bundle the screen has already fetched, so this costs no extra request.
+ * The caller's role on the trip currently open, or null outside one. Read from
+ * the trip bundle the screen has already fetched, so this costs no request.
  */
 const TripRoleContext = createContext<TripRole | null>(null)
 export const useTripRole = () => useContext(TripRoleContext)
 export { TripRoleContext }
 
+/** Everything is shown until a bundle says otherwise — outside a trip there is
+ *  nothing withheld, and a writer's flags are ignored server-side anyway. */
+const ALL: TripShows = { stays: true, flight: true, documents: true }
+const TripShowsContext = createContext<TripShows>(ALL)
+
+/**
+ * What this trip shows the caller. Drives the difference between "nothing
+ * saved here yet" and "the travellers keep this private" — the two look
+ * identical in the payload, because a withheld category simply isn't in it.
+ */
+export const useTripShows = () => useContext(TripShowsContext)
+export { TripShowsContext }
+
 /**
  * True when this caller may change the trip in front of them.
  *
- * Two questions, and both have to hold. The global role still answers "is this
- * a read-only guest code"; `my_role` on the trip bundle answers "and are you a
- * writer *on this trip*" — a viewer is a perfectly ordinary signed-in account,
- * so the global role alone would say yes.
- *
- * Outside a trip (the trips list, the gate) there is no per-trip role to
- * consult and the global one decides, as before.
+ * Outside a trip — the trips list — there is no per-trip role to consult and
+ * nothing to protect: any account may create a trip of its own.
  */
 export const useCanEdit = () => {
-  const role = useRole()
   const tripRole = useTripRole()
-  if (role !== 'owner') return false
   return tripRole === null || tripRole === 'owner' || tripRole === 'partner'
 }
 
 /** True only for a trip's owner: managing who else is on it. */
-export const useIsTripOwner = () => {
-  // Both hooks unconditionally: `&&` would short-circuit the second one and
-  // change the hook order between renders.
-  const role = useRole()
-  const tripRole = useTripRole()
-  return role === 'owner' && tripRole === 'owner'
-}
+export const useIsTripOwner = () => useTripRole() === 'owner'
 
 /**
- * True for the travelers: the stays and the flight. Both carry the booking
- * itself — what was paid, the confirmation, the booking reference — so the API
- * keeps them from a guest code entirely (server/src/lib/guest-view.ts). This
- * only keeps the UI from linking somewhere it would be refused.
+ * Keeps the bearer token api/client.ts sends in step with supabase-js.
+ *
+ * A Supabase access token lives about an hour and the library rotates it in
+ * the background; without this, a tab left open overnight starts sending a
+ * stale one and gets bounced to the gate mid-tap.
  */
-export const useCanSeeBookings = () => useRole() === 'owner'
-
-export { RoleContext }
-
-/**
- * Resolves the role once per app load. The cached value renders immediately (so
- * the travelers don't flash a read-only shell), and `/auth/session` confirms it
- * — which is also how a session predating the guest view learns what it is
- * without being bounced back to the gate.
- */
-export function RoleProvider({
-  children,
-  fallback,
-}: {
-  children: ReactNode
-  fallback?: ReactNode
-}) {
-  const [role, setRole] = useState<Role | null>(getStoredRole)
-
-  // A signed-in owner's bearer token is a Supabase JWT (~1h lifetime); keep
-  // the copy api/client.ts sends in sync as supabase-js rotates it, so a
-  // long-lived tab never starts sending a stale token.
+export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const supabase = getSupabaseClient()
     if (!supabase) return
@@ -91,21 +69,5 @@ export function RoleProvider({
     return () => subscription.unsubscribe()
   }, [])
 
-  useEffect(() => {
-    let cancelled = false
-    api
-      .get<{ role: Role }>('/auth/session')
-      .then((data) => {
-        if (cancelled || (data.role !== 'owner' && data.role !== 'guest')) return
-        setStoredRole(data.role)
-        setRole(data.role)
-      })
-      .catch(() => undefined) // a 401 has already sent us back to the gate
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  if (!role) return <>{fallback ?? null}</>
-  return <RoleContext.Provider value={role}>{children}</RoleContext.Provider>
+  return <>{children}</>
 }

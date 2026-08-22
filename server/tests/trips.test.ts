@@ -1,15 +1,21 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
-import { setDataStore } from '../src/lib/datastore.js'
+import { setDataStore, type DataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { TEST_CODE, fixture } from './fixture.js'
+import { VIEWER_USER, fixture } from './fixture.js'
+import { OWNER_BEARER, asOutsider, asViewer, useTestTokens } from './auth.js'
 
-process.env.TRIP_ACCESS_CODE = TEST_CODE
 const app = createApp()
-const auth = () => request(app).get('/api/trips').set('Authorization', `Bearer ${TEST_CODE}`)
+const auth = () => request(app).get('/api/trips').set(OWNER_BEARER)
 
-beforeEach(() => setDataStore(createMemoryStore(fixture())))
+let store: DataStore
+
+beforeEach(() => {
+  store = createMemoryStore(fixture())
+  setDataStore(store)
+  useTestTokens()
+})
 
 /**
  * A second trip with two activities near its end and no journey stops, so a
@@ -19,7 +25,7 @@ beforeEach(() => setDataStore(createMemoryStore(fixture())))
 async function tripWithActivities() {
   const created = await request(app)
     .post('/api/trips')
-    .set('Authorization', `Bearer ${TEST_CODE}`)
+    .set(OWNER_BEARER)
     .send({ name: 'Lisbon', start_date: '2027-03-01', end_date: '2027-03-08' })
   const tripId = created.body.trip.id as string
 
@@ -30,7 +36,7 @@ async function tripWithActivities() {
   ]) {
     const res = await request(app)
       .post(`/api/trips/${tripId}/itinerary`)
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send(item)
     itemIds.push(res.body.item.id)
   }
@@ -38,12 +44,12 @@ async function tripWithActivities() {
 }
 
 describe('trips', () => {
-  it('GET /api/trips lists the seeded trip with its travellers', async () => {
+  it('GET /api/trips lists the caller’s own trips, and only those', async () => {
     const res = await auth()
     expect(res.status).toBe(200)
-    // The fixture holds a second trip belonging to another account; the
-    // deprecated access code reaches every trip, so both come back here.
-    expect(res.body.trips).toHaveLength(2)
+    // The fixture holds a second trip belonging to another account. There is
+    // no longer any credential that reaches both.
+    expect(res.body.trips).toHaveLength(1)
     expect(res.body.trips[0]).toMatchObject({
       id: 'trip-1',
       name: 'Test Trip',
@@ -51,10 +57,8 @@ describe('trips', () => {
     })
   })
 
-  it('GET /api/trips/trip-1 (legacy) still returns the oldest trip bundle', async () => {
-    const res = await request(app)
-      .get('/api/trips/trip-1')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+  it('GET /api/trips/:tripId returns the bundle for a trip you are on', async () => {
+    const res = await request(app).get('/api/trips/trip-1').set(OWNER_BEARER)
     expect(res.status).toBe(200)
     expect(res.body.trip.id).toBe('trip-1')
   })
@@ -62,7 +66,7 @@ describe('trips', () => {
   it('POST /api/trips creates a second trip without disturbing the first', async () => {
     const create = await request(app)
       .post('/api/trips')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send({
         name: 'Dolomites',
         start_date: '2027-02-06',
@@ -77,23 +81,17 @@ describe('trips', () => {
     })
 
     const list = await auth()
-    expect(list.body.trips.map((t: { name: string }) => t.name)).toEqual([
-      'Test Trip',
-      'Someone Else’s Trip',
-      'Dolomites',
-    ])
+    expect(list.body.trips.map((t: { name: string }) => t.name)).toEqual(['Test Trip', 'Dolomites'])
 
-    // legacy single-trip route is unaffected by the new trip existing
-    const legacy = await request(app)
-      .get('/api/trips/trip-1')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+    // the existing trip is unaffected by the new one
+    const legacy = await request(app).get('/api/trips/trip-1').set(OWNER_BEARER)
     expect(legacy.body.trip.id).toBe('trip-1')
   })
 
   it('POST /api/trips rejects end before start', async () => {
     const res = await request(app)
       .post('/api/trips')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send({ name: '', start_date: '2027-02-14', end_date: '2027-02-06' })
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('VALIDATION')
@@ -108,7 +106,7 @@ describe('trips', () => {
   it('POST /api/trips names an unnamed trip from its travellers and country', async () => {
     const res = await request(app)
       .post('/api/trips')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send({
         country: 'Italy',
         start_date: '2027-02-06',
@@ -123,36 +121,36 @@ describe('trips', () => {
   it('lets a title given later win over the built one', async () => {
     const created = await request(app)
       .post('/api/trips')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send({ country: 'Italy', start_date: '2027-02-06', end_date: '2027-02-14' })
-    expect(created.body.trip.display_title).toBe('Trip to Italy')
+    // No travellers on the roster, so the title falls back to who is on the
+    // trip — which, for a trip just created, is whoever created it.
+    expect(created.body.trip.display_title).toBe('Yuval in Italy')
 
     const named = await request(app)
       .patch(`/api/trips/${created.body.trip.id}`)
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send({ name: 'Dolomites' })
     expect(named.body.trip.display_title).toBe('Dolomites')
 
     // …and clearing it goes back to the built one rather than storing "".
     const cleared = await request(app)
       .patch(`/api/trips/${created.body.trip.id}`)
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send({ name: '' })
     expect(cleared.body.trip.name).toBeNull()
-    expect(cleared.body.trip.display_title).toBe('Trip to Italy')
+    expect(cleared.body.trip.display_title).toBe('Yuval in Italy')
   })
 
   it('GET /api/trips/:tripId 404s for an unknown trip', async () => {
-    const res = await request(app)
-      .get('/api/trips/nope')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+    const res = await request(app).get('/api/trips/nope').set(OWNER_BEARER)
     expect(res.status).toBe(404)
   })
 
   it('PATCH /api/trips/:tripId updates travellers (with an email) and dates', async () => {
     const res = await request(app)
       .patch('/api/trips/trip-1')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send({ people: [{ name: 'Alex' }, { name: 'Sam', email: 'sam@example.com' }, 'Noa'] })
     expect(res.status).toBe(200)
     expect(res.body.trip.people).toEqual([
@@ -166,7 +164,7 @@ describe('trips', () => {
   it('PATCH /api/trips/:tripId rejects an invalid traveller email', async () => {
     const res = await request(app)
       .patch('/api/trips/trip-1')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send({ people: [{ name: 'Alex', email: 'not-an-email' }] })
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('VALIDATION')
@@ -176,15 +174,13 @@ describe('trips', () => {
     // fixture: trip 2026-10-01→14, steps 10-05→09 and 10-09→12, activities on 10-06
     const res = await request(app)
       .patch('/api/trips/trip-1')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send({ start_date: '2026-10-07', end_date: '2026-10-14' })
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('VALIDATION')
     expect(res.body.error.details.join(' ')).toMatch(/journey stop \(2026-10-05 – 2026-10-09\)/)
 
-    const unchanged = await request(app)
-      .get('/api/trips/trip-1')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+    const unchanged = await request(app).get('/api/trips/trip-1').set(OWNER_BEARER)
     expect(unchanged.body.trip.start_date).toBe('2026-10-01')
   })
 
@@ -192,7 +188,7 @@ describe('trips', () => {
     const { tripId } = await tripWithActivities()
     const res = await request(app)
       .patch(`/api/trips/${tripId}`)
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send({ end_date: '2027-03-04' })
     expect(res.status).toBe(400)
     const details = res.body.error.details.join(' ')
@@ -203,7 +199,7 @@ describe('trips', () => {
   it('GET /api/trips/:tripId/date-impact lists what a date change would strand', async () => {
     const res = await request(app)
       .get('/api/trips/trip-1/date-impact?start_date=2026-10-07&end_date=2026-10-14')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
     expect(res.status).toBe(200)
     expect(res.body.range).toEqual({ start_date: '2026-10-07', end_date: '2026-10-14' })
     // step-1 (10-05 → 10-09) starts before the new range; step-2 (10-09 → 10-12) fits
@@ -226,7 +222,7 @@ describe('trips', () => {
   it('GET date-impact reports nothing for a range that still covers everything', async () => {
     const res = await request(app)
       .get('/api/trips/trip-1/date-impact?start_date=2026-10-01&end_date=2026-10-20')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
     expect(res.status).toBe(200)
     expect(res.body.steps).toEqual([])
     expect(res.body.items).toEqual([])
@@ -235,7 +231,7 @@ describe('trips', () => {
   it('a stranded stop is still refused without a stop resolution', async () => {
     const res = await request(app)
       .patch('/api/trips/trip-1')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send({ start_date: '2026-10-07', end_date: '2026-10-14', stranded_activities: 'move' })
     expect(res.status).toBe(400)
     expect(res.body.error.details.join(' ')).toMatch(/journey stop/i)
@@ -243,21 +239,16 @@ describe('trips', () => {
 
   it('stranded_stops=move brings the stops along, keeping their length', async () => {
     // step-1 Tokyo 10-05 → 10-09 (4 nights) is the one that falls outside.
-    const res = await request(app)
-      .patch('/api/trips/trip-1')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
-      .send({
-        start_date: '2026-10-07',
-        end_date: '2026-10-14',
-        stranded_stops: 'move',
-        stranded_activities: 'move',
-      })
+    const res = await request(app).patch('/api/trips/trip-1').set(OWNER_BEARER).send({
+      start_date: '2026-10-07',
+      end_date: '2026-10-14',
+      stranded_stops: 'move',
+      stranded_activities: 'move',
+    })
     expect(res.status).toBe(200)
     expect(res.body.moved_stops).toEqual(['step-1'])
 
-    const trip = await request(app)
-      .get('/api/trips/trip-1')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+    const trip = await request(app).get('/api/trips/trip-1').set(OWNER_BEARER)
     const moved = trip.body.steps.find((s: { id: string }) => s.id === 'step-1')
     expect(moved).toMatchObject({ start_date: '2026-10-07', end_date: '2026-10-11' }) // 4 nights kept
     // and nothing is left outside the trip
@@ -270,26 +261,21 @@ describe('trips', () => {
     // step-1 Tokyo is 4 nights; the new trip is 2 days long.
     const res = await request(app)
       .get('/api/trips/trip-1/date-impact?start_date=2026-10-13&end_date=2026-10-14')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
     const tokyo = res.body.steps.find((s: { id: string }) => s.id === 'step-1')
     expect(tokyo.moves_to).toEqual({ start_date: '2026-10-13', end_date: '2026-10-14' })
   })
 
   it('clips a stop that no longer fits rather than letting it hang off the end', async () => {
     // A 4-night stop cannot survive intact on a 2-day trip.
-    const res = await request(app)
-      .patch('/api/trips/trip-1')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
-      .send({
-        start_date: '2026-10-13',
-        end_date: '2026-10-14',
-        stranded_stops: 'move',
-        stranded_activities: 'delete',
-      })
+    const res = await request(app).patch('/api/trips/trip-1').set(OWNER_BEARER).send({
+      start_date: '2026-10-13',
+      end_date: '2026-10-14',
+      stranded_stops: 'move',
+      stranded_activities: 'delete',
+    })
     expect(res.status).toBe(200)
-    const trip = await request(app)
-      .get('/api/trips/trip-1')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+    const trip = await request(app).get('/api/trips/trip-1').set(OWNER_BEARER)
     for (const s of trip.body.steps) {
       expect(s).toMatchObject({ start_date: '2026-10-13', end_date: '2026-10-14' })
     }
@@ -299,23 +285,18 @@ describe('trips', () => {
     // Nothing about the old window overlaps the new one: every stop and every
     // activity has to travel with it, which is impossible one entity at a time
     // (a stop cannot leave the trip's dates, and the dates cannot move first).
-    const res = await request(app)
-      .patch('/api/trips/trip-1')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
-      .send({
-        start_date: '2027-01-10',
-        end_date: '2027-01-24',
-        stranded_stops: 'move',
-        stranded_activities: 'move',
-      })
+    const res = await request(app).patch('/api/trips/trip-1').set(OWNER_BEARER).send({
+      start_date: '2027-01-10',
+      end_date: '2027-01-24',
+      stranded_stops: 'move',
+      stranded_activities: 'move',
+    })
     expect(res.status).toBe(200)
     expect(res.body.trip).toMatchObject({ start_date: '2027-01-10', end_date: '2027-01-24' })
     expect(res.body.moved_stops).toHaveLength(2)
     expect(res.body.moved).toHaveLength(2)
 
-    const trip = await request(app)
-      .get('/api/trips/trip-1')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+    const trip = await request(app).get('/api/trips/trip-1').set(OWNER_BEARER)
     // Tokyo kept its 4 nights, Kyoto its 3, both anchored on the new first day.
     expect(trip.body.steps.map((s: { start_date: string; end_date: string }) => s)).toEqual(
       expect.arrayContaining([
@@ -323,16 +304,14 @@ describe('trips', () => {
         expect.objectContaining({ start_date: '2027-01-10', end_date: '2027-01-13' }),
       ])
     )
-    const items = await request(app)
-      .get('/api/trips/trip-1/itinerary')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+    const items = await request(app).get('/api/trips/trip-1/itinerary').set(OWNER_BEARER)
     for (const i of items.body.items) expect(i.day).toBe('2027-01-10')
   })
 
   it('rejects an unknown stranded_stops value', async () => {
     const res = await request(app)
       .patch('/api/trips/trip-1')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send({ start_date: '2026-10-01', end_date: '2026-10-14', stranded_stops: 'delete' })
     expect(res.status).toBe(400)
     expect(res.body.error.details.join(' ')).toMatch(/stranded_stops must be one of: move/)
@@ -343,15 +322,13 @@ describe('trips', () => {
 
     const ok = await request(app)
       .patch(`/api/trips/${tripId}`)
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send({ start_date: '2027-03-01', end_date: '2027-03-04', stranded_activities: 'move' })
     expect(ok.status).toBe(200)
     expect(ok.body.trip.end_date).toBe('2027-03-04')
     expect(ok.body.moved.sort()).toEqual([...itemIds].sort())
 
-    const items = await request(app)
-      .get(`/api/trips/${tripId}/itinerary`)
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+    const items = await request(app).get(`/api/trips/${tripId}/itinerary`).set(OWNER_BEARER)
     expect(items.body.items).toHaveLength(2) // nothing lost
     for (const item of items.body.items) expect(item.day).toBe('2027-03-01')
     // the move touches the day and nothing else
@@ -364,27 +341,25 @@ describe('trips', () => {
 
     const refused = await request(app)
       .patch(`/api/trips/${tripId}`)
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send({ start_date: '2027-03-01', end_date: '2027-03-04' })
     expect(refused.status).toBe(400) // still refused without a choice
 
     const ok = await request(app)
       .patch(`/api/trips/${tripId}`)
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send({ start_date: '2027-03-01', end_date: '2027-03-04', stranded_activities: 'delete' })
     expect(ok.status).toBe(200)
     expect(ok.body.deleted).toHaveLength(2)
 
-    const items = await request(app)
-      .get(`/api/trips/${tripId}/itinerary`)
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+    const items = await request(app).get(`/api/trips/${tripId}/itinerary`).set(OWNER_BEARER)
     expect(items.body.items).toEqual([])
   })
 
   it('PATCH rejects an unknown stranded_activities value', async () => {
     const res = await request(app)
       .patch('/api/trips/trip-1')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send({ start_date: '2026-10-01', end_date: '2026-10-14', stranded_activities: 'shred' })
     expect(res.status).toBe(400)
     expect(res.body.error.details.join(' ')).toMatch(/stranded_activities/)
@@ -393,57 +368,57 @@ describe('trips', () => {
   it('a resolution is ignored when the new dates strand nothing', async () => {
     const res = await request(app)
       .patch('/api/trips/trip-1')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send({ end_date: '2026-10-20', stranded_activities: 'delete' })
     expect(res.status).toBe(200)
     expect(res.body.deleted).toBeUndefined()
-    const items = await request(app)
-      .get('/api/trips/trip-1/itinerary')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+    const items = await request(app).get('/api/trips/trip-1/itinerary').set(OWNER_BEARER)
     expect(items.body.items).toHaveLength(2)
   })
 
   it('PATCH /api/trips/:tripId allows a date change that still covers everything planned', async () => {
     const res = await request(app)
       .patch('/api/trips/trip-1')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .set(OWNER_BEARER)
       .send({ start_date: '2026-10-04', end_date: '2026-10-20' })
     expect(res.status).toBe(200)
     expect(res.body.trip).toMatchObject({ start_date: '2026-10-04', end_date: '2026-10-20' })
   })
 
   it('DELETE /api/trips/:tripId removes the trip and cascades its children', async () => {
-    const del = await request(app)
-      .delete('/api/trips/trip-1')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+    const del = await request(app).delete('/api/trips/trip-1').set(OWNER_BEARER)
     expect(del.status).toBe(204)
 
     const list = await auth()
-    // Only the other account's trip is left; deleting one trip never touches another.
-    expect(list.body.trips.map((t: { id: string }) => t.id)).toEqual(['trip-2'])
+    // Nothing of this account's is left; the other tenant's trip is untouched
+    // (and was never visible here anyway).
+    expect(list.body.trips).toEqual([])
 
     // children scoped to trip-1 (steps, itinerary, shopping) go with it
-    const itinerary = await request(app)
-      .get('/api/trips/trip-1/itinerary')
-      .set('Authorization', `Bearer ${TEST_CODE}`)
+    const itinerary = await request(app).get('/api/trips/trip-1/itinerary').set(OWNER_BEARER)
     expect(itinerary.status).toBe(404) // the trip itself is gone
   })
 
-  it('guests cannot create, update or delete trips', async () => {
-    process.env.TRIP_GUEST_CODE = 'guest-code'
-    const guestAuth = 'Bearer guest-code'
-    const create = await request(app)
-      .post('/api/trips')
-      .set('Authorization', guestAuth)
-      .send({ name: 'Nope', start_date: '2027-01-01', end_date: '2027-01-02' })
-    expect(create.status).toBe(403)
-    const patch = await request(app)
-      .patch('/api/trips/trip-1')
-      .set('Authorization', guestAuth)
-      .send({})
+  it('a viewer cannot create, update or delete — and an outsider sees nothing', async () => {
+    // What replaced the guest code. A viewer is an ordinary signed-in account
+    // that happens to be read-only *on this trip*: they may still create trips
+    // of their own, which no shared code could express.
+    await store.upsertTripMember({ trip_id: 'trip-1', user_id: VIEWER_USER.id, role: 'viewer' })
+
+    const patch = await asViewer(request(app).patch('/api/trips/trip-1')).send({ name: 'Nope' })
     expect(patch.status).toBe(403)
-    const del = await request(app).delete('/api/trips/trip-1').set('Authorization', guestAuth)
+    const del = await asViewer(request(app).delete('/api/trips/trip-1'))
     expect(del.status).toBe(403)
-    delete process.env.TRIP_GUEST_CODE
+
+    const own = await asViewer(request(app).post('/api/trips')).send({
+      name: 'Their own trip',
+      start_date: '2027-01-01',
+      end_date: '2027-01-02',
+    })
+    expect(own.status).toBe(201)
+
+    // An account that is on no trip at all cannot see or touch this one.
+    const outsider = await asOutsider(request(app).patch('/api/trips/trip-1')).send({ name: 'X' })
+    expect(outsider.status).toBe(404)
   })
 })

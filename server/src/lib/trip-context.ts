@@ -6,18 +6,13 @@
 // the same property CLAUDE.md already credits for writes ("guest-proof
 // automatically by virtue of its HTTP method"), extended to reads.
 //
-// What it does NOT yet do: prove that a resource named later in the path
-// actually belongs to this trip. `/trips/A/places/<place-in-B>` still resolves,
-// because zones are not trip-scoped in the schema until phase 3b. The sweep in
-// server/tests/tenancy.test.ts carries those cases as `it.todo`, and 3b is the
-// commit that turns them on.
 import type { NextFunction, Request, Response } from 'express'
-import { assertTripAccess, roleForTrip } from './access.js'
-import { accessOf, isGuest } from './auth.js'
+import { assertTripAccess } from './access.js'
+import { accessOf } from './auth.js'
 import { getDataStore, type Trip } from './datastore.js'
 import { forbidden, notFound } from './errors.js'
 import { canWrite, type TripRole } from './permissions.js'
-import { FULL_VIEW, GUEST_VIEW, tripView, type TripView } from './trip-view.js'
+import { tripView, type TripView } from './trip-view.js'
 
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
@@ -62,21 +57,21 @@ export async function requireTripAccess(req: Request, _res: Response, next: Next
     const trip = await store.getTrip(tripId)
     if (!trip) throw notFound('Trip')
 
-    const role = roleForTrip(access, tripId)
-    if (!role) throw notFound('Trip')
+    // One row answers both questions: which verbs (role) and which content
+    // (the three can_see_* flags). `assertTripAccess` has already established
+    // that it exists; re-reading it here rather than trusting the cached role
+    // keeps the flags and the role from ever disagreeing.
+    const member = await store.getTripMember(tripId, access.userId)
+    if (!member) throw notFound('Trip')
+    const role = member.role
 
-    // The member row decides what this caller is shown. The deprecated guest
-    // code has no membership to read, so it keeps its own fixed narrow view.
-    const member = access.userId ? await store.getTripMember(tripId, access.userId) : null
-    const view = isGuest(req) ? GUEST_VIEW : member ? tripView(member) : FULL_VIEW
+    req.tripContext = { trip, role, view: tripView(member) }
 
-    req.tripContext = { trip, role, view }
-
-    // Read-only is a per-trip fact now, so it cannot be enforced where the old
-    // guest check was. `authMiddleware` blocks writes for the deprecated guest
-    // *code*; a viewer is an ordinary signed-in account and sails straight
-    // through it. One check here covers every nested route, including any
-    // added later.
+    // Read-only is a per-trip fact: a viewer is an ordinary signed-in account,
+    // indistinguishable at the door from an owner. This one check covers every
+    // nested route, including any added later — the property that used to come
+    // free from the guest code's blanket method check, restored where it can
+    // actually see whose trip this is.
     if (!READ_METHODS.has(req.method) && !canWrite(role) && !isLeavingTrip(req)) {
       throw forbidden('You have read-only access to this trip')
     }

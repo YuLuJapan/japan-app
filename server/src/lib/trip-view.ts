@@ -1,12 +1,12 @@
 // What a caller is shown on a trip, as one value rather than three loose
 // booleans threaded through six services.
 //
-// This is lib/guest-view.ts generalised. That module answered one question —
-// "is this the guest code?" — and the services took `includeStays` /
-// `includeFlight` / `includeFiles` flags derived from it. The flags were always
-// the right shape; they were just named after the single case that needed them.
-// Phase 4 swaps the *source* from a role to a trip_members row, and nothing
-// downstream has to change.
+// This began as lib/guest-view.ts, which answered one question — "is this the
+// guest code?" — and handed the services `includeStays` / `includeFlight` /
+// `includeFiles` flags derived from it. The flags were always the right shape;
+// they were just named after the single case that needed them. Swapping the
+// *source* from a global role to a trip_members row changed nothing
+// downstream, and the guest code itself is now gone.
 //
 // Why whole categories rather than redaction: a `hotel` place *is* the
 // accommodation booking. What was paid, whether it is confirmed, the
@@ -28,9 +28,6 @@ export interface TripView {
 
 /** Everyone who can write, and every owner. */
 export const FULL_VIEW: TripView = { stays: true, flight: true, documents: true }
-
-/** The deprecated guest code: read-only, and none of the bookings. */
-export const GUEST_VIEW: TripView = { stays: false, flight: false, documents: false }
 
 /**
  * What this member is shown.

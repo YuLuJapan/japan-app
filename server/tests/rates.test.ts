@@ -4,11 +4,10 @@ import { createApp } from '../src/app.js'
 import { setDataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
 import { __resetRatesCache, getRates } from '../src/services/rates.js'
-import { TEST_CODE, fixture } from './fixture.js'
+import { fixture } from './fixture.js'
+import { asOwner as auth, useTestTokens } from './auth.js'
 
-process.env.TRIP_ACCESS_CODE = TEST_CODE
 const app = createApp()
-const auth = (r: request.Test) => r.set('Authorization', `Bearer ${TEST_CODE}`)
 
 const payload = {
   result: 'success',
@@ -18,6 +17,7 @@ const payload = {
 
 beforeEach(() => {
   setDataStore(createMemoryStore(fixture()))
+  useTestTokens()
   __resetRatesCache()
 })
 afterEach(() => vi.restoreAllMocks())

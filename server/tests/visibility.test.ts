@@ -7,23 +7,14 @@
 // Written as a matrix over the enforcement points rather than as prose cases,
 // because the failure mode is a path someone forgot, not a rule someone got
 // wrong.
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
 import { setDataStore, type DataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { clearTokenCache } from '../src/lib/identity.js'
-import { OWNER_USER, TEST_CODE, VIEWER_USER, fixture } from './fixture.js'
+import { OWNER_USER, VIEWER_USER, fixture } from './fixture.js'
+import { useTestTokens } from './auth.js'
 
-const mocks = vi.hoisted(() => ({ resolveAuthUser: vi.fn() }))
-vi.mock('../src/lib/supabaseAuth.js', () => ({ resolveAuthUser: mocks.resolveAuthUser }))
-
-const TOKENS: Record<string, typeof OWNER_USER> = {
-  'owner.jwt': OWNER_USER,
-  'viewer.jwt': VIEWER_USER,
-}
-
-process.env.TRIP_ACCESS_CODE = TEST_CODE
 const app = createApp()
 
 let store: DataStore
@@ -52,9 +43,7 @@ const owner = { Authorization: 'Bearer owner.jwt' }
 beforeEach(() => {
   store = createMemoryStore(fixture())
   setDataStore(store)
-  clearTokenCache()
-  mocks.resolveAuthUser.mockReset()
-  mocks.resolveAuthUser.mockImplementation(async (t: string) => TOKENS[t] ?? null)
+  useTestTokens()
 })
 
 describe('stays', () => {

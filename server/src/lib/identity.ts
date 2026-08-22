@@ -1,41 +1,22 @@
 // Identity: *who* is making this request. Deliberately says nothing about what
-// they may do — that is lib/auth.ts today, and per-trip membership from
-// phase 2 onward. Keeping the two apart is the point: authMiddleware used to
-// answer both questions at once, which is why every new route had to be
+// they may do — that is lib/auth.ts for the door and per-trip membership for
+// everything past it. Keeping the two apart is the point: authMiddleware used
+// to answer both questions at once, which is why every new route had to be
 // guarded by hand.
 //
-// Three ways to be somebody, in the order they are tried:
-//   1. TRIP_ACCESS_CODE  → { kind: 'legacy', code: 'owner' }   (deprecated)
-//   2. TRIP_GUEST_CODE   → { kind: 'legacy', code: 'guest' }   (deprecated)
-//   3. a Supabase Auth JWT → { kind: 'user', user }            (real accounts)
-//
-// The static codes are checked first and synchronously, so the travellers'
-// existing sign-in never pays for a network round-trip.
+// There is now exactly one way to be somebody: a Supabase Auth JWT. The shared
+// access codes are gone. They were a single credential that reached every trip
+// in the database, which stopped being defensible the moment trips belonged to
+// people — no per-trip membership can constrain a caller who is not a person.
+// Anyone the travellers used to hand a code to is now invited as a viewer,
+// with per-member visibility instead of one fixed narrow view.
 import type { DataStore } from './datastore.js'
 import { resolveAuthUser, type AuthUser } from './supabaseAuth.js'
 
 export type { AuthUser }
 
-export type Principal =
-  | { kind: 'user'; user: AuthUser }
-  /** Deprecated: the shared access codes. Removed once every traveller has an account. */
-  | { kind: 'legacy'; code: 'owner' | 'guest' }
-
 /** Swappable so tests never need a Supabase project — same idiom as `PushSender`. */
 export type TokenVerifier = (token: string) => Promise<AuthUser | null>
-
-export function accessCode(): string {
-  const code = process.env.TRIP_ACCESS_CODE
-  if (code && code.trim()) return code.trim()
-  // dev fallback so placeholder mode boots without any env; real deployments set the var
-  return 'japan2026'
-}
-
-/** null when no guest code is configured — then there is simply no guest view. */
-export function guestCode(): string | null {
-  const code = process.env.TRIP_GUEST_CODE
-  return code && code.trim() ? code.trim() : null
-}
 
 // --- token cache -------------------------------------------------------------
 // Verifying a JWT is an HTTPS round-trip to Supabase Auth. Without this, every
@@ -97,26 +78,21 @@ export function setTokenVerifier(verify: TokenVerifier | null): void {
 // --- resolution --------------------------------------------------------------
 
 /**
- * What a bearer token proves about the caller, or null when it proves nothing.
- * Says nothing about authorization: an unknown Google account resolves to a
- * perfectly valid `user` principal that lib/auth.ts then refuses.
+ * Who a bearer token proves the caller to be, or null when it proves nothing.
+ *
+ * Says nothing about authorization: a brand-new account nobody has invited
+ * anywhere resolves perfectly well here and then sees an empty trip list.
  */
-export async function resolvePrincipal(
+export async function resolveUser(
   token: string,
   verify: TokenVerifier = defaultVerifier
-): Promise<Principal | null> {
+): Promise<AuthUser | null> {
   if (!token) return null
-  // Owner wins if someone sets both vars to the same value — never silently
-  // downgrade the travellers.
-  if (token === accessCode()) return { kind: 'legacy', code: 'owner' }
-  if (token === guestCode()) return { kind: 'legacy', code: 'guest' }
-
   const cached = cacheGet(token)
-  if (cached) return cached.user ? { kind: 'user', user: cached.user } : null
-
+  if (cached) return cached.user
   const user = await verify(token)
   cacheSet(token, user)
-  return user ? { kind: 'user', user } : null
+  return user
 }
 
 // --- profile sync ------------------------------------------------------------

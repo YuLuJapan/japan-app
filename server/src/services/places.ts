@@ -4,12 +4,12 @@ import { CATEGORIES } from '../lib/datastore.js'
 // see the DataStore interface. lib/access.ts's reachability helpers are gone.
 
 import { forbidden, notFound, validation } from '../lib/errors.js'
-import { isStay } from '../lib/guest-view.js'
+import { isStay } from '../lib/trip-view.js'
 
 /**
- * `includeFiles: false` is the guest view — attachments never leave the server.
+ * `includeFiles: false` withholds attachments — they never leave the server.
  * `includeStays: false` is the same view's other half: a stay is the booking
- * itself (lib/guest-view.ts), so guests are refused the page outright.
+ * itself (lib/trip-view.ts), so a member without them is refused the page outright.
  */
 export async function getPlaceDetail(
   store: DataStore,
@@ -25,7 +25,7 @@ export async function getPlaceDetail(
   const place = await store.getPlace(tripId, placeId)
   if (!place) throw notFound('Place')
   if (!includeStays && isStay(place)) {
-    throw forbidden('Stays are not part of the guest view')
+    throw forbidden('Where this trip is staying is not shared with you')
   }
   const [tips, files] = await Promise.all([
     store.listTips(tripId, { place_id: placeId }),
