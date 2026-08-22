@@ -164,8 +164,8 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="mx-auto flex min-h-dvh max-w-app flex-col bg-canvas">
       <header className="sticky top-0 z-20 flex items-center justify-between bg-canvas/85 px-5 py-4 backdrop-blur">
         {/* min-w-0 + truncate: the search and sign-out buttons keep their size
-            on a narrow phone, and the guest chip gives up width instead. Tapping
-            the mark + trip name goes back to the trips list, like the prototype. */}
+            on a narrow phone, and the view-only chip gives up width instead.
+            Tapping the mark + trip name goes back to the trips list. */}
         <Link to="/trips" className="flex min-w-0 items-center gap-2">
           <RingMark size={34} />
           <span className="truncate font-display text-lg font-bold tracking-tight">
@@ -177,7 +177,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </span>
           {!canEdit && (
             <span className="chip shrink-0 truncate bg-canvas text-[10px] font-bold text-muted">
-              Guest · view only
+              View only
             </span>
           )}
         </Link>

@@ -1,6 +1,5 @@
 import { Router } from 'express'
 import type { Request } from 'express'
-import { accessCode } from '../lib/auth.js'
 import { getDataStore } from '../lib/datastore.js'
 import { ApiError, asyncHandler } from '../lib/errors.js'
 import {
@@ -21,16 +20,23 @@ export const remindersRouter = Router()
 /**
  * The dispatch endpoint is called by an external scheduler, not by the app, so
  * it is exempt from authMiddleware and guards itself instead: `CRON_SECRET` as
- * a bearer token (what Vercel Cron sends) or as `?key=`. With no CRON_SECRET
- * set it falls back to the trip access code — never open.
+ * a bearer token (what Vercel Cron sends) or as `?key=`.
+ *
+ * It used to fall back to the trip access code when no secret was configured.
+ * With the codes gone there is nothing to fall back to, so an unset
+ * `CRON_SECRET` refuses everything rather than opening the endpoint — the
+ * failure is a reminder that stays unsent, which is visible, instead of an
+ * endpoint anyone can trigger, which is not.
  */
 function assertCronAuthorized(req: Request) {
   const header = req.headers.authorization ?? ''
   const bearer = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : ''
   const provided = bearer || String(req.query.key ?? '').trim()
   const secret = process.env.CRON_SECRET?.trim()
-  const accepted = secret ? [secret, accessCode()] : [accessCode()]
-  if (!provided || !accepted.includes(provided)) {
+  if (!secret) {
+    throw new ApiError(401, 'UNAUTHORIZED', 'Reminder dispatch needs CRON_SECRET to be configured')
+  }
+  if (!provided || provided !== secret) {
     throw new ApiError(401, 'UNAUTHORIZED', 'Missing or invalid cron secret')
   }
 }

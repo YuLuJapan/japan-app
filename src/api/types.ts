@@ -139,12 +139,24 @@ export interface FlightInfo {
 /** What this caller may do on a trip. Drives which buttons the UI offers. */
 export type TripRole = 'owner' | 'partner' | 'viewer'
 
+/**
+ * What this caller is shown on a trip. Withheld content is simply absent from
+ * the payload, so this is the only way to tell "nothing saved here" apart from
+ * "not shared with you".
+ */
+export interface TripShows {
+  stays: boolean
+  flight: boolean
+  documents: boolean
+}
+
 export interface TripBundle {
   trip: Trip
   steps: TripStep[]
   trip_files_count: number
-  /** Absent only for the deprecated shared access codes, which have no membership. */
   my_role?: TripRole | null
+  shows?: TripShows
+  /** Absent for a trip with no booking, and for a caller who may not see it. */
   flight?: FlightInfo
 }
 
@@ -175,7 +187,7 @@ export interface InvitePreview {
   invited_by: string | null
   email: string | null
   expires_at: string
-  shows: { stays: boolean; flight: boolean; documents: boolean }
+  shows: TripShows
 }
 
 export interface Tip {

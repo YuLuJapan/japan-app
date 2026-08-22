@@ -2,7 +2,6 @@ import express, { Router } from 'express'
 import { authMiddleware } from './lib/auth.js'
 import { errorMiddleware, notFound } from './lib/errors.js'
 import { requireTripAccess } from './lib/trip-context.js'
-import { authRouter } from './routes/auth.js'
 import { filesTripRouter } from './routes/files.js'
 import { geocodeRouter } from './routes/geocode.js'
 import { healthRouter } from './routes/health.js'
@@ -68,7 +67,6 @@ export function createApp() {
   app.use(authMiddleware)
 
   app.use('/api', healthRouter)
-  app.use('/api', authRouter)
   app.use('/api', meRouter)
   app.use('/api', invitesRouter)
 

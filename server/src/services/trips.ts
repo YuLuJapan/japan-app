@@ -7,7 +7,7 @@ import { assertTripAccess, roleForTrip, type AccessContext } from '../lib/access
 import { canDeleteTrip, canEditTrip } from '../lib/permissions.js'
 import { forbidden, notFound, validation } from '../lib/errors.js'
 import { displayTitle } from '../lib/trip-title.js'
-import { hideStayCounts } from '../lib/guest-view.js'
+import { FULL_VIEW, hideStayCounts, type TripView } from '../lib/trip-view.js'
 import type { DateRange } from '../lib/trip-dates.js'
 import { addDays, daysBetween, rangeLabel, withinRange } from '../lib/trip-dates.js'
 
@@ -20,8 +20,7 @@ const PEOPLE_MAX = 12
 
 /**
  * The caller's trips. A brand-new account gets an empty list rather than
- * everybody's — this one line is what makes open registration safe, and the
- * reason `listTrips()` on the store is documented as unscoped.
+ * everybody's — this one line is what makes open registration safe.
  */
 /**
  * The title travels with every trip, computed here rather than in each client.
@@ -41,27 +40,24 @@ async function withTitle(store: DataStore, trip: Trip) {
 }
 
 export async function listTrips(store: DataStore, access: AccessContext) {
-  const rows = access.userId ? await store.listTripsForUser(access.userId) : await store.listTrips()
+  const rows = await store.listTripsForUser(access.userId)
   const trips = await Promise.all(rows.map((t) => withTitle(store, t)))
   return { trips }
 }
 
 /**
- * A restricted view drops both extras the bundle would otherwise carry: the
- * flight (its booking reference and ticket numbers) and the stay counts that
- * would put a "Stays" card on every city. See lib/trip-view.ts.
+ * What this caller is shown here. A restricted view drops both extras the
+ * bundle would otherwise carry: the flight (its booking reference and ticket
+ * numbers) and the stay counts that would put a "Stays" card on every city.
+ * See lib/trip-view.ts.
  */
-export interface TripBundleOptions {
-  includeFlight?: boolean
-  includeStays?: boolean
-}
-
 export async function getTripBundle(
   store: DataStore,
   access: AccessContext,
   tripId: string,
-  { includeFlight = true, includeStays = true }: TripBundleOptions = {}
+  view: TripView = FULL_VIEW
 ) {
+  const { flight: includeFlight, stays: includeStays } = view
   // 404 rather than 403 for a trip that isn't yours: a 403 would confirm it
   // exists to someone with no business knowing that.
   assertTripAccess(access, tripId)
@@ -87,9 +83,12 @@ export async function getTripBundle(
     trip: await withTitle(store, trip),
     steps: stepsWithZones,
     trip_files_count,
-    // What this caller may do here. The frontend uses it to decide which
-    // buttons to offer; it is never what decides whether a write succeeds.
+    // What this caller may do here, and what they are shown. The frontend uses
+    // both to decide which buttons to offer and how to explain an absence — a
+    // hidden category should read as "not shared with you", not as "empty".
+    // Neither is ever what decides whether a request succeeds.
     my_role: roleForTrip(access, trip.id),
+    shows: view,
     // Absent for a trip with no booking attached and for a caller who may not
     // see it — the client renders the same "no flights yet" card either way,
     // and it has no business telling them apart.
@@ -292,13 +291,8 @@ export async function createTrip(
   // Whoever creates a trip owns it. Without this the trip would have no
   // members at all, which makes it invisible to everyone including its author
   // — the "every trip keeps at least one owner" invariant starts here.
-  if (access.userId) {
-    await store.upsertTripMember({ trip_id: trip.id, user_id: access.userId, role: 'owner' })
-  }
-  return {
-    trip: await withTitle(store, trip),
-    my_role: access.userId ? 'owner' : roleForTrip(access, trip.id),
-  }
+  await store.upsertTripMember({ trip_id: trip.id, user_id: access.userId, role: 'owner' })
+  return { trip: await withTitle(store, trip), my_role: 'owner' }
 }
 
 /** What to do with activities the new dates would leave outside the trip. */

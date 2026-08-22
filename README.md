@@ -19,7 +19,7 @@ npm install
 npm run dev        # frontend on http://localhost:3000, API on :3001
 ```
 
-Access code: whatever `TRIP_ACCESS_CODE` is in `.env.local` (default dev fallback: `japan2026`). Both travelers use the same code. Set `TRIP_GUEST_CODE` too and that second code opens the read-only guest view (below).
+Sign in with a Google account or an email + password — see **Accounts** below for the Supabase env vars that make it possible. Without them there is no way into a local instance, by design: the shared access code that used to be the fallback is gone.
 
 ```
 npm test           # API routes (supertest) + UI components (RTL)
@@ -27,23 +27,24 @@ npm run lint       # ESLint
 npm run build      # production bundle (~157 KB gzip JS)
 ```
 
-## Guest access (read-only)
+## Sharing a trip (read-only, and finer)
 
-Two codes, two views. `TRIP_ACCESS_CODE` is ours; `TRIP_GUEST_CODE` is the one to hand to friends who just want to look. A guest sees the trip — journey, cities, attractions, food, shopping, tips, schedule, shopping list, reminders, essentials — and:
+Invite a friend from **Who's on this trip** and pick what they get:
 
-- **cannot change anything.** Every add/edit/delete button is gone, and the API answers `403 FORBIDDEN` to any non-`GET` request from the guest code, so nothing gets deleted by mistake even from a stale tab.
-- **never sees trip documents.** No Documents tab, no files attached to a place or city. `/api/files` is `403` for guests (reads included), and the `files` array in zone/place responses comes back empty — so passports, bookings and tickets are not just hidden, they are never sent.
-- **never sees the bookings.** Not the stays (the "Stays" category is gone from every city — a hotel entry _is_ the reservation: what we paid, whether it's confirmed, the cancellation terms, the Booking.com link) and not the flight (the countdown card shows the days left, without the booking reference, ticket numbers or times). Same rule as documents: withheld server-side, never sent.
+- **Viewer** — reads everything you let them, changes nothing. Every add/edit/delete button is gone, and the API answers `403` to any write, so nothing is lost from a stale tab.
+- **Partner** — edits alongside you, and can invite further viewers but not another partner.
 
-The first two live in `authMiddleware` (`server/src/lib/auth.ts`), ahead of every route. The third can't — those are `GET`s the middleware lets through — so it is enforced in the services that could surface a stay or the flight, listed in `server/src/lib/guest-view.ts`. The frontend only hides buttons and softens the empty screens; it is not what enforces any of this.
+For a viewer, three independent switches decide the _content_:
 
-Stays are held back **as a whole category** rather than by scrubbing prices out of the text, because the reservation lives in free-form description text that either of us can retype tomorrow. If you ever want friends to see where we're sleeping, the honest way is to move the reservation details out of the descriptions first.
+- **Where we're staying.** A hotel entry _is_ the reservation — what was paid, whether it's confirmed, the cancellation terms, the Booking.com link — so the whole "Stays" category is withheld rather than scrubbed. The reservation lives in free-form text either of you can retype tomorrow, and no filter survives that. If you do want a friend to see where you're sleeping, move the booking details out of the descriptions first.
+- **Flights.** The countdown still shows the days left, without the booking reference, ticket numbers or times.
+- **Documents.** The Documents tab, and files attached to a place or city. A file attached to a _hotel_ follows the stays; one attached to the trip is a blob with a name the app cannot look inside, so it is governed by this switch alone.
 
-**Already gave the shared code to friends?** Don't ask them to re-enter anything: move the code they already have to `TRIP_GUEST_CODE`, and set `TRIP_ACCESS_CODE` to a new one that only the two of you know. Their phones keep working and silently become read-only; you two re-enter the new code once. (Sessions signed in before this existed resolve their role on next load via `GET /api/auth/session`, so nobody is bounced back to the gate.)
+All of it is withheld server-side — never sent, not merely hidden. Writes are refused in one place (`requireTripAccess`, `server/src/lib/trip-context.ts`); content is decided by the member's row and applied in the services that could surface it (`server/src/lib/trip-view.ts`). The frontend only hides buttons and softens the empty screens.
 
-**Switching codes on a phone:** the sign-out button in the header (next to search) drops the stored code and the cached data and returns to the gate, so you can come back in with the other code. It's how you leave the guest view for the travelers' one on a phone that's already signed in.
+**Signing out**: the button in the header (next to search) drops the session and the cached data and returns to the gate.
 
-Leave `TRIP_GUEST_CODE` unset and there is no guest view — the app behaves exactly as before.
+**Used to have the shared codes?** They're gone. Both travellers sign in with their own account; anyone who had the guest code gets invited as a viewer instead, which is strictly more control than that code ever gave.
 
 ## Accounts
 
@@ -51,10 +52,10 @@ Anyone can register — Google, or email + password — and each account sees on
 
 - **Access is per trip**, in the `trip_members` table: `owner` > `partner` > `viewer`. Creating a trip makes you its owner. There is no allow-list any more (the old `TRIP_OWNER_EMAILS` var is ignored).
 - **A trip that isn't yours answers `404`, not `403`** — a 403 would confirm it exists to someone with no business knowing that. A member who merely lacks the verb gets a 403, because they already know.
-- **The shared codes still work**, unchanged: `TRIP_ACCESS_CODE` reaches every trip and `TRIP_GUEST_CODE` is still the read-only view. Both are deprecated and go away once everyone has an account.
+- **There is no non-account way in.** The shared codes are gone: a code proves a right rather than naming a person, so no per-trip membership can constrain one — the owner code reached every trip in the database. Delete `TRIP_ACCESS_CODE` and `TRIP_GUEST_CODE` from any deployment that still sets them.
 - **Setup**: needs `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY` (server) and `VITE_SUPABASE_URL` + `VITE_SUPABASE_PUBLISHABLE_KEY` (frontend, same project — the publishable key is safe to ship to the browser). See `.env.example`. This works independent of `DATA_BACKEND`: Supabase Auth is a property of the Supabase project, not of which datastore the app reads trip data from. The project's Auth → URL Configuration also needs the app's URL(s) on the redirect allow-list.
 - **Google** needs the provider enabled in Supabase → Authentication → Providers → Google. With it off, the button is disabled. **Apple ID** is still disabled — it needs an Apple Developer account.
-- Verification happens server-side in `server/src/lib/identity.ts`: a bearer token is tried against the two static codes first (synchronously, no network), and only if neither matches is it verified as a Supabase JWT and cached for 60s.
+- Verification happens server-side in `server/src/lib/identity.ts`: the bearer token is verified as a Supabase JWT and cached for 60 seconds (failures for 10), so a warm serverless function doesn't pay a round-trip per request.
 
 ## Editing the trip content
 
@@ -129,10 +130,12 @@ pretending.
      [supabase/migrations/0006_reminders.sql](supabase/migrations/0006_reminders.sql),
      fill in your host and secret, and run it.
 
-   Either way set `CRON_SECRET` (any long random string) in Vercel — the dispatch
-   endpoint is the one route the access code doesn't guard, so it checks that
-   secret instead. Reminders fire on the first run _after_ their time, so the
-   ping interval is the worst-case delay: every 5 minutes → up to 5 minutes late.
+   **`CRON_SECRET` (any long random string) is required** in Vercel: the dispatch
+   endpoint is the one route with no signed-in caller to authenticate, so it
+   checks that secret instead — and with none configured it refuses every call
+   rather than standing open. Reminders fire on the first run _after_ their
+   time, so the ping interval is the worst-case delay: every 5 minutes → up to
+   5 minutes late.
 
 4. **On the phone**: open the app **from the Home Screen** (iOS only allows push
    from an installed PWA, iOS 16.4+ — a Safari tab silently has no
@@ -147,7 +150,7 @@ cron-job.org's free tier covers this comfortably.
 
 ## Notes
 
-- The access code is a convenience lock for a private two-person app, not serious security. Don't reuse a password you care about.
+- Authorization is the app's job, not the database's: the API holds Supabase's secret key, and RLS stays deny-all. Every read and write goes through `requireTripAccess`, which resolves the caller's membership on the trip named in the path.
 - Reminders are sent at most once: the dispatcher marks one as sent as it claims it, so an overlapping run can't double-notify. The trade-off is that a push service outage means a missed nudge rather than a retry storm.
 - A reminder reaches the devices of its own trip's members and no one else's. Until phase 6 of the accounts work there was no account on a subscription at all, so every due reminder went to every registered device.
 - All API data flows through the Express backend; the browser never talks to the database directly.

@@ -6,16 +6,15 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
 
 ## Conventions
 
-- **Auth**: every route except `GET /api/health` requires `Authorization: Bearer <token>`. Three tokens are accepted:
-  - `TRIP_ACCESS_CODE` → role `owner` — full read/write, and reaches **every** trip. _Deprecated._
-  - `TRIP_GUEST_CODE` (optional; unset = no guest view) → role `guest` — read-only, no documents, stays or flight. _Deprecated._
-  - a **Supabase Auth JWT** (Google OAuth, email + password, or magic-link) → role `owner`, reaching **only the trips they are a member of**.
+- **Auth**: every route except `GET /api/health` and `GET|POST /api/reminders/dispatch` (which checks `CRON_SECRET` itself) requires `Authorization: Bearer <token>`, and the only token accepted is a **Supabase Auth JWT** — Google OAuth, email + password, or magic-link.
 
-  Missing/wrong → `401 {"error":{"code":"UNAUTHORIZED"}}`. If both env vars hold the same value, `owner` wins.
+  Missing/wrong → `401 {"error":{"code":"UNAUTHORIZED"}}`.
 
-- **Membership (2026-08-22, feature 002 phase 2)**: `TRIP_OWNER_EMAILS` is **gone**. Registration is open — anyone may create an account, and sees nothing until they create a trip or are invited to one. Two separate checks run on every request:
-  - **role** (`req.role`) — the pre-accounts verb check. Any signed-in account is `owner` here; it says nothing about _whose_ trip.
-  - **access** (`req.access`, `server/src/lib/access.ts`) — which trips this caller can reach. For an account that is their `trip_members` rows; for the deprecated codes it is every trip, so their behaviour is unchanged.
+  **The shared access codes are gone** (2026-08-22, feature 002 phase 6b). `TRIP_ACCESS_CODE` reached every trip in the database and `TRIP_GUEST_CODE` was a fixed narrow view of it; a code proves a right rather than naming a person, so no per-trip membership could constrain either. `POST /api/auth/verify` and `GET /api/auth/session` went with them — a client that wants to check a token calls `GET /api/me`.
+
+- **Membership (2026-08-22, feature 002 phase 2)**: `TRIP_OWNER_EMAILS` is **gone**. Registration is open — anyone may create an account, and sees nothing until they create a trip or are invited to one. Every request resolves two things:
+  - **who** (`req.user`, `server/src/lib/identity.ts`) — the account behind the JWT, said without reference to permissions.
+  - **access** (`req.access`, `server/src/lib/access.ts`) — exactly the trips they are a member of, with their role on each. There is no "sees everything" context.
 
   A trip that isn't yours answers **`404`, never `403`** — a 403 would confirm it exists. A member who merely lacks the verb (a viewer writing) gets `403`, because they already know it exists.
 
@@ -38,9 +37,9 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
 
   **Every trip keeps at least one owner** — enforced in the service, since Postgres cannot express it without a deferred constraint trigger. A trip with no owner is unreachable by anyone, forever.
 
-  **Read-only is enforced at the router.** `authMiddleware` blocks writes for the deprecated guest _code_, but a viewer is an ordinary signed-in account and passes straight through it; `requireTripAccess` refuses non-`GET` for any role that cannot write. The single exception is `DELETE /members/:userId` on yourself — leaving a trip is a write anyone may make.
+  **Read-only is enforced at the router.** A viewer is an ordinary signed-in account, indistinguishable at the door from an owner, so `requireTripAccess` refuses non-`GET` for any role that cannot write — one check covering every nested route, present and future. The single exception is `DELETE /members/:userId` on yourself: leaving a trip is a write anyone may make.
 
-  Routes: `GET/PATCH/DELETE /api/trips/:tripId/members[/:userId]`, `GET/POST /api/trips/:tripId/invites`, `DELETE /api/trips/:tripId/invites/:inviteId`, plus `GET /api/invites/:token` (preview) and `POST /api/invites/:token/accept`. Accepting is single-use, idempotent for an existing member, and never a downgrade. A shared access code cannot accept — a code proves a right, not an identity.
+  Routes: `GET/PATCH/DELETE /api/trips/:tripId/members[/:userId]`, `GET/POST /api/trips/:tripId/invites`, `DELETE /api/trips/:tripId/invites/:inviteId`, plus `GET /api/invites/:token` (preview) and `POST /api/invites/:token/accept`. Accepting is single-use, idempotent for an existing member, and never a downgrade.
 
 - **Per-member visibility (phase 4)**: three flags on `trip_members` — `can_see_stays`, `can_see_flight`, `can_see_documents` — collapse into one `TripView` (`server/src/lib/trip-view.ts`) that rides on the trip context. Writers always get the full view: the flags are _ignored_ for owner and partner rather than validated, so an owner cannot lock themselves out of their own bookings.
 
@@ -105,17 +104,17 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
 
   (Phase 1 gated this on a `TRIP_OWNER_EMAILS` allow-list; phase 2 replaced it with the membership rules above.)
 
-- **Guest restrictions**, part 1 — the bookings (enforced in `authMiddleware`, before any route runs):
-  - any method other than `GET`/`HEAD`/`OPTIONS` → `403 {"error":{"code":"FORBIDDEN"}}`;
-  - any path under `/api/files` → `403 FORBIDDEN`, reads included;
-  - `GET /api/zones/:zoneId` and `GET /api/places/:placeId` still answer `200`, but their `files` array is always `[]`.
-- **Guest restrictions**, part 2 — the bookings that aren't files (2026-08-13 addition; enforced in the services, since these are reads the middleware lets through — see `server/src/lib/guest-view.ts`). A `hotel` place _is_ the accommodation booking (price, confirmation, cancellation terms and the Booking.com link live in its free-text `description`/`links`), and the `flight` block carries the booking reference, so for a guest code:
-  - `GET /api/places/:placeId` on a `hotel` place → `403 FORBIDDEN`;
-  - `GET /api/zones/:zoneId/places` never returns `hotel` places — with `category=hotel`, or in the all-categories (`category=`) sweep;
+- **Withheld content** (2026-08-13, generalised into per-member flags in phase 4 and freed of the guest code in 6b — `server/src/lib/trip-view.ts`). A `hotel` place _is_ the accommodation booking (price, confirmation, cancellation terms and the Booking.com link live in its free-text `description`/`links`), and the `flight` block carries the booking reference, so for a member whose view withholds them:
+  - `GET /api/trips/:tripId/places/:placeId` on a `hotel` place → `403 FORBIDDEN`;
+  - `GET /api/trips/:tripId/zones/:zoneId/places` never returns `hotel` places — with `category=hotel`, or in the all-categories (`category=`) sweep;
   - `place_counts.hotel` is always `0`, in zone detail and in the `steps[].zone` summaries of the trip bundle;
   - the trip bundle omits `flight` entirely (the key is absent, not `null`);
-  - `GET /api/search` drops `hotel` places and any tip whose parent is one;
-  - itinerary items keep their `title`/`note` but come back with `place_id: null` when it pointed at a `hotel`.
+  - `GET /api/trips/:tripId/search` drops `hotel` places and any tip whose parent is one;
+  - itinerary items keep their `title`/`note` but come back with `place_id: null` when it pointed at a `hotel`;
+  - anything under `/api/trips/:tripId/files` → `403 FORBIDDEN`, reads included, and the `files` array in zone/place responses comes back `[]`.
+
+  These are reads, so none of it can be done by HTTP method — each read path takes the `TripView` from the trip context. The bundle also reports that view back as `shows: {stays, flight, documents}`, which is the only way a client can tell "nothing saved here" apart from "not shared with you".
+
 - **Error envelope**: `{"error":{"code":"<MACHINE_CODE>","message":"<human text>"}}`. Codes: `UNAUTHORIZED`, `FORBIDDEN` (403), `NOT_FOUND`, `VALIDATION` (400, with `details` array), `FILE_MISSING` (404), `INTERNAL` (500).
 - **IDs** are UUID strings. Timestamps ISO-8601. Dates `YYYY-MM-DD`.
 - Successful `DELETE` → `204` no body.
@@ -123,25 +122,13 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
 
 ## Auth
 
-### POST /api/auth/verify
-
-Validates the access code entered on the gate screen (the code itself is then used as the bearer token) and reports which view it buys.
-
-- Request: `{"code": "string"}`
-- 200: `{"ok": true, "role": "owner" | "guest"}` · 401 on wrong code.
-
-### GET /api/auth/session
-
-The role of the code this client is already holding. Lets a session that predates the guest view learn what it is without being sent back to the gate.
-
-- 200: `{"role": "owner" | "guest"}` · 401 when the stored code is no longer valid.
-
 ### GET /api/me
 
 The signed-in account, as the app knows it.
 
-- 200: `{"user": {"id":"…","email":"…","display_name":"…|null","avatar_url":"…|null"}, "role": "owner" | "guest"}`
-- 200: `{"user": null, "role": "owner"}` when the caller used a static access code — a code proves a right, not an identity, so there is nobody to name.
+Also what the gate calls to confirm a fresh token before it navigates: Supabase accepting a sign-in and this API accepting it are two different things.
+
+- 200: `{"user": {"id":"…","email":"…","display_name":"…|null","avatar_url":"…|null"}}`
 - 401 when the token is not valid.
 
 `user` prefers the stored `profiles` row over the token's claims, so a display name edited in the app wins over the one the provider last sent.
@@ -163,7 +150,7 @@ The caller's trips, oldest first (powers the "Where to next?" trips list). An ac
 - Request: `{"name":"…","start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","description?":"…","people?":[{"name":"…","email?":"…"} | "…"]}`
 - 201: `{"trip": {…}}` · 400 `VALIDATION` (missing/blank name, bad dates, end before start, name/description too long, more than 12 travellers, a traveller missing a name, a traveller name too long, or an `email` that isn't a valid address).
 
-> **`my_role` (2026-08-22)**: the trip bundle (`GET /api/trip` and `GET /api/trips/:tripId`) and `POST /api/trips` now carry `"my_role": "owner" | "partner" | "viewer"` — what this caller may do on this trip. It drives which buttons the UI offers, and is never what decides whether a write succeeds. `POST /api/trips` always makes its creator an `owner`.
+> **`my_role` and `shows` (2026-08-22)**: the trip bundle (`GET /api/trips/:tripId`) carries `"my_role": "owner" | "partner" | "viewer"` — what this caller may do here — and `"shows": {"stays":bool,"flight":bool,"documents":bool}` — what they are shown. `POST /api/trips` carries `my_role` and always makes its creator an `owner`. Both drive which buttons the UI offers and how it explains an absence; neither is ever what decides whether a request succeeds.
 
 ### GET /api/trips/:tripId
 
@@ -241,7 +228,7 @@ Dry run for the above: what a date change _would_ strand, so the client can list
 
 - 200: `{"range":{"start_date","end_date"},"steps":[{"id","start_date","end_date","zone_name"}],"items":[{"id","day","start_time","title","highlight"}]}` — empty arrays mean the change is clean.
 - 400 `VALIDATION` (bad date, end before start) · 404 unknown trip.
-- Read-only, so guests may call it; the `PATCH` it precedes is owner-only by method.
+- Read-only, so any member may call it; the `PATCH` it precedes is refused for a viewer by method.
 
 ### DELETE /api/trips/:tripId
 
@@ -304,7 +291,7 @@ Places of one category in a zone, list form (name + summary line, FR-002).
 
 - `category` required, one of `hotel|attraction|food|shopping|other` → else 400 `VALIDATION`.
 - 200: `{"places":[{"id":"…","name":"…","name_ja":"…","category":"food","summary_line":"first ~100 chars of description"}]}` (may be empty — UI renders empty state, FR-012).
-- A guest code never gets `hotel` places here: `category=hotel` returns `{"places":[]}`, and the all-categories sweep (`category=`, used by the city map) filters them out.
+- A member whose view withholds the stays never gets `hotel` places here: `category=hotel` returns `{"places":[]}`, and the all-categories sweep (`category=`, used by the city map) filters them out.
 
 ## Itinerary (day-by-day activities)
 
@@ -315,7 +302,7 @@ An item's `day` must fall within its trip's own `start_date`/`end_date` — the 
 ### GET /api/itinerary
 
 - 200: `{"items":[{"id":"…","trip_id":"…","zone_id":"…","place_id":"…","day":"YYYY-MM-DD","start_time":"HH:MM"|null,"title":"…","note":"…"|null,"position":0,"highlight":false,"icon":"…"|null}]}`
-- For a guest code an item that pointed at a `hotel` place comes back with `place_id: null` — the day still reads the same, it just doesn't link to a page that would answer 403.
+- When the stays are withheld, an item that pointed at a `hotel` place comes back with `place_id: null` — the day still reads the same, it just doesn't link to a page that would answer 403.
 
 ### POST /api/itinerary
 
@@ -358,7 +345,7 @@ Full detail incl. tips and files (US1 AC2/AC3, US4 AC1).
 }
 ```
 
-- `403 FORBIDDEN` for a guest code when the place is a `hotel` — the stay carries the accommodation booking (see Guest restrictions, part 2).
+- `403 FORBIDDEN` when the place is a `hotel` and this member's view withholds the stays — the stay carries the accommodation booking (see **Withheld content**).
 
 ### POST /api/places (FR-015, SC-008)
 
@@ -456,7 +443,7 @@ All documents attached to the (legacy, oldest) trip: files on the trip itself, p
 
 - 200: `{"files":[{"id":"…","display_name":"…","mime_type":"…","size_bytes":123}]}`
 
-**Trip-scoped (2026-08-08 addition):** `GET|POST /api/trips/:tripId/files` are the same two routes pointed at a specific trip instead of the legacy default (oldest) trip — same request/response shapes, same guest block (403).
+**Trip-scoped (2026-08-08 addition):** `GET|POST /api/trips/:tripId/files` are the same two routes pointed at a specific trip instead of the legacy default (oldest) trip — same request/response shapes, same 403 for a member without `can_see_documents`.
 
 ### GET /api/files/:fileId/url (FR-008)
 

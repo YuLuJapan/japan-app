@@ -1,10 +1,10 @@
-// Typed API client: bearer access code on every call, error-envelope
-// normalization, 401 → back to the gate.
+// Typed API client: the signed-in session's bearer token on every call,
+// error-envelope normalization, 401 → back to the gate.
+//
+// The key is still named for the access code it used to hold; what it holds
+// now is a Supabase Auth JWT, which session.tsx keeps fresh as supabase-js
+// rotates it.
 export const ACCESS_CODE_KEY = 'trip_access_code'
-export const ROLE_KEY = 'trip_role'
-
-/** 'owner' can change things; 'guest' is a read-only view with no documents. */
-export type Role = 'owner' | 'guest'
 
 export class ApiError extends Error {
   constructor(
@@ -21,17 +21,10 @@ export const getAccessCode = () => localStorage.getItem(ACCESS_CODE_KEY)
 export const setAccessCode = (code: string) => localStorage.setItem(ACCESS_CODE_KEY, code)
 export const clearAccessCode = () => {
   localStorage.removeItem(ACCESS_CODE_KEY)
-  localStorage.removeItem(ROLE_KEY)
+  // The role this app used to cache alongside the token. Removed here so a
+  // browser that signed in before accounts doesn't keep a stale key forever.
+  localStorage.removeItem('trip_role')
 }
-
-// Cached so the app doesn't flash a read-only shell at the travelers on every
-// cold start. It is a UI hint only — a guest who edits this by hand still gets
-// a 403 from the API on anything that writes.
-export const getStoredRole = (): Role | null => {
-  const role = localStorage.getItem(ROLE_KEY)
-  return role === 'owner' || role === 'guest' ? role : null
-}
-export const setStoredRole = (role: Role) => localStorage.setItem(ROLE_KEY, role)
 
 async function send(path: string, init: RequestInit = {}): Promise<Response> {
   const code = getAccessCode()
@@ -50,7 +43,10 @@ async function send(path: string, init: RequestInit = {}): Promise<Response> {
   }
   if (!res.ok) {
     const err = (await res.json().catch(() => null))?.error ?? {}
-    if (res.status === 401 && !path.startsWith('/auth/')) {
+    // `/me` is what the gate calls to check a token it has just been handed.
+    // Bouncing to the gate from the gate is a reload loop, so that one 401
+    // goes back to the caller to handle.
+    if (res.status === 401 && path !== '/me') {
       clearAccessCode()
       window.location.assign('/gate')
     }

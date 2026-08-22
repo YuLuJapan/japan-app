@@ -3,12 +3,15 @@ import request from 'supertest'
 import { createApp } from '../src/app.js'
 import { setDataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { TEST_CODE, fixture } from './fixture.js'
+import { fixture } from './fixture.js'
+import { asOwner as auth, useTestTokens } from './auth.js'
 
-process.env.TRIP_ACCESS_CODE = TEST_CODE
 const app = createApp()
 
-beforeEach(() => setDataStore(createMemoryStore(fixture())))
+beforeEach(() => {
+  setDataStore(createMemoryStore(fixture()))
+  useTestTokens()
+})
 
 describe('foundation', () => {
   it('GET /api/health works without auth', async () => {
@@ -17,14 +20,17 @@ describe('foundation', () => {
     expect(res.body).toEqual({ ok: true })
   })
 
-  it('POST /api/auth/verify accepts the right code', async () => {
-    const res = await request(app).post('/api/auth/verify').send({ code: TEST_CODE })
+  // What the gate calls to check a token before it navigates. /api/auth/verify
+  // went with the access codes: there is no code to verify, and a session is
+  // either accepted here or it is not.
+  it('GET /api/me names the signed-in account', async () => {
+    const res = await auth(request(app).get('/api/me'))
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ ok: true, role: 'owner' })
+    expect(res.body.user.email).toBe('yuval@example.com')
   })
 
-  it('POST /api/auth/verify rejects a wrong code', async () => {
-    const res = await request(app).post('/api/auth/verify').send({ code: 'nope' })
+  it('GET /api/me refuses an unknown token', async () => {
+    const res = await request(app).get('/api/me').set('Authorization', 'Bearer nope')
     expect(res.status).toBe(401)
     expect(res.body.error.code).toBe('UNAUTHORIZED')
   })
@@ -41,7 +47,7 @@ describe('foundation', () => {
   })
 
   it('unknown /api endpoints return NOT_FOUND envelope', async () => {
-    const res = await request(app).get('/api/nope').set('Authorization', `Bearer ${TEST_CODE}`)
+    const res = await auth(request(app).get('/api/nope'))
     expect(res.status).toBe(404)
     expect(res.body.error.code).toBe('NOT_FOUND')
   })

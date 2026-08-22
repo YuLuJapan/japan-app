@@ -3,14 +3,14 @@ import request from 'supertest'
 import { createApp } from '../src/app.js'
 import { setDataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { TEST_CODE, fixture } from './fixture.js'
+import { fixture } from './fixture.js'
+import { asOwner as auth, useTestTokens } from './auth.js'
 
-process.env.TRIP_ACCESS_CODE = TEST_CODE
 const app = createApp()
-const auth = (r: request.Test) => r.set('Authorization', `Bearer ${TEST_CODE}`)
 
 beforeEach(() => {
   setDataStore(createMemoryStore(fixture()))
+  useTestTokens()
   // Creating an item without a photo triggers a web lookup (services/images.ts).
   // Stub it to "found nothing" so these tests never touch the network — the
   // lookup itself is covered in images.test.ts.

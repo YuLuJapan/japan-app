@@ -3,11 +3,10 @@ import request from 'supertest'
 import { createApp } from '../src/app.js'
 import { setDataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { TEST_CODE, fixture } from './fixture.js'
+import { fixture } from './fixture.js'
+import { asOwner as auth, useTestTokens } from './auth.js'
 
-process.env.TRIP_ACCESS_CODE = TEST_CODE
 const app = createApp()
-const auth = (r: request.Test) => r.set('Authorization', `Bearer ${TEST_CODE}`)
 
 // Wikimedia payloads, trimmed to the fields the service reads.
 const wikipediaPayload = (title: string) => ({
@@ -61,7 +60,10 @@ function mockFetch(handler: (url: string) => unknown | null) {
   )
 }
 
-beforeEach(() => setDataStore(createMemoryStore(fixture())))
+beforeEach(() => {
+  setDataStore(createMemoryStore(fixture()))
+  useTestTokens()
+})
 afterEach(() => vi.unstubAllGlobals())
 
 describe('GET /api/images', () => {

@@ -3,13 +3,15 @@ import request from 'supertest'
 import { createApp } from '../src/app.js'
 import { setDataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { TEST_CODE, fixture } from './fixture.js'
+import { fixture } from './fixture.js'
+import { asOwner as auth, asPartner, useTestTokens } from './auth.js'
 
-process.env.TRIP_ACCESS_CODE = TEST_CODE
 const app = createApp()
-const auth = (r: request.Test) => r.set('Authorization', `Bearer ${TEST_CODE}`)
 
-beforeEach(() => setDataStore(createMemoryStore(fixture())))
+beforeEach(() => {
+  setDataStore(createMemoryStore(fixture()))
+  useTestTokens()
+})
 
 const pdfBase64 = Buffer.from('%PDF-1.4 tiny test file').toString('base64')
 
@@ -216,11 +218,8 @@ describe('trip-scoped file routes', () => {
     expect(res.status).toBe(404)
   })
 
-  it('blocks guests the same way the legacy /api/files route does', async () => {
-    process.env.TRIP_GUEST_CODE = 'guest-code'
-    const guestAuth = (r: request.Test) => r.set('Authorization', 'Bearer guest-code')
-    const res = await guestAuth(request(app).get('/api/trips/trip-1/files'))
-    expect(res.status).toBe(403)
-    delete process.env.TRIP_GUEST_CODE
+  it("404s for another tenant's trip rather than admitting it exists", async () => {
+    const res = await asPartner(request(app).get('/api/trips/trip-1/files'))
+    expect(res.status).toBe(404)
   })
 })

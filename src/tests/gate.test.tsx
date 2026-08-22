@@ -1,7 +1,11 @@
 // The sign-in screen. Two shapes, decided entirely by whether Supabase Auth is
-// configured: with it, Google and email+password are live; without it, both
-// degrade to disabled and the access code — the deprecated path — still works
-// exactly as before. Apple stays disabled either way (no credentials yet).
+// configured: with it, Google and email+password are live; without it there is
+// no way in at all, and the buttons say so rather than failing on tap. Apple
+// stays disabled either way (no credentials yet).
+//
+// The shared access code used to be the fallback here. It is gone, so an
+// unconfigured deployment is genuinely unusable — which is the honest state,
+// and better than a door that reaches every trip in the database.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -44,41 +48,20 @@ const routes = [
 ]
 
 beforeEach(() => {
+  mocks.get.mockReset()
   mocks.post.mockReset()
   mocks.getSupabaseClient.mockReturnValue(null)
   localStorage.clear()
 })
 
 describe('AccessGate — Supabase Auth not configured', () => {
-  it('disables every account path and leaves the access code working', () => {
+  it('disables every way in, and offers no code box to fall back to', () => {
     renderAt('/gate', routes)
 
     expect(screen.getByRole('button', { name: /Continue with Google/ })).toBeDisabled()
     expect(screen.getByRole('button', { name: /Continue with Apple ID/ })).toBeDisabled()
     expect(screen.getByRole('button', { name: /Continue with email/ })).toBeDisabled()
-    expect(screen.getByLabelText('Access code')).toBeInTheDocument()
-  })
-
-  it('signs in with the right access code', async () => {
-    mocks.post.mockResolvedValue({ ok: true, role: 'owner' })
-    renderAt('/gate', routes)
-
-    await userEvent.type(screen.getByLabelText('Access code'), 'japan2026')
-    await userEvent.click(screen.getByRole('button', { name: /Enter with access code/ }))
-
-    expect(await screen.findByText('trips page')).toBeInTheDocument()
-    expect(mocks.post).toHaveBeenCalledWith('/auth/verify', { code: 'japan2026' })
-  })
-
-  it('shows an error for a wrong code and does not navigate', async () => {
-    mocks.post.mockRejectedValue(new Error('unauthorized'))
-    renderAt('/gate', routes)
-
-    await userEvent.type(screen.getByLabelText('Access code'), 'nope')
-    await userEvent.click(screen.getByRole('button', { name: /Enter with access code/ }))
-
-    expect(await screen.findByText('Wrong code — try again.')).toBeInTheDocument()
-    expect(screen.queryByText('trips page')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Access code')).not.toBeInTheDocument()
   })
 })
 
@@ -96,14 +79,14 @@ describe('AccessGate — Supabase Auth configured', () => {
     })
   })
 
-  it('signs in with email and password, then verifies the token server-side', async () => {
+  it('signs in with email and password, then checks the token against the API', async () => {
     const supabase = supabaseStub({
       signInWithPassword: vi
         .fn()
         .mockResolvedValue({ data: { session: { access_token: 'jwt-123' } }, error: null }),
     })
     mocks.getSupabaseClient.mockReturnValue(supabase)
-    mocks.post.mockResolvedValue({ ok: true, role: 'owner' })
+    mocks.get.mockResolvedValue({ user: { id: 'user-1' } })
     renderAt('/gate', routes)
 
     await userEvent.click(screen.getByRole('button', { name: /Continue with email/ }))
@@ -116,8 +99,10 @@ describe('AccessGate — Supabase Auth configured', () => {
       email: 'yuval@example.com',
       password: 'hunter22',
     })
-    // The Supabase JWT is what the API sees — the gate never trusts it alone.
-    expect(mocks.post).toHaveBeenCalledWith('/auth/verify', { code: 'jwt-123' })
+    // Supabase saying yes is not this app saying yes: the token is stored and
+    // then proved against /me before the screen navigates anywhere.
+    expect(localStorage.getItem('trip_access_code')).toBe('jwt-123')
+    expect(mocks.get).toHaveBeenCalledWith('/me')
   })
 
   it('creates an account and waits for confirmation when no session comes back', async () => {
@@ -167,17 +152,17 @@ describe('AccessGate — Supabase Auth configured', () => {
     expect(supabase.auth.signInWithOtp).toHaveBeenCalled()
   })
 
-  it('signs out and explains when the account is not allow-listed', async () => {
+  it('signs back out when the API refuses a session Supabase accepted', async () => {
     const supabase = supabaseStub({
       getSession: vi
         .fn()
         .mockResolvedValue({ data: { session: { access_token: 'stranger-jwt' } } }),
     })
     mocks.getSupabaseClient.mockReturnValue(supabase)
-    mocks.post.mockRejectedValue(new Error('unauthorized'))
+    mocks.get.mockRejectedValue(new Error('unauthorized'))
     renderAt('/gate', routes)
 
-    expect(await screen.findByText(/isn’t set up for owner access/)).toBeInTheDocument()
+    expect(await screen.findByText(/didn’t accept the session/)).toBeInTheDocument()
     expect(supabase.auth.signOut).toHaveBeenCalled()
     expect(screen.queryByText('trips page')).not.toBeInTheDocument()
   })

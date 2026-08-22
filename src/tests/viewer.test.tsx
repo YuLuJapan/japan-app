@@ -1,7 +1,13 @@
-// The guest view: same content, none of the buttons that change it, and no
-// documents anywhere. (The server enforces all of this independently — see
-// server/tests/guest.test.ts. These check that a guest is never *offered* an
-// action that would just fail.)
+// What a viewer sees: the same content, none of the buttons that change it,
+// and none of the bookings their membership withholds.
+//
+// The server enforces all of this independently — see server/tests/visibility.
+// These check that a viewer is never *offered* an action that would just fail,
+// and that a withheld category reads as "not shared" rather than as "empty".
+//
+// This replaces the guest-code view. The narrow set of flags below is exactly
+// what that fixed view granted; the difference is that it is now per member,
+// so an owner can widen any of it.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -27,7 +33,10 @@ vi.mock('../api/client', async (importOriginal) => ({
   api: mocks,
 }))
 
-const guest = { role: 'guest' as const }
+const viewer = {
+  tripRole: 'viewer' as const,
+  shows: { stays: false, flight: false, documents: false },
+}
 
 const place = {
   place: {
@@ -77,8 +86,8 @@ function mockShoppingApi() {
         trip: {
           id: 'trip-1',
           name: 'Japan',
-    country: 'Japan',
-    display_title: 'Japan',
+          country: 'Japan',
+          display_title: 'Japan',
           start_date: '2026-09-19',
           end_date: '2026-10-16',
           description: null,
@@ -90,13 +99,13 @@ function mockShoppingApi() {
   })
 }
 
-describe('guest view — places', () => {
+describe('viewer — places', () => {
   it('shows a place and its tips without edit, delete or files', async () => {
     mocks.get.mockResolvedValue(place)
     renderAt(
       '/trips/trip-1/places/p1',
       [{ path: '/trips/:tripId/places/:placeId', element: <PlaceDetail /> }],
-      guest
+      viewer
     )
 
     // everything worth reading is still there
@@ -126,13 +135,13 @@ describe('guest view — places', () => {
   })
 })
 
-describe('guest view — zones', () => {
+describe('viewer — zones', () => {
   it('browses a zone without the add-place or files sections', async () => {
     mocks.get.mockResolvedValue(zone)
     renderAt(
       '/trips/trip-1/zones/zone-1',
       [{ path: '/trips/:tripId/zones/:zoneId', element: <Zone /> }],
-      guest
+      viewer
     )
 
     expect(await screen.findByText('Tokyo')).toBeInTheDocument()
@@ -148,7 +157,7 @@ describe('guest view — zones', () => {
     renderAt(
       '/trips/trip-1/zones/zone-1/c/food',
       [{ path: '/trips/:tripId/zones/:zoneId/c/:category', element: <CategoryList /> }],
-      guest
+      viewer
     )
 
     expect(await screen.findByText('Food & Cafés')).toBeInTheDocument()
@@ -156,13 +165,13 @@ describe('guest view — zones', () => {
   })
 })
 
-describe('guest view — shopping', () => {
+describe('viewer — shopping', () => {
   it('reads the list without adding or ticking items off', async () => {
     mockShoppingApi()
     renderAt(
       '/trips/trip-1/shopping',
       [{ path: '/trips/:tripId/shopping', element: <ShoppingList /> }],
-      guest
+      viewer
     )
 
     expect(await screen.findByText('Onitsuka Tiger Mexico 66')).toBeInTheDocument()
@@ -177,7 +186,7 @@ describe('guest view — shopping', () => {
     renderAt(
       '/trips/trip-1/shopping/buy-1',
       [{ path: '/trips/:tripId/shopping/:itemId', element: <ShoppingItemDetail /> }],
-      guest
+      viewer
     )
 
     expect(await screen.findByText('Onitsuka Tiger Mexico 66')).toBeInTheDocument()
@@ -188,15 +197,15 @@ describe('guest view — shopping', () => {
   })
 })
 
-// The API sends a guest no stays and no flight at all (server/tests/guest.test.ts);
-// these check the screens say so instead of looking broken or empty.
-describe('guest view — stays and flight', () => {
+// The API sends such a viewer no stays and no flight at all; these check the
+// screens say so instead of looking broken or empty.
+describe('viewer — stays and flight', () => {
   const tripBundle = (flight?: unknown) => ({
     trip: {
       id: 'trip-1',
       name: 'Japan',
-    country: 'Japan',
-    display_title: 'Japan',
+      country: 'Japan',
+      display_title: 'Japan',
       start_date: '2026-09-19',
       end_date: '2026-10-16',
       description: null,
@@ -232,7 +241,7 @@ describe('guest view — stays and flight', () => {
     mocks.get.mockImplementation((path: string) =>
       Promise.resolve(path === '/trips/trip-1' ? tripBundle() : { items: [] })
     )
-    renderAt('/trips/trip-1', journeyRoute, guest)
+    renderAt('/trips/trip-1', journeyRoute, viewer)
 
     expect(await screen.findByText(/keep the flight details private/)).toBeInTheDocument()
     expect(screen.queryByText('AOXIUF')).not.toBeInTheDocument()
@@ -256,7 +265,7 @@ describe('guest view — stays and flight', () => {
     renderAt(
       '/trips/trip-1/zones/zone-1/c/hotel',
       [{ path: '/trips/:tripId/zones/:zoneId/c/:category', element: <CategoryList /> }],
-      guest
+      viewer
     )
 
     expect(await screen.findByText('The travellers keep the stays private.')).toBeInTheDocument()
@@ -264,12 +273,12 @@ describe('guest view — stays and flight', () => {
 
   it('explains a refused stay page rather than offering a retry', async () => {
     mocks.get.mockRejectedValue(
-      new ApiError(403, 'FORBIDDEN', 'Stays are not part of the guest view')
+      new ApiError(403, 'FORBIDDEN', 'Where this trip is staying is not shared with you')
     )
     renderAt(
       '/trips/trip-1/places/hotel-1',
       [{ path: '/trips/:tripId/places/:placeId', element: <PlaceDetail /> }],
-      guest
+      viewer
     )
 
     expect(await screen.findByText('The travellers keep the stays private.')).toBeInTheDocument()
@@ -277,16 +286,16 @@ describe('guest view — stays and flight', () => {
   })
 })
 
-describe('guest view — navigation', () => {
+describe('viewer — navigation', () => {
   it('has no Documents tab and says it is view-only', () => {
     renderAt(
       '/trips/trip-1',
       [{ path: '/trips/:tripId', element: <Layout>content</Layout> }],
-      guest
+      viewer
     )
 
     expect(screen.queryByRole('link', { name: /Documents/ })).not.toBeInTheDocument()
-    expect(screen.getByText('Guest · view only')).toBeInTheDocument()
+    expect(screen.getByText('View only')).toBeInTheDocument()
     // the rest of the app is still reachable
     for (const tab of ['Journey', 'Shopping', 'Reminders', 'Essentials']) {
       expect(screen.getByRole('link', { name: new RegExp(tab) })).toBeInTheDocument()
@@ -297,7 +306,7 @@ describe('guest view — navigation', () => {
     renderAt('/trips/trip-1', [{ path: '/trips/:tripId', element: <Layout>content</Layout> }])
 
     expect(screen.getByRole('link', { name: /Documents/ })).toBeInTheDocument()
-    expect(screen.queryByText('Guest · view only')).not.toBeInTheDocument()
+    expect(screen.queryByText('View only')).not.toBeInTheDocument()
   })
 })
 
@@ -309,16 +318,18 @@ describe('signing out', () => {
 
   beforeEach(() => localStorage.clear())
 
-  it('lets a guest drop the code and go back to the gate to enter another', async () => {
-    localStorage.setItem('trip_access_code', 'guest-code')
+  it('drops the session and goes back to the gate', async () => {
+    localStorage.setItem('trip_access_code', 'a.jwt')
+    // A browser that signed in before accounts still holds this key; signing
+    // out is where it finally goes.
     localStorage.setItem('trip_role', 'guest')
-    renderAt('/trips/trip-1', routes, guest)
+    renderAt('/trips/trip-1', routes, viewer)
 
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     // confirmed, not instant — the header button is easy to catch by accident
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveAccessibleName('Sign out?')
-    expect(screen.getByText(/travellers’ code next to be able to edit/)).toBeInTheDocument()
+    expect(screen.getByText(/sign in again to get back in/)).toBeInTheDocument()
 
     await userEvent.click(within(dialog).getByRole('button', { name: 'Sign out' }))
 
@@ -328,14 +339,14 @@ describe('signing out', () => {
   })
 
   it('keeps the session when the confirmation is cancelled', async () => {
-    localStorage.setItem('trip_access_code', 'guest-code')
-    renderAt('/trips/trip-1', routes, guest)
+    localStorage.setItem('trip_access_code', 'a.jwt')
+    renderAt('/trips/trip-1', routes, viewer)
 
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
     expect(screen.queryByText('gate screen')).not.toBeInTheDocument()
-    expect(localStorage.getItem('trip_access_code')).toBe('guest-code')
+    expect(localStorage.getItem('trip_access_code')).toBe('a.jwt')
   })
 
   it('is offered to the travelers too', async () => {

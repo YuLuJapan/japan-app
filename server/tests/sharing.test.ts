@@ -1,31 +1,13 @@
 // Sharing a trip: the invite link, and the member list it feeds.
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
 import { setDataStore, type DataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { clearTokenCache } from '../src/lib/identity.js'
 import { hashToken } from '../src/services/invites.js'
-import {
-  OUTSIDER_USER,
-  OWNER_USER,
-  PARTNER_USER,
-  TEST_CODE,
-  VIEWER_USER,
-  fixture,
-} from './fixture.js'
+import { OUTSIDER_USER, OWNER_USER, PARTNER_USER, VIEWER_USER, fixture } from './fixture.js'
+import { useTestTokens } from './auth.js'
 
-const mocks = vi.hoisted(() => ({ resolveAuthUser: vi.fn() }))
-vi.mock('../src/lib/supabaseAuth.js', () => ({ resolveAuthUser: mocks.resolveAuthUser }))
-
-const TOKENS: Record<string, typeof OWNER_USER> = {
-  'owner.jwt': OWNER_USER,
-  'partner.jwt': PARTNER_USER,
-  'viewer.jwt': VIEWER_USER,
-  'outsider.jwt': OUTSIDER_USER,
-}
-
-process.env.TRIP_ACCESS_CODE = TEST_CODE
 const app = createApp()
 const as = (t: string) => ({ Authorization: `Bearer ${t}` })
 
@@ -37,9 +19,7 @@ const addMember = (userId: string, role: 'owner' | 'partner' | 'viewer') =>
 beforeEach(() => {
   store = createMemoryStore(fixture())
   setDataStore(store)
-  clearTokenCache()
-  mocks.resolveAuthUser.mockReset()
-  mocks.resolveAuthUser.mockImplementation(async (t: string) => TOKENS[t] ?? null)
+  useTestTokens()
 })
 
 async function mint(token: string, body: Record<string, unknown>) {
@@ -151,9 +131,9 @@ describe('accepting', () => {
     await accept(revoked.body.token, 'outsider.jwt').expect(404)
   })
 
-  it('refuses a shared access code — a code is a right, not an identity', async () => {
+  it('refuses an unauthenticated caller — an invite names an account', async () => {
     const { body } = await mint('owner.jwt', { role: 'viewer' })
-    await accept(body.token, TEST_CODE).expect(403)
+    await accept(body.token, 'not-a-real-token').expect(401)
   })
 })
 

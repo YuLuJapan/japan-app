@@ -178,10 +178,6 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return structuredClone(created)
     },
 
-    async listTrips() {
-      return db.trips.map((t) => structuredClone(t))
-    },
-
     async listTripsForUser(userId) {
       return tripsForUser(userId).map((t) => structuredClone(t))
     },

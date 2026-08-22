@@ -1,16 +1,13 @@
 // lib/identity.ts — who the caller is, said without reference to what they may
 // do. The split matters: an account can verify perfectly and still be granted
 // nothing, and these cases pin that apart from the authorization in lib/auth.ts.
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
 import { getDataStore, setDataStore, type DataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { clearTokenCache, resolvePrincipal, syncProfile } from '../src/lib/identity.js'
-import { TEST_CODE, fixture } from './fixture.js'
-
-const mocks = vi.hoisted(() => ({ resolveAuthUser: vi.fn() }))
-vi.mock('../src/lib/supabaseAuth.js', () => ({ resolveAuthUser: mocks.resolveAuthUser }))
+import { clearTokenCache, resolveUser, setTokenVerifier, syncProfile } from '../src/lib/identity.js'
+import { fixture } from './fixture.js'
 
 // Matches OWNER_USER in the fixture, which holds the membership on trip-1 —
 // /api/trips/trip-1 is scoped to the caller's trips now, so an account with none
@@ -22,70 +19,64 @@ const GOOGLE_USER = {
   avatar_url: 'https://example.com/y.png',
 }
 
-process.env.TRIP_ACCESS_CODE = TEST_CODE
 const app = createApp()
+const signedIn = { Authorization: 'Bearer a.jwt' }
+
+/** Every request in this file resolves to GOOGLE_USER unless a case says otherwise. */
+const acceptAnyToken = () => setTokenVerifier(async () => GOOGLE_USER)
 
 beforeEach(() => {
   setDataStore(createMemoryStore(fixture()))
-  mocks.resolveAuthUser.mockReset()
   clearTokenCache()
+  acceptAnyToken()
 })
 
-afterEach(() => {
-  delete process.env.TRIP_GUEST_CODE
-})
-
-describe('resolvePrincipal', () => {
-  it('resolves the static codes without touching the verifier', async () => {
-    process.env.TRIP_GUEST_CODE = 'guest-code'
-    const verify = vi.fn()
-
-    expect(await resolvePrincipal(TEST_CODE, verify)).toEqual({ kind: 'legacy', code: 'owner' })
-    expect(await resolvePrincipal('guest-code', verify)).toEqual({ kind: 'legacy', code: 'guest' })
-    expect(verify).not.toHaveBeenCalled()
-  })
-
-  it('prefers owner when both codes are set to the same value', async () => {
-    process.env.TRIP_GUEST_CODE = TEST_CODE
-    expect(await resolvePrincipal(TEST_CODE, vi.fn())).toEqual({ kind: 'legacy', code: 'owner' })
-  })
-
-  it('resolves a verified JWT to a user principal', async () => {
+describe('resolveUser', () => {
+  it('resolves a verified JWT to the account behind it', async () => {
     const verify = vi.fn().mockResolvedValue(GOOGLE_USER)
-    expect(await resolvePrincipal('a.jwt', verify)).toEqual({ kind: 'user', user: GOOGLE_USER })
+    expect(await resolveUser('a.jwt', verify)).toEqual(GOOGLE_USER)
   })
 
   it('returns null for an empty or unverifiable token', async () => {
     const verify = vi.fn().mockResolvedValue(null)
-    expect(await resolvePrincipal('', verify)).toBeNull()
-    expect(await resolvePrincipal('garbage', verify)).toBeNull()
+    expect(await resolveUser('', verify)).toBeNull()
+    expect(await resolveUser('garbage', verify)).toBeNull()
     // The empty token short-circuits before the verifier is ever reached.
     expect(verify).toHaveBeenCalledTimes(1)
   })
 
   it('resolves any account — reaching a trip is a separate question', async () => {
-    // Identity says nothing about authorization: a stranger resolves to a
-    // perfectly valid principal and then reaches no trip at all
-    // (see membership.test.ts).
+    // Identity says nothing about authorization: a stranger resolves perfectly
+    // well and then reaches no trip at all (see membership.test.ts).
     const stranger = { ...GOOGLE_USER, id: 'user-stranger', email: 'stranger@example.com' }
     const verify = vi.fn().mockResolvedValue(stranger)
-    expect(await resolvePrincipal('a.jwt', verify)).toEqual({ kind: 'user', user: stranger })
+    expect(await resolveUser('a.jwt', verify)).toEqual(stranger)
+  })
+
+  // There is no non-account way in any more. The shared codes used to be
+  // checked here, ahead of the verifier, and resolved to "every trip".
+  it('has no path that bypasses the verifier', async () => {
+    const verify = vi.fn().mockResolvedValue(null)
+    for (const token of ['japan2026', 'test-code', 'guest-code']) {
+      expect(await resolveUser(token, verify)).toBeNull()
+    }
+    expect(verify).toHaveBeenCalledTimes(3)
   })
 })
 
 describe('token cache', () => {
   it('verifies a token once and serves repeats from cache', async () => {
     const verify = vi.fn().mockResolvedValue(GOOGLE_USER)
-    await resolvePrincipal('a.jwt', verify)
-    await resolvePrincipal('a.jwt', verify)
-    await resolvePrincipal('a.jwt', verify)
+    await resolveUser('a.jwt', verify)
+    await resolveUser('a.jwt', verify)
+    await resolveUser('a.jwt', verify)
     expect(verify).toHaveBeenCalledTimes(1)
   })
 
   it('caches rejections too, so a dead token cannot hammer Supabase', async () => {
     const verify = vi.fn().mockResolvedValue(null)
-    await resolvePrincipal('dead.jwt', verify)
-    await resolvePrincipal('dead.jwt', verify)
+    await resolveUser('dead.jwt', verify)
+    await resolveUser('dead.jwt', verify)
     expect(verify).toHaveBeenCalledTimes(1)
   })
 
@@ -94,8 +85,8 @@ describe('token cache', () => {
       .fn()
       .mockResolvedValueOnce(GOOGLE_USER)
       .mockResolvedValueOnce({ ...GOOGLE_USER, id: 'user-luciana' })
-    const first = await resolvePrincipal('one.jwt', verify)
-    const second = await resolvePrincipal('two.jwt', verify)
+    const first = await resolveUser('one.jwt', verify)
+    const second = await resolveUser('two.jwt', verify)
     expect(first).not.toEqual(second)
     expect(verify).toHaveBeenCalledTimes(2)
   })
@@ -104,10 +95,10 @@ describe('token cache', () => {
     vi.useFakeTimers()
     try {
       const verify = vi.fn().mockResolvedValue(GOOGLE_USER)
-      await resolvePrincipal('a.jwt', verify)
+      await resolveUser('a.jwt', verify)
       vi.advanceTimersByTime(61_000)
       verify.mockResolvedValue(null)
-      expect(await resolvePrincipal('a.jwt', verify)).toBeNull()
+      expect(await resolveUser('a.jwt', verify)).toBeNull()
       expect(verify).toHaveBeenCalledTimes(2)
     } finally {
       vi.useRealTimers()
@@ -117,8 +108,7 @@ describe('token cache', () => {
 
 describe('profile sync', () => {
   it('records the signed-in account on first authenticated request', async () => {
-    mocks.resolveAuthUser.mockResolvedValue(GOOGLE_USER)
-    await request(app).get('/api/trips/trip-1').set('Authorization', 'Bearer a.jwt').expect(200)
+    await request(app).get('/api/trips/trip-1').set(signedIn).expect(200)
 
     const profile = await (await getDataStore()).getProfile('user-yuval')
     expect(profile).toEqual({
@@ -134,10 +124,9 @@ describe('profile sync', () => {
     const store = createMemoryStore(fixture())
     const upsert = vi.spyOn(store, 'upsertProfile')
     setDataStore(store)
-    mocks.resolveAuthUser.mockResolvedValue(GOOGLE_USER)
 
     for (let i = 0; i < 3; i++) {
-      await request(app).get('/api/trips/trip-1').set('Authorization', 'Bearer a.jwt').expect(200)
+      await request(app).get('/api/trips/trip-1').set(signedIn).expect(200)
     }
     expect(upsert).toHaveBeenCalledTimes(1)
   })
@@ -146,12 +135,11 @@ describe('profile sync', () => {
     const store = createMemoryStore(fixture())
     store.upsertProfile = () => Promise.reject(new Error('relation "profiles" does not exist'))
     setDataStore(store)
-    mocks.resolveAuthUser.mockResolvedValue(GOOGLE_USER)
     const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     // The whole point: an unmigrated database degrades to "no profile row",
     // not to a 500 on every authenticated call.
-    await request(app).get('/api/trips/trip-1').set('Authorization', 'Bearer a.jwt').expect(200)
+    await request(app).get('/api/trips/trip-1').set(signedIn).expect(200)
     expect(quiet).toHaveBeenCalled()
     quiet.mockRestore()
   })
@@ -171,8 +159,7 @@ describe('profile sync', () => {
 
 describe('GET /api/me', () => {
   it('names the signed-in account', async () => {
-    mocks.resolveAuthUser.mockResolvedValue(GOOGLE_USER)
-    const res = await request(app).get('/api/me').set('Authorization', 'Bearer a.jwt')
+    const res = await request(app).get('/api/me').set(signedIn)
     expect(res.status).toBe(200)
     expect(res.body).toEqual({
       user: {
@@ -181,17 +168,12 @@ describe('GET /api/me', () => {
         display_name: 'Yuval',
         avatar_url: 'https://example.com/y.png',
       },
-      role: 'owner',
     })
   })
 
-  it('returns a null user for a static access code — a right, not an identity', async () => {
-    const res = await request(app).get('/api/me').set('Authorization', `Bearer ${TEST_CODE}`)
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ user: null, role: 'owner' })
-  })
-
   it('requires authentication like every other route', async () => {
+    setTokenVerifier(async () => null)
     await request(app).get('/api/me').expect(401)
+    await request(app).get('/api/me').set(signedIn).expect(401)
   })
 })

@@ -4,7 +4,9 @@ Turns a single-tenant, access-code-gated trip companion into a multi-user app:
 real accounts (Google OAuth + email/password), trips owned by people, and
 per-trip sharing with `owner` / `partner` / `viewer` roles.
 
-Status: **awaiting approval — no implementation yet.**
+Status: **shipped.** Phases 1–6 are merged; the phasing table at the end records
+what each one landed. Phase 7 (invitations that reach the invited account
+without the link, and an optional email) is scoped separately.
 
 ---
 
@@ -266,8 +268,8 @@ Resulting route map:
 
 ```
 /api/health                        exempt
-/api/reminders/dispatch            CRON_SECRET (unchanged)
-/api/auth/session, /api/me         authenticated, no trip
+/api/reminders/dispatch            CRON_SECRET (required from 6b)
+/api/me                            authenticated, no trip
 /api/trips                         GET (mine) · POST (create)
 /api/invites/:token                GET (preview) · POST (accept)
 /api/push/**                       user-scoped, not trip-scoped
@@ -468,11 +470,11 @@ the same dependency-injection idiom `dispatchDueReminders(store, now, send)`
 already uses for `PushSender`. Reuse it rather than inventing a mock layer.
 
 **Web** — `sign-in.test.tsx`, `members.test.tsx`, `invite-accept.test.tsx`,
-`title.test.ts`; existing web tests mock `/auth/session` and `my_role`.
+`title.test.ts`; existing web tests mock `my_role` and `shows` on the bundle.
 
 ---
 
-## 6. Phasing — six PRs, each green and deployable
+## 6. Phasing — eight PRs, each green and deployable
 
 | #   | Phase                       | Ships                                                                                                                                                                                            |   Risk   | ~files |
 | --- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :------: | :----: |
@@ -483,7 +485,23 @@ already uses for `PushSender`. Reuse it rather than inventing a mock layer.
 | 4   | **Sharing**                 | invites, members UI, role enforcement, per-member visibility flags + `trip-view.ts`, visibility matrix test                                                                                      |   low    |   20   |
 | 5   | **Title**                   | nullable `name`, `country`, `display_title`                                                                                                                                                      |   low    |   8    |
 | 6a  | **De-globalise**            | `push_subscriptions.user_id` + dispatch by membership, `trips.flight`                                                                                                                            |   med    |   16   |
-| 6b  | **Remove the access codes** | `TRIP_ACCESS_CODE` / `TRIP_GUEST_CODE`, `Principal.legacy`, `LEGACY_ACCESS`, `GUEST_VIEW`, `isGuest`, `guest-view.ts`, the frontend `Role` plumbing                                              |   med    |  ~45   |
+| 6b  | **Remove the access codes** | `TRIP_ACCESS_CODE` / `TRIP_GUEST_CODE`, `Principal.legacy`, `LEGACY_ACCESS`, `GUEST_VIEW`, `isGuest`, `guest-view.ts`, `/api/auth/*`, the frontend `Role` plumbing; `shows` on the bundle        |   med    |  ~58   |
+
+### What 6b removed beyond the codes themselves
+
+Three things stopped having a caller once every request came from an account,
+and were deleted rather than left as methods whose only correct number of call
+sites is zero: `DataStore.listTrips()` (unscoped — the owner code was the only
+thing that could see it), `POST /api/auth/verify` and `GET /api/auth/session`
+(the gate proves a token against `GET /api/me` instead), and the global `Role`
+on both sides of the wire.
+
+The one thing 6b _added_: `shows` on the trip bundle. `useCanSeeBookings()` was
+`useRole() === 'owner'`, which was wrong for a viewer even before this — every
+signed-in account read as `owner` globally, so a viewer with `stays: false` was
+still offered a Stays card the server had already emptied. The bundle now
+reports the caller's own `TripView`, which is also the only way a client can
+tell "nothing saved here" from "not shared with you".
 
 ### Why phase 6 is split
 
@@ -494,8 +512,8 @@ every server test authenticates with the shared code today, so removing it
 touches every test file. Merged, the leak fix would be reviewed alongside 250
 mechanical bearer-token edits.
 
-6a first, because the push leak is live and reachable — a third account
-registered while phase 5 was in review, and any device it registers currently
+6a first, because the push leak was live and reachable — a third account
+registered while phase 5 was in review, and any device it registered would
 receives the travellers' reminder titles.
 
 ### Why phase 3 is split

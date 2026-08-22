@@ -21,6 +21,9 @@ export function useTestTokens(): void {
   setTokenVerifier(async (token) => TOKENS[token as keyof typeof TOKENS] ?? null)
 }
 
+/** For the odd call that builds its own request and wants a header object. */
+export const OWNER_BEARER = { Authorization: 'Bearer owner.jwt' }
+
 const bearer = (token: string) => (r: request.Test) => r.set('Authorization', `Bearer ${token}`)
 
 /** `await asOwner(request(app).get('/api/…'))` — the trip-1 owner. */

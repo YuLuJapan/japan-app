@@ -5,11 +5,10 @@ import { setDataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
 import { __resetRatesCache } from '../src/services/rates.js'
 import { __resetTranslateCache } from '../src/services/translate.js'
-import { TEST_CODE, fixture } from './fixture.js'
+import { fixture } from './fixture.js'
+import { asOwner as auth, useTestTokens } from './auth.js'
 
-process.env.TRIP_ACCESS_CODE = TEST_CODE
 const app = createApp()
-const auth = (r: request.Test) => r.set('Authorization', `Bearer ${TEST_CODE}`)
 
 /** Stub a page response; `pages` maps URL → html (or a redirect/failure marker). */
 function mockPages(pages: Record<string, { html?: string; redirectTo?: string; type?: string }>) {
@@ -58,6 +57,7 @@ const productHtml = `
 
 beforeEach(() => {
   setDataStore(createMemoryStore(fixture()))
+  useTestTokens()
   __resetRatesCache()
   // both caches are module-level: without this, one test's "couldn't translate"
   // answers the next test's lookup of the same string

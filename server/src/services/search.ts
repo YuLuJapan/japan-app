@@ -1,6 +1,6 @@
 import type { DataStore } from '../lib/datastore.js'
 import { CATEGORIES } from '../lib/datastore.js'
-import { STAY_CATEGORY, isStay } from '../lib/guest-view.js'
+import { STAY_CATEGORY, isStay } from '../lib/trip-view.js'
 
 export interface SearchResult {
   type: 'place' | 'zone' | 'tip'
@@ -10,7 +10,7 @@ export interface SearchResult {
   href: string
 }
 
-/** `includeStays: false` keeps the guest view's hidden stays out of the results — both the
+/** `includeStays: false` keeps the hidden stays out of the results — both the
  *  stays themselves and the tips that would link straight to one. */
 /**
  * Search within one trip.
