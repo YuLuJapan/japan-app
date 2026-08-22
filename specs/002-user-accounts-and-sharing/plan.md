@@ -107,15 +107,45 @@ writes `role === 'owner'` inline:
 | read stays · flight · documents | ✓ | ✓ | **per-member flags** |
 | create / edit / delete content | ✓ | ✓ | ✗ |
 | edit trip dates, title, country | ✓ | ✓ | ✗ |
-| invite, manage members, set their visibility | ✓ | ✗ | ✗ |
+| invite a **viewer** (and set that invite's visibility) | ✓ | ✓ | ✗ |
+| invite a **partner** | ✓ | ✗ | ✗ |
+| change a member's role or visibility · remove a member | ✓ | ✗ | ✗ |
+| revoke an invite | any | **own only** | ✗ |
 | delete trip | ✓ | ✗ | ✗ |
 | leave trip | — | ✓ | ✓ |
 
 ```ts
-export const canWrite = (r: TripRole) => r === 'owner' || r === 'partner'
+// server/src/lib/permissions.ts — pure, exhaustively unit-tested
+export type TripRole = 'owner' | 'partner' | 'viewer'
+/** `owner` is deliberately ungrantable by invite — see the table's check constraint. */
+export type InviteRole = Exclude<TripRole, 'owner'>
+
+export const canWrite        = (r: TripRole) => r === 'owner' || r === 'partner'
+export const canDeleteTrip   = (r: TripRole) => r === 'owner'
+
+/** Editing the member list itself — role changes, visibility changes, removal. */
 export const canManageMembers = (r: TripRole) => r === 'owner'
-export const canDeleteTrip = (r: TripRole) => r === 'owner'
+
+/** Issuing an invite. A partner may bring in viewers, never another writer. */
+export const canInvite = (r: TripRole, target: InviteRole) =>
+  r === 'owner' || (r === 'partner' && target === 'viewer')
+
+/** Owners revoke any invite; a partner revokes only what they issued. */
+export const canRevokeInvite = (r: TripRole, invite: TripInvite, userId: string) =>
+  r === 'owner' || (r === 'partner' && invite.invited_by === userId)
 ```
+
+**Why `canInvite` takes the target role.** Without it, a partner could invite
+another partner, who invites another — lateral privilege spread with no owner in
+the loop. The schema already makes `owner` ungrantable by invite
+(`check (role in ('partner','viewer'))`), so this closes the remaining hole. It
+is a one-line rule and a four-row truth table in the tests.
+
+**A deliberate asymmetry:** a partner *sets* visibility on an invite they issue,
+but cannot *change* it afterwards — issuing an invite is one act, editing a
+member is another, and only the latter is owner-gated. The alternative (partners
+get the defaults and may not customise) is more restrictive without being safer,
+since the partner chose to bring that person in either way.
 
 **Invariant: every trip has at least one owner.** Enforced in the service —
 the last owner cannot be demoted, removed, or leave. A trip with zero members
@@ -307,6 +337,7 @@ Deliberate choices:
 
 - **No email infrastructure.** The link is shared over WhatsApp — consistent with the existing `mailto:` traveller pattern and the $0 free-tier constraint.
 - **Email-bound when `email` is set** (must match the accepting user), open link otherwise.
+- **Partners may issue viewer invites only** (`canInvite`), and revoke only their own. The members screen shows them the roster read-only, with the invite button limited to the viewer role.
 - **Single-use, 14-day expiry, revocable.**
 - `GET /api/invites/:token` returns a deliberately minimal preview — trip display title, inviter name, offered role **and the visibility it grants**. Not trip content: an unaccepted invite is not access.
 - **Idempotent re-accept**: already a member → success, and never downgrade an existing higher role *or narrower visibility*.
@@ -397,7 +428,7 @@ first makes every existing trip invisible.
 | `src/lib/auth.tsx` *(new)* | `AuthProvider` — signed-in user, Supabase session, token refresh (the `onAuthStateChange` sync currently in `session.tsx` moves here), sign-out |
 | `src/lib/session.tsx` → `trip-access.tsx` | `TripAccessProvider` keyed on `:tripId`, fed by `my_role` from `GET /api/trips/:tripId`. **`useCanEdit()` keeps its signature — call sites unchanged.** `useCanSeeBookings()` deleted |
 | `src/pages/SignIn.tsx` | replaces `AccessGate`: Google button, email/password (sign-in · sign-up · reset), access code collapsed under a deprecated disclosure |
-| `src/pages/TripMembers.tsx` *(new)* | invite (role picker, **three visibility toggles**, copy link), member list, role change, per-viewer visibility edit, remove, leave. Carries the one-line note about trip-level documents (§2 Layer 2b) |
+| `src/pages/TripMembers.tsx` *(new)* | invite (role picker, **three visibility toggles**, copy link), member list, role change, per-viewer visibility edit, remove, leave. Partners see the roster read-only with a viewer-only invite button. Carries the one-line note about trip-level documents (§2 Layer 2b) |
 | `src/pages/AcceptInvite.tsx` *(new)* | invite preview (trip, inviter, role, what you'll be shown) → sign in → accept |
 | `src/router.tsx` | `RequireAuth` replaces `RequireAccess`; `RequireOwner` → `RequireWrite` (owner\|partner) plus `RequireTripOwner` for the members page; public `/invite/:token` |
 | `src/api/client.ts` | bearer token from the Supabase session (legacy localStorage code path retained); 401 → `/signin` |
@@ -411,6 +442,7 @@ first makes every existing trip invisible.
 - `tenancy.test.ts` — the manifest-driven cross-tenant sweep (§3c). The important one.
 - `identity.test.ts` — JWT → principal, profile upsert, token cache hit/expiry, legacy-code compat
 - `members.test.ts` — role matrix, last-owner invariant, leave
+- `permissions.test.ts` — the pure truth tables, including the escalation case: **partner cannot invite a partner**
 - `invites.test.ts` — mint · preview · accept · expire · revoke · email-bound · idempotent re-accept · plaintext-never-stored
 - `visibility.test.ts` — **matrix-driven**, the second sweep: the 8 flag combinations × every enforcement point in the Layer 2b table, plus the file-inheritance rule (a file on a `hotel` place vanishes with stays) and the owner/partner override
 - `trip-title.test.ts` — pure title rules
@@ -435,13 +467,38 @@ already uses for `PushSender`. Reuse it rather than inventing a mock layer.
 | --- | --- | --- | :-: | :-: |
 | 1 | **Identity** | profiles, Google + password sign-in, `req.principal`, `/api/me`. Access codes untouched | low | 8 |
 | 2 | **Membership** | `trip_members`, `/api/trips` filtered to yours, `my_role`, backfill + invariant check | med | 10 |
-| 3 | **Scope** | DataStore `tripId` args, nested router, `zones.trip_id`, delete `getDefaultTrip` + legacy routes, tenancy sweep. Introduces `TripContext` (view still fed by `isGuest`) so phase 4 only swaps its source | **high** | ~45 |
+| 3a | **Membership boundary** | Nested `/api/trips/:tripId` router, `requireTripAccess` mounted once, delete `getDefaultTrip` + the legacy singleton routes, introduce `TripContext` (view still fed by `isGuest`). No migration | med | ~20 |
+| 3b | **Resource scoping** | `tripId` as first arg on every trip-owned DataStore method, `zones.trip_id` + the duplication migration, tenancy sweep completed | **high** | ~30 |
 | 4 | **Sharing** | invites, members UI, role enforcement, per-member visibility flags + `trip-view.ts`, visibility matrix test | low | 20 |
 | 5 | **Title** | nullable `name`, `country`, `display_title` | low | 8 |
 | 6 | **Cleanup** | push per-user, flight per-trip, remove access codes + `guest-view.ts` | med | 12 |
 
-Phase 3 is the mechanical bulk and touches nearly every test — worth landing on
-its own, with the sweep test written **first** so the refactor has a target.
+### Why phase 3 is split
+
+Unsplit it is ~45 files, and the two halves have opposite review profiles. The
+DataStore signature change is a huge mechanical diff — ~30 methods across two
+implementations and every call site — that no one reads line by line, and that
+`tsc` plus the suite verify better than a human can. The route nesting is small
+in line count but is *where the security boundary actually lands*. Merged, the
+200 lines that matter drown in the 2000 that don't.
+
+**Order matters, and only one order avoids throwaway code.** Nesting first means
+each route reads `:tripId` straight from its path. Scoping first would need a
+`findTripIdForPlace`-style resolver per entity purely to feed the new signatures
+— a bridge built and then demolished.
+
+**3a does not finish the job, and says so.** It enforces *"you are a member of
+this trip"*, not *"this resource belongs to this trip"* —
+`/trips/A/places/<place-in-B>` still resolves after 3a. So the full sweep test is
+written in 3a with the cross-resource cases as `it.todo`, and **3b is the PR that
+turns them on**. Self-documenting: the commit that removes the todos is the
+commit that fixes them.
+
+**Hard gate: 3b must land before phase 4.** That gap is only reachable by a
+second party, and phase 4 is what creates second parties. Until then the only
+accounts are the two owners, who already share everything. Shipping 4 before 3b
+would open a real cross-tenant hole.
+
 Phase 5 has no dependency on 1–4 and can be pulled forward if you want a visible
 win early.
 
