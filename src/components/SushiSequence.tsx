@@ -17,6 +17,16 @@
 //
 //   skip    — a "Get started" pill that tweens the window down past the hero.
 //             The sequence still plays; it just plays itself, on the way down.
+//   express — the same pill and the same trip, in 600ms on an exponential
+//             curve: away on the first frame, settling soft at the end.
+//   watch   — two stages. The hero holds still while the sequence rips
+//             through in place, so the nigiri is actually seen coming apart,
+//             and only then does the page drop to the content.
+//   glass   — skip's motion behind a quieter affordance: a frosted chip with
+//             a chevron nudging above it, so the artwork stays the hero.
+//   bar     — a full-width CTA above the tab bar, with a hairline that fills
+//             as you scroll by hand, so it doubles as a progress meter. It is
+//             the one affordance that stays put for the whole sequence.
 //   fold    — nothing scrolls: the hero shrinks in place to a slim banner
 //             while the sushi fast-forwards inside it, and the content below
 //             rises into the space it vacates. Tap the banner to unfold again.
@@ -151,7 +161,40 @@ function preload(urls: string[], onProgress: (ratio: number) => void, alive: () 
 
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2)
 
+// Covers ground on the very first frame and decelerates the rest of the way —
+// what makes `express` read as instant despite still being a real trip.
+const easeOutExpo = (t: number) => (t === 1 ? 1 : 1 - 2 ** (-10 * t))
+
 const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+/**
+ * Hand control back to the reader the moment they scroll for themselves.
+ * Returns the unbind. Callers bind on the next frame, not now: activating a
+ * button with the keyboard is still dispatching its own keydown, which would
+ * otherwise cancel the animation the moment it starts.
+ */
+function bindCancel(stop: () => void) {
+  window.addEventListener('wheel', stop, { passive: true })
+  window.addEventListener('touchstart', stop, { passive: true })
+  window.addEventListener('keydown', stop)
+  return () => {
+    window.removeEventListener('wheel', stop)
+    window.removeEventListener('touchstart', stop)
+    window.removeEventListener('keydown', stop)
+  }
+}
+
+// How far each variant's trip runs and on what curve. `watch` travels only
+// after it has played, so its numbers live in its own handler.
+const TRAVEL = {
+  express: { duration: () => 600, ease: easeOutExpo },
+  glide: {
+    // Long enough that the nigiri visibly comes apart on the way down, short
+    // enough that it never feels like a cutscene you have to sit through.
+    duration: (distance: number) => Math.min(1600, Math.max(900, distance * 0.6)),
+    ease: easeInOut,
+  },
+}
 
 /**
  * The handle the buttons need on the sequence itself: the effect below owns
@@ -169,6 +212,33 @@ type Control = {
   pinRange: () => { start: number; end: number } | null
   disablePin: () => void
   enablePin: () => void
+}
+
+function Chevron({
+  className,
+  size = 16,
+  up = false,
+}: {
+  className?: string
+  size?: number
+  up?: boolean
+}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d={up ? 'm6 15 6-6 6 6' : 'm6 9 6 6 6-6'} />
+    </svg>
+  )
 }
 
 export function SushiSequence({
@@ -192,13 +262,16 @@ export function SushiSequence({
   // Stops the running scroll tween mid-flight (and unbinds its listeners);
   // null whenever no tween is running.
   const scrollTweenRef = useRef<(() => void) | null>(null)
-  // Same, for the fold's height animation.
+  // Same, for the fold's height animation and for `watch`'s in-place playback.
   const foldTweenRef = useRef<(() => void) | null>(null)
+  const playTweenRef = useRef<(() => void) | null>(null)
   const controlRef = useRef<Control | null>(null)
   // `stories` steps between whole chapters, so it tracks the one it last
   // asked for rather than the frame the (lagging) scrub happens to be on.
   const chapterRef = useRef(0)
   const segmentRefs = useRef<(HTMLDivElement | null)[]>([])
+  // `bar`'s progress hairline, filled from the scrub like the segments are.
+  const progressRef = useRef<HTMLDivElement>(null)
 
   const [progress, setProgress] = useState(0)
   const [ready, setReady] = useState(false)
@@ -207,6 +280,7 @@ export function SushiSequence({
   const [cueVisible, setCueVisible] = useState(true)
   const [collapsed, setCollapsed] = useState(false)
   const [folding, setFolding] = useState(false)
+  const [playing, setPlaying] = useState(false)
 
   useEffect(() => {
     const stage = stageRef.current
@@ -263,10 +337,11 @@ export function SushiSequence({
       if (gapR > 0) ctx.drawImage(img, IW - 2, 0, 2, IH, dx + dw - 1, dy, gapR + 1, dh)
     }
 
-    // Fill the segmented bar in `stories` mode. It runs on every frame change,
-    // so it writes to the DOM directly instead of re-rendering the hero 160
-    // times on the way down.
-    const paintSegments = (ratio: number) => {
+    // Fill `stories`' segments and `bar`'s hairline. This runs on every frame
+    // change, so it writes to the DOM directly instead of re-rendering the
+    // hero 160 times on the way down.
+    const paintProgress = (ratio: number) => {
+      if (progressRef.current) progressRef.current.style.transform = `scaleX(${ratio})`
       for (let k = 0; k < CHAPTERS; k++) {
         const el = segmentRefs.current[k]
         if (!el) continue
@@ -305,7 +380,7 @@ export function SushiSequence({
       if (next === index && !dirty) return
       index = next
       paint()
-      paintSegments(images.length > 1 ? index / (images.length - 1) : 0)
+      paintProgress(images.length > 1 ? index / (images.length - 1) : 0)
     }
 
     const urls = reduced ? [frameUrl(FIRST), frameUrl(LAST)] : frameUrls(pickStep())
@@ -387,7 +462,7 @@ export function SushiSequence({
                   index = i
                   dirty = true
                   const ratio = i / (images.length - 1)
-                  paintSegments(ratio)
+                  paintProgress(ratio)
                   // Follow a hand scroll, but never while a chapter tween is
                   // flying: the scrub trails it by 0.6s, so mid-flight frames
                   // would keep resetting the chapter the reader just asked
@@ -463,6 +538,7 @@ export function SushiSequence({
     () => () => {
       scrollTweenRef.current?.()
       foldTweenRef.current?.()
+      playTweenRef.current?.()
     },
     []
   )
@@ -472,7 +548,7 @@ export function SushiSequence({
    * moving that position is what plays it — a jump would cut past it. Any real
    * scroll input hands control straight back to the reader.
    */
-  const tweenScrollTo = (to: number, duration: number) => {
+  const tweenScrollTo = (to: number, duration: number, ease = easeInOut) => {
     scrollTweenRef.current?.()
     const from = window.scrollY
     const distance = to - from
@@ -485,28 +561,22 @@ export function SushiSequence({
 
     let raf = 0
     let started = 0
+    let unbind = () => {}
     const stop = () => {
       cancelAnimationFrame(raf)
-      window.removeEventListener('wheel', stop)
-      window.removeEventListener('touchstart', stop)
-      window.removeEventListener('keydown', stop)
+      unbind()
       scrollTweenRef.current = null
     }
     const step = (now: number) => {
       const t = Math.min(1, (now - started) / duration)
-      window.scrollTo(0, from + distance * easeInOut(t))
+      window.scrollTo(0, from + distance * ease(t))
       if (t < 1) raf = requestAnimationFrame(step)
       else stop()
     }
 
-    // Bound on the next frame, not now: activating a button with the keyboard
-    // is still dispatching its own keydown, which would otherwise cancel the
-    // tween the moment it starts.
     raf = requestAnimationFrame((now) => {
       started = now
-      window.addEventListener('wheel', stop, { passive: true })
-      window.addEventListener('touchstart', stop, { passive: true })
-      window.addEventListener('keydown', stop)
+      unbind = bindCancel(stop)
       step(now)
     })
     scrollTweenRef.current = stop
@@ -528,9 +598,76 @@ export function SushiSequence({
     const distance = to - window.scrollY
     if (distance <= 0) return
 
-    // Long enough that the nigiri visibly comes apart on the way down, short
-    // enough that it never feels like a cutscene you have to sit through.
-    tweenScrollTo(to, Math.min(1600, Math.max(900, distance * 0.6)))
+    const travel = mode === 'express' ? TRAVEL.express : TRAVEL.glide
+    tweenScrollTo(to, travel.duration(distance), travel.ease)
+  }
+
+  /**
+   * `watch`: play the sequence where it stands, then travel. Nothing scrolls
+   * during the playback, so the scrub never fires and the frames can be driven
+   * straight; the pin is handed back before the drop, because a scrub still
+   * parked at the top of its range would otherwise rewind everything that was
+   * just played the instant the page moves.
+   */
+  const watchThenLeave = () => {
+    const control = controlRef.current
+    if (!control || playing) {
+      skipToContent()
+      return
+    }
+    playTweenRef.current?.()
+
+    const last = control.frameCount() - 1
+    const from = control.currentFrame()
+    const leave = () => {
+      control.disablePin()
+      const wrapper = wrapperRef.current
+      if (!wrapper) return
+      // Measured after the pin lets go: without its spacer the hero is one
+      // screen tall again, so this is a short drop rather than the full scrub,
+      // and 400ms is plenty to cross it.
+      const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+      tweenScrollTo(
+        Math.min(wrapper.getBoundingClientRect().bottom + window.scrollY - HEADER, max),
+        400
+      )
+    }
+
+    if (prefersReducedMotion() || typeof requestAnimationFrame !== 'function') {
+      control.setFrame(last)
+      leave()
+      return
+    }
+
+    setPlaying(true)
+    let raf = 0
+    let started = 0
+    let unbind = () => {}
+    const stop = () => {
+      cancelAnimationFrame(raf)
+      unbind()
+      setPlaying(false)
+      playTweenRef.current = null
+    }
+    const step = (now: number) => {
+      if (!started) started = now
+      const t = Math.min(1, (now - started) / 700)
+      control.setFrame(from + (last - from) * easeInOut(t))
+      if (t < 1) {
+        raf = requestAnimationFrame(step)
+        return
+      }
+      stop()
+      leave()
+    }
+
+    raf = requestAnimationFrame((now) => {
+      started = now
+      // A swipe mid-playback means the reader would rather do it themselves.
+      unbind = bindCancel(stop)
+      step(now)
+    })
+    playTweenRef.current = stop
   }
 
   /**
@@ -698,43 +835,73 @@ export function SushiSequence({
           </button>
         )}
 
-        {/* skip / stories both hang their bottom affordance here. bottom-24
-            clears the fixed bottom nav (69px, Layout.tsx) — a hint could sit
-            behind it because it ignored pointer events, a button cannot. */}
-        {mode !== 'fold' && (
+        {/* Every variant but `fold` and `bar` hangs its affordance here.
+            bottom-24 clears the fixed bottom nav (69px, Layout.tsx) — a hint
+            could sit behind it because it ignored pointer events, a button
+            cannot. */}
+        {mode !== 'fold' && mode !== 'bar' && (
           <div
-            className={`absolute inset-x-0 bottom-24 z-20 flex justify-center transition-opacity duration-500 ${
-              cueVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
+            className={`absolute inset-x-0 bottom-24 z-20 flex flex-col items-center gap-2 transition-opacity duration-500 ${
+              cueVisible && !playing ? 'opacity-100' : 'pointer-events-none opacity-0'
             }`}
           >
-            {mode === 'stories' ? (
+            {mode === 'stories' && (
               <p className="rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-muted backdrop-blur">
                 Tap to advance
               </p>
-            ) : (
+            )}
+
+            {mode === 'glass' && (
+              <>
+                <Chevron className="text-ink/60 motion-safe:animate-nudge" size={20} />
+                <button
+                  type="button"
+                  onClick={skipToContent}
+                  tabIndex={cueVisible ? undefined : -1}
+                  aria-hidden={cueVisible ? undefined : true}
+                  className="rounded-full border border-white/60 bg-white/45 px-6 py-3 text-sm font-semibold text-ink shadow-card backdrop-blur-md transition-all active:scale-[0.98]"
+                >
+                  Get started
+                </button>
+              </>
+            )}
+
+            {(mode === 'skip' || mode === 'express' || mode === 'watch') && (
               <button
                 type="button"
-                onClick={skipToContent}
+                onClick={mode === 'watch' ? watchThenLeave : skipToContent}
                 tabIndex={cueVisible ? undefined : -1}
                 aria-hidden={cueVisible ? undefined : true}
                 className="btn-primary"
               >
                 Get started
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
+                <Chevron />
               </button>
             )}
+          </div>
+        )}
+
+        {/* `bar`: a full-width CTA where a native app would put one, over a
+            hairline that fills with the sequence. That meter is the reason
+            this one does not fade out with the rest — it is worth watching
+            for the whole scroll, not just the first tenth of it. */}
+        {mode === 'bar' && (
+          <div className="absolute inset-x-0 bottom-[69px] z-20 px-4 pb-4">
+            <div aria-hidden className="mx-1 mb-2.5 h-0.5 overflow-hidden rounded-full bg-ink/10">
+              <div
+                ref={progressRef}
+                style={{ transform: 'scaleX(0)' }}
+                className="h-full origin-left rounded-full bg-ink/35"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={skipToContent}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-3.5 text-sm font-semibold text-white shadow-card transition-all active:scale-[0.99]"
+            >
+              Get started
+              <Chevron />
+            </button>
           </div>
         )}
 
@@ -746,19 +913,7 @@ export function SushiSequence({
           >
             <button type="button" onClick={() => foldHero(true)} className="btn-primary">
               Get started
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="m6 9 6 6 6-6" />
-              </svg>
+              <Chevron />
             </button>
           </div>
         )}
@@ -772,19 +927,7 @@ export function SushiSequence({
             className="absolute inset-0 z-10 flex items-center justify-end px-5 text-ink"
           >
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 shadow-card backdrop-blur">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="m6 15 6-6 6 6" />
-              </svg>
+              <Chevron size={18} up />
             </span>
           </button>
         )}

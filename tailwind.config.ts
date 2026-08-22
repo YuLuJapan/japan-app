@@ -36,6 +36,17 @@ export default {
       maxWidth: {
         app: '30rem',
       },
+      // A chevron that dips and comes back — enough to read as "there is more
+      // below" without the jitter of `animate-bounce`.
+      keyframes: {
+        nudge: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(5px)' },
+        },
+      },
+      animation: {
+        nudge: 'nudge 1.8s ease-in-out infinite',
+      },
       // Tailwind v3's default scale stops offering halves after 3.5, so the
       // `px-4.5` the card padding wants silently generates nothing (v4 has it
       // built in). Defining it keeps 18px available as a real token instead of

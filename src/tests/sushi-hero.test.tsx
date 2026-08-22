@@ -65,6 +65,34 @@ describe('SushiSequence hero', () => {
   })
 })
 
+// Every pill-and-travel variant makes the same promise, whatever curve it
+// takes to get there: one tap, and the content below the hero is on screen.
+describe.each(['skip', 'express', 'watch', 'glass', 'bar'] as const)(
+  'SushiSequence hero — %s mode',
+  (mode) => {
+    it('takes one tap to reach the content below', async () => {
+      vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true } as MediaQueryList)
+      const restore = stubGeometry({ heroBottom: 2000, pageHeight: 4000 })
+      const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+
+      render(<SushiSequence mode={mode} title="Yuval & Luciana in Japan" />)
+      await userEvent.click(screen.getByRole('button', { name: /get started/i }))
+
+      expect(scrollTo).toHaveBeenCalledWith(0, 2000 - HEADER)
+      restore()
+    })
+  }
+)
+
+describe('SushiSequence hero — bar mode', () => {
+  it('keeps its progress meter on screen rather than fading with the cue', () => {
+    const { container } = render(<SushiSequence mode="bar" title="Yuval & Luciana in Japan" />)
+    const meter = container.querySelector('[style*="scaleX"]')
+    expect(meter).toBeInTheDocument()
+    expect(meter?.closest('.opacity-0')).toBeNull()
+  })
+})
+
 describe('SushiSequence hero — fold mode', () => {
   it('collapses the hero in place and offers a way back into it', async () => {
     vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true } as MediaQueryList)
