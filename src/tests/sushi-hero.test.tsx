@@ -67,7 +67,7 @@ describe('SushiSequence hero', () => {
 
 // Every pill-and-travel variant makes the same promise, whatever curve it
 // takes to get there: one tap, and the content below the hero is on screen.
-describe.each(['skip', 'express', 'watch', 'glass', 'bar'] as const)(
+describe.each(['skip', 'express', 'watch', 'glass', 'hairline', 'bar'] as const)(
   'SushiSequence hero — %s mode',
   (mode) => {
     it('takes one tap to reach the content below', async () => {

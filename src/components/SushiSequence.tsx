@@ -22,8 +22,11 @@
 //   watch   — two stages. The hero holds still while the sequence rips
 //             through in place, so the nigiri is actually seen coming apart,
 //             and only then does the page drop to the content.
-//   glass   — skip's motion behind a quieter affordance: a frosted chip with
-//             a chevron nudging above it, so the artwork stays the hero.
+//   glass   — skip's motion behind a quieter affordance: a frosted chip on a
+//             hairline border, so the artwork stays the hero rather than
+//             competing with a solid coral button.
+//   hairline— quieter still: a letterspaced label over a rule with a segment
+//             tracing down it. No container, no fill, no shadow.
 //   bar     — a full-width CTA above the tab bar, with a hairline that fills
 //             as you scroll by hand, so it doubles as a progress meter. It is
 //             the one affordance that stays put for the whole sequence.
@@ -217,10 +220,12 @@ type Control = {
 function Chevron({
   className,
   size = 16,
+  weight = 2.5,
   up = false,
 }: {
   className?: string
   size?: number
+  weight?: number
   up?: boolean
 }) {
   return (
@@ -230,7 +235,7 @@ function Chevron({
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2.5"
+      strokeWidth={weight}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
@@ -841,7 +846,9 @@ export function SushiSequence({
             cannot. */}
         {mode !== 'fold' && mode !== 'bar' && (
           <div
-            className={`absolute inset-x-0 bottom-24 z-20 flex flex-col items-center gap-2 transition-opacity duration-500 ${
+            className={`absolute inset-x-0 ${
+              mode === 'glass' || mode === 'hairline' ? 'bottom-28' : 'bottom-24'
+            } z-20 flex flex-col items-center gap-2 transition-opacity duration-500 ${
               cueVisible && !playing ? 'opacity-100' : 'pointer-events-none opacity-0'
             }`}
           >
@@ -853,17 +860,51 @@ export function SushiSequence({
 
             {mode === 'glass' && (
               <>
-                <Chevron className="text-ink/60 motion-safe:animate-nudge" size={20} />
+                {/* Thin, small and low-contrast on purpose: the cue should be
+                    noticed, not read. */}
+                <Chevron
+                  className="text-ink/30 motion-safe:animate-nudge"
+                  size={14}
+                  weight={1.75}
+                />
                 <button
                   type="button"
                   onClick={skipToContent}
                   tabIndex={cueVisible ? undefined : -1}
                   aria-hidden={cueVisible ? undefined : true}
-                  className="rounded-full border border-white/60 bg-white/45 px-6 py-3 text-sm font-semibold text-ink shadow-card backdrop-blur-md transition-all active:scale-[0.98]"
+                  // A hairline and a whisper of a shadow instead of a border
+                  // and a drop shadow — enough to lift the glass off the
+                  // backdrop without drawing a box around it.
+                  // The ::before is the tap target: the chip is 33px tall,
+                  // which looks right and misses the 44px minimum, so the
+                  // touchable box is grown around it rather than the chip.
+                  className="relative rounded-full bg-white/55 px-5 py-2.5 text-[13px] font-semibold leading-none text-ink/85 shadow-[0_1px_1px_rgba(23,21,15,0.04),0_14px_30px_-22px_rgba(23,21,15,0.55)] ring-1 ring-inset ring-white/70 backdrop-blur-xl transition-transform before:absolute before:-inset-2 before:content-[''] active:scale-[0.98]"
                 >
                   Get started
                 </button>
               </>
+            )}
+
+            {mode === 'hairline' && (
+              <button
+                type="button"
+                onClick={skipToContent}
+                tabIndex={cueVisible ? undefined : -1}
+                aria-hidden={cueVisible ? undefined : true}
+                // Nothing but type and a rule. The padding is what keeps the
+                // tap target honest at 44px while the mark itself stays small.
+                className="flex flex-col items-center gap-2.5 px-6 py-2 transition-opacity active:opacity-60"
+              >
+                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-ink/65">
+                  Get started
+                </span>
+                <span
+                  aria-hidden
+                  className="relative h-9 w-px overflow-hidden rounded-full bg-ink/15"
+                >
+                  <span className="absolute inset-x-0 h-3 rounded-full bg-ink/55 motion-safe:animate-trace" />
+                </span>
+              </button>
             )}
 
             {(mode === 'skip' || mode === 'express' || mode === 'watch') && (

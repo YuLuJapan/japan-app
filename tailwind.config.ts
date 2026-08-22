@@ -41,11 +41,18 @@ export default {
       keyframes: {
         nudge: {
           '0%, 100%': { transform: 'translateY(0)' },
-          '50%': { transform: 'translateY(5px)' },
+          '50%': { transform: 'translateY(4px)' },
+        },
+        // A short segment falling down a hairline — the quietest way to say
+        // "downwards" without a bouncing arrow.
+        trace: {
+          '0%': { transform: 'translateY(-120%)' },
+          '100%': { transform: 'translateY(320%)' },
         },
       },
       animation: {
-        nudge: 'nudge 1.8s ease-in-out infinite',
+        nudge: 'nudge 2.2s ease-in-out infinite',
+        trace: 'trace 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite',
       },
       // Tailwind v3's default scale stops offering halves after 3.5, so the
       // `px-4.5` the card padding wants silently generates nothing (v4 has it

@@ -7,6 +7,8 @@
 //   express — the same pill, 600ms, leaves fast and settles soft
 //   watch   — plays the sequence in place first, then drops to the content
 //   glass   — a frosted chip with a nudging chevron; skip's motion
+//   hairline — the same motion behind almost nothing: a letterspaced label
+//             over a rule with a segment tracing down it
 //   bar     — a full-width CTA above the tab bar that doubles as a progress
 //             meter for a hand scroll
 //   fold    — the hero shrinks in place instead of travelling
@@ -17,13 +19,15 @@
 import { useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 
-export type HeroMode = 'skip' | 'express' | 'watch' | 'glass' | 'bar' | 'fold' | 'stories'
+export type HeroMode =
+  'skip' | 'express' | 'watch' | 'glass' | 'hairline' | 'bar' | 'fold' | 'stories'
 
 export const HERO_MODES: HeroMode[] = [
   'skip',
   'express',
   'watch',
   'glass',
+  'hairline',
   'bar',
   'fold',
   'stories',
