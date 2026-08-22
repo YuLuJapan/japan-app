@@ -255,6 +255,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   const remove = useDeleteTrip()
 
   const [name, setName] = useState('')
+  const [country, setCountry] = useState('')
   const [sy, setSy] = useState('')
   const [sm, setSm] = useState('')
   const [sd, setSd] = useState('')
@@ -278,6 +279,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
       const start = splitDate(trip.start_date)
       const end = splitDate(trip.end_date)
       setName(trip.name ?? '')
+      setCountry(trip.country ?? '')
       setSy(start.y)
       setSm(start.m)
       setSd(start.d)
@@ -329,7 +331,13 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   }
 
   const save = (found?: TripDateImpact | null) => {
-    const input = { name: name.trim(), start_date: startDate, end_date: endDate, people }
+    const input = {
+      name: name.trim(),
+      country: country.trim(),
+      start_date: startDate,
+      end_date: endDate,
+      people,
+    }
     if (mode !== 'edit') {
       create.mutate(input, { onSuccess: onClose })
       return
@@ -396,21 +404,38 @@ export function TripSheet({ mode, trip, onClose }: Props) {
         <p className="mt-1 text-sm text-muted">
           {mode === 'edit'
             ? 'Change the name, the dates or who is coming.'
-            : 'Name it, set the dates, say who is coming.'}
+            : 'Where and when, and who is coming. The name is optional.'}
         </p>
 
+        <label className="label mt-4 block" htmlFor="trip-country">
+          Country
+        </label>
+        <input
+          id="trip-country"
+          className="field mt-1"
+          placeholder="Japan"
+          value={country}
+          onChange={(e) => setCountry(e.target.value)}
+          maxLength={80}
+        />
+
         <label className="label mt-4 block" htmlFor="trip-name">
-          Destination
+          Name it (optional)
         </label>
         <input
           id="trip-name"
           className="field mt-1"
-          placeholder="Japan"
+          placeholder="Honeymoon"
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={120}
-          required
         />
+        {/* The rule, not a live preview: computing the title here would be a
+            second implementation of server/src/lib/trip-title.ts, and the two
+            would drift. The real one arrives with the very next response. */}
+        <p className="mt-1 text-xs text-muted">
+          Leave it empty and we’ll name it after whoever’s coming and where you’re going.
+        </p>
 
         <span className="label mt-4 block">Starts</span>
         <div className="mt-1 flex gap-2">

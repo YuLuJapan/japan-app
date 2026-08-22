@@ -1,6 +1,11 @@
-// Push subscription registry: one row per device that turned notifications on.
-// The browser hands us an endpoint + two keys; we hand them back to the push
-// service when a reminder fires.
+// Push subscription registry: one row per device that turned notifications on,
+// recorded against the account that turned it on. The browser hands us an
+// endpoint + two keys; we hand them back to the push service when a reminder
+// on one of that account's trips fires.
+//
+// Every function here takes the caller's user id first, in the same spirit as
+// the tripId-first DataStore methods: the scope is an argument, not something
+// the implementation is trusted to remember.
 import type { DataStore, PushSubscriptionInput } from '../lib/datastore.js'
 import { ApiError, notFound, validation } from '../lib/errors.js'
 import { pushConfig, sendPush, type PushSender } from '../lib/push.js'
@@ -24,7 +29,7 @@ function collectSubscriptionErrors(input: Partial<PushSubscriptionInput>): strin
   return errors
 }
 
-export async function registerPushSubscription(store: DataStore, body: unknown) {
+export async function registerPushSubscription(store: DataStore, userId: string, body: unknown) {
   const input = (body ?? {}) as Partial<PushSubscriptionInput>
   const errors = collectSubscriptionErrors(input)
   if (errors.length) throw validation(errors)
@@ -36,6 +41,7 @@ export async function registerPushSubscription(store: DataStore, body: unknown) 
     )
   }
   const subscription = await store.savePushSubscription({
+    user_id: userId,
     endpoint: String(input.endpoint).trim(),
     p256dh: String(input.p256dh).trim(),
     auth: String(input.auth).trim(),
@@ -45,16 +51,19 @@ export async function registerPushSubscription(store: DataStore, body: unknown) 
   return { subscription: { id: subscription.id, label: subscription.label } }
 }
 
-export async function removePushSubscription(store: DataStore, endpoint: unknown) {
+export async function removePushSubscription(store: DataStore, userId: string, endpoint: unknown) {
   const value = String(endpoint ?? '').trim()
   if (!value) throw validation(['endpoint is required'])
-  const ok = await store.deletePushSubscription(value)
+  // Someone else's device answers 404, same as one that was never registered:
+  // there is nothing to confirm to a caller it doesn't belong to.
+  const ok = await store.deletePushSubscription(userId, value)
   if (!ok) throw notFound('Subscription')
 }
 
 /** "Send me one now" — proves the whole chain works before trusting it. */
 export async function sendTestPush(
   store: DataStore,
+  userId: string,
   send: PushSender = sendPush
 ): Promise<{ subscriptions: number; sent: number; failed: number }> {
   if (!pushConfig()) {
@@ -64,7 +73,8 @@ export async function sendTestPush(
       'Push notifications are not configured on the server (missing VAPID keys)'
     )
   }
-  const subscriptions = await store.listPushSubscriptions()
+  // Your own devices only — "send me one now" means me.
+  const subscriptions = await store.listPushSubscriptionsForUsers([userId])
   const result = { subscriptions: subscriptions.length, sent: 0, failed: 0 }
   for (const subscription of subscriptions) {
     const outcome = await send(subscription, {
@@ -76,7 +86,7 @@ export async function sendTestPush(
     if (outcome === 'sent') result.sent++
     else {
       result.failed++
-      if (outcome === 'gone') await store.deletePushSubscription(subscription.endpoint)
+      if (outcome === 'gone') await store.deletePushSubscription(userId, subscription.endpoint)
     }
   }
   return result

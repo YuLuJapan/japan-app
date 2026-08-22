@@ -16,31 +16,45 @@ vi.mock('../api/client', async (importOriginal) => ({
   api: mocks,
 }))
 
-// The deployed database lets trips.name be null, and a row arrived that way —
-// the list used to read name[0] for the card's initial and took the whole app
-// down with it.
-const namelessTrip = {
+// The common shape since 0015: no name override, so the title is the one the
+// server composed from the travellers and the country.
+const unnamedTrip = {
   id: 'trip-1',
   name: null,
+  country: 'Japan',
+  display_title: 'Yuval and Luciana in Japan',
   start_date: '2026-09-18',
   end_date: '2026-10-16',
   description: null,
   people: [{ name: 'Yuval' }, { name: 'Luciana' }],
 }
 
-describe('a trip with no name', () => {
-  it('still lists, without crashing on the card initial', async () => {
-    mocks.get.mockResolvedValue({ trips: [namelessTrip] })
+describe('a trip with no name override', () => {
+  it('lists under its composed title', async () => {
+    mocks.get.mockResolvedValue({ trips: [unnamedTrip] })
     renderAt('/trips', [{ path: '/trips', element: <TripsList /> }])
 
-    expect(await screen.findByText('Untitled trip')).toBeInTheDocument()
+    expect(await screen.findByText('Yuval and Luciana in Japan')).toBeInTheDocument()
   })
 
-  it('keeps the travellers in the hero and drops the "in …" half', async () => {
-    mocks.get.mockResolvedValue({ trip: namelessTrip, steps: [], flight: null })
+  it('accents the country inside the hero title', async () => {
+    mocks.get.mockResolvedValue({ trip: unnamedTrip, steps: [], flight: null })
     renderAt('/trips/trip-1', [{ path: '/trips/:tripId', element: <Journey /> }])
 
-    expect(await screen.findByRole('heading', { name: 'Yuval & Luciana' })).toBeInTheDocument()
-    expect(screen.queryByText(/in null/)).not.toBeInTheDocument()
+    const heading = await screen.findByRole('heading', { name: 'Yuval and Luciana in Japan' })
+    expect(heading).toHaveClass('whitespace-nowrap')
+    expect(screen.getByText('Japan')).toHaveClass('text-brand')
+  })
+
+  it('leaves a name override plain — there is no country at its tail to accent', async () => {
+    mocks.get.mockResolvedValue({
+      trip: { ...unnamedTrip, name: 'Honeymoon', display_title: 'Honeymoon' },
+      steps: [],
+      flight: null,
+    })
+    renderAt('/trips/trip-1', [{ path: '/trips/:tripId', element: <Journey /> }])
+
+    await screen.findByRole('heading', { name: 'Honeymoon' })
+    expect(screen.queryByText('Japan')).not.toBeInTheDocument()
   })
 })

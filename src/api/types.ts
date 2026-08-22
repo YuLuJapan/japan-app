@@ -32,7 +32,14 @@ export interface Traveller {
 
 export interface Trip {
   id: string
-  name: string
+  /** An override, not the title. Null means "use display_title". */
+  name: string | null
+  country: string | null
+  /**
+   * What to show. Computed server-side from the name, the travellers and the
+   * country, so every client agrees — never build this in the UI.
+   */
+  display_title: string
   start_date: string
   end_date: string
   description: string | null

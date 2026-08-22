@@ -1,5 +1,6 @@
 // Datastore interface — every service depends on this, never on a concrete
 // backend. DATA_BACKEND=memory (placeholder JSON, default) | supabase (Phase 8).
+import type { FlightInfo } from './flight.js'
 import type { InviteRole, TripRole } from './permissions.js'
 
 export const CATEGORIES = ['hotel', 'attraction', 'food', 'shopping', 'other'] as const
@@ -109,15 +110,24 @@ export interface TripInviteInput {
 
 export interface Trip {
   id: string
-  name: string
+  /** An override, not the title — see lib/trip-title.ts. Null means "build one". */
+  name: string | null
+  country: string | null
   start_date: string
   end_date: string
   description: string | null
   people: Traveller[]
+  /**
+   * The booking, or null when none is attached. Stored as jsonb and read
+   * through `normalizeFlight` — there is no API to write it yet, so a trip
+   * gets one only by being seeded with it (migration 0017).
+   */
+  flight: FlightInfo | null
 }
 
 export interface TripInput {
-  name: string
+  name?: string | null
+  country?: string | null
   start_date: string
   end_date: string
   description?: string | null
@@ -339,9 +349,14 @@ export interface ReminderInput {
   time_zone?: string | null
 }
 
-/** One browser's push endpoint (one row per installed app / device). */
+/**
+ * One browser's push endpoint (one row per installed app / device), and the
+ * account that registered it. `user_id` is what keeps a reminder from reaching
+ * a phone that has no business with the trip — see `listPushSubscriptionsForUsers`.
+ */
 export interface PushSubscriptionRecord {
   id: string
+  user_id: string
   endpoint: string
   p256dh: string
   auth: string
@@ -350,6 +365,7 @@ export interface PushSubscriptionRecord {
 }
 
 export interface PushSubscriptionInput {
+  user_id: string
   endpoint: string
   p256dh: string
   auth: string
@@ -513,11 +529,28 @@ export interface DataStore {
    */
   claimDueReminders(nowIso: string): Promise<Reminder[]>
 
-  listPushSubscriptions(): Promise<PushSubscriptionRecord[]>
-  /** Upsert by endpoint — re-subscribing the same device refreshes its keys. */
+  /**
+   * Every device belonging to any of these accounts. There is deliberately no
+   * unscoped `listPushSubscriptions()`: dispatch used to call one, which is
+   * how every due reminder reached every registered device regardless of whose
+   * trip it was. Asking for a specific set of people makes that mistake
+   * unavailable rather than merely discouraged.
+   *
+   * An empty list returns no rows — never everything.
+   */
+  listPushSubscriptionsForUsers(userIds: readonly string[]): Promise<PushSubscriptionRecord[]>
+  /**
+   * Upsert by endpoint — re-subscribing the same device refreshes its keys,
+   * and re-stamps the account, so a device that changes hands follows the
+   * person now signed in.
+   */
   savePushSubscription(input: PushSubscriptionInput): Promise<PushSubscriptionRecord>
-  /** Drop a device (user disabled notifications, or the push service said 410 Gone). */
-  deletePushSubscription(endpoint: string): Promise<boolean>
+  /**
+   * Drop a device (its owner disabled notifications, or the push service said
+   * 410 Gone). Scoped to the account, so one person can never unregister
+   * another's phone by naming its endpoint.
+   */
+  deletePushSubscription(userId: string, endpoint: string): Promise<boolean>
 }
 
 let store: DataStore | null = null

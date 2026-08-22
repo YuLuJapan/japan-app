@@ -10,7 +10,7 @@ import { Schedule } from '../components/Schedule'
 import { SushiSequence } from '../components/SushiSequence'
 import { enumerateDays, toISODate } from '../lib/schedule'
 import { useCanEdit, useCanSeeBookings } from '../lib/session'
-import { travellersLabel, useTripId } from '../lib/trip'
+import { useTripId } from '../lib/trip'
 
 const fmt = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString('en', { month: 'short', day: 'numeric' })
@@ -32,35 +32,30 @@ export default function Journey() {
   if (isError) return <ErrorState message="Could not load the trip." onRetry={() => refetch()} />
 
   const today = new Date()
-  // The name is what the server promises, not what the row always holds — a
-  // trip whose name is missing keeps the travellers and drops the "in …" half
-  // rather than rendering the word "null".
-  const destination = data.trip.name?.trim() || null
-  const japan = isJapanTrip(destination ?? '')
+  const japan = isJapanTrip(data.trip.country ?? data.trip.name ?? '')
   const hasSteps = data.steps.length > 0
-  // "Yuval & Luciana in Japan" — travellers and destination are stored
-  // separately (trip.name is just the destination) and composed here, same as
-  // the design prototype's travellersLabel + tripName.
-  const travellers = travellersLabel(data.trip.people)
-  const heroTitle = destination ? `${travellers} in ${destination}` : travellers
+  // "Yuval and Luciana in Japan" — composed on the server now (display_title),
+  // so every screen and every client agree on what a trip is called. This used
+  // to be built here from trip.name plus travellersLabel, which meant the title
+  // differed depending on which screen you were looking at.
+  const heroTitle = data.trip.display_title
+  // Where the trip is going, accented inside that title. HeroTitle only
+  // colours it when the composed title actually ends in it, so an explicit
+  // name override ("Honeymoon") stays plain.
+  const destination = data.trip.country ?? undefined
 
   return (
     <div className="space-y-6">
       {japan ? (
         <SushiSequence
           title={heroTitle}
-          destination={destination ?? undefined}
+          destination={destination}
           meta={`${fmt(data.trip.start_date)} – ${fmt(data.trip.end_date)} · ${data.steps.length} stops`}
         />
       ) : (
         <div>
           <p className="section-title">Our trip</p>
-          <HeroTitle
-            title={heroTitle}
-            destination={destination ?? undefined}
-            max={34}
-            className="mt-1"
-          />
+          <HeroTitle title={heroTitle} destination={destination} max={34} className="mt-1" />
           <p className="mt-1.5 text-sm text-muted">
             {fmt(data.trip.start_date)} – {fmt(data.trip.end_date)} · {data.steps.length} stops
           </p>

@@ -34,6 +34,8 @@ const TRIP_BUNDLE = {
   trip: {
     id: 'trip-1',
     name: 'Japan',
+    country: 'Japan',
+    display_title: 'Japan',
     start_date: '2026-09-23',
     end_date: '2026-09-27',
     description: null,
