@@ -37,11 +37,24 @@ footage the way a naive cut-out does:
    known block, then blurred — the wall is a smooth gradient, so this is
    accurate to a couple of levels), and the mix is solved for `F`.
 
-3. **Temporal smoothing.** Masks are computed per frame with no knowledge of
+3. **The drop shadow is kept.** rembg calls the shadow background and cuts it
+   away, which leaves the nigiri floating with nothing under it. A shadow is
+   multiplicative — it darkens whatever it falls on — and a pure black layer at
+   alpha `1 - ratio` composites to `background * ratio` over *any* colour, so
+   the studio shadow can be carried in the same RGBA frame and will darken the
+   app's canvas exactly as it darkened the wall. Recovering `ratio` needs the
+   wall as it would look unshadowed, which the decontamination estimate is no
+   use for (it is a local mean, so it has the shadow baked into it). Instead a
+   low-order polynomial is fitted to the background — the wall is a smooth
+   gradient, so a cubic describes it well — re-fitted a few times while
+   dropping the dark tail, which is how the shadow itself stays out of its own
+   reference.
+
+4. **Temporal smoothing.** Masks are computed per frame with no knowledge of
    the neighbours, so an edge pixel can flip between frames and the silhouette
-   crawls during the scrub. Each frame's alpha is the per-pixel median of
-   itself and its two neighbours, which removes the single-frame flips without
-   softening a genuinely moving edge.
+   crawls during the scrub. Each frame's alpha and shadow are the per-pixel
+   median of themselves and their two neighbours, which removes the
+   single-frame flips without softening a genuinely moving edge.
 """
 
 import argparse
@@ -74,6 +87,14 @@ FLOOR = 6 / 255
 # divisor under-corrects the faintest pixels — which are barely visible anyway —
 # instead of inventing colour for them.
 UNMIX_FLOOR = 0.15
+# Below this the "shadow" is JPEG noise and a wall the polynomial did not fit
+# perfectly, not a shadow. Subtracted as a soft knee rather than a hard cut, so
+# the shadow's outer falloff stays smooth.
+SHADOW_FLOOR = 0.035
+# Luminance weights: the shadow is read off brightness, since a studio shadow
+# darkens the wall rather than tinting it.
+LUMA = np.array([0.299, 0.587, 0.114], dtype=np.float32)
+
 # Size of the blocks the backdrop estimate is built from. Small enough to
 # follow the wall's gradient, large enough that each block still contains
 # backdrop pixels near the food.
@@ -118,6 +139,58 @@ def estimate_backdrop(rgb: np.ndarray, alpha: np.ndarray) -> np.ndarray:
         dtype=np.float32,
     )
     return full[:h, :w]
+
+
+_BASIS: dict[tuple[int, int], np.ndarray] = {}
+
+
+def poly_basis(h: int, w: int, degree: int = 3) -> np.ndarray:
+    """Design matrix for a 2D polynomial over the frame, cached across frames."""
+    key = (h, w)
+    if key not in _BASIS:
+        yy, xx = np.mgrid[0:h, 0:w]
+        x = (xx / w - 0.5).astype(np.float32)
+        y = (yy / h - 0.5).astype(np.float32)
+        terms = [x**i * y**j for i in range(degree + 1) for j in range(degree + 1 - i)]
+        _BASIS[key] = np.stack([t.ravel() for t in terms], axis=1)
+    return _BASIS[key]
+
+
+def extract_shadow(rgb: np.ndarray, alpha: np.ndarray) -> np.ndarray:
+    """How much darker than the bare wall each background pixel is, in [0, 1]."""
+    h, w, _ = rgb.shape
+    basis = poly_basis(h, w)
+    luma = (rgb @ LUMA).ravel()
+    background = (alpha < FLOOR).ravel()
+    if background.sum() < basis.shape[1] * 8:
+        return np.zeros((h, w), dtype=np.float32)
+
+    keep = background.copy()
+    wall = None
+    for _ in range(4):
+        # Every 7th pixel is plenty to fit ten coefficients and keeps the solve
+        # small enough to run 4 times per frame.
+        sample = np.nonzero(keep)[0][::7]
+        if sample.size < basis.shape[1] * 4:
+            break
+        coef, *_ = np.linalg.lstsq(basis[sample], luma[sample], rcond=None)
+        wall = basis @ coef
+        residual = luma - wall
+        # The shadow is the dark tail. Dropping it and re-fitting is what stops
+        # the shadow from dragging its own reference down towards itself.
+        keep = background & (residual > -0.6 * residual[background].std())
+    if wall is None:
+        return np.zeros((h, w), dtype=np.float32)
+
+    density = 1.0 - luma / np.maximum(wall, 1e-3)
+    density = np.where(background, density, 0.0).reshape(h, w)
+    # Soft knee: subtract the noise floor and rescale, so a real shadow keeps
+    # its shape instead of being clipped flat at the edges.
+    density = (density - SHADOW_FLOOR) / (1.0 - SHADOW_FLOOR)
+    density = np.clip(density, 0.0, 1.0)
+    # A cast shadow has no fine detail; blurring costs nothing and takes the
+    # last of the JPEG mottle out of it.
+    return ndimage.gaussian_filter(density, sigma=2.0, mode='nearest')
 
 
 def decontaminate(rgb: np.ndarray, alpha: np.ndarray) -> np.ndarray:
@@ -171,16 +244,36 @@ def main() -> int:
     # exists, so the loop runs one frame behind and flushes at the end.
     frames: list[np.ndarray] = []
     masks: list[np.ndarray] = []
+    shadows: list[np.ndarray] = []
+
+    def smoothed(series: list[np.ndarray], i: int) -> np.ndarray:
+        window = series[max(0, i - 1) : i + 2]
+        return np.median(np.stack(window), axis=0) if len(window) > 1 else series[i]
 
     def emit(i: int) -> None:
         nonlocal total, width, height
-        window = masks[max(0, i - 1) : i + 2]
-        alpha = np.median(np.stack(window), axis=0) if len(window) > 1 else masks[i]
+        alpha = smoothed(masks, i)
+        shadow = smoothed(shadows, i)
         rgb = decontaminate(frames[i], alpha)
 
+        food = np.where(alpha < FLOOR, 0.0, alpha)
+        # The food layer composited over the shadow layer, which is black at
+        # `shadow` alpha. Where the food is solid this leaves it exactly as it
+        # was; where there is no food it leaves black at the shadow's own
+        # alpha, which multiplies whatever the page puts behind it.
+        combined = food + shadow * (1.0 - food)
+        premultiplied = rgb * food[..., None]
+
         out = np.empty((*alpha.shape, 4), dtype=np.uint8)
-        out[..., :3] = np.rint(rgb).astype(np.uint8)
-        out[..., 3] = np.rint(np.where(alpha < FLOOR, 0.0, alpha) * 255).astype(np.uint8)
+        out[..., :3] = np.rint(
+            np.divide(
+                premultiplied,
+                combined[..., None],
+                out=np.zeros_like(premultiplied),
+                where=combined[..., None] > 0,
+            )
+        ).astype(np.uint8)
+        out[..., 3] = np.rint(combined * 255).astype(np.uint8)
 
         image = Image.fromarray(out, 'RGBA')
         buf = io.BytesIO()
@@ -203,13 +296,17 @@ def main() -> int:
         with Image.open(src) as image:
             rgb = image.convert('RGB')
             frames.append(np.asarray(rgb, dtype=np.float32))
-            masks.append(np.asarray(remove(rgb, session=session, only_mask=True), dtype=np.float32) / 255)
+            masks.append(
+                np.asarray(remove(rgb, session=session, only_mask=True), dtype=np.float32) / 255
+            )
+            shadows.append(extract_shadow(frames[-1], masks[-1]))
         if n:
             emit(n - 1)
         # Only the previous, current and next frame are ever needed.
         if n >= 2:
             frames[n - 2] = None  # type: ignore[call-overload]
             masks[n - 2] = None  # type: ignore[call-overload]
+            shadows[n - 2] = None  # type: ignore[call-overload]
         if (n + 1) % 25 == 0:
             print(f'  {n + 1}/{len(sources)}', flush=True)
     emit(len(sources) - 1)
