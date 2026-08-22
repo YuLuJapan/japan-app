@@ -46,7 +46,11 @@ describe('DocumentPreview page', () => {
     renderPreview()
 
     expect(await screen.findByTitle('Flight ticket')).toHaveAttribute('src', 'blob:preview')
-    expect(mocks.blob).toHaveBeenCalledWith('/files/file-1/content')
+    // Trip-scoped, like every other content call. This assertion used to name
+    // the flat path, which is why phase 3a-ii deleting that route left the
+    // preview broken in production with a green suite: the test was pinning
+    // the bug rather than the behaviour.
+    expect(mocks.blob).toHaveBeenCalledWith('/trips/trip-1/files/file-1/content')
     expect(screen.getByRole('link', { name: 'Download' })).toHaveAttribute(
       'download',
       'Flight ticket.pdf'

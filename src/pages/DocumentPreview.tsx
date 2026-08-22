@@ -48,7 +48,7 @@ type ContentState =
   { status: 'loading' } | { status: 'ready'; url: string } | { status: 'error'; message: string }
 
 /** Fetch the blob once and expose it as an object URL, revoked on unmount. */
-function useFileContent(fileId: string): ContentState {
+function useFileContent(tripId: string, fileId: string): ContentState {
   const [state, setState] = useState<ContentState>({ status: 'loading' })
 
   useEffect(() => {
@@ -57,7 +57,7 @@ function useFileContent(fileId: string): ContentState {
     setState({ status: 'loading' })
 
     api
-      .blob(`/files/${fileId}/content`)
+      .blob(`/trips/${tripId}/files/${fileId}/content`)
       .then((blob) => {
         if (cancelled) return
         objectUrl = URL.createObjectURL(blob)
@@ -78,7 +78,7 @@ function useFileContent(fileId: string): ContentState {
       cancelled = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [fileId])
+  }, [tripId, fileId])
 
   return state
 }
@@ -128,7 +128,7 @@ export default function DocumentPreview() {
   const navigate = useNavigate()
   const tripId = useTripId()
   const { data, isPending, isError, refetch } = useTripFiles(tripId)
-  const content = useFileContent(fileId)
+  const content = useFileContent(tripId, fileId)
 
   if (isPending) return <Loading />
   if (isError) return <ErrorState message="Could not load documents." onRetry={() => refetch()} />

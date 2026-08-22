@@ -6,7 +6,7 @@
 // device frame. If the app changes, re-running this changes the video — which
 // is the point of capturing rather than drawing.
 import { chromium, devices } from 'playwright'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -35,12 +35,44 @@ const SHOTS = [
   { name: 'schedule', url: `/trips/${TRIP}/journey/edit`, wait: 'body' },
   { name: 'shopping', url: `/trips/${TRIP}/shopping`, wait: 'body' },
   { name: 'reminders', url: `/trips/${TRIP}/reminders`, wait: 'body' },
-  { name: 'documents', url: `/trips/${TRIP}/files`, wait: 'body' },
+  { name: 'documents', url: `/trips/${TRIP}/files`, wait: 'text=Trip documents' },
+  // The document open, not just listed — "your papers travel with you" only
+  // lands if you see one of them on screen.
+  { name: 'document-open', url: `/trips/${TRIP}/files/file-flight`, wait: 'body' },
   { name: 'members', url: `/trips/${TRIP}/members`, wait: 'text=Who' },
   { name: 'essentials', url: `/trips/${TRIP}/essentials`, wait: 'body' },
 ]
 
 const settle = (page, ms = 900) => page.waitForTimeout(ms)
+
+/**
+ * The app's typefaces, inlined.
+ *
+ * index.html loads them from Google Fonts, which this container cannot reach —
+ * so every capture was quietly falling back to a system sans, and the video
+ * would have shown a product that isn't quite the product. The same woff2
+ * files the composition uses are injected as data URLs instead.
+ */
+async function inlineBrandFonts(context) {
+  const dir = fileURLToPath(new URL('../public/fonts/', import.meta.url))
+  const faces = await Promise.all(
+    [
+      ['Outfit', 'Outfit.woff2'],
+      ['Plus Jakarta Sans', 'PlusJakartaSans.woff2'],
+    ].map(async ([family, file]) => {
+      const b64 = (await readFile(path.join(dir, file))).toString('base64')
+      return `@font-face{font-family:'${family}';font-display:block;font-weight:100 900;` +
+        `src:url(data:font/woff2;base64,${b64}) format('woff2')}`
+    })
+  )
+  await context.addInitScript((css) => {
+    document.addEventListener('DOMContentLoaded', () => {
+      const style = document.createElement('style')
+      style.textContent = css
+      document.head.appendChild(style)
+    })
+  }, faces.join(''))
+}
 
 async function main() {
   await mkdir(OUT, { recursive: true })
@@ -58,6 +90,7 @@ async function main() {
       ],
     },
   })
+  await inlineBrandFonts(context)
   // Animations that never settle make a still look half-drawn.
   await context.addInitScript(() => {
     // eslint-disable-next-line no-undef

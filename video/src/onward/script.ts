@@ -73,9 +73,15 @@ export const SCRIPT: Line[] = [
     text: 'Your bookings and documents stay yours until you say otherwise.',
     screen: 'documents',
     seconds: 45.4,
-    focus: 0,
+    focus: 0.1,
   },
-  { text: 'Onward. Your whole trip, in one place.', screen: null, seconds: 50.4 },
+  {
+    text: 'And every one of them opens without leaving the app.',
+    screen: 'document-open',
+    seconds: 49.6,
+    focus: 0.06,
+  },
+  { text: 'Onward. Your whole trip, in one place.', screen: null, seconds: 53.6 },
 ]
 
 /** How long the closing card holds after its line, in seconds. */

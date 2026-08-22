@@ -73,6 +73,52 @@ const DEMO_FLIGHT = {
 }
 
 /**
+ * Documents, with the real booking taken out.
+ *
+ * The seed's flight document is the travellers' own e-ticket — filename,
+ * airline and reference included — which is exactly the sort of thing a
+ * product video must not publish. It is replaced by a fictional receipt that
+ * really opens (scripts/make-demo-pdf.mjs generated it), and the two
+ * "(placeholder)" suffixes are dropped, because a video is not the place to
+ * advertise that the fixtures are fixtures.
+ */
+const DEMO_FILES = [
+  {
+    id: 'file-flight',
+    trip_id: 'trip-japan',
+    zone_id: null,
+    place_id: null,
+    display_name: 'Flight booking — Pacific Air (DEMO42)',
+    // An image, not a PDF: the preview renders images inline, while a PDF is
+    // handed to Chromium's own viewer — toolbar, zoom controls and all — which
+    // fills a phone frame with browser chrome instead of a document.
+    storage_path: 'placeholder-files/booking-demo42.png',
+    mime_type: 'image/png',
+    size_bytes: 138405,
+  },
+  {
+    id: 'file-map',
+    trip_id: null,
+    zone_id: 'zone-kyoto',
+    place_id: null,
+    display_name: 'Kyoto walking map',
+    storage_path: 'placeholder-files/kyoto-walking-map.svg',
+    mime_type: 'image/svg+xml',
+    size_bytes: 904,
+  },
+  {
+    id: 'file-hotel',
+    trip_id: null,
+    zone_id: 'zone-hakone',
+    place_id: null,
+    display_name: 'Hakone Yutowa — reservation',
+    storage_path: 'placeholder-files/hotel-reservation.pdf',
+    mime_type: 'application/pdf',
+    size_bytes: 776,
+  },
+]
+
+/**
  * The shipped placeholder trip, plus the two accounts it belongs to. The
  * content is the real thing — that JSON is the seed the live database was
  * built from — so the footage shows the actual app, not a mock of it. Only
@@ -85,6 +131,7 @@ function demoData(): MemoryData {
   return {
     ...data,
     trips: data.trips.map((t) => ({ ...t, flight: DEMO_FLIGHT })),
+    files: DEMO_FILES,
     profiles: [DEMO_USER, PARTNER].map(({ email_confirmed: _c, ...p }) => p),
     members: [
       { trip_id: 'trip-japan', user_id: DEMO_USER.id, role: 'owner', ...full },
