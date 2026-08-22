@@ -27,10 +27,13 @@ import type {
 export const useTrips = () =>
   useQuery({ queryKey: ['trips'], queryFn: () => api.get<{ trips: Trip[] }>('/trips') })
 
+// `enabled` on the trip-scoped hooks: the trip sheet mounts before there is a
+// trip (adding one), and firing `/trips//…` would 404 on every keystroke.
 export const useTrip = (tripId: string) =>
   useQuery({
     queryKey: ['trip', tripId],
     queryFn: () => api.get<TripBundle>(`/trips/${tripId}`),
+    enabled: !!tripId,
   })
 
 export const useItinerary = (tripId: string) =>
@@ -157,12 +160,14 @@ export const useTripMembers = (tripId: string) =>
   useQuery({
     queryKey: ['members', tripId],
     queryFn: () => api.get<{ members: TripMember[] }>(`/trips/${tripId}/members`),
+    enabled: !!tripId,
   })
 
 export const useTripInvites = (tripId: string) =>
   useQuery({
     queryKey: ['invites', tripId],
     queryFn: () => api.get<{ invites: TripInvite[] }>(`/trips/${tripId}/invites`),
+    enabled: !!tripId,
   })
 
 /**
