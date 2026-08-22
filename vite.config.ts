@@ -50,7 +50,7 @@ export default defineConfig({
           {
             // Homepage sushi frames: cache once rather than re-fetching several
             // MB every time the app is opened. (Not precached: Workbox's glob
-            // doesn't include .jpg, so the install stays small and these fill
+            // doesn't include .webp, so the install stays small and these fill
             // in on first visit.)
             //
             // Safe under CacheFirst only because each URL carries the asset
