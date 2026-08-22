@@ -14,7 +14,7 @@ import { productUrlRouter } from './routes/producturl.js'
 import { pushRouter } from './routes/push.js'
 import { ratesRouter } from './routes/rates.js'
 import { remindersRouter, remindersTripRouter } from './routes/reminders.js'
-import { searchRouter } from './routes/search.js'
+import { searchRouter, searchTripRouter } from './routes/search.js'
 import { shoppingRouter, shoppingTripRouter } from './routes/shopping.js'
 import { stepsRouter, stepsTripRouter } from './routes/steps.js'
 import { tipsRouter, tipsTripRouter } from './routes/tips.js'
@@ -42,6 +42,7 @@ export function tripScopedRouter() {
   router.use(shoppingTripRouter)
   router.use(remindersTripRouter)
   router.use(filesTripRouter)
+  router.use(searchTripRouter)
   // Last: its '/' routes would otherwise swallow nothing, but keeping the
   // bundle after the sub-resources makes the nesting read top-down.
   router.use(tripDetailRouter)

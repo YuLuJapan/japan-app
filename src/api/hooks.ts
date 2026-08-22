@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from './client'
-import { useTripPath } from './tripPath'
+import { useTripId, useTripPath } from './tripPath'
 import type {
   Category,
   GeocodeResult,
@@ -139,14 +139,13 @@ export const fetchTranslation = (text: string) =>
 /** Kana, kanji or full-width punctuation — mirrors the server's check. */
 export const containsJapanese = (text: string) => /[぀-ゟ゠-ヿ㐀-䶿一-鿿＀-ﾟ]/.test(text)
 
-/**
- * Search stays flat for now: it spans the whole catalog rather than one trip,
- * and is scoped by zone reachability server-side (services/search.ts). Phase 3b
- * moves it under the trip along with the rest of the zone scoping.
- */
-export const useSearch = (query: string) =>
-  useQuery({
-    queryKey: ['search', query],
-    queryFn: () => api.get<{ results: SearchResult[] }>(`/search?q=${encodeURIComponent(query)}`),
+export const useSearch = (query: string) => {
+  const path = useTripPath()
+  const tripId = useTripId()
+  return useQuery({
+    queryKey: ['search', tripId, query],
+    queryFn: () =>
+      api.get<{ results: SearchResult[] }>(path(`/search?q=${encodeURIComponent(query)}`)),
     enabled: query.trim().length >= 2,
   })
+}

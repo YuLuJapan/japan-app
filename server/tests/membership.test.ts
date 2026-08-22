@@ -118,6 +118,22 @@ describe('a non-member reaches nothing', () => {
     await request(app).get('/api/places/place-hotel').set(as('outsider.jwt')).expect(404)
   })
 
+  // Regression: search reached across every trip until phase 3a-ii. The titles
+  // it returns are place names, zone names and the first 80 characters of a
+  // tip, so this was readable notes, not just ids.
+  it('returns no results from a trip that is not theirs', async () => {
+    const res = await request(app).get('/api/search?q=Hotel').set(as('outsider.jwt'))
+    expect(res.status).toBe(200)
+    expect(res.body.results).toEqual([])
+  })
+
+  it('leaks neither tip text nor zone names through search', async () => {
+    const tips = await request(app).get('/api/search?q=Suica').set(as('outsider.jwt'))
+    expect(tips.body.results).toEqual([])
+    const zones = await request(app).get('/api/search?q=Tokyo').set(as('outsider.jwt'))
+    expect(zones.body.results).toEqual([])
+  })
+
   it('refuses to create a place in someone else’s zone', async () => {
     await request(app)
       .post('/api/places')
@@ -127,6 +143,8 @@ describe('a non-member reaches nothing', () => {
   })
 
   it('lets the member through the same doors', async () => {
+    const search = await request(app).get('/api/search?q=Hotel').set(as('owner.jwt'))
+    expect(search.body.results).toHaveLength(1)
     await request(app).get('/api/trips/trip-1').set(as('owner.jwt')).expect(200)
     await request(app).get('/api/zones/zone-tokyo').set(as('owner.jwt')).expect(200)
     await request(app).get('/api/places/place-hotel').set(as('owner.jwt')).expect(200)
