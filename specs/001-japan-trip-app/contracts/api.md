@@ -171,8 +171,10 @@ The caller's trips, oldest first (powers the "Where to next?" trips list). An ac
 
 ### POST /api/trips
 
-- Request: `{"name":"…","start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","description?":"…","people?":[{"name":"…","email?":"…"} | "…"]}`
-- 201: `{"trip": {…}}` · 400 `VALIDATION` (missing/blank name, bad dates, end before start, name/description too long, more than 12 travellers, a traveller missing a name, a traveller name too long, or an `email` that isn't a valid address).
+- Request: `{"name":"…","start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","description?":"…","people?":[{"name":"…","email?":"…"} | "…"],"local_currency?":"THB","home_currencies?":["USD","ILS"]}`
+- 201: `{"trip": {…}}` · 400 `VALIDATION` (missing/blank name, bad dates, end before start, name/description too long, more than 12 travellers, a traveller missing a name, a traveller name too long, an `email` that isn't a valid address, or a currency outside the supported list).
+
+> **The trip's currencies (2026-08-22, migration 0019)**: every trip carries `local_currency` (what money is spent at the destination) and `home_currencies` (1–3 codes to convert it into) — the two sides of the exchange calculator, which was hard-coded to JPY → USD/ILS before. Both are optional on write and default to exactly that, so an older client creates a trip that behaves as it always did. Codes are validated against `server/src/lib/currencies.ts` (the same list `GET /api/currencies` serves the pickers), uppercased and de-duplicated on the way in; `home_currencies` must hold between 1 and 3 of them. Both are ordinary trip fields — `PATCH /api/trips/:tripId` changes them, and they are never withheld by a member's view.
 
 > **`my_role` and `shows` (2026-08-22)**: the trip bundle (`GET /api/trips/:tripId`) carries `"my_role": "owner" | "partner" | "viewer"` — what this caller may do here — and `"shows": {"stays":bool,"flight":bool,"documents":bool}` — what they are shown. `POST /api/trips` carries `my_role` and always makes its creator an `owner`. Both drive which buttons the UI offers and how it explains an absence; neither is ever what decides whether a request succeeds.
 
@@ -448,7 +450,7 @@ Reads a shop's own product page so an item can be added by pasting its link. Par
 - **Prices** are looked for in four places, in descending order of trust: OG/product meta, schema.org JSON-LD, numbers under price-ish keys in embedded JSON (shops that price client-side, Uniqlo among them, publish no meta tag but ship the number in the page), and finally visible `¥1,500` / `1,500円` text with free-shipping thresholds ("¥5,000以上…") filtered out.
 - 400 `VALIDATION` for a non-http(s) scheme, an unparseable URL, or an address inside our own network (see below).
 - **A page it can't read is not an error**: unreachable host, non-HTML response, or no useful tags → 200 with the fields it couldn't fill set to `null`, so the form still keeps the link.
-- **Prices**: JPY is taken as-is; USD and ILS are converted with `GET /api/rates`; any other currency comes back as `price_yen: null` plus a `price_note` rather than a guess. A price with no stated currency on a Japanese shop is treated as yen.
+- **Prices**: JPY is taken as-is; any other currency `GET /api/rates` quotes against JPY is converted (USD and ILS were the only two before 0019); anything it doesn't quote comes back as `price_yen: null` plus a `price_note` rather than a guess. A price with no stated currency on a Japanese shop is treated as yen.
 - **Fetching a URL the client chose is guarded** (this runs inside our own network): http(s) only; hostnames and resolved addresses in loopback/private/link-local ranges are refused (which covers names like `localtest.me` that resolve to `127.0.0.1`, and the `169.254.169.254` cloud-metadata address); redirects are followed manually, max 3, each hop re-checked; 6s timeout; the read stops after 512 KB. Only parsed fields are returned — never the page body.
 
 ### GET /api/translate?q=クルーネックT
@@ -458,6 +460,24 @@ Japanese → English, for product names read off Japanese shop pages and for any
 - `q` required → else 400 `VALIDATION`.
 - 200: `{"text":"…(as given)","is_japanese":true,"translated":"Crew Neck T-Shirt"|null}`
 - `translated` is `null` — never an error — when the text isn't Japanese, the service is down or over quota, or it echoed the input back. Callers keep the original in that case.
+
+## Money
+
+### GET /api/rates?base=JPY&symbols=USD,ILS
+
+Today's exchange rate for the calculator on the Essentials screen. Both parameters are optional: `base` defaults to `JPY` (what every trip was before the currency could be chosen) and no `symbols` means every rate the provider quotes. Callers pass the trip's `local_currency` and `home_currencies`.
+
+- 200: `{"base":"JPY","date":"2026-08-01","rates":{"USD":0.0067,"ILS":0.025},"missing":[]}` — each rate is **1 unit of `base`** in that currency.
+- `missing` names requested codes the provider had no rate for today, so the UI can say so instead of showing a blank card.
+- 400 `VALIDATION` for a `base` or `symbol` outside the supported list (`server/src/lib/currencies.ts`).
+- **Never fails on the provider's behalf when it can help it.** Rates come from open.er-api.com (keyless, free — the $0 constraint) and every successful fetch is written to `exchange_rates`, one row per base currency. A failed fetch falls back to that stored row, then to the ~6h in-process cache; only a cold start with no stored rate for that base is an error.
+
+### GET /api/currencies
+
+The currencies a trip can be priced in, and the guess to make from a country. Static, but served rather than duplicated in the client — the list filling the trip sheet's pickers is the same one that validates what they save.
+
+- 200: `{"currencies":[{"code":"USD","name":"US Dollar"},…],"by_country":{"japan":"JPY","thailand":"THB",…}}`
+- `by_country` is keyed by lowercased country name and is a **hint only**: the trip sheet pre-fills the currency from the country until the traveller picks one themselves.
 
 ## Files
 

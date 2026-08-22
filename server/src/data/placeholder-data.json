@@ -54,7 +54,9 @@
             }
           ]
         }
-      }
+      },
+      "local_currency": "JPY",
+      "home_currencies": ["USD", "ILS"]
     }
   ],
   "steps": [

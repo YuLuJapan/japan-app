@@ -6,6 +6,12 @@ import { normalizeTraveller } from '../lib/datastore.js'
 import { assertTripAccess, roleForTrip, type AccessContext } from '../lib/access.js'
 import { canDeleteTrip, canEditTrip } from '../lib/permissions.js'
 import { forbidden, notFound, validation } from '../lib/errors.js'
+import {
+  DEFAULT_HOME_CURRENCIES,
+  DEFAULT_LOCAL_CURRENCY,
+  MAX_HOME_CURRENCIES,
+  normalizeCurrency,
+} from '../lib/currencies.js'
 import { displayTitle } from '../lib/trip-title.js'
 import { FULL_VIEW, hideStayCounts, type TripView } from '../lib/trip-view.js'
 import type { DateRange } from '../lib/trip-dates.js'
@@ -108,6 +114,12 @@ function cleanPeople(people: unknown[] | undefined) {
     .filter((p) => p.name)
 }
 
+/** Uppercased, de-duplicated — the shape the store and the calculator expect. */
+function cleanHomeCurrencies(codes: string[] | undefined): string[] | undefined {
+  if (codes === undefined) return undefined
+  return [...new Set(codes.map((c) => normalizeCurrency(c)).filter((c): c is string => !!c))]
+}
+
 function collectTripErrors(input: Partial<TripInput>, partial: boolean): string[] {
   const errors: string[] = []
   const has = (k: keyof TripInput) => input[k] !== undefined
@@ -139,6 +151,19 @@ function collectTripErrors(input: Partial<TripInput>, partial: boolean): string[
     input.end_date < input.start_date
   ) {
     errors.push('end_date must be on or after start_date')
+  }
+  if (has('local_currency') && input.local_currency != null) {
+    if (!normalizeCurrency(input.local_currency))
+      errors.push('local_currency must be a supported 3-letter currency code')
+  }
+  if (has('home_currencies') && input.home_currencies != null) {
+    const codes = input.home_currencies
+    if (!Array.isArray(codes)) errors.push('home_currencies must be an array of currency codes')
+    else if (!codes.length) errors.push('home_currencies must list at least one currency')
+    else if (codes.length > MAX_HOME_CURRENCIES)
+      errors.push(`home_currencies must list at most ${MAX_HOME_CURRENCIES} currencies`)
+    else if (codes.some((c) => !normalizeCurrency(c)))
+      errors.push('home_currencies must be supported 3-letter currency codes')
   }
   if (has('description') && input.description != null && input.description.length > 2000)
     errors.push('description must be at most 2000 characters')
@@ -291,6 +316,10 @@ export async function createTrip(
     end_date: input.end_date!,
     description: input.description?.trim() || null,
     people: cleanPeople(input.people) ?? [],
+    // Unset means the pair the calculator always had, so an old client that
+    // doesn't know about currencies still creates a usable trip.
+    local_currency: normalizeCurrency(input.local_currency) ?? DEFAULT_LOCAL_CURRENCY,
+    home_currencies: cleanHomeCurrencies(input.home_currencies) ?? [...DEFAULT_HOME_CURRENCIES],
   })
   // Whoever creates a trip owns it. Without this the trip would have no
   // members at all, which makes it invisible to everyone including its author
@@ -361,6 +390,10 @@ export async function updateTrip(
   if (clean.country !== undefined) clean.country = clean.country?.trim() || null
   if (clean.description !== undefined) clean.description = clean.description?.trim() || null
   if (clean.people !== undefined) clean.people = cleanPeople(clean.people)
+  if (clean.local_currency !== undefined)
+    clean.local_currency = normalizeCurrency(clean.local_currency) ?? DEFAULT_LOCAL_CURRENCY
+  if (clean.home_currencies !== undefined)
+    clean.home_currencies = cleanHomeCurrencies(clean.home_currencies)
   const trip = await store.updateTrip(tripId, clean)
   if (!trip) throw notFound('Trip')
 

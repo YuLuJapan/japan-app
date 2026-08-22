@@ -81,7 +81,10 @@ export default function ShoppingList() {
           </div>
           {budget > 0 && (
             <p className="mt-2.5 text-xs text-muted">
-              {rates ? `≈ ${ilsFmt.format(budget * rates.ils)}` : priceLabel(budget)} still to spend
+              {rates?.rates?.ILS
+                ? `≈ ${ilsFmt.format(budget * rates.rates.ILS)}`
+                : priceLabel(budget)}{' '}
+              still to spend
             </p>
           )}
         </div>
