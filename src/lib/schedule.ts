@@ -45,9 +45,40 @@ export function isTravelDay(steps: TripStep[], day: string): boolean {
   return zones.size > 1
 }
 
-/** The dates whose primary city is this zone (its nights + a final-day stay). */
+/**
+ * Every date this zone touches: its nights, plus the moving day it shares with the
+ * neighbouring city (you're still here in the morning of a checkout day, and already
+ * here on the afternoon of an arrival day). A moving day therefore appears on *both*
+ * cities' pages — `movingDay` says which way it goes so the UI can flag it.
+ */
 export function zoneDays(steps: TripStep[], zoneId: string, allDays: string[]): string[] {
-  return allDays.filter((d) => primaryStep(steps, d)?.zone?.id === zoneId)
+  return allDays.filter((d) => coveringSteps(steps, d).some((s) => s.zone?.id === zoneId))
+}
+
+/**
+ * How `day` moves in or out of `zoneId`, or null when the day is spent wholly in this
+ * city (or doesn't touch it at all). `from` is the city you arrive from, `to` the city
+ * you leave for; a day that only passes through this one carries both.
+ */
+export function movingDay(
+  steps: TripStep[],
+  zoneId: string,
+  day: string
+): { from: ZoneSummary | null; to: ZoneSummary | null } | null {
+  const covering = coveringSteps(steps, day)
+  const mine = covering.filter((s) => s.zone?.id === zoneId)
+  if (mine.length === 0) return null
+  // Order by position, not by date: on a shared date the steps' dates are equal, so
+  // journey order is the only thing that says which city comes first.
+  const others = covering
+    .filter((s) => s.zone && s.zone.id !== zoneId)
+    .sort((a, b) => a.position - b.position)
+  const first = Math.min(...mine.map((s) => s.position))
+  const last = Math.max(...mine.map((s) => s.position))
+  const before = others.filter((s) => s.position < first)
+  const after = others.filter((s) => s.position > last)
+  if (before.length === 0 && after.length === 0) return null
+  return { from: before.at(-1)?.zone ?? null, to: after[0]?.zone ?? null }
 }
 
 export const weekdayLetter = (iso: string) =>
