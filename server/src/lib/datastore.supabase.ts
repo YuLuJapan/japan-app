@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto'
 import type {
   Category,
   DataStore,
+  Profile,
   ExchangeRates,
   FileAttachment,
   FileBytesResult,
@@ -33,6 +34,18 @@ import { CATEGORIES, normalizeTraveller } from './datastore.js'
 import { FILES_BUCKET, getSupabase } from './supabase.js'
 
 const SIGNED_URL_TTL = 300 // seconds
+
+// profiles (migration 0010). Reads degrade to "no profile" when the table
+// isn't there yet, matching how the column-level fallbacks below let an old
+// deploy run against a not-yet-migrated database. Writes are deliberately not
+// forgiving — a failed upsert is swallowed by the caller (lib/identity.ts),
+// which is where "profile sync must never fail a request" is decided.
+const PROFILE_COLS = 'id,email,display_name,avatar_url'
+
+function isMissingProfilesTable(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false
+  return error.code === '42P01' || /relation .*profiles.* does not exist/i.test(error.message ?? '')
+}
 
 // Columns added in migration 0004. If a deployment ships this code before that
 // migration is applied, Postgres/PostgREST reports an "undefined column" error;
@@ -125,6 +138,48 @@ export function createSupabaseStore(): DataStore {
     async ping() {
       const { error } = await db.from('trips').select('id').limit(1)
       if (error) throw new Error(`Supabase unreachable: ${error.message}`)
+    },
+
+    async getProfile(userId) {
+      const { data, error } = await db
+        .from('profiles')
+        .select(PROFILE_COLS)
+        .eq('id', userId)
+        .maybeSingle()
+      if (error) {
+        if (isMissingProfilesTable(error)) return null
+        throw new Error(error.message)
+      }
+      return (data as Profile | null) ?? null
+    },
+
+    async getProfileByEmail(email) {
+      const { data, error } = await db
+        .from('profiles')
+        .select(PROFILE_COLS)
+        .ilike('email', email.trim())
+        .maybeSingle()
+      if (error) {
+        if (isMissingProfilesTable(error)) return null
+        throw new Error(error.message)
+      }
+      return (data as Profile | null) ?? null
+    },
+
+    async upsertProfile(input) {
+      // `ignoreDuplicates: false` = update on conflict. Undefined fields are
+      // stripped first so a provider that omits the name doesn't blank one we
+      // already stored.
+      const row: Record<string, unknown> = { id: input.id, email: input.email }
+      if (input.display_name != null) row.display_name = input.display_name
+      if (input.avatar_url != null) row.avatar_url = input.avatar_url
+      const { data, error } = await db
+        .from('profiles')
+        .upsert(row, { onConflict: 'id' })
+        .select(PROFILE_COLS)
+        .single()
+      if (error) throw new Error(error.message)
+      return data as Profile
     },
 
     async listTrips() {

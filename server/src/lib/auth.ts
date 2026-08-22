@@ -1,23 +1,30 @@
-// Auth: two static shared codes, plus (2026-08-08 addition) real owner
-// sign-in via Supabase Auth email magic-link. Bearer token on every API call.
+// Authorization: what the caller resolved by lib/identity.ts is allowed to do.
+// Identity answers *who*; this answers *what*. Bearer token on every API call.
 // Exempt: /api/health (cron), /api/auth/verify (the gate screen itself) and
 // /api/reminders/dispatch, which is called by the external scheduler and
 // checks CRON_SECRET itself.
 //
-// Owner vs guest, three ways in: TRIP_ACCESS_CODE (the travelers' static
-// code) and a verified Supabase JWT whose email is in TRIP_OWNER_EMAILS both
-// buy 'owner'; TRIP_GUEST_CODE (optional) buys 'guest' — a read-only view
-// with no documents at all. Guests never get real accounts — magic-link only
-// ever resolves to 'owner' or nothing. Everything below is the enforcement —
-// the frontend only hides buttons, it doesn't decide anything.
+// Owner vs guest, three ways in: TRIP_ACCESS_CODE (the travellers' static
+// code) and a signed-in account whose email is in TRIP_OWNER_EMAILS both buy
+// 'owner'; TRIP_GUEST_CODE (optional) buys 'guest' — a read-only view with no
+// documents at all. Everything below is the enforcement — the frontend only
+// hides buttons, it doesn't decide anything.
+//
+// The email allow-list is a placeholder for per-trip membership (phase 2).
+// Until then a signed-in account that isn't allow-listed authenticates fine and
+// is then refused here, which is why `resolvePrincipal` returning a user and
+// `roleForPrincipal` returning null are two separate outcomes.
 import type { NextFunction, Request, Response } from 'express'
+import { getDataStore } from './datastore.js'
 import { ApiError, forbidden } from './errors.js'
-import { resolveOwnerEmail } from './supabaseAuth.js'
+import { resolvePrincipal, syncProfile, type Principal, type TokenVerifier } from './identity.js'
 
 declare module 'express-serve-static-core' {
   interface Request {
     /** Set by authMiddleware on every non-exempt request. */
     role?: Role
+    /** Who the caller is, independent of what they may do. */
+    principal?: Principal
   }
 }
 
@@ -32,20 +39,9 @@ const TRIP_FILES_RE = /^\/api\/trips\/[^/]+\/files(\/|$)/
 
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
-export function accessCode(): string {
-  const code = process.env.TRIP_ACCESS_CODE
-  if (code && code.trim()) return code.trim()
-  // dev fallback so placeholder mode boots without any env; real deployments set the var
-  return 'japan2026'
-}
+export { accessCode, guestCode } from './identity.js'
 
-/** null when no guest code is configured — then there is simply no guest view. */
-export function guestCode(): string | null {
-  const code = process.env.TRIP_GUEST_CODE
-  return code && code.trim() ? code.trim() : null
-}
-
-/** The travelers' emails, allow-listed for magic-link sign-in. Empty = nobody can sign in that way. */
+/** The travellers' emails, allow-listed for account sign-in. Empty = nobody can sign in that way. */
 function ownerEmails(): string[] {
   const raw = process.env.TRIP_OWNER_EMAILS ?? ''
   return raw
@@ -54,35 +50,44 @@ function ownerEmails(): string[] {
     .filter(Boolean)
 }
 
+/** Which role a principal buys, or null when it buys nothing. */
+export function roleForPrincipal(principal: Principal): Role | null {
+  if (principal.kind === 'legacy') return principal.code
+  return ownerEmails().includes(principal.user.email.trim().toLowerCase()) ? 'owner' : null
+}
+
 /**
- * Which role a bearer token buys, or null when it buys nothing. Tries the two
- * static codes first (fast, synchronous), then — only if neither matched —
- * verifies the token as a Supabase Auth JWT and checks its email against
- * `TRIP_OWNER_EMAILS`. A token that is a valid Supabase session but whose
- * email isn't allow-listed buys nothing: guests don't get real accounts.
+ * Which role a bearer token buys, or null when it buys nothing. Used by
+ * POST /api/auth/verify, which answers the same question without a request.
  */
-export async function roleForToken(token: string): Promise<Role | null> {
-  if (!token) return null
-  // Owner wins if someone sets both vars to the same value — never silently
-  // downgrade the travelers.
-  if (token === accessCode()) return 'owner'
-  if (token === guestCode()) return 'guest'
-  const email = await resolveOwnerEmail(token)
-  if (email && ownerEmails().includes(email.trim().toLowerCase())) return 'owner'
-  return null
+export async function roleForToken(token: string, verify?: TokenVerifier): Promise<Role | null> {
+  const principal = await resolvePrincipal(token, verify)
+  return principal ? roleForPrincipal(principal) : null
 }
 
 export const isGuest = (req: Request) => req.role === 'guest'
+
+/** The signed-in account, or null when the caller used a static access code. */
+export const currentUser = (req: Request) =>
+  req.principal?.kind === 'user' ? req.principal.user : null
 
 export async function authMiddleware(req: Request, _res: Response, next: NextFunction) {
   if (EXEMPT_PATHS.has(req.path)) return next()
   const header = req.headers.authorization ?? ''
   const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : ''
-  const role = await roleForToken(token)
-  if (!role) {
+
+  const principal = await resolvePrincipal(token)
+  const role = principal ? roleForPrincipal(principal) : null
+  if (!principal || !role) {
     return next(new ApiError(401, 'UNAUTHORIZED', 'Missing or invalid access code'))
   }
+  req.principal = principal
   req.role = role
+
+  // Bookkeeping only, and rate-limited to one write per user per 5 minutes.
+  // Awaited so a request never races its own profile row, but it swallows its
+  // own failures — see syncProfile.
+  if (principal.kind === 'user') await syncProfile(await getDataStore(), principal.user)
 
   if (role === 'guest') {
     if (

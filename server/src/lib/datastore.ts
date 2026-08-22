@@ -11,6 +11,28 @@ export interface Traveller {
   email?: string
 }
 
+/**
+ * A person with an account. Mirrors the Supabase Auth user for the fields the
+ * app itself owns — upserted on first authenticated request rather than by a
+ * trigger, so the memory backend behaves identically (lib/identity.ts).
+ *
+ * Distinct from `Traveller`: a Traveller is a free-text name on a trip's
+ * roster, a Profile is a login. Someone can be either, both, or neither.
+ */
+export interface Profile {
+  id: string
+  email: string
+  display_name: string | null
+  avatar_url: string | null
+}
+
+export interface ProfileInput {
+  id: string
+  email: string
+  display_name?: string | null
+  avatar_url?: string | null
+}
+
 export interface Trip {
   id: string
   name: string
@@ -264,6 +286,15 @@ export type FileBytesResult = { bytes: Buffer; mime_type: string } | 'FILE_MISSI
 export interface DataStore {
   /** Trivial read used by /api/health (keep-alive). Throws if the backend is unreachable. */
   ping(): Promise<void>
+
+  getProfile(userId: string): Promise<Profile | null>
+  /** Case-insensitive — how an invite finds the account it was addressed to. */
+  getProfileByEmail(email: string): Promise<Profile | null>
+  /**
+   * Create or refresh the row for a signed-in user. Called on the first
+   * authenticated request of a session, so it must stay cheap and idempotent.
+   */
+  upsertProfile(input: ProfileInput): Promise<Profile>
 
   /** Every trip, oldest first. Powers the "Where to next?" trips list. */
   listTrips(): Promise<Trip[]>

@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url'
 import type {
   Category,
   DataStore,
+  Profile,
   ExchangeRates,
   FileAttachment,
   FileBytesResult,
@@ -36,6 +37,7 @@ import type {
 import { CATEGORIES } from './datastore.js'
 
 export interface MemoryData {
+  profiles?: Profile[]
   trips: Trip[]
   steps: JourneyStep[]
   zones: Zone[]
@@ -100,9 +102,42 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
   const emptyCounts = (): Record<Category, number> =>
     Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<Category, number>
 
+  const profiles: Profile[] = db.profiles ? db.profiles.map((p) => structuredClone(p)) : []
+
   return {
     async ping() {
       if (!db.trips.length) throw new Error('memory store is empty')
+    },
+
+    async getProfile(userId) {
+      const found = profiles.find((p) => p.id === userId)
+      return found ? structuredClone(found) : null
+    },
+
+    async getProfileByEmail(email) {
+      const needle = email.trim().toLowerCase()
+      const found = profiles.find((p) => p.email.toLowerCase() === needle)
+      return found ? structuredClone(found) : null
+    },
+
+    async upsertProfile(input) {
+      const existing = profiles.find((p) => p.id === input.id)
+      if (existing) {
+        // Only overwrite with values the provider actually gave us — signing in
+        // with a provider that omits a name must not blank out one we already have.
+        existing.email = input.email
+        if (input.display_name != null) existing.display_name = input.display_name
+        if (input.avatar_url != null) existing.avatar_url = input.avatar_url
+        return structuredClone(existing)
+      }
+      const created: Profile = {
+        id: input.id,
+        email: input.email,
+        display_name: input.display_name ?? null,
+        avatar_url: input.avatar_url ?? null,
+      }
+      profiles.push(created)
+      return structuredClone(created)
     },
 
     async listTrips() {

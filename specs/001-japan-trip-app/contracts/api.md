@@ -6,11 +6,18 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
 
 ## Conventions
 
-- **Auth**: every route except `GET /api/health` requires `Authorization: Bearer <ACCESS_CODE>`. Two codes are accepted, and which one is sent decides the caller's **role**:
-  - `TRIP_ACCESS_CODE` → role `owner` — the travelers, full read/write.
-  - `TRIP_GUEST_CODE` (optional; unset = no guest view) → role `guest` — read-only, and no documents, stays or flight.
+- **Auth**: every route except `GET /api/health` requires `Authorization: Bearer <token>`. Three tokens are accepted, and which one is sent decides the caller's **role**:
+  - `TRIP_ACCESS_CODE` → role `owner` — the travelers, full read/write. _Deprecated._
+  - `TRIP_GUEST_CODE` (optional; unset = no guest view) → role `guest` — read-only, and no documents, stays or flight. _Deprecated._
+  - a **Supabase Auth JWT** (Google OAuth, email + password, or magic-link) whose email is listed in `TRIP_OWNER_EMAILS` → role `owner`.
 
   Missing/wrong → `401 {"error":{"code":"UNAUTHORIZED"}}`. If both env vars hold the same value, `owner` wins.
+
+- **Accounts (2026-08-22 addition, feature 002 phase 1)**: authentication and authorization are now separate steps. `server/src/lib/identity.ts` resolves a token to a **principal** — either a signed-in account or one of the deprecated static codes — and says nothing about permissions; `server/src/lib/auth.ts` then decides the role. A token can therefore verify perfectly and still buy nothing: a Google account that isn't allow-listed gets `401`, not `403`, because it holds no role at all.
+
+  Verified JWTs are cached in-process for 60s (rejections for 10s) so a warm serverless instance doesn't re-verify on every call. A signed-in account is mirrored into the `profiles` table on its first authenticated request of each 5-minute window; that write is **best-effort and never fails the request** — an unmigrated database degrades to "no profile row", not to a 500.
+
+  The `TRIP_OWNER_EMAILS` allow-list is a placeholder for per-trip membership (feature 002 phase 2), which replaces it.
 
 - **Guest restrictions**, part 1 — the bookings (enforced in `authMiddleware`, before any route runs):
   - any method other than `GET`/`HEAD`/`OPTIONS` → `403 {"error":{"code":"FORBIDDEN"}}`;
@@ -42,6 +49,16 @@ Validates the access code entered on the gate screen (the code itself is then us
 The role of the code this client is already holding. Lets a session that predates the guest view learn what it is without being sent back to the gate.
 
 - 200: `{"role": "owner" | "guest"}` · 401 when the stored code is no longer valid.
+
+### GET /api/me
+
+The signed-in account, as the app knows it.
+
+- 200: `{"user": {"id":"…","email":"…","display_name":"…|null","avatar_url":"…|null"}, "role": "owner" | "guest"}`
+- 200: `{"user": null, "role": "owner"}` when the caller used a static access code — a code proves a right, not an identity, so there is nobody to name.
+- 401 when the token is not valid.
+
+`user` prefers the stored `profiles` row over the token's claims, so a display name edited in the app wins over the one the provider last sent.
 
 ## Trip & journey
 
