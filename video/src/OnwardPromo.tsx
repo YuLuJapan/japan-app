@@ -54,13 +54,13 @@ const Caption: React.FC<{ text: string; length: number }> = ({ text, length }) =
       name="Caption"
       style={{
         position: 'absolute',
-        top: 86,
-        left: 84,
-        right: 84,
+        top: 58,
+        left: 78,
+        right: 78,
         fontFamily: DISPLAY,
-        fontSize: 57,
+        fontSize: 48,
         fontWeight: 700,
-        lineHeight: 1.15,
+        lineHeight: 1.16,
         letterSpacing: '-0.02em',
         color: COLORS.ink,
         textAlign: 'center',
@@ -89,12 +89,12 @@ const Pin: React.FC<{ text: string }> = ({ text }) => {
       name="Pin"
       style={{
         position: 'absolute',
-        top: 242,
+        top: 176,
         left: 0,
         right: 0,
         textAlign: 'center',
         fontFamily: BODY,
-        fontSize: 27,
+        fontSize: 23,
         fontWeight: 700,
         letterSpacing: '0.08em',
         textTransform: 'uppercase',
@@ -212,7 +212,7 @@ export const OnwardPromo: React.FC<{ voiceover: boolean }> = ({ voiceover }) => 
               <>
                 <Caption text={line.text} length={length} />
                 {line.pin ? <Pin text={line.pin} /> : null}
-                <PhoneWithLocalFrame screen={line.screen} focus={line.focus ?? 0} />
+                <PhoneWithLocalFrame screen={line.screen} />
               </>
             ) : (
               <TypeCard text={line.text} length={length} closing={closing} />
@@ -229,9 +229,9 @@ export const OnwardPromo: React.FC<{ voiceover: boolean }> = ({ voiceover }) => 
 }
 
 /** Splits `useCurrentFrame` out so PhoneFrame stays a pure presentational component. */
-const PhoneWithLocalFrame: React.FC<{ screen: string; focus: number }> = ({ screen, focus }) => {
+const PhoneWithLocalFrame: React.FC<{ screen: string }> = ({ screen }) => {
   const localFrame = useCurrentFrame()
-  return <PhoneFrame screen={screen} focus={focus} localFrame={localFrame} />
+  return <PhoneFrame screen={screen} localFrame={localFrame} />
 }
 
 export { FPS }

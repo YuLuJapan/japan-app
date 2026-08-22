@@ -1,43 +1,29 @@
-// A phone screen, whole, with a real screenshot scrolling inside it.
+// A whole iPhone, with a whole screen in it.
 //
-// The captures are 1170×2532 — two and a half times taller than a 1080 square
-// frame. An entire handset scaled to fit would put the app's body text at
-// about five pixels in a feed, which is no use to anyone; bleeding the handset
-// off the bottom keeps it legible but reads as a broken crop rather than a
-// choice. So the device is a *window*: a complete, self-contained screen with
-// bezel on all four sides, and `focus` decides which part of the tall
-// screenshot sits in it.
+// Earlier cuts cropped: first the handset bled off the bottom, then it became
+// a squat window that read as a tablet. Both traded the shape of the product
+// for bigger UI. A phone app filmed in a frame that isn't phone-shaped stops
+// looking like a phone app, so this keeps the real 1170×2532 ratio and shows
+// the capture entire — status bar to bottom nav — and accepts that the body
+// copy inside is small. The captions carry the words; the screen carries the
+// shape.
 import { AbsoluteFill, CanvasImage, Easing, interpolate, staticFile } from 'remotion'
 import { COLORS } from './theme'
 
 const SHOT_W = 1170
 const SHOT_H = 2532
 
-/** The visible screen, inside the bezel. */
-export const SCREEN_W = 640
-export const SCREEN_H = 680
-const BEZEL = 11
-export const DEVICE_TOP = 300
-
-/** How far the screenshot can travel before its bottom edge shows. */
-const SCALE = SCREEN_W / SHOT_W
-const FULL_H = SHOT_H * SCALE
-const MAX_TRAVEL = FULL_H - SCREEN_H
-
-/** A slow drift over the shot's life, so it reads as scrolling, not as a still. */
-const DRIFT = 58
+/** The visible screen. Exactly the capture's aspect, so nothing is cropped. */
+export const SCREEN_W = 370
+export const SCREEN_H = Math.round(SCREEN_W * (SHOT_H / SHOT_W))
+const BEZEL = 10
+export const DEVICE_TOP = 218
 
 export const PhoneFrame: React.FC<{
   screen: string
-  /** 0 = the top of the screenshot in view, 1 = the bottom. */
-  focus: number
   /** Frames since this screen appeared, for the entrance. */
   localFrame: number
-}> = ({ screen, focus, localFrame }) => {
-  const start = -MAX_TRAVEL * Math.max(0, Math.min(1, focus))
-  // Clamped so the drift can never expose the end of the screenshot.
-  const end = Math.max(-MAX_TRAVEL, start - DRIFT)
-
+}> = ({ screen, localFrame }) => {
   return (
     <AbsoluteFill name="Phone" style={{ alignItems: 'center' }}>
       <div
@@ -46,24 +32,26 @@ export const PhoneFrame: React.FC<{
           top: DEVICE_TOP,
           width: SCREEN_W + BEZEL * 2,
           height: SCREEN_H + BEZEL * 2,
-          borderRadius: 52,
+          borderRadius: 50,
           background: '#141312',
-          boxShadow: '0 46px 90px -34px rgba(22,26,34,0.5)',
+          boxShadow: '0 44px 88px -34px rgba(22,26,34,0.46)',
           padding: BEZEL,
           opacity: interpolate(localFrame, [0, 14], [0, 1], {
             extrapolateLeft: 'clamp',
             extrapolateRight: 'clamp',
             easing: Easing.bezier(0.16, 1, 0.3, 1),
           }),
-          translate: interpolate(localFrame, [0, 24], ['0px 38px', '0px 0px'], {
+          translate: interpolate(localFrame, [0, 26], ['0px 34px', '0px 0px'], {
             extrapolateLeft: 'clamp',
             extrapolateRight: 'clamp',
             easing: Easing.bezier(0.16, 1, 0.3, 1),
           }),
-          scale: interpolate(localFrame, [0, 24], [0.965, 1], {
+          // Nothing scrolls any more — the whole screen is already in view —
+          // so the life in a shot is a slow push on the device itself.
+          scale: interpolate(localFrame, [0, 150], [0.975, 1.015], {
             extrapolateLeft: 'clamp',
             extrapolateRight: 'clamp',
-            easing: Easing.bezier(0.16, 1, 0.3, 1),
+            easing: Easing.bezier(0.22, 0.61, 0.36, 1),
             output: 'perceptual-scale',
           }),
         }}
@@ -80,22 +68,19 @@ export const PhoneFrame: React.FC<{
         >
           <CanvasImage
             src={staticFile(`screens/${screen}.png`)}
+            style={{ width: SCREEN_W, height: SCREEN_H }}
+          />
+          {/* The island. Small, but it is most of what says "iPhone". */}
+          <div
             style={{
               position: 'absolute',
-              top: 0,
-              left: 0,
-              width: SCREEN_W,
-              height: FULL_H,
-              translate: interpolate(
-                localFrame,
-                [0, 150],
-                [`0px ${start}px`, `0px ${end}px`],
-                {
-                  extrapolateLeft: 'clamp',
-                  extrapolateRight: 'clamp',
-                  easing: Easing.bezier(0.33, 0, 0.67, 1),
-                }
-              ),
+              top: 9,
+              left: '50%',
+              translate: '-50% 0',
+              width: 86,
+              height: 25,
+              borderRadius: 13,
+              background: '#141312',
             }}
           />
         </div>
