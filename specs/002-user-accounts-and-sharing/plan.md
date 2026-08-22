@@ -28,7 +28,10 @@ verification (`lib/supabaseAuth.ts`) and the browser Supabase client
 
 1. **Zone belongs to a trip.** `zones.trip_id`; places and tips inherit scope through their zone.
 2. **Access codes kept as deprecated compat** behind `LEGACY_ACCESS_CODES`, removed in phase 6.
-3. **Viewer sees everything, read-only.** Role controls verbs, not content.
+3. **Viewer content visibility is per-member.** The trip owner independently
+   toggles `stays`, `flight` and `documents` for each viewer. Role controls
+   *verbs*; three flags control *content*. (Revised from the initial
+   "viewer sees everything" — see §2 Layer 2b.)
 4. **Explicit `trips.country`** field feeds the auto-title.
 
 ---
@@ -100,10 +103,11 @@ writes `role === 'owner'` inline:
 
 | capability | owner | partner | viewer |
 | --- | :-: | :-: | :-: |
-| read trip content, documents, stays, flight | ✓ | ✓ | ✓ |
+| read trip content (zones, places, day plan, shopping) | ✓ | ✓ | ✓ |
+| read stays · flight · documents | ✓ | ✓ | **per-member flags** |
 | create / edit / delete content | ✓ | ✓ | ✗ |
 | edit trip dates, title, country | ✓ | ✓ | ✗ |
-| invite & manage members | ✓ | ✗ | ✗ |
+| invite, manage members, set their visibility | ✓ | ✗ | ✗ |
 | delete trip | ✓ | ✗ | ✗ |
 | leave trip | — | ✓ | ✓ |
 
@@ -117,6 +121,91 @@ export const canDeleteTrip = (r: TripRole) => r === 'owner'
 the last owner cannot be demoted, removed, or leave. A trip with zero members
 is invisible to everyone forever, so this is a data-integrity rule, not a
 politeness.
+
+### Layer 2b — Visibility: *what a viewer is shown*
+
+Role answers "which verbs?". A second, independent question is "which
+content?" — and the answer is per-member, chosen by the trip owner.
+
+```sql
+alter table trip_members
+  add column can_see_stays     boolean not null default true,
+  add column can_see_flight    boolean not null default true,
+  add column can_see_documents boolean not null default false;
+```
+
+**Never pass three booleans around.** They collapse into one value that rides
+along with the trip context:
+
+```ts
+// server/src/lib/trip-view.ts  (generalises today's lib/guest-view.ts)
+export interface TripView { stays: boolean; flight: boolean; documents: boolean }
+
+export const FULL_VIEW: TripView = { stays: true, flight: true, documents: true }
+
+/** Writers always see everything — the flags exist for viewers only, and are
+ *  ignored (not validated) for owner/partner, so an owner can never lock
+ *  themselves out of their own bookings. */
+export function tripView(m: TripMember): TripView {
+  if (canWrite(m.role)) return FULL_VIEW
+  return {
+    stays: m.can_see_stays,
+    flight: m.can_see_flight,
+    documents: m.can_see_documents,
+  }
+}
+```
+
+`TripContext = { trip, role, userId, view }` is what every service receives.
+This is not new plumbing: `includeStays` / `includeFlight` / `includeFiles` are
+already threaded through six services today — they are just fed by
+`!isGuest(req)` and named after the thing they were built for. **So
+`guest-view.ts` is generalised, not deleted** (revising Layer 6, item 3).
+
+#### Enforcement points
+
+Same map the existing guest view already covers, now driven by `view` instead of a role:
+
+| path | rule |
+| --- | --- |
+| `GET place/:id` | 404 a stay when `!view.stays` |
+| zone detail · zone place list | filter stays out |
+| `countPlacesByCategory` | zero the `hotel` count so the category card never renders |
+| trip bundle | drop the `flight` block when `!view.flight` |
+| search | drop stays **and** tips whose parent is a stay |
+| itinerary | null a stay's `place_id` so the day plan doesn't link into a 404 |
+| files list · file content | see below |
+
+#### The one genuinely new problem
+
+Today a guest gets **zero** files, so no file ever needed classifying. Finer
+granularity breaks that: with `documents: true, stays: false`, what happens to
+the hotel reservation PDF?
+
+- **Place-attached files inherit their place's visibility.** A file on a `hotel`
+  place is hidden whenever stays are. Mechanical, exact, no guessing.
+- **Trip- and zone-attached files are governed solely by `documents`.** A
+  "flight booking.pdf" attached to the trip is a blob with a display name; the
+  app cannot know what is inside it.
+
+That leaves one honest leak-through: **`flight: false` + `documents: true` still
+shows a flight PDF the owner attached to the trip.** Rather than pretend
+otherwise, the members screen says so in one line. This matches the reasoning
+already recorded in `guest-view.ts` — withhold a whole category instead of
+redacting content you cannot reliably classify.
+
+*Upgrade path if that isn't good enough:* a `files.kind` tag
+(`stay | flight | other`) set at upload, letting the flight flag reach
+trip-level documents. Deferred — it adds a field to every upload for a case one
+sentence of UI copy covers.
+
+#### Defaults
+
+`stays` and `flight` **on**, `documents` **off**. Knowing where you're staying
+and when you land is the point of sharing a trip; a document is a raw file whose
+contents the owner cannot audit at a glance (confirmation numbers, prices,
+passport scans). All three are shown as toggles at invite time, so it is always
+a deliberate choice rather than a default someone discovers later.
 
 ### Layer 3 — Scope: *structural isolation*
 
@@ -195,6 +284,10 @@ create table trip_invites (
   trip_id     text not null references trips(id) on delete cascade,
   email       text,                              -- null = open link
   role        text not null check (role in ('partner','viewer')),
+  -- initial visibility, copied onto trip_members at accept (§2 Layer 2b)
+  can_see_stays     boolean not null default true,
+  can_see_flight    boolean not null default true,
+  can_see_documents boolean not null default false,
   token_hash  text not null unique,              -- sha256; plaintext never stored
   invited_by  uuid references profiles(id) on delete set null,
   expires_at  timestamptz not null,
@@ -215,8 +308,9 @@ Deliberate choices:
 - **No email infrastructure.** The link is shared over WhatsApp — consistent with the existing `mailto:` traveller pattern and the $0 free-tier constraint.
 - **Email-bound when `email` is set** (must match the accepting user), open link otherwise.
 - **Single-use, 14-day expiry, revocable.**
-- `GET /api/invites/:token` returns a deliberately minimal preview — trip display title, inviter name, offered role. Not trip content: an unaccepted invite is not access.
-- **Idempotent re-accept**: already a member → success, and never downgrade an existing higher role.
+- `GET /api/invites/:token` returns a deliberately minimal preview — trip display title, inviter name, offered role **and the visibility it grants**. Not trip content: an unaccepted invite is not access.
+- **Idempotent re-accept**: already a member → success, and never downgrade an existing higher role *or narrower visibility*.
+- The invite carries the visibility it promises; accepting copies those flags onto the member row, after which the owner changes them on the members screen.
 - Token is 256-bit, so no accept rate-limiting is warranted.
 
 **`trips.people` and `trip_members` stay separate.** `people` is the display
@@ -255,7 +349,7 @@ empty.
 
 1. **Push/reminder privacy (non-optional).** `push_subscriptions.user_id`; dispatch resolves due reminder → trip's members → their subscriptions via a new `listPushSubscriptionsForUsers(userIds)`. Without it, accounts ship with a cross-account notification leak.
 2. **The hardcoded flight.** Move `FLIGHT` into `trips.flight jsonb`, seeded onto the legacy trip only. (A `trip_flights` table is the alternative if legs ever become individually editable; jsonb is one migration and zero new store methods, so start there.)
-3. **`lib/guest-view.ts` deleted.** With "viewer sees everything," the `includeStays` / `includeFlight` / `includeFiles` plumbing threaded through six services disappears — a genuine simplification. It must survive until `LEGACY_ACCESS_CODES` goes, so this lands in phase 6, not before.
+3. **`lib/guest-view.ts` → `lib/trip-view.ts`.** Per-member visibility keeps this machinery alive; it is generalised rather than deleted (§2 Layer 2b). The six services stop taking loose `includeStays` / `includeFlight` / `includeFiles` booleans and take one `TripContext` instead. What phase 6 *does* delete is the `isGuest(req)` call sites that currently feed them.
 
 ---
 
@@ -268,7 +362,7 @@ branches claiming the same number).
 | file | contents |
 | --- | --- |
 | `0010_profiles.sql` | profiles table + trigger |
-| `0011_trip_members.sql` | members table + index |
+| `0011_trip_members.sql` | members table + index + the three `can_see_*` visibility columns |
 | `0012_zone_trip_scope.sql` | **the risky one** — see below |
 | `0013_trip_invites.sql` | invites table |
 | `0014_trip_title_country.sql` | `name` drop-not-null, `country`, `flight jsonb` |
@@ -303,8 +397,8 @@ first makes every existing trip invisible.
 | `src/lib/auth.tsx` *(new)* | `AuthProvider` — signed-in user, Supabase session, token refresh (the `onAuthStateChange` sync currently in `session.tsx` moves here), sign-out |
 | `src/lib/session.tsx` → `trip-access.tsx` | `TripAccessProvider` keyed on `:tripId`, fed by `my_role` from `GET /api/trips/:tripId`. **`useCanEdit()` keeps its signature — call sites unchanged.** `useCanSeeBookings()` deleted |
 | `src/pages/SignIn.tsx` | replaces `AccessGate`: Google button, email/password (sign-in · sign-up · reset), access code collapsed under a deprecated disclosure |
-| `src/pages/TripMembers.tsx` *(new)* | invite (role picker + copy link), member list, role change, remove, leave |
-| `src/pages/AcceptInvite.tsx` *(new)* | invite preview → sign in → accept |
+| `src/pages/TripMembers.tsx` *(new)* | invite (role picker, **three visibility toggles**, copy link), member list, role change, per-viewer visibility edit, remove, leave. Carries the one-line note about trip-level documents (§2 Layer 2b) |
+| `src/pages/AcceptInvite.tsx` *(new)* | invite preview (trip, inviter, role, what you'll be shown) → sign in → accept |
 | `src/router.tsx` | `RequireAuth` replaces `RequireAccess`; `RequireOwner` → `RequireWrite` (owner\|partner) plus `RequireTripOwner` for the members page; public `/invite/:token` |
 | `src/api/client.ts` | bearer token from the Supabase session (legacy localStorage code path retained); 401 → `/signin` |
 
@@ -318,6 +412,7 @@ first makes every existing trip invisible.
 - `identity.test.ts` — JWT → principal, profile upsert, token cache hit/expiry, legacy-code compat
 - `members.test.ts` — role matrix, last-owner invariant, leave
 - `invites.test.ts` — mint · preview · accept · expire · revoke · email-bound · idempotent re-accept · plaintext-never-stored
+- `visibility.test.ts` — **matrix-driven**, the second sweep: the 8 flag combinations × every enforcement point in the Layer 2b table, plus the file-inheritance rule (a file on a `hotel` place vanishes with stays) and the owner/partner override
 - `trip-title.test.ts` — pure title rules
 
 **Fixture upgrade** (`server/tests/fixture.ts`): gains `profiles`, `members`, and
@@ -340,8 +435,8 @@ already uses for `PushSender`. Reuse it rather than inventing a mock layer.
 | --- | --- | --- | :-: | :-: |
 | 1 | **Identity** | profiles, Google + password sign-in, `req.principal`, `/api/me`. Access codes untouched | low | 8 |
 | 2 | **Membership** | `trip_members`, `/api/trips` filtered to yours, `my_role`, backfill + invariant check | med | 10 |
-| 3 | **Scope** | DataStore `tripId` args, nested router, `zones.trip_id`, delete `getDefaultTrip` + legacy routes, tenancy sweep | **high** | ~45 |
-| 4 | **Sharing** | invites, members UI, role enforcement | low | 14 |
+| 3 | **Scope** | DataStore `tripId` args, nested router, `zones.trip_id`, delete `getDefaultTrip` + legacy routes, tenancy sweep. Introduces `TripContext` (view still fed by `isGuest`) so phase 4 only swaps its source | **high** | ~45 |
+| 4 | **Sharing** | invites, members UI, role enforcement, per-member visibility flags + `trip-view.ts`, visibility matrix test | low | 20 |
 | 5 | **Title** | nullable `name`, `country`, `display_title` | low | 8 |
 | 6 | **Cleanup** | push per-user, flight per-trip, remove access codes + `guest-view.ts` | med | 12 |
 
