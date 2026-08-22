@@ -1,13 +1,37 @@
 {
   "name": "onward-video",
-  "private": true,
   "version": "1.0.0",
-  "type": "module",
-  "description": "The product video. Kept out of the app's dependency tree on purpose: nothing here ships.",
-  "scripts": {
-    "capture": "node scripts/capture.mjs"
-  },
+  "description": "The Onward product video. Kept out of the app dependency tree on purpose: nothing here ships.",
+  "repository": {},
+  "license": "UNLICENSED",
+  "private": true,
   "dependencies": {
-    "playwright": "^1.62.1"
-  }
+    "@remotion/cli": "4.0.515",
+    "@remotion/fonts": "4.0.515",
+    "@remotion/google-fonts": "4.0.515",
+    "@remotion/media": "4.0.515",
+    "@remotion/tailwind-v4": "4.0.515",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.515",
+    "tailwindcss": "4.0.0"
+  },
+  "devDependencies": {
+    "@remotion/eslint-config-flat": "4.0.515",
+    "@types/react": "19.2.7",
+    "@types/web": "0.0.166",
+    "eslint": "9.19.0",
+    "playwright": "^1.56.0",
+    "prettier": "3.8.1",
+    "typescript": "5.9.3"
+  },
+  "scripts": {
+    "capture": "node scripts/capture.mjs",
+    "studio": "remotion studio --no-open",
+    "render": "remotion render",
+    "lint": "eslint src && tsc"
+  },
+  "sideEffects": [
+    "*.css"
+  ]
 }
