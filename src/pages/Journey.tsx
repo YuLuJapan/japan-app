@@ -55,8 +55,8 @@ export default function Journey() {
       ) : (
         <div>
           <p className="section-title">Our trip</p>
-          <HeroTitle title={heroTitle} destination={destination} max={34} className="mt-1" />
-          <p className="mt-1.5 text-sm text-muted">
+          <HeroTitle title={heroTitle} destination={destination} max={34} className="mt-2.5" />
+          <p className="mt-3 text-sm text-muted">
             {fmt(data.trip.start_date)} – {fmt(data.trip.end_date)} · {data.steps.length} stops
           </p>
         </div>

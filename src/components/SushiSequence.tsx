@@ -443,9 +443,9 @@ export function SushiSequence({
           <HeroTitle
             title={title}
             destination={destination}
-            className="mt-1 drop-shadow-[0_1px_0_rgba(255,255,255,0.6)]"
+            className="mt-2.5 drop-shadow-[0_1px_0_rgba(255,255,255,0.6)]"
           />
-          {meta && <p className="mt-1.5 text-sm font-medium text-muted">{meta}</p>}
+          {meta && <p className="mt-3 text-sm font-medium text-muted">{meta}</p>}
         </div>
 
         {/* Sits under the nigiri: tap it to be taken past the sequence, or

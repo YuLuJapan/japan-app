@@ -65,7 +65,7 @@ export function HeroTitle({
     <h1
       ref={ref}
       style={{ fontSize: max }}
-      className={`whitespace-nowrap font-display font-medium leading-[1.06] tracking-tight ${className}`}
+      className={`whitespace-nowrap font-display font-bold leading-[1.06] tracking-tight ${className}`}
     >
       {lead}
       {accent && <span className="text-brand">{accent}</span>}
