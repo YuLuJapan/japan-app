@@ -2,7 +2,10 @@ import type { Config } from 'tailwindcss'
 
 // Palette + type matched to the Onward design prototype (design/Onward Trip
 // App.dc.html): rice-paper canvas, nori ink, tuna-coral accent. (Matched to
-// the prototype 2026-08-08 — see chat1.md for the design reasoning.)
+// the prototype 2026-08-08 — see chat1.md for the design reasoning.) The
+// display face is Outfit rather than the prototype's Bricolage Grotesque: the
+// headings read lighter, which is also why display text tops out at bold (700)
+// instead of extrabold.
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
@@ -22,7 +25,7 @@ export default {
         ocean: '#2bb6c4',
       },
       fontFamily: {
-        display: ['"Bricolage Grotesque"', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        display: ['Outfit', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
         body: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
       },
       boxShadow: {

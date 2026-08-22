@@ -154,9 +154,7 @@ export default function AccessGate() {
         <div className="mx-auto w-fit">
           <RingMark size={88} />
         </div>
-        <h1 className="mt-6 font-display text-4xl font-extrabold tracking-tight text-white">
-          Onward
-        </h1>
+        <h1 className="mt-6 font-display text-4xl font-bold tracking-tight text-white">Onward</h1>
         <p className="mt-2 text-white/85">Your trip companion</p>
 
         {screen === 'sent' && (

@@ -179,7 +179,7 @@ export default function ShoppingForm() {
       >
         ‹ {editing ? 'Item' : 'Shopping'}
       </Link>
-      <h1 className="font-display text-2xl font-extrabold">
+      <h1 className="font-display text-2xl font-bold">
         {editing ? 'Edit item' : 'Add something to buy'}
       </h1>
 

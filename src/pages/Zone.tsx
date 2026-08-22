@@ -42,9 +42,7 @@ export default function Zone() {
         <div className="relative mt-3 overflow-hidden rounded-3xl shadow-card">
           <ZoneImage src={zone.image_url} alt={zone.name} className="h-52 w-full" />
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-5 pb-4 pt-10">
-            <h1 className="font-display text-3xl font-extrabold text-white drop-shadow">
-              {zone.name}
-            </h1>
+            <h1 className="font-display text-3xl font-bold text-white drop-shadow">{zone.name}</h1>
           </div>
         </div>
         {zone.summary && <p className="mt-3 text-sm leading-relaxed text-muted">{zone.summary}</p>}
@@ -52,7 +50,7 @@ export default function Zone() {
 
       {days.length > 0 && itinerary.data && (
         <section>
-          <h2 className="mb-3 font-display text-lg font-extrabold">Schedule</h2>
+          <h2 className="mb-3 font-display text-lg font-bold">Schedule</h2>
           <Schedule
             mode="zone"
             zoneId={zoneId}
@@ -67,7 +65,7 @@ export default function Zone() {
 
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-display text-lg font-extrabold">Explore</h2>
+          <h2 className="font-display text-lg font-bold">Explore</h2>
           {canEdit && (
             <Link
               to={`/trips/${tripId}/zones/${zoneId}/places/new`}
@@ -114,7 +112,7 @@ export default function Zone() {
 
       {canEdit && (
         <section>
-          <h2 className="mb-3 font-display text-lg font-extrabold">Files</h2>
+          <h2 className="mb-3 font-display text-lg font-bold">Files</h2>
           {files.length > 0 && (
             <div className="mb-3">
               <FileList files={files} deletable={{ kind: 'zone', id: zoneId }} />

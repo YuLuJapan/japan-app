@@ -51,7 +51,7 @@ export default function TripFiles() {
   return (
     <div>
       <p className="section-title text-brand">Documents</p>
-      <h1 className="mt-1 font-display text-2xl font-extrabold">Trip documents</h1>
+      <h1 className="mt-1 font-display text-2xl font-bold">Trip documents</h1>
       <p className="mt-1 text-sm text-muted">
         Bookings, tickets and files. Attach files to a place from its page — they show up here too.
       </p>

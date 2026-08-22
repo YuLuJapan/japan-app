@@ -63,7 +63,7 @@ export function JourneyStepsSlider({
                 </span>
               )}
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-3 pt-8">
-                <p className="font-display text-xl font-extrabold text-white drop-shadow">
+                <p className="font-display text-xl font-bold text-white drop-shadow">
                   {zone?.name ?? 'Unknown'}
                 </p>
               </div>

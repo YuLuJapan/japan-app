@@ -261,7 +261,7 @@ export default function TripEssentials() {
     <div className="space-y-8">
       <div>
         <p className="section-title text-brand">Essentials</p>
-        <h1 className="mt-1 font-display text-[34px] font-extrabold leading-[1.05] tracking-tight">
+        <h1 className="mt-1 font-display text-[34px] font-bold leading-[1.05] tracking-tight">
           Good to know
         </h1>
       </div>
@@ -356,7 +356,7 @@ export default function TripEssentials() {
 
       <section>
         <div className="mb-2 flex items-baseline justify-between">
-          <h2 className="font-display text-2xl font-extrabold tracking-tight">Packing</h2>
+          <h2 className="font-display text-2xl font-bold tracking-tight">Packing</h2>
           <span className="text-xs font-semibold text-muted">
             {packedCount} / {allItems.length} packed
           </span>
@@ -476,7 +476,7 @@ export default function TripEssentials() {
                 className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-white px-4.5 py-3.5"
               >
                 <span className="min-w-0 text-sm font-semibold leading-snug">{e.label}</span>
-                <span className="shrink-0 font-display text-lg font-bold text-brand">
+                <span className="shrink-0 font-display text-lg font-semibold text-brand">
                   {e.value}
                 </span>
               </a>

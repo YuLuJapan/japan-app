@@ -76,7 +76,7 @@ export default function ShoppingCategoryPage() {
 
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-extrabold">
+          <h1 className="font-display text-2xl font-bold">
             <span className="mr-2">{meta.icon}</span>
             {meta.label}
           </h1>

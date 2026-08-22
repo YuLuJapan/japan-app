@@ -148,7 +148,7 @@ export default function DocumentPreview() {
         ‹ Back
       </button>
 
-      <h1 className="mt-2 font-display text-xl font-extrabold">{doc.display_name}</h1>
+      <h1 className="mt-2 font-display text-xl font-bold">{doc.display_name}</h1>
       <p className="mt-1 text-xs text-muted">
         {size(doc.size_bytes)}
         {doc.attached_to.kind !== 'trip' && (

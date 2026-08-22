@@ -73,7 +73,7 @@ export function Schedule({ steps, items, days, today, mode, zoneId, tripId }: Pr
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <p className="font-display text-lg font-extrabold">{fmtDayLong(day)}</p>
+        <p className="font-display text-lg font-bold">{fmtDayLong(day)}</p>
         {mode === 'trip' &&
           zones.map((z, i) => (
             <span key={z.id} className="flex items-center gap-2">

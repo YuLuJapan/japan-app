@@ -62,7 +62,7 @@ export default function PlaceDetail() {
           </div>
         )}
         <div className="mt-3 flex items-start justify-between gap-3">
-          <h1 className="font-display text-2xl font-extrabold">{place.name}</h1>
+          <h1 className="font-display text-2xl font-bold">{place.name}</h1>
           <span className={`chip shrink-0 ${meta.color}`}>
             {meta.icon} {meta.singular}
           </span>

@@ -54,7 +54,7 @@ export function DayHighlights({ day, highlights, zoneId = null, tripId }: Props)
             <span className="text-2xl leading-none" aria-hidden>
               {h.icon || DEFAULT_ICON}
             </span>
-            <p className="min-w-0 flex-1 font-display text-sm font-extrabold text-brand-700">
+            <p className="min-w-0 flex-1 font-display text-sm font-bold text-brand-700">
               {h.title}
             </p>
             {canEdit && (

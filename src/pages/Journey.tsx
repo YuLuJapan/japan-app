@@ -3,6 +3,7 @@ import { useItinerary, useTrip } from '../api/hooks'
 import { CountdownWidget } from '../components/CountdownWidget'
 import { ErrorState } from '../components/ErrorState'
 import { GenericCountdown } from '../components/GenericCountdown'
+import { HeroTitle } from '../components/HeroTitle'
 import { JourneyStepsSlider } from '../components/JourneyStepsSlider'
 import { Loading } from '../components/Loading'
 import { Schedule } from '../components/Schedule'
@@ -38,21 +39,24 @@ export default function Journey() {
   // to be built here from trip.name plus travellersLabel, which meant the title
   // differed depending on which screen you were looking at.
   const heroTitle = data.trip.display_title
+  // Where the trip is going, accented inside that title. HeroTitle only
+  // colours it when the composed title actually ends in it, so an explicit
+  // name override ("Honeymoon") stays plain.
+  const destination = data.trip.country ?? undefined
 
   return (
     <div className="space-y-6">
       {japan ? (
         <SushiSequence
           title={heroTitle}
+          destination={destination}
           meta={`${fmt(data.trip.start_date)} – ${fmt(data.trip.end_date)} · ${data.steps.length} stops`}
         />
       ) : (
         <div>
-          <p className="section-title text-brand">Our trip</p>
-          <h1 className="mt-1 font-display text-[34px] font-extrabold leading-[1.05] tracking-tight">
-            {heroTitle}
-          </h1>
-          <p className="mt-1.5 text-sm text-muted">
+          <p className="section-title">Our trip</p>
+          <HeroTitle title={heroTitle} destination={destination} max={34} className="mt-2.5" />
+          <p className="mt-3 text-sm text-muted">
             {fmt(data.trip.start_date)} – {fmt(data.trip.end_date)} · {data.steps.length} stops
           </p>
         </div>
@@ -73,7 +77,7 @@ export default function Journey() {
         <>
           <div>
             <div className="mb-3 flex items-baseline justify-between">
-              <h2 className="font-display text-2xl font-bold tracking-tight">The journey</h2>
+              <h2 className="font-display text-2xl font-semibold tracking-tight">The journey</h2>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-muted">swipe →</span>
                 {canEdit && (
@@ -90,7 +94,7 @@ export default function Journey() {
           </div>
 
           <section>
-            <h2 className="mb-3 font-display text-2xl font-bold tracking-tight">Day by day</h2>
+            <h2 className="mb-3 font-display text-2xl font-semibold tracking-tight">Day by day</h2>
             {itinerary.isPending ? (
               <Loading label="Loading the schedule…" />
             ) : itinerary.isError ? (
@@ -112,7 +116,7 @@ export default function Journey() {
         </>
       ) : (
         <div className="rounded-3xl border border-dashed border-line px-5 py-6 text-center">
-          <p className="font-display text-base font-bold">No stops yet</p>
+          <p className="font-display text-base font-semibold">No stops yet</p>
           <p className="mt-1.5 text-sm text-muted">
             Add the cities you&apos;ll sleep in and the day-by-day plan builds itself.
           </p>
