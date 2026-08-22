@@ -269,7 +269,24 @@ export function useDeleteReminder() {
   })
 }
 
-// Push subscriptions — one row per device that turned notifications on.
+// Push subscriptions — one row per device that turned notifications on, held
+// against the account that turned it on.
+
+/**
+ * Re-register a device that is already subscribed, so the server records
+ * whoever is signed in *now* as its owner.
+ *
+ * A push endpoint identifies a device, not a person, and reminders are
+ * delivered to the members of the trip they belong to — so a row whose account
+ * is stale (a device that predates accounts, or a phone someone else has since
+ * signed into) would either hear nothing or hear the wrong trips. Called on
+ * load rather than only on the toggle, because nobody re-taps a switch that is
+ * already on. Fire-and-forget: it changes nothing visible, and the next visit
+ * retries.
+ */
+export const syncPushSubscription = (payload: SubscriptionPayload) =>
+  api.post<{ subscription: { id: string; label: string | null } }>('/push/subscriptions', payload)
+
 export function useRegisterPush() {
   return useMutation({
     mutationFn: (payload: SubscriptionPayload) =>

@@ -37,6 +37,7 @@ import type {
   ZoneInput,
 } from './datastore.js'
 import { CATEGORIES } from './datastore.js'
+import { normalizeFlight } from './flight.js'
 
 export interface MemoryData {
   profiles?: Profile[]
@@ -98,6 +99,9 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
     i.highlight ??= false
     i.icon ??= null
   }
+  // The flight is jsonb in Postgres and free-form JSON here, so it is checked
+  // on the way in exactly as the Supabase store checks it (lib/flight.ts).
+  for (const t of db.trips) t.flight = normalizeFlight(t.flight)
   // uploaded blobs live in memory only (dev/tests); seeded samples come from public/
   const blobs = new Map<string, { bytes: Buffer; mime: string }>()
   let latestRates: ExchangeRates | null = null
@@ -279,6 +283,9 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         end_date: input.end_date,
         description: input.description ?? null,
         people: input.people ?? [],
+        // No API writes this yet: a new trip has no flight until one is
+        // seeded onto it. See lib/flight.ts.
+        flight: null,
       }
       db.trips.push(trip)
       return structuredClone(trip)
@@ -726,13 +733,17 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return due.map((r) => structuredClone(r))
     },
 
-    async listPushSubscriptions() {
-      return subscriptions.map((s) => ({ ...s }))
+    async listPushSubscriptionsForUsers(userIds) {
+      const wanted = new Set(userIds)
+      return subscriptions.filter((s) => wanted.has(s.user_id)).map((s) => ({ ...s }))
     },
 
     async savePushSubscription(input: PushSubscriptionInput) {
       const existing = subscriptions.find((s) => s.endpoint === input.endpoint)
       if (existing) {
+        // The endpoint is the identity of the device, not of the person: a
+        // shared phone re-subscribing under a second account moves with them.
+        existing.user_id = input.user_id
         existing.p256dh = input.p256dh
         existing.auth = input.auth
         if (input.label !== undefined) existing.label = input.label ?? null
@@ -740,6 +751,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       }
       const record: PushSubscriptionRecord = {
         id: randomUUID(),
+        user_id: input.user_id,
         endpoint: input.endpoint,
         p256dh: input.p256dh,
         auth: input.auth,
@@ -750,8 +762,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return { ...record }
     },
 
-    async deletePushSubscription(endpoint) {
-      const idx = subscriptions.findIndex((s) => s.endpoint === endpoint)
+    async deletePushSubscription(userId, endpoint) {
+      const idx = subscriptions.findIndex((s) => s.endpoint === endpoint && s.user_id === userId)
       if (idx === -1) return false
       subscriptions.splice(idx, 1)
       return true

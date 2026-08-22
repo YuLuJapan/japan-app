@@ -63,6 +63,24 @@ export function fixture(): MemoryData {
         end_date: '2026-10-14',
         description: null,
         people: [{ name: 'Alex' }, { name: 'Sam' }],
+        flight: {
+          airline: 'Test Air',
+          booking_ref: 'TESTREF',
+          outbound: {
+            depart_at: '2026-10-01T08:00:00+03:00',
+            depart_tz: 'Asia/Jerusalem',
+            arrive_at: '2026-10-02T06:00:00+09:00',
+            arrive_tz: 'Asia/Tokyo',
+            legs: [{ flight_no: 'TA 1', from: 'Tel Aviv (TLV)', to: 'Narita (NRT)' }],
+          },
+          return_flight: {
+            depart_at: '2026-10-14T10:00:00+09:00',
+            depart_tz: 'Asia/Tokyo',
+            arrive_at: '2026-10-14T18:00:00+03:00',
+            arrive_tz: 'Asia/Jerusalem',
+            legs: [{ flight_no: 'TA 2', from: 'Narita (NRT)', to: 'Tel Aviv (TLV)' }],
+          },
+        },
       },
       {
         id: 'trip-2',
@@ -72,6 +90,8 @@ export function fixture(): MemoryData {
         end_date: '2026-11-10',
         description: null,
         people: [{ name: 'Sam' }],
+        // No booking attached — what every trip looks like until someone adds one.
+        flight: null,
       },
     ],
     steps: [

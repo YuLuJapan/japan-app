@@ -43,12 +43,17 @@ export interface SubscriptionPayload {
   label?: string
 }
 
-function serialize(subscription: PushSubscription): SubscriptionPayload {
+/** The shape POST /api/push/subscriptions stores, out of a live subscription. */
+export function subscriptionPayload(
+  subscription: PushSubscription,
+  label?: string
+): SubscriptionPayload {
   const json = subscription.toJSON()
   return {
     endpoint: subscription.endpoint,
     p256dh: json.keys?.p256dh ?? '',
     auth: json.keys?.auth ?? '',
+    ...(label ? { label } : {}),
   }
 }
 
@@ -85,7 +90,7 @@ export async function enablePush(publicKey: string, label?: string): Promise<Sub
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
   })
-  return { ...serialize(subscription), label }
+  return subscriptionPayload(subscription, label)
 }
 
 /** Unsubscribes locally; returns the endpoint so the server row can go too. */

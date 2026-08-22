@@ -7,7 +7,6 @@ import { assertTripAccess, roleForTrip, type AccessContext } from '../lib/access
 import { canDeleteTrip, canEditTrip } from '../lib/permissions.js'
 import { forbidden, notFound, validation } from '../lib/errors.js'
 import { displayTitle } from '../lib/trip-title.js'
-import { FLIGHT } from '../lib/flight.js'
 import { hideStayCounts } from '../lib/guest-view.js'
 import type { DateRange } from '../lib/trip-dates.js'
 import { addDays, daysBetween, rangeLabel, withinRange } from '../lib/trip-dates.js'
@@ -48,9 +47,9 @@ export async function listTrips(store: DataStore, access: AccessContext) {
 }
 
 /**
- * The guest view drops both extras it would otherwise carry: the flight (its
- * booking reference and ticket numbers) and the stay counts that would put a
- * "Stays" card on every city. See lib/guest-view.ts.
+ * A restricted view drops both extras the bundle would otherwise carry: the
+ * flight (its booking reference and ticket numbers) and the stay counts that
+ * would put a "Stays" card on every city. See lib/trip-view.ts.
  */
 export interface TripBundleOptions {
   includeFlight?: boolean
@@ -91,7 +90,10 @@ export async function getTripBundle(
     // What this caller may do here. The frontend uses it to decide which
     // buttons to offer; it is never what decides whether a write succeeds.
     my_role: roleForTrip(access, trip.id),
-    ...(includeFlight ? { flight: FLIGHT } : {}),
+    // Absent for a trip with no booking attached and for a caller who may not
+    // see it — the client renders the same "no flights yet" card either way,
+    // and it has no business telling them apart.
+    ...(includeFlight && trip.flight ? { flight: trip.flight } : {}),
   }
 }
 

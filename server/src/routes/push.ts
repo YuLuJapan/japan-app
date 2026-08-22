@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { requireUserId } from '../lib/auth.js'
 import { getDataStore } from '../lib/datastore.js'
 import { asyncHandler } from '../lib/errors.js'
 import {
@@ -20,7 +21,9 @@ pushRouter.get(
 pushRouter.post(
   '/push/subscriptions',
   asyncHandler(async (req, res) => {
-    res.status(201).json(await registerPushSubscription(await getDataStore(), req.body))
+    res
+      .status(201)
+      .json(await registerPushSubscription(await getDataStore(), requireUserId(req), req.body))
   })
 )
 
@@ -29,14 +32,14 @@ pushRouter.post(
 pushRouter.delete(
   '/push/subscriptions',
   asyncHandler(async (req, res) => {
-    await removePushSubscription(await getDataStore(), req.query.endpoint)
+    await removePushSubscription(await getDataStore(), requireUserId(req), req.query.endpoint)
     res.status(204).end()
   })
 )
 
 pushRouter.post(
   '/push/test',
-  asyncHandler(async (_req, res) => {
-    res.json(await sendTestPush(await getDataStore()))
+  asyncHandler(async (req, res) => {
+    res.json(await sendTestPush(await getDataStore(), requireUserId(req)))
   })
 )

@@ -23,18 +23,27 @@ describe('GET /api/trips/trip-1', () => {
     expect(res.body.trip_files_count).toBe(1)
   })
 
-  it('includes both flight directions (booking ref + legs) for the countdown', async () => {
+  it("includes both directions of the trip's own flight, for the countdown", async () => {
     const res = await auth(request(app).get('/api/trips/trip-1'))
     const nos = (legs: { flight_no: string }[]) => legs.map((l) => l.flight_no)
-    expect(res.body.flight.booking_ref).toBe('AOXIUF')
+    expect(res.body.flight.booking_ref).toBe('TESTREF')
 
-    expect(res.body.flight.outbound.depart_at).toBe('2026-09-18T15:35:00+03:00')
-    expect(res.body.flight.outbound.arrive_at).toBe('2026-09-19T19:40:00+09:00')
-    expect(nos(res.body.flight.outbound.legs)).toEqual(['ET 419', 'ET 672'])
+    expect(res.body.flight.outbound.depart_at).toBe('2026-10-01T08:00:00+03:00')
+    expect(res.body.flight.outbound.arrive_at).toBe('2026-10-02T06:00:00+09:00')
+    expect(nos(res.body.flight.outbound.legs)).toEqual(['TA 1'])
 
-    expect(res.body.flight.return_flight.depart_at).toBe('2026-10-16T20:40:00+09:00')
-    expect(res.body.flight.return_flight.arrive_at).toBe('2026-10-17T14:35:00+03:00')
-    expect(nos(res.body.flight.return_flight.legs)).toEqual(['ET 673', 'ET 418'])
+    expect(res.body.flight.return_flight.depart_at).toBe('2026-10-14T10:00:00+09:00')
+    expect(res.body.flight.return_flight.arrive_at).toBe('2026-10-14T18:00:00+03:00')
+    expect(nos(res.body.flight.return_flight.legs)).toEqual(['TA 2'])
+  })
+
+  // The flight used to be a module constant served with whatever trip was
+  // being read, so every trip anyone created carried the two travellers' own
+  // booking reference. A trip with no booking now has no flight block.
+  it('omits the flight entirely for a trip with no booking attached', async () => {
+    const res = await auth(request(app).get('/api/trips/trip-2'))
+    expect(res.status).toBe(200)
+    expect(res.body).not.toHaveProperty('flight')
   })
 })
 

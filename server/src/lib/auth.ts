@@ -74,6 +74,22 @@ export const currentUser = (req: Request) =>
   req.principal?.kind === 'user' ? req.principal.user : null
 
 /**
+ * The signed-in account's id, for routes that own something *per person*
+ * rather than per trip — today that is only the push subscriptions.
+ *
+ * The deprecated static codes prove a right, not an identity, so there is
+ * nobody to attach a device to: they are refused rather than given a shared
+ * bucket. One more reason to finish moving everyone onto accounts.
+ */
+export function requireUserId(req: Request): string {
+  const user = currentUser(req)
+  if (!user) {
+    throw forbidden('Sign in with your own account to manage notifications on this device')
+  }
+  return user.id
+}
+
+/**
  * The caller's reachable trips. Throws rather than defaulting, so a route
  * mounted outside authMiddleware by mistake fails closed instead of quietly
  * getting the legacy see-everything context.

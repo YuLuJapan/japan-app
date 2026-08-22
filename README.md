@@ -138,8 +138,9 @@ pretending.
    from an installed PWA, iOS 16.4+ — a Safari tab silently has no
    notifications), go to **Reminders**, tap **Turn on**, accept the permission
    prompt, then **Send a test notification** to confirm the whole chain. Do this
-   on both phones — each device subscribes separately and every device gets
-   every reminder.
+   on both phones — each device subscribes separately, against whichever
+   account is signed in on it, and receives the reminders of every trip that
+   account is on.
 
 Still $0: web push goes through Apple/Google/Mozilla's own push services, and
 cron-job.org's free tier covers this comfortably.
@@ -148,4 +149,5 @@ cron-job.org's free tier covers this comfortably.
 
 - The access code is a convenience lock for a private two-person app, not serious security. Don't reuse a password you care about.
 - Reminders are sent at most once: the dispatcher marks one as sent as it claims it, so an overlapping run can't double-notify. The trade-off is that a push service outage means a missed nudge rather than a retry storm.
+- A reminder reaches the devices of its own trip's members and no one else's. Until phase 6 of the accounts work there was no account on a subscription at all, so every due reminder went to every registered device.
 - All API data flows through the Express backend; the browser never talks to the database directly.

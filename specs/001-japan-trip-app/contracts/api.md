@@ -219,7 +219,7 @@ The whole journey skeleton for one trip — powers the Journey (home) view and o
 ```
 
 - Current/past/future step status is **computed client-side** from device date (FR-006).
-- `flight` is trip-level metadata held in code (`server/src/lib/flight.ts`), not the DB, so the booking reference is only served behind auth. `outbound.depart_at` is the countdown target; the `*_tz` fields are IANA zones so ticket times render the same on a phone set to Israel or to Japan. **Absent for a guest code**, along with any `place_counts.hotel` — clients must treat `flight` as optional (the UI falls back to a plain countdown on the trip's `start_date`).
+- `flight` is the trip's own booking, stored as `trips.flight` jsonb (migration 0017) and read back through `normalizeFlight` in `server/src/lib/flight.ts` — a malformed value reads as no flight rather than reaching the client half-formed. It was a module constant until phase 6, which meant every trip anyone created was served the two travellers' booking reference. `outbound.depart_at` is the countdown target; the `*_tz` fields are IANA zones so ticket times render the same on a phone set to Israel or to Japan. **Absent** both for a trip with no booking attached and for a caller whose view withholds it, along with any `place_counts.hotel` — clients must treat `flight` as optional (the UI falls back to a plain countdown on the trip's `start_date`), and cannot tell the two cases apart. There is no endpoint that writes it yet.
 
 ### PATCH /api/trips/:tripId
 
@@ -505,26 +505,30 @@ Called by the external scheduler, not by the app (see README "Reminders & notifi
 
 - 200: `{"due":1,"subscriptions":2,"sent":2,"failed":0,"dropped":0}` · 401.
 
+Each due reminder goes to the devices of **its own trip's members**, and to nobody else — resolved reminder → trip → `trip_members` → `push_subscriptions`. Before phase 6 this read every registered device and sent every due reminder to all of them, which leaked reminder titles (free text) across accounts. `subscriptions` counts the distinct devices a run actually addressed, not every device on record.
+
 ### GET /api/push/key
 
 - 200: `{"public_key":"B…"}` — the VAPID public key the browser needs in order to subscribe, or `null` when the server has no keys configured (the UI then explains that nothing will be delivered).
 
 ### POST /api/push/subscriptions
 
-One row per device; re-subscribing the same endpoint updates its keys.
+One row per device, held against the signed-in account (`push_subscriptions.user_id`, migration 0016). Re-subscribing the same endpoint updates its keys **and its owner** — a push endpoint identifies a device, not a person, so it follows whoever is signed in on it. The app re-posts an existing subscription on load for exactly that reason.
 
 - Request: `{"endpoint":"https://…","p256dh":"…","auth":"…","label?":"iPhone"}`
-- 201: `{"subscription":{"id":"…","label":"iPhone"}}` — the endpoint is not echoed back · 400 `VALIDATION` · 503 when the server has no VAPID keys.
+- 201: `{"subscription":{"id":"…","label":"iPhone"}}` — the endpoint is not echoed back · 400 `VALIDATION` · 403 for the deprecated access codes, which are a right rather than an identity and so have no devices · 503 when the server has no VAPID keys.
 
 ### DELETE /api/push/subscriptions?endpoint=…
 
-- 204 · 400 (missing endpoint) · 404.
+Your own devices only. Someone else's endpoint answers 404, the same as one that was never registered.
+
+- 204 · 400 (missing endpoint) · 403 (access code) · 404.
 
 ### POST /api/push/test
 
-Sends "notifications are working" to every subscribed device.
+Sends "notifications are working" to the caller's own devices, and nobody else's.
 
-- 200: `{"subscriptions":1,"sent":1,"failed":0}` · 503 when unconfigured.
+- 200: `{"subscriptions":1,"sent":1,"failed":0}` · 403 (access code) · 503 when unconfigured.
 
 ## Ops
 
