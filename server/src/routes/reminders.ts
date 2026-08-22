@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import type { Request } from 'express'
-import { accessCode, accessOf } from '../lib/auth.js'
+import { accessCode } from '../lib/auth.js'
 import { getDataStore } from '../lib/datastore.js'
 import { ApiError, asyncHandler } from '../lib/errors.js'
 import {
@@ -45,21 +45,21 @@ remindersRouter.get('/reminders/dispatch', dispatch)
 remindersRouter.post('/reminders/dispatch', dispatch)
 
 const list = asyncHandler(async (req, res) => {
-  res.json(await listReminders(await getDataStore(), accessOf(req), req.params.tripId))
+  res.json(await listReminders(await getDataStore(), req.params.tripId))
 })
 
 const create = asyncHandler(async (req, res) => {
-  res
-    .status(201)
-    .json(await createReminder(await getDataStore(), accessOf(req), req.body, req.params.tripId))
+  res.status(201).json(await createReminder(await getDataStore(), req.params.tripId, req.body))
 })
 
 const update = asyncHandler(async (req, res) => {
-  res.json(await updateReminder(await getDataStore(), req.params.reminderId, req.body))
+  res.json(
+    await updateReminder(await getDataStore(), req.params.tripId, req.params.reminderId, req.body)
+  )
 })
 
 const remove = asyncHandler(async (req, res) => {
-  await deleteReminder(await getDataStore(), req.params.reminderId)
+  await deleteReminder(await getDataStore(), req.params.tripId, req.params.reminderId)
   res.status(204).end()
 })
 

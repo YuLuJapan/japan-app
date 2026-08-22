@@ -92,9 +92,21 @@ export function fixture(): MemoryData {
       },
     ],
     zones: [
-      { id: 'zone-tokyo', name: 'Tokyo', name_ja: '東京', summary: 'Big city' },
-      { id: 'zone-kyoto', name: 'Kyoto', name_ja: '京都', summary: 'Old capital' },
-      { id: 'zone-osaka', name: 'Osaka', name_ja: '大阪', summary: 'Someone else’s city' },
+      { id: 'zone-tokyo', trip_id: 'trip-1', name: 'Tokyo', name_ja: '東京', summary: 'Big city' },
+      {
+        id: 'zone-kyoto',
+        trip_id: 'trip-1',
+        name: 'Kyoto',
+        name_ja: '京都',
+        summary: 'Old capital',
+      },
+      {
+        id: 'zone-osaka',
+        trip_id: 'trip-2',
+        name: 'Osaka',
+        name_ja: '大阪',
+        summary: 'Someone else’s city',
+      },
     ],
     places: [
       {

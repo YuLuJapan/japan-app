@@ -1,12 +1,12 @@
 import { Router } from 'express'
-import { accessOf, isGuest } from '../lib/auth.js'
+import { isGuest } from '../lib/auth.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import { createPlace, deletePlace, getPlaceDetail, updatePlace } from '../services/places.js'
 
 const placeDetail = asyncHandler(async (req, res) => {
   res.json(
-    await getPlaceDetail(await getDataStore(), accessOf(req), req.params.placeId, {
+    await getPlaceDetail(await getDataStore(), req.params.tripId, req.params.placeId, {
       includeFiles: !isGuest(req),
       includeStays: !isGuest(req),
     })
@@ -14,17 +14,17 @@ const placeDetail = asyncHandler(async (req, res) => {
 })
 
 const create = asyncHandler(async (req, res) => {
-  res.status(201).json(await createPlace(await getDataStore(), accessOf(req), req.body ?? {}))
+  res.status(201).json(await createPlace(await getDataStore(), req.params.tripId, req.body ?? {}))
 })
 
 const update = asyncHandler(async (req, res) => {
   res.json(
-    await updatePlace(await getDataStore(), accessOf(req), req.params.placeId, req.body ?? {})
+    await updatePlace(await getDataStore(), req.params.tripId, req.params.placeId, req.body ?? {})
   )
 })
 
 const remove = asyncHandler(async (req, res) => {
-  await deletePlace(await getDataStore(), accessOf(req), req.params.tripId, req.params.placeId)
+  await deletePlace(await getDataStore(), req.params.tripId, req.params.placeId)
   res.status(204).end()
 })
 

@@ -2,15 +2,15 @@
 // it, what it should cost, a photo, and whether it's been bought.
 import type { DataStore, ShoppingCategory, ShoppingItemInput } from '../lib/datastore.js'
 import { SHOPPING_CATEGORIES } from '../lib/datastore.js'
-import { resolveTrip, type AccessContext } from '../lib/access.js'
+import { requireTrip } from '../lib/access.js'
 import { notFound, validation } from '../lib/errors.js'
 import { findImageUrl } from './images.js'
 
 const MAX_PRICE_YEN = 10_000_000
 const isHttpUrl = (u: string) => /^https?:\/\/.+/.test(u)
 
-export async function listShoppingItems(store: DataStore, access: AccessContext, tripId: string) {
-  const trip = await resolveTrip(store, access, tripId)
+export async function listShoppingItems(store: DataStore, tripId: string) {
+  const trip = await requireTrip(store, tripId)
   const items = await store.listShoppingItems(trip.id)
   return { items }
 }
@@ -65,15 +65,14 @@ function clean(input: Partial<ShoppingItemInput>): Partial<ShoppingItemInput> {
 
 export async function createShoppingItem(
   store: DataStore,
-  access: AccessContext,
-  input: ShoppingItemInput,
-  tripId: string
+  tripId: string,
+  input: ShoppingItemInput
 ) {
   const errors = collectShoppingErrors(input, false)
   if (errors.length) throw validation(errors)
-  const trip = await resolveTrip(store, access, tripId)
+  const trip = await requireTrip(store, tripId)
   if (input.zone_id) {
-    if (!(await store.getZone(input.zone_id))) throw notFound('Zone')
+    if (!(await store.getZone(trip.id, input.zone_id))) throw notFound('Zone')
   }
   const fields = clean(input)
   // No photo given? Find one on the web so the list never shows a blank tile.
@@ -97,20 +96,21 @@ export function imageQueryFor(item: { name?: string; shop?: string | null }): st
 
 export async function updateShoppingItem(
   store: DataStore,
+  tripId: string,
   itemId: string,
   patch: Partial<ShoppingItemInput>
 ) {
   const errors = collectShoppingErrors(patch, true)
   if (errors.length) throw validation(errors)
   if (patch.zone_id) {
-    if (!(await store.getZone(patch.zone_id))) throw notFound('Zone')
+    if (!(await store.getZone(tripId, patch.zone_id))) throw notFound('Zone')
   }
-  const item = await store.updateShoppingItem(itemId, clean(patch))
+  const item = await store.updateShoppingItem(tripId, itemId, clean(patch))
   if (!item) throw notFound('Shopping item')
   return { item }
 }
 
-export async function deleteShoppingItem(store: DataStore, itemId: string) {
-  const ok = await store.deleteShoppingItem(itemId)
+export async function deleteShoppingItem(store: DataStore, tripId: string, itemId: string) {
+  const ok = await store.deleteShoppingItem(tripId, itemId)
   if (!ok) throw notFound('Shopping item')
 }

@@ -117,7 +117,7 @@ describe('reminders CRUD', () => {
       title: 'Book',
       remind_at: '2026-09-12T09:00:00.000Z',
     })
-    await store.updateReminder(reminder.id, { sent_at: '2026-09-12T09:01:00.000Z' })
+    await store.updateReminder('trip-1', reminder.id, { sent_at: '2026-09-12T09:01:00.000Z' })
 
     const res = await auth(request(app).patch(`/api/trips/trip-1/reminders/${reminder.id}`)).send({
       remind_at: '2026-09-20T09:00:00.000Z',
@@ -182,7 +182,7 @@ describe('dispatch', () => {
       body: 'Counter seats',
       url: 'https://booking.example.com',
     })
-    expect((await store.getReminder(reminder.id))!.sent_at).not.toBeNull()
+    expect((await store.getReminder('trip-1', reminder.id))!.sent_at).not.toBeNull()
   })
 
   it('leaves future reminders alone', async () => {

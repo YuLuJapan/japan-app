@@ -4,15 +4,22 @@ import { getDataStore } from '../lib/datastore.js'
 import { createTip, deleteTip, updateTip } from '../services/tips.js'
 
 const create = asyncHandler(async (req, res) => {
-  res.status(201).json(await createTip(await getDataStore(), req.body ?? {}))
+  res.status(201).json(await createTip(await getDataStore(), req.params.tripId, req.body ?? {}))
 })
 
 const update = asyncHandler(async (req, res) => {
-  res.json(await updateTip(await getDataStore(), req.params.tipId, (req.body ?? {}).body))
+  res.json(
+    await updateTip(
+      await getDataStore(),
+      req.params.tripId,
+      req.params.tipId,
+      (req.body ?? {}).body
+    )
+  )
 })
 
 const remove = asyncHandler(async (req, res) => {
-  await deleteTip(await getDataStore(), req.params.tipId)
+  await deleteTip(await getDataStore(), req.params.tripId, req.params.tipId)
   res.status(204).end()
 })
 

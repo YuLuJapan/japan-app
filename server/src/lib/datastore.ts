@@ -110,6 +110,7 @@ export interface JourneyStepInput {
 
 export interface Zone {
   id: string
+  trip_id: string
   name: string
   name_ja: string | null
   summary: string | null
@@ -119,6 +120,7 @@ export interface Zone {
 }
 
 export interface ZoneInput {
+  trip_id: string
   name: string
   name_ja?: string | null
   summary?: string | null
@@ -346,54 +348,67 @@ export interface DataStore {
   deleteTrip(tripId: string): Promise<boolean>
 
   listSteps(tripId: string): Promise<JourneyStep[]>
-  getStep(stepId: string): Promise<JourneyStep | null>
+  getStep(tripId: string, stepId: string): Promise<JourneyStep | null>
   createStep(input: JourneyStepInput): Promise<JourneyStep>
-  updateStep(stepId: string, patch: Partial<JourneyStepInput>): Promise<JourneyStep | null>
+  updateStep(
+    tripId: string,
+    stepId: string,
+    patch: Partial<JourneyStepInput>
+  ): Promise<JourneyStep | null>
   /** Hard delete. Callers are responsible for compacting positions afterward. */
-  deleteStep(stepId: string): Promise<boolean>
+  deleteStep(tripId: string, stepId: string): Promise<boolean>
 
-  /** Every zone in the trip's catalog (used to find-or-create a zone for a free-text destination). */
-  listZones(): Promise<Zone[]>
-  getZone(zoneId: string): Promise<Zone | null>
+  /**
+   * Every zone belonging to this trip (used to find-or-create a zone for a
+   * free-text destination).
+   *
+   * Since 0013 a zone belongs to exactly one trip. That is what lets every
+   * method below take the trip id as its first argument: scope lives in the
+   * query, so a forgotten check is a type error rather than a code review note.
+   */
+  listZones(tripId: string): Promise<Zone[]>
+  getZone(tripId: string, zoneId: string): Promise<Zone | null>
   /** Create a zone on the fly for a destination that doesn't match an existing one. */
   createZone(input: ZoneInput): Promise<Zone>
-  countPlacesByCategory(zoneId: string): Promise<Record<Category, number>>
+  countPlacesByCategory(tripId: string, zoneId: string): Promise<Record<Category, number>>
 
-  listPlaces(zoneId: string, category: Category): Promise<Place[]>
+  listPlaces(tripId: string, zoneId: string, category: Category): Promise<Place[]>
   /** Every place in a zone, all categories (used by the city map). */
-  listPlacesInZone(zoneId: string): Promise<Place[]>
-  getPlace(placeId: string): Promise<Place | null>
-  /** Ids of every place in one category — one query, so the guest view can drop stays cheaply. */
-  listPlaceIdsByCategory(category: Category): Promise<string[]>
-  createPlace(input: PlaceInput): Promise<Place>
-  updatePlace(placeId: string, patch: Partial<PlaceInput>): Promise<Place | null>
+  listPlacesInZone(tripId: string, zoneId: string): Promise<Place[]>
+  getPlace(tripId: string, placeId: string): Promise<Place | null>
+  /** Ids of every place in one category — one query, so a restricted view can drop stays cheaply. */
+  listPlaceIdsByCategory(tripId: string, category: Category): Promise<string[]>
+  createPlace(tripId: string, input: PlaceInput): Promise<Place>
+  updatePlace(tripId: string, placeId: string, patch: Partial<PlaceInput>): Promise<Place | null>
   /** Hard delete; the place's tips are deleted with it. Returns false if not found. */
-  deletePlace(placeId: string): Promise<boolean>
+  deletePlace(tripId: string, placeId: string): Promise<boolean>
 
   listItinerary(tripId: string): Promise<ItineraryItem[]>
-  /** One item by id — used to find its trip before validating a patched day. */
-  getItineraryItem(itemId: string): Promise<ItineraryItem | null>
+  getItineraryItem(tripId: string, itemId: string): Promise<ItineraryItem | null>
   createItineraryItem(input: ItineraryItemInput): Promise<ItineraryItem>
   updateItineraryItem(
+    tripId: string,
     itemId: string,
     patch: Partial<ItineraryItemInput>
   ): Promise<ItineraryItem | null>
-  deleteItineraryItem(itemId: string): Promise<boolean>
+  deleteItineraryItem(tripId: string, itemId: string): Promise<boolean>
 
   listShoppingItems(tripId: string): Promise<ShoppingItem[]>
   createShoppingItem(input: ShoppingItemInput): Promise<ShoppingItem>
   updateShoppingItem(
+    tripId: string,
     itemId: string,
     patch: Partial<ShoppingItemInput>
   ): Promise<ShoppingItem | null>
-  deleteShoppingItem(itemId: string): Promise<boolean>
+  deleteShoppingItem(tripId: string, itemId: string): Promise<boolean>
 
-  listTips(parent: { zone_id: string } | { place_id: string }): Promise<Tip[]>
-  createTip(input: TipInput): Promise<Tip>
-  updateTip(tipId: string, body: string): Promise<Tip | null>
-  deleteTip(tipId: string): Promise<boolean>
+  listTips(tripId: string, parent: { zone_id: string } | { place_id: string }): Promise<Tip[]>
+  createTip(tripId: string, input: TipInput): Promise<Tip>
+  updateTip(tripId: string, tipId: string, body: string): Promise<Tip | null>
+  deleteTip(tripId: string, tipId: string): Promise<boolean>
 
   listFiles(
+    tripId: string,
     parent: { trip_id: string } | { zone_id: string } | { place_id: string }
   ): Promise<FileAttachment[]>
   /**
@@ -403,11 +418,11 @@ export interface DataStore {
    */
   listAllFiles(tripId: string): Promise<FileAttachment[]>
   countTripFiles(tripId: string): Promise<number>
-  getFile(fileId: string): Promise<FileAttachment | null>
+  getFile(tripId: string, fileId: string): Promise<FileAttachment | null>
   /** Store an uploaded blob and its metadata row. */
   createFile(input: FileInput, bytes: Buffer): Promise<FileAttachment>
   /** Delete the metadata row and its blob. Returns false if the row is missing. */
-  deleteFile(fileId: string): Promise<boolean>
+  deleteFile(tripId: string, fileId: string): Promise<boolean>
   /** Move a place's files to the trip (used before place deletion — no silent file loss). */
   reparentFilesToTrip(placeId: string, tripId: string): Promise<void>
   /** Resolve an openable URL for the blob, or FILE_MISSING when the row exists but the blob is gone. */
@@ -415,8 +430,8 @@ export interface DataStore {
   /** Raw bytes for the blob, streamed by GET /api/files/:id/content so the app can preview it inline. */
   getFileBytes(file: FileAttachment): Promise<FileBytesResult>
 
-  /** Free-text search across places, zones, and tips (case-insensitive). */
-  search(query: string): Promise<{ places: Place[]; zones: Zone[]; tips: Tip[] }>
+  /** Free-text search across one trip's places, zones and tips (case-insensitive). */
+  search(tripId: string, query: string): Promise<{ places: Place[]; zones: Zone[]; tips: Tip[] }>
 
   /** Last exchange rate we successfully fetched (durable fallback), or null. */
   getLatestRates(): Promise<ExchangeRates | null>
@@ -425,13 +440,14 @@ export interface DataStore {
 
   /** Every reminder for the trip, soonest first. */
   listReminders(tripId: string): Promise<Reminder[]>
-  getReminder(reminderId: string): Promise<Reminder | null>
+  getReminder(tripId: string, reminderId: string): Promise<Reminder | null>
   createReminder(input: ReminderInput): Promise<Reminder>
   updateReminder(
+    tripId: string,
     reminderId: string,
     patch: Partial<ReminderInput> & { sent_at?: string | null }
   ): Promise<Reminder | null>
-  deleteReminder(reminderId: string): Promise<boolean>
+  deleteReminder(tripId: string, reminderId: string): Promise<boolean>
   /**
    * Atomically hand out every unsent reminder whose time has come, stamping
    * `sent_at` in the same operation. Claim-then-send means a reminder is sent

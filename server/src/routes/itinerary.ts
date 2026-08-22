@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { accessOf, isGuest } from '../lib/auth.js'
+import { isGuest } from '../lib/auth.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import {
@@ -9,11 +9,9 @@ import {
   updateItineraryItem,
 } from '../services/itinerary.js'
 
-// `req.params.tripId` is undefined on the flat mount and set on the nested one,
-// which is exactly what resolveTrip expects — so one handler serves both.
 const list = asyncHandler(async (req, res) => {
   res.json(
-    await listItinerary(await getDataStore(), accessOf(req), req.params.tripId, {
+    await listItinerary(await getDataStore(), req.params.tripId, {
       includeStays: !isGuest(req),
     })
   )
@@ -22,22 +20,22 @@ const list = asyncHandler(async (req, res) => {
 const create = asyncHandler(async (req, res) => {
   res
     .status(201)
-    .json(
-      await createItineraryItem(
-        await getDataStore(),
-        accessOf(req),
-        req.body ?? {},
-        req.params.tripId
-      )
-    )
+    .json(await createItineraryItem(await getDataStore(), req.params.tripId, req.body ?? {}))
 })
 
 const update = asyncHandler(async (req, res) => {
-  res.json(await updateItineraryItem(await getDataStore(), req.params.itemId, req.body ?? {}))
+  res.json(
+    await updateItineraryItem(
+      await getDataStore(),
+      req.params.tripId,
+      req.params.itemId,
+      req.body ?? {}
+    )
+  )
 })
 
 const remove = asyncHandler(async (req, res) => {
-  await deleteItineraryItem(await getDataStore(), req.params.itemId)
+  await deleteItineraryItem(await getDataStore(), req.params.tripId, req.params.itemId)
   res.status(204).end()
 })
 

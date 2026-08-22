@@ -36,6 +36,32 @@ import { FILES_BUCKET, getSupabase } from './supabase.js'
 
 const SIGNED_URL_TTL = 300 // seconds
 
+// zones.trip_id (migration 0013). Every zone belongs to exactly one trip, which
+// is what lets the trip-scoped queries below filter in SQL rather than in JS:
+// a place, tip or file is in the trip when its zone is.
+const ZONE_COLS = 'id,trip_id,name,name_ja,summary,image_url,lat,lng'
+
+/** The trip's place ids — how tips and files hanging off a place are scoped. */
+const placeIdsFor = async (
+  db: ReturnType<typeof getSupabase>,
+  zoneIds: string[]
+): Promise<string[]> => {
+  if (!zoneIds.length) return []
+  const { data, error } = await db.from('places').select('id').in('zone_id', zoneIds)
+  if (error) throw new Error(error.message)
+  return ((data as { id: string }[]) ?? []).map((p) => p.id)
+}
+
+/** Sub-select of the trip's zone ids, used to scope places in one round-trip. */
+const zoneIdsFor = async (
+  db: ReturnType<typeof getSupabase>,
+  tripId: string
+): Promise<string[]> => {
+  const { data, error } = await db.from('zones').select('id').eq('trip_id', tripId)
+  if (error) throw new Error(error.message)
+  return ((data as { id: string }[]) ?? []).map((z) => z.id)
+}
+
 // profiles (migration 0010). Reads degrade to "no profile" when the table
 // isn't there yet, matching how the column-level fallbacks below let an old
 // deploy run against a not-yet-migrated database. Writes are deliberately not
@@ -138,6 +164,38 @@ function withHighlightDefaults(row: Record<string, unknown>): ItineraryItem {
 export function createSupabaseStore(): DataStore {
   const db = getSupabase()
 
+  /** A file is in the trip when it hangs off the trip, or off one of its zones or places. */
+  const fileBelongs = async (tripId: string, file: FileAttachment): Promise<boolean> => {
+    if (file.trip_id) return file.trip_id === tripId
+    const zoneIds = await zoneIdsFor(db, tripId)
+    if (file.zone_id) return zoneIds.includes(file.zone_id)
+    return !!file.place_id && (await placeIdsFor(db, zoneIds)).includes(file.place_id)
+  }
+
+  const fileInTrip = async (tripId: string, fileId: string): Promise<boolean> => {
+    const { data } = await db
+      .from('files')
+      .select('id,trip_id,zone_id,place_id,display_name,storage_path,mime_type,size_bytes')
+      .eq('id', fileId)
+      .maybeSingle()
+    const file = (data as FileAttachment) ?? null
+    return !!file && (await fileBelongs(tripId, file))
+  }
+
+  /** A tip inherits the trip of its single parent — a zone or a place. */
+  const tipInTrip = async (tripId: string, tipId: string): Promise<boolean> => {
+    const { data } = await db
+      .from('tips')
+      .select('id,zone_id,place_id,body')
+      .eq('id', tipId)
+      .maybeSingle()
+    const tip = (data as Tip) ?? null
+    if (!tip) return false
+    const zoneIds = await zoneIdsFor(db, tripId)
+    if (tip.zone_id) return zoneIds.includes(tip.zone_id)
+    return !!tip.place_id && (await placeIdsFor(db, zoneIds)).includes(tip.place_id)
+  }
+
   return {
     async ping() {
       const { error } = await db.from('trips').select('id').limit(1)
@@ -205,7 +263,10 @@ export function createSupabaseStore(): DataStore {
     },
 
     async listMembershipsForUser(userId) {
-      const { data, error } = await db.from('trip_members').select(MEMBER_COLS).eq('user_id', userId)
+      const { data, error } = await db
+        .from('trip_members')
+        .select(MEMBER_COLS)
+        .eq('user_id', userId)
       if (error) throw new Error(error.message)
       return (data as unknown as TripMember[]) ?? []
     },
@@ -336,11 +397,12 @@ export function createSupabaseStore(): DataStore {
       return (data as JourneyStep[]) ?? []
     },
 
-    async getStep(stepId) {
+    async getStep(tripId, stepId) {
       const { data } = await db
         .from('journey_steps')
         .select('id,trip_id,zone_id,position,start_date,end_date')
         .eq('id', stepId)
+        .eq('trip_id', tripId)
         .maybeSingle()
       return (data as JourneyStep) ?? null
     },
@@ -359,7 +421,7 @@ export function createSupabaseStore(): DataStore {
       return data as JourneyStep
     },
 
-    async updateStep(stepId, patch) {
+    async updateStep(tripId, stepId, patch) {
       const fields: Record<string, unknown> = {}
       if (patch.zone_id !== undefined) fields.zone_id = patch.zone_id
       if (patch.position !== undefined) fields.position = patch.position
@@ -369,30 +431,38 @@ export function createSupabaseStore(): DataStore {
         .from('journey_steps')
         .update(fields)
         .eq('id', stepId)
+        .eq('trip_id', tripId)
         .select()
         .maybeSingle()
       if (error) throw new Error(error.message)
       return (data as JourneyStep) ?? null
     },
 
-    async deleteStep(stepId) {
-      const { data } = await db.from('journey_steps').delete().eq('id', stepId).select('id')
+    async deleteStep(tripId, stepId) {
+      const { data } = await db
+        .from('journey_steps')
+        .delete()
+        .eq('id', stepId)
+        .eq('trip_id', tripId)
+        .select('id')
       return (data?.length ?? 0) > 0
     },
 
-    async listZones() {
+    async listZones(tripId) {
       const { data } = await db
         .from('zones')
-        .select('id,name,name_ja,summary,image_url,lat,lng')
+        .select(ZONE_COLS)
+        .eq('trip_id', tripId)
         .order('name', { ascending: true })
       return (data as Zone[]) ?? []
     },
 
-    async getZone(zoneId) {
+    async getZone(tripId, zoneId) {
       const { data } = await db
         .from('zones')
-        .select('id,name,name_ja,summary,image_url,lat,lng')
+        .select(ZONE_COLS)
         .eq('id', zoneId)
+        .eq('trip_id', tripId)
         .maybeSingle()
       return (data as Zone) ?? null
     },
@@ -400,6 +470,7 @@ export function createSupabaseStore(): DataStore {
     async createZone(input: ZoneInput) {
       const row = {
         id: randomUUID(),
+        trip_id: input.trip_id,
         name: input.name,
         name_ja: input.name_ja ?? null,
         summary: input.summary ?? null,
@@ -412,14 +483,16 @@ export function createSupabaseStore(): DataStore {
       return data as Zone
     },
 
-    async countPlacesByCategory(zoneId) {
+    async countPlacesByCategory(tripId, zoneId) {
       const counts = Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<Category, number>
+      if (!(await zoneIdsFor(db, tripId)).includes(zoneId)) return counts
       const { data } = await db.from('places').select('category').eq('zone_id', zoneId)
       for (const row of (data as { category: Category }[]) ?? []) counts[row.category]++
       return counts
     },
 
-    async listPlaces(zoneId, category) {
+    async listPlaces(tripId, zoneId, category) {
+      if (!(await zoneIdsFor(db, tripId)).includes(zoneId)) return []
       const run = (cols: string) =>
         db
           .from('places')
@@ -433,7 +506,8 @@ export function createSupabaseStore(): DataStore {
       return (data as unknown as Place[]) ?? []
     },
 
-    async listPlacesInZone(zoneId) {
+    async listPlacesInZone(tripId, zoneId) {
+      if (!(await zoneIdsFor(db, tripId)).includes(zoneId)) return []
       const run = (cols: string) =>
         db
           .from('places')
@@ -446,21 +520,33 @@ export function createSupabaseStore(): DataStore {
       return (data as unknown as Place[]) ?? []
     },
 
-    async getPlace(placeId) {
-      const run = (cols: string) => db.from('places').select(cols).eq('id', placeId).maybeSingle()
+    async getPlace(tripId, placeId) {
+      const zoneIds = await zoneIdsFor(db, tripId)
+      if (!zoneIds.length) return null
+      const run = (cols: string) =>
+        db.from('places').select(cols).eq('id', placeId).in('zone_id', zoneIds).maybeSingle()
       let { data, error } = await run(PLACE_COLS)
       if (error && isMissingCoordColumn(error)) ({ data, error } = await run(PLACE_BASE_COLS))
       if (error) throw new Error(error.message)
       return (data as unknown as Place) ?? null
     },
 
-    async listPlaceIdsByCategory(category) {
-      const { data, error } = await db.from('places').select('id').eq('category', category)
+    async listPlaceIdsByCategory(tripId, category) {
+      const zoneIds = await zoneIdsFor(db, tripId)
+      if (!zoneIds.length) return []
+      const { data, error } = await db
+        .from('places')
+        .select('id')
+        .eq('category', category)
+        .in('zone_id', zoneIds)
       if (error) throw new Error(error.message)
       return ((data as { id: string }[]) ?? []).map((row) => row.id)
     },
 
-    async createPlace(input: PlaceInput) {
+    async createPlace(tripId, input: PlaceInput) {
+      if (!(await zoneIdsFor(db, tripId)).includes(input.zone_id)) {
+        throw new Error('zone does not belong to this trip')
+      }
       const base = {
         id: randomUUID(),
         zone_id: input.zone_id,
@@ -480,7 +566,12 @@ export function createSupabaseStore(): DataStore {
       return data as Place
     },
 
-    async updatePlace(placeId, patch) {
+    async updatePlace(tripId, placeId, patch) {
+      const zoneIds = await zoneIdsFor(db, tripId)
+      if (!zoneIds.length) return null
+      // Both ends have to be in this trip, or a place could be moved into
+      // someone else's city.
+      if (patch.zone_id !== undefined && !zoneIds.includes(patch.zone_id)) return null
       const fields: Record<string, unknown> = {}
       if (patch.zone_id !== undefined) fields.zone_id = patch.zone_id
       if (patch.category !== undefined) fields.category = patch.category
@@ -493,7 +584,7 @@ export function createSupabaseStore(): DataStore {
       if (patch.lat !== undefined) fields.lat = patch.lat ?? null
       if (patch.lng !== undefined) fields.lng = patch.lng ?? null
       const run = (f: Record<string, unknown>) =>
-        db.from('places').update(f).eq('id', placeId).select().maybeSingle()
+        db.from('places').update(f).eq('id', placeId).in('zone_id', zoneIds).select().maybeSingle()
       let { data, error } = await run(fields)
       if (error && isMissingCoordColumn(error)) {
         const rest = { ...fields }
@@ -515,9 +606,16 @@ export function createSupabaseStore(): DataStore {
       return (data as Place) ?? null
     },
 
-    async deletePlace(placeId) {
+    async deletePlace(tripId, placeId) {
+      const zoneIds = await zoneIdsFor(db, tripId)
+      if (!zoneIds.length) return false
       // tips cascade via the DB foreign key
-      const { data } = await db.from('places').delete().eq('id', placeId).select('id')
+      const { data } = await db
+        .from('places')
+        .delete()
+        .eq('id', placeId)
+        .in('zone_id', zoneIds)
+        .select('id')
       return (data?.length ?? 0) > 0
     },
 
@@ -537,9 +635,9 @@ export function createSupabaseStore(): DataStore {
       return (data ?? []).map((r) => withHighlightDefaults(r as unknown as Record<string, unknown>))
     },
 
-    async getItineraryItem(itemId) {
+    async getItineraryItem(tripId, itemId) {
       const run = (cols: string) =>
-        db.from('itinerary_items').select(cols).eq('id', itemId).maybeSingle()
+        db.from('itinerary_items').select(cols).eq('id', itemId).eq('trip_id', tripId).maybeSingle()
       let { data, error } = await run(ITINERARY_COLS)
       if (error && isMissingHighlightColumn(error))
         ({ data, error } = await run(ITINERARY_BASE_COLS))
@@ -567,7 +665,7 @@ export function createSupabaseStore(): DataStore {
       return withHighlightDefaults(data as Record<string, unknown>)
     },
 
-    async updateItineraryItem(itemId, patch) {
+    async updateItineraryItem(tripId, itemId, patch) {
       const fields: Record<string, unknown> = {}
       if (patch.zone_id !== undefined) fields.zone_id = patch.zone_id ?? null
       if (patch.place_id !== undefined) fields.place_id = patch.place_id ?? null
@@ -579,7 +677,13 @@ export function createSupabaseStore(): DataStore {
       if (patch.highlight !== undefined) fields.highlight = patch.highlight ?? false
       if (patch.icon !== undefined) fields.icon = patch.icon ?? null
       const run = (f: Record<string, unknown>) =>
-        db.from('itinerary_items').update(f).eq('id', itemId).select().maybeSingle()
+        db
+          .from('itinerary_items')
+          .update(f)
+          .eq('id', itemId)
+          .eq('trip_id', tripId)
+          .select()
+          .maybeSingle()
       let { data, error } = await run(fields)
       if (error && isMissingHighlightColumn(error)) {
         const rest = { ...fields }
@@ -598,8 +702,13 @@ export function createSupabaseStore(): DataStore {
       return data ? withHighlightDefaults(data as Record<string, unknown>) : null
     },
 
-    async deleteItineraryItem(itemId) {
-      const { data } = await db.from('itinerary_items').delete().eq('id', itemId).select('id')
+    async deleteItineraryItem(tripId, itemId) {
+      const { data } = await db
+        .from('itinerary_items')
+        .delete()
+        .eq('id', itemId)
+        .eq('trip_id', tripId)
+        .select('id')
       return (data?.length ?? 0) > 0
     },
 
@@ -636,7 +745,7 @@ export function createSupabaseStore(): DataStore {
       return data as ShoppingItem
     },
 
-    async updateShoppingItem(itemId, patch) {
+    async updateShoppingItem(tripId, itemId, patch) {
       const fields: Record<string, unknown> = {}
       if (patch.name !== undefined) fields.name = patch.name
       if (patch.category !== undefined) fields.category = patch.category ?? 'other'
@@ -652,27 +761,42 @@ export function createSupabaseStore(): DataStore {
         .from('shopping_items')
         .update(fields)
         .eq('id', itemId)
+        .eq('trip_id', tripId)
         .select()
         .maybeSingle()
       if (error) throw new Error(error.message)
       return (data as ShoppingItem) ?? null
     },
 
-    async deleteShoppingItem(itemId) {
-      const { data } = await db.from('shopping_items').delete().eq('id', itemId).select('id')
+    async deleteShoppingItem(tripId, itemId) {
+      const { data } = await db
+        .from('shopping_items')
+        .delete()
+        .eq('id', itemId)
+        .eq('trip_id', tripId)
+        .select('id')
       return (data?.length ?? 0) > 0
     },
 
-    async listTips(parent) {
+    async listTips(tripId, parent) {
+      const zoneIds = await zoneIdsFor(db, tripId)
       const q = db.from('tips').select('id,zone_id,place_id,body')
-      const { data } =
-        'zone_id' in parent
-          ? await q.eq('zone_id', parent.zone_id)
-          : await q.eq('place_id', parent.place_id)
+      if ('zone_id' in parent) {
+        if (!zoneIds.includes(parent.zone_id)) return []
+        const { data } = await q.eq('zone_id', parent.zone_id)
+        return (data as Tip[]) ?? []
+      }
+      if (!(await placeIdsFor(db, zoneIds)).includes(parent.place_id)) return []
+      const { data } = await q.eq('place_id', parent.place_id)
       return (data as Tip[]) ?? []
     },
 
-    async createTip(input: TipInput) {
+    async createTip(tripId, input: TipInput) {
+      const zoneIds = await zoneIdsFor(db, tripId)
+      const parentInTrip = input.zone_id
+        ? zoneIds.includes(input.zone_id)
+        : !!input.place_id && (await placeIdsFor(db, zoneIds)).includes(input.place_id)
+      if (!parentInTrip) throw new Error('tip parent does not belong to this trip')
       const row = {
         id: randomUUID(),
         zone_id: input.zone_id ?? null,
@@ -684,17 +808,19 @@ export function createSupabaseStore(): DataStore {
       return data as Tip
     },
 
-    async updateTip(tipId, body) {
+    async updateTip(tripId, tipId, body) {
+      if (!(await tipInTrip(tripId, tipId))) return null
       const { data } = await db.from('tips').update({ body }).eq('id', tipId).select().maybeSingle()
       return (data as Tip) ?? null
     },
 
-    async deleteTip(tipId) {
+    async deleteTip(tripId, tipId) {
+      if (!(await tipInTrip(tripId, tipId))) return false
       const { data } = await db.from('tips').delete().eq('id', tipId).select('id')
       return (data?.length ?? 0) > 0
     },
 
-    async listFiles(parent) {
+    async listFiles(tripId, parent) {
       const q = db
         .from('files')
         .select('id,trip_id,zone_id,place_id,display_name,storage_path,mime_type,size_bytes')
@@ -702,7 +828,11 @@ export function createSupabaseStore(): DataStore {
       if ('trip_id' in parent) res = await q.eq('trip_id', parent.trip_id)
       else if ('zone_id' in parent) res = await q.eq('zone_id', parent.zone_id)
       else res = await q.eq('place_id', parent.place_id)
-      return (res.data as FileAttachment[]) ?? []
+      const files = (res.data as FileAttachment[]) ?? []
+      // The parent filter alone would happily return a zone or place from
+      // another trip; this is what makes the trip id load-bearing.
+      const belongs = await Promise.all(files.map((f) => fileBelongs(tripId, f)))
+      return files.filter((_f, i) => belongs[i])
     },
 
     async listAllFiles(tripId) {
@@ -766,7 +896,8 @@ export function createSupabaseStore(): DataStore {
       return data as FileAttachment
     },
 
-    async deleteFile(fileId) {
+    async deleteFile(tripId, fileId) {
+      if (!(await fileInTrip(tripId, fileId))) return false
       const { data: file } = await db
         .from('files')
         .select('storage_path')
@@ -778,13 +909,14 @@ export function createSupabaseStore(): DataStore {
       return (data?.length ?? 0) > 0
     },
 
-    async getFile(fileId) {
+    async getFile(tripId, fileId) {
       const { data } = await db
         .from('files')
         .select('id,trip_id,zone_id,place_id,display_name,storage_path,mime_type,size_bytes')
         .eq('id', fileId)
         .maybeSingle()
-      return (data as FileAttachment) ?? null
+      const file = (data as FileAttachment) ?? null
+      return file && (await fileBelongs(tripId, file)) ? file : null
     },
 
     async reparentFilesToTrip(placeId, tripId) {
@@ -837,11 +969,12 @@ export function createSupabaseStore(): DataStore {
       return ((data as Record<string, unknown>[]) ?? []).map(rowToReminder)
     },
 
-    async getReminder(reminderId) {
+    async getReminder(tripId, reminderId) {
       const { data } = await db
         .from('reminders')
         .select(REMINDER_COLS)
         .eq('id', reminderId)
+        .eq('trip_id', tripId)
         .maybeSingle()
       return data ? rowToReminder(data as Record<string, unknown>) : null
     },
@@ -862,7 +995,7 @@ export function createSupabaseStore(): DataStore {
       return rowToReminder(data as Record<string, unknown>)
     },
 
-    async updateReminder(reminderId, patch) {
+    async updateReminder(tripId, reminderId, patch) {
       const fields: Record<string, unknown> = {}
       if (patch.title !== undefined) fields.title = patch.title
       if (patch.body !== undefined) fields.body = patch.body ?? null
@@ -875,6 +1008,7 @@ export function createSupabaseStore(): DataStore {
           .from('reminders')
           .select(REMINDER_COLS)
           .eq('id', reminderId)
+          .eq('trip_id', tripId)
           .maybeSingle()
         return data ? rowToReminder(data as Record<string, unknown>) : null
       }
@@ -882,14 +1016,20 @@ export function createSupabaseStore(): DataStore {
         .from('reminders')
         .update(fields)
         .eq('id', reminderId)
+        .eq('trip_id', tripId)
         .select(REMINDER_COLS)
         .maybeSingle()
       if (error) throw new Error(error.message)
       return data ? rowToReminder(data as Record<string, unknown>) : null
     },
 
-    async deleteReminder(reminderId) {
-      const { data } = await db.from('reminders').delete().eq('id', reminderId).select('id')
+    async deleteReminder(tripId, reminderId) {
+      const { data } = await db
+        .from('reminders')
+        .delete()
+        .eq('id', reminderId)
+        .eq('trip_id', tripId)
+        .select('id')
       return (data?.length ?? 0) > 0
     },
 
@@ -940,25 +1080,38 @@ export function createSupabaseStore(): DataStore {
       return (data?.length ?? 0) > 0
     },
 
-    async search(query) {
+    async search(tripId, query) {
       // strip chars that would break PostgREST's or() filter grammar
       const term = query.replace(/[%,()]/g, ' ').trim()
       if (!term) return { places: [], zones: [], tips: [] }
       const like = `%${term}%`
+
+      // Scope first, then match. Searching the whole catalog and filtering
+      // afterwards is what leaked other trips' notes before phase 3a-ii.
+      const zoneIds = await zoneIdsFor(db, tripId)
+      if (!zoneIds.length) return { places: [], zones: [], tips: [] }
+      const placeIds = await placeIdsFor(db, zoneIds)
+
       const placeFilter = `name.ilike.${like},name_ja.ilike.${like},description.ilike.${like},address.ilike.${like}`
       const searchPlaces = async () => {
-        const run = (cols: string) => db.from('places').select(cols).or(placeFilter)
+        const run = (cols: string) =>
+          db.from('places').select(cols).in('zone_id', zoneIds).or(placeFilter)
         let { data, error } = await run(PLACE_COLS)
         if (error && isMissingCoordColumn(error)) ({ data, error } = await run(PLACE_BASE_COLS))
         return (data as unknown as Place[]) ?? []
       }
+      // A tip belongs to this trip through whichever single parent it has.
+      const tipScope = placeIds.length
+        ? `zone_id.in.(${zoneIds.join(',')}),place_id.in.(${placeIds.join(',')})`
+        : `zone_id.in.(${zoneIds.join(',')})`
       const [places, zones, tips] = await Promise.all([
         searchPlaces(),
         db
           .from('zones')
-          .select('id,name,name_ja,summary,image_url,lat,lng')
+          .select(ZONE_COLS)
+          .eq('trip_id', tripId)
           .or(`name.ilike.${like},name_ja.ilike.${like},summary.ilike.${like}`),
-        db.from('tips').select('id,zone_id,place_id,body').ilike('body', like),
+        db.from('tips').select('id,zone_id,place_id,body').ilike('body', like).or(tipScope),
       ])
       return {
         places,

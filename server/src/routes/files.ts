@@ -1,5 +1,4 @@
 import { Router } from 'express'
-import { accessOf } from '../lib/auth.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import {
@@ -12,24 +11,26 @@ import {
 } from '../services/files.js'
 
 const list = asyncHandler(async (req, res) => {
-  res.json(await listTripDocuments(await getDataStore(), accessOf(req), req.params.tripId))
+  res.json(await listTripDocuments(await getDataStore(), req.params.tripId))
 })
 
 const create = asyncHandler(async (req, res) => {
-  res
-    .status(201)
-    .json(await createFile(await getDataStore(), accessOf(req), req.body ?? {}, req.params.tripId))
+  res.status(201).json(await createFile(await getDataStore(), req.params.tripId, req.body ?? {}))
 })
 
 const fileUrl = asyncHandler(async (req, res) => {
-  res.json(await getFileUrl(await getDataStore(), req.params.fileId))
+  res.json(await getFileUrl(await getDataStore(), req.params.tripId, req.params.fileId))
 })
 
 // Streams the blob itself so the app can render it in the preview screen
 // instead of handing the file off to the browser's downloader. `?download=1`
 // flips the disposition for the preview's "Save" action.
 const fileContent = asyncHandler(async (req, res) => {
-  const { file, bytes, mime_type } = await getFileContent(await getDataStore(), req.params.fileId)
+  const { file, bytes, mime_type } = await getFileContent(
+    await getDataStore(),
+    req.params.tripId,
+    req.params.fileId
+  )
   const name = downloadName(file)
   const disposition = req.query.download === '1' ? 'attachment' : 'inline'
   res.setHeader('Content-Type', mime_type)
@@ -44,7 +45,7 @@ const fileContent = asyncHandler(async (req, res) => {
 })
 
 const remove = asyncHandler(async (req, res) => {
-  await deleteFile(await getDataStore(), req.params.fileId)
+  await deleteFile(await getDataStore(), req.params.tripId, req.params.fileId)
   res.status(204).end()
 })
 
