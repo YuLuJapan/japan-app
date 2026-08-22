@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { TripStep } from '../api/types'
-import { enumerateDays, isNextDay, isTravelDay, primaryStep, zoneDays } from '../lib/schedule'
+import {
+  enumerateDays,
+  isNextDay,
+  isTravelDay,
+  movingDay,
+  primaryStep,
+  zoneDays,
+} from '../lib/schedule'
 
 const counts = { hotel: 0, attraction: 0, food: 0, shopping: 0, other: 0 }
 const zone = (id: string, name: string) => ({
@@ -50,12 +57,14 @@ describe('schedule helpers', () => {
     expect(isTravelDay(steps, '2026-10-06')).toBe(false)
   })
 
-  it('zoneDays splits days by primary city (no overlap on the travel day)', () => {
+  it('zoneDays gives the moving day to both cities', () => {
+    // Oct 9 is on both lists: the morning is still Tokyo, the night is Kyoto.
     expect(zoneDays(steps, 'z-tokyo', allDays)).toEqual([
       '2026-10-05',
       '2026-10-06',
       '2026-10-07',
       '2026-10-08',
+      '2026-10-09',
     ])
     expect(zoneDays(steps, 'z-kyoto', allDays)).toEqual([
       '2026-10-09',
@@ -63,6 +72,38 @@ describe('schedule helpers', () => {
       '2026-10-11',
       '2026-10-12',
     ])
+  })
+
+  it('movingDay names the other city, and its direction', () => {
+    // Leaving Tokyo for Kyoto
+    expect(movingDay(steps, 'z-tokyo', '2026-10-09')).toEqual({
+      from: null,
+      to: steps[1].zone,
+    })
+    // The same date seen from Kyoto: arriving from Tokyo
+    expect(movingDay(steps, 'z-kyoto', '2026-10-09')).toEqual({
+      from: steps[0].zone,
+      to: null,
+    })
+    // A day spent wholly in one city isn't a moving day
+    expect(movingDay(steps, 'z-tokyo', '2026-10-06')).toBeNull()
+    // ...and neither is the trip's last day
+    expect(movingDay(steps, 'z-kyoto', '2026-10-12')).toBeNull()
+    // A city the day doesn't touch at all
+    expect(movingDay(steps, 'z-kyoto', '2026-10-06')).toBeNull()
+  })
+
+  it('movingDay reports both ends of a day that only passes through a city', () => {
+    const hakone = zone('z-hakone', 'Hakone')
+    const passing: TripStep[] = [
+      steps[0],
+      { id: 's-h', position: 2, start_date: '2026-10-09', end_date: '2026-10-09', zone: hakone },
+      { ...steps[1], position: 3 },
+    ]
+    expect(movingDay(passing, 'z-hakone', '2026-10-09')).toEqual({
+      from: steps[0].zone,
+      to: steps[1].zone,
+    })
   })
 
   it('isNextDay detects consecutive dates, including a return trip gap', () => {
