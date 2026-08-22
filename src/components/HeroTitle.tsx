@@ -75,8 +75,10 @@ function useFitLines(text: string, max: number, min: number) {
 export function HeroTitle({
   title,
   destination,
-  max = 48,
-  min = 24,
+  // The size the title renders at when it fits, which for two short lines it
+  // normally does — the fit only ever scales down from here.
+  max = 34,
+  min = 22,
   className = '',
 }: {
   title: string
