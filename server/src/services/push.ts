@@ -78,7 +78,7 @@ export async function sendTestPush(
   const result = { subscriptions: subscriptions.length, sent: 0, failed: 0 }
   for (const subscription of subscriptions) {
     const outcome = await send(subscription, {
-      title: 'Japan 旅 — test',
+      title: 'Onward — test',
       body: 'Notifications are working. This is what a reminder looks like.',
       url: '/reminders',
       tag: 'test',

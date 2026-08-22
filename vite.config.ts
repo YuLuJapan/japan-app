@@ -7,11 +7,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['apple-touch-icon.png', 'favicon-32.png'],
+      includeAssets: ['apple-touch-icon.png', 'favicon.svg', 'favicon-32.png'],
       manifest: {
-        name: 'Japan — Yuval & Luciana',
-        short_name: 'Japan 旅',
-        description: 'Our Japan trip companion',
+        name: 'Onward',
+        short_name: 'Onward',
+        description: 'Your trips — plans, lists and papers, all in one place',
         theme_color: '#F1543F',
         background_color: '#FAF8F5',
         display: 'standalone',
