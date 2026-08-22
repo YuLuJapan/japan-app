@@ -17,11 +17,13 @@ import type {
   ReminderInput,
   ShoppingItem,
   ShoppingItemInput,
-  Tip,
   StopResolution,
   StrandedResolution,
+  Tip,
   Trip,
   TripInput,
+  TripInvite,
+  TripMember,
 } from './types'
 import type { SubscriptionPayload } from '../lib/push'
 
@@ -335,5 +337,62 @@ export function useDeleteTrip() {
   return useMutation({
     mutationFn: (tripId: string) => api.delete<void>(`/trips/${tripId}`),
     onSuccess: invalidate,
+  })
+}
+
+// --- sharing -----------------------------------------------------------------
+
+export function useCreateInvite(tripId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: {
+      role: 'partner' | 'viewer'
+      email?: string
+      can_see_stays: boolean
+      can_see_flight: boolean
+      can_see_documents: boolean
+    }) => api.post<{ invite: TripInvite; token: string }>(`/trips/${tripId}/invites`, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['invites', tripId] }),
+  })
+}
+
+export function useRevokeInvite(tripId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (inviteId: string) => api.delete<void>(`/trips/${tripId}/invites/${inviteId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['invites', tripId] }),
+  })
+}
+
+export function useUpdateMember(tripId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ userId, ...patch }: { userId: string } & Record<string, unknown>) =>
+      api.patch<{ member: TripMember }>(`/trips/${tripId}/members/${userId}`, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['members', tripId] }),
+  })
+}
+
+export function useRemoveMember(tripId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (userId: string) => api.delete<void>(`/trips/${tripId}/members/${userId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['members', tripId] })
+      // Leaving a trip removes it from your list, so that has to refetch too.
+      qc.invalidateQueries({ queryKey: ['trips'] })
+    },
+  })
+}
+
+export function useAcceptInvite() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (token: string) =>
+      api.post<{ trip_id: string; role: string; already_member: boolean }>(
+        `/invites/${token}/accept`,
+        {}
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['trips'] }),
   })
 }

@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { isGuest } from '../lib/auth.js'
+import { tripContextOf } from '../lib/trip-context.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import {
@@ -12,7 +12,7 @@ import {
 const list = asyncHandler(async (req, res) => {
   res.json(
     await listItinerary(await getDataStore(), req.params.tripId, {
-      includeStays: !isGuest(req),
+      includeStays: tripContextOf(req).view.stays,
     })
   )
 })

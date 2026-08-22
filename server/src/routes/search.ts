@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { isGuest } from '../lib/auth.js'
+import { tripContextOf } from '../lib/trip-context.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import { searchAll } from '../services/search.js'
@@ -7,7 +7,7 @@ import { searchAll } from '../services/search.js'
 const search = asyncHandler(async (req, res) => {
   const q = String(req.query.q ?? '')
   res.json(
-    await searchAll(await getDataStore(), req.params.tripId, q, { includeStays: !isGuest(req) })
+    await searchAll(await getDataStore(), req.params.tripId, q, { includeStays: tripContextOf(req).view.stays })
   )
 })
 

@@ -6,6 +6,7 @@ import type {
   Category,
   DataStore,
   Profile,
+  TripInvite,
   TripMember,
   ExchangeRates,
   FileAttachment,
@@ -71,6 +72,11 @@ const PROFILE_COLS = 'id,email,display_name,avatar_url'
 
 // trip_members (migration 0012).
 const MEMBER_COLS = 'trip_id,user_id,role,can_see_stays,can_see_flight,can_see_documents'
+
+// trip_invites (migration 0014). token_hash is never selected: the accept flow
+// looks up *by* hash, and nothing else has a reason to read it back.
+const INVITE_COLS =
+  'id,trip_id,email,role,can_see_stays,can_see_flight,can_see_documents,invited_by,expires_at,accepted_at,accepted_by,revoked_at,created_at'
 
 function isMissingProfilesTable(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false
@@ -260,6 +266,76 @@ export function createSupabaseStore(): DataStore {
       if (error && isMissingPeopleColumn(error)) ({ data, error } = await run(TRIP_BASE_COLS))
       if (error) throw new Error(error.message)
       return ((data as unknown as Record<string, unknown>[]) ?? []).map(withPeopleDefault)
+    },
+
+    async listTripInvites(tripId) {
+      const { data, error } = await db
+        .from('trip_invites')
+        .select(INVITE_COLS)
+        .eq('trip_id', tripId)
+        .is('accepted_at', null)
+        .is('revoked_at', null)
+        .order('created_at', { ascending: false })
+      if (error) throw new Error(error.message)
+      return (data as unknown as TripInvite[]) ?? []
+    },
+
+    async getInviteByTokenHash(tokenHash) {
+      const { data, error } = await db
+        .from('trip_invites')
+        .select(INVITE_COLS)
+        .eq('token_hash', tokenHash)
+        .maybeSingle()
+      if (error) throw new Error(error.message)
+      return (data as unknown as TripInvite | null) ?? null
+    },
+
+    async getTripInvite(tripId, inviteId) {
+      const { data, error } = await db
+        .from('trip_invites')
+        .select(INVITE_COLS)
+        .eq('id', inviteId)
+        .eq('trip_id', tripId)
+        .maybeSingle()
+      if (error) throw new Error(error.message)
+      return (data as unknown as TripInvite | null) ?? null
+    },
+
+    async createTripInvite(input) {
+      const row = {
+        id: randomUUID(),
+        trip_id: input.trip_id,
+        email: input.email ?? null,
+        role: input.role,
+        can_see_stays: input.can_see_stays ?? true,
+        can_see_flight: input.can_see_flight ?? true,
+        can_see_documents: input.can_see_documents ?? false,
+        token_hash: input.token_hash,
+        invited_by: input.invited_by,
+        expires_at: input.expires_at,
+      }
+      const { data, error } = await db
+        .from('trip_invites')
+        .insert(row)
+        .select(INVITE_COLS)
+        .single()
+      if (error) throw new Error(error.message)
+      return data as unknown as TripInvite
+    },
+
+    async updateTripInvite(inviteId, patch) {
+      // Single use, enforced in the WHERE clause rather than by reading first:
+      // two racing accepts cannot both stamp the same invite.
+      const { data, error } = await db
+        .from('trip_invites')
+        .update(patch)
+        .eq('id', inviteId)
+        .is('accepted_at', null)
+        .is('revoked_at', null)
+        .select(INVITE_COLS)
+        .maybeSingle()
+      if (error) throw new Error(error.message)
+      return (data as unknown as TripInvite | null) ?? null
     },
 
     async listMembershipsForUser(userId) {

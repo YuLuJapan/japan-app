@@ -2,7 +2,9 @@ import { Navigate, Outlet, createBrowserRouter, useParams } from 'react-router-d
 import { getAccessCode } from './api/client'
 import { Layout } from './components/Layout'
 import { Loading } from './components/Loading'
-import { RoleProvider, useCanEdit } from './lib/session'
+import { useTrip } from './api/hooks'
+import { RoleProvider, TripRoleContext, useCanEdit } from './lib/session'
+import AcceptInvite from './pages/AcceptInvite'
 import AccessGate from './pages/AccessGate'
 import CategoryList from './pages/CategoryList'
 import DocumentPreview from './pages/DocumentPreview'
@@ -19,6 +21,7 @@ import ShoppingItemDetail from './pages/ShoppingItem'
 import ShoppingList from './pages/ShoppingList'
 import TripEssentials from './pages/TripEssentials'
 import TripFiles from './pages/TripFiles'
+import TripMembers from './pages/TripMembers'
 import TripsList from './pages/TripsList'
 import Zone from './pages/Zone'
 
@@ -32,12 +35,20 @@ function RequireAccess() {
   )
 }
 
-/** Everything inside a trip shares the tabbed layout (Journey/Shopping/Reminders/Essentials/Docs). */
+/**
+ * Everything inside a trip shares the tabbed layout, and the caller's role on
+ * *this* trip. The role rides along on the bundle the layout already fetches,
+ * so knowing whether to offer an edit button costs no extra request.
+ */
 function TripLayout() {
+  const { tripId = '' } = useParams<{ tripId: string }>()
+  const trip = useTrip(tripId)
   return (
-    <Layout>
-      <Outlet />
-    </Layout>
+    <TripRoleContext.Provider value={trip.data?.my_role ?? null}>
+      <Layout>
+        <Outlet />
+      </Layout>
+    </TripRoleContext.Provider>
   )
 }
 
@@ -53,6 +64,9 @@ function RequireOwner() {
 
 export const router = createBrowserRouter([
   { path: '/gate', element: <AccessGate /> },
+  // The token is the authorization, so this sits outside RequireAccess — the
+  // screen itself sends a signed-out visitor to the gate and back.
+  { path: '/invite/:token', element: <AcceptInvite /> },
   {
     element: <RequireAccess />,
     children: [
@@ -72,6 +86,11 @@ export const router = createBrowserRouter([
           { path: 'shopping/:itemId', element: <ShoppingItemDetail /> },
           { path: 'reminders', element: <Reminders /> },
           { path: 'essentials', element: <TripEssentials /> },
+
+          // Everyone on the trip can see who else is on it; the screen itself
+          // offers the owner-only controls only to an owner, and a viewer-only
+          // invite button to a partner.
+          { path: 'members', element: <TripMembers /> },
           {
             element: <RequireOwner />,
             children: [

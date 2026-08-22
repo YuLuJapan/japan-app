@@ -18,6 +18,9 @@ import type {
   TripBundle,
   TripDateImpact,
   TripDocument,
+  TripInvite,
+  TripMember,
+  InvitePreview,
   ZoneDetail,
 } from './types'
 
@@ -149,3 +152,23 @@ export const useSearch = (query: string) => {
     enabled: query.trim().length >= 2,
   })
 }
+
+export const useTripMembers = (tripId: string) =>
+  useQuery({
+    queryKey: ['members', tripId],
+    queryFn: () => api.get<{ members: TripMember[] }>(`/trips/${tripId}/members`),
+  })
+
+export const useTripInvites = (tripId: string) =>
+  useQuery({
+    queryKey: ['invites', tripId],
+    queryFn: () => api.get<{ invites: TripInvite[] }>(`/trips/${tripId}/invites`),
+  })
+
+// The invite link's own preview, read before signing in decides anything.
+export const useInvitePreview = (token: string) =>
+  useQuery({
+    queryKey: ['invite', token],
+    queryFn: () => api.get<{ invite: InvitePreview }>(`/invites/${token}`),
+    retry: false,
+  })

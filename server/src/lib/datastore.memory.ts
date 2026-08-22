@@ -10,6 +10,7 @@ import type {
   Category,
   DataStore,
   Profile,
+  StoredTripInvite,
   TripMember,
   ExchangeRates,
   FileAttachment,
@@ -40,6 +41,7 @@ import { CATEGORIES } from './datastore.js'
 export interface MemoryData {
   profiles?: Profile[]
   members?: TripMember[]
+  invites?: StoredTripInvite[]
   trips: Trip[]
   steps: JourneyStep[]
   zones: Zone[]
@@ -122,6 +124,14 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
 
   const profiles: Profile[] = db.profiles ? db.profiles.map((p) => structuredClone(p)) : []
   const members: TripMember[] = db.members ? db.members.map((m) => structuredClone(m)) : []
+  const invites: StoredTripInvite[] = db.invites ? db.invites.map((i) => structuredClone(i)) : []
+
+  /**
+   * Drops the hash on the way out. The `TripInvite` return type says the hash
+   * is absent, but a structural type cannot strip a property at runtime — so
+   * returning the stored row directly would hand the hash to every caller.
+   */
+  const toInvite = ({ token_hash: _hash, ...rest }: StoredTripInvite) => structuredClone(rest)
 
   const tripsForUser = (userId: string) => {
     const mine = new Set(members.filter((m) => m.user_id === userId).map((m) => m.trip_id))
@@ -170,6 +180,52 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
 
     async listTripsForUser(userId) {
       return tripsForUser(userId).map((t) => structuredClone(t))
+    },
+
+    async listTripInvites(tripId) {
+      return invites
+        .filter((i) => i.trip_id === tripId && !i.accepted_at && !i.revoked_at)
+        .map(toInvite)
+    },
+
+    async getInviteByTokenHash(tokenHash) {
+      const found = invites.find((i) => i.token_hash === tokenHash)
+      return found ? toInvite(found) : null
+    },
+
+    async getTripInvite(tripId, inviteId) {
+      const found = invites.find((i) => i.id === inviteId && i.trip_id === tripId)
+      return found ? toInvite(found) : null
+    },
+
+    async createTripInvite(input) {
+      const invite: StoredTripInvite = {
+        id: randomUUID(),
+        trip_id: input.trip_id,
+        email: input.email ?? null,
+        role: input.role,
+        can_see_stays: input.can_see_stays ?? true,
+        can_see_flight: input.can_see_flight ?? true,
+        can_see_documents: input.can_see_documents ?? false,
+        token_hash: input.token_hash,
+        invited_by: input.invited_by,
+        expires_at: input.expires_at,
+        accepted_at: null,
+        accepted_by: null,
+        revoked_at: null,
+        created_at: new Date().toISOString(),
+      }
+      invites.push(invite)
+      return toInvite(invite)
+    },
+
+    async updateTripInvite(inviteId, patch) {
+      const invite = invites.find((i) => i.id === inviteId)
+      if (!invite) return null
+      // Single use: only an invite that is still open can be stamped.
+      if (invite.accepted_at || invite.revoked_at) return null
+      Object.assign(invite, patch)
+      return toInvite(invite)
     },
 
     async listMembershipsForUser(userId) {
