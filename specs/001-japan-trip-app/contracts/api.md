@@ -49,13 +49,15 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
 
   `declined_at` is a state of its own, not a reuse of `revoked_at`: revoked means the inviter withdrew it, declined means the invitee said no, and `GET /api/trips/:tripId/invites` keeps declined rows (labelled) so an invitation never just vanishes from the inviter's list.
 
-- **Per-member visibility (phase 4)**: three flags on `trip_members` — `can_see_stays`, `can_see_flight`, `can_see_documents` — collapse into one `TripView` (`server/src/lib/trip-view.ts`) that rides on the trip context. Writers always get the full view: the flags are _ignored_ for owner and partner rather than validated, so an owner cannot lock themselves out of their own bookings.
+- **Per-member visibility (phase 4)**: four flags on `trip_members` — `can_see_stays`, `can_see_flight`, `can_see_documents`, `can_see_shopping` — collapse into one `TripView` (`server/src/lib/trip-view.ts`) that rides on the trip context. Writers always get the full view: the flags are _ignored_ for owner and partner rather than validated, so an owner cannot lock themselves out of their own bookings.
 
-  Enforcement points: place detail (`403` on a hidden stay), zone detail and its category counts, the zone place list including the map's all-categories sweep, the trip bundle's `flight` block (the key is absent, not null), search, and files.
+  Enforcement points: place detail (`403` on a hidden stay), zone detail and its category counts, the zone place list including the map's all-categories sweep, the trip bundle's `flight` block (the key is absent, not null), search, files, and the whole `/shopping` subtree.
 
   **Files: place-attached ones inherit their place.** A hotel's reservation PDF disappears exactly when the stays do. Trip- and zone-attached files are governed solely by `can_see_documents` — a "flight booking.pdf" attached to the trip is a blob with a display name, and the app cannot know what is inside it. So `flight: false` with `documents: true` still shows it; the members screen says so rather than pretending otherwise. Upgrade path if that is not enough: a `files.kind` tag set at upload.
 
-  Defaults on a new invite: stays **on**, flight **on**, documents **off**.
+  **Shopping is all-or-nothing.** Unlike the stays, there is no filtered version of a shopping list worth serving — an item on it _is_ what is being kept quiet, which is the point when the list holds a present for the person you are sharing the trip with. `can_see_shopping: false` makes every route under `/api/trips/:tripId/shopping` answer `403 FORBIDDEN`, reads included, via one guard mounted on the path rather than a check per handler.
+
+  Defaults on a new invite: stays **on**, flight **on**, shopping **on**, documents **off**.
 
 - **The trip's title (2026-08-22, feature 002 phase 5)**: `trips.name` is **nullable** and is an _override_, not the title. Every trip payload carries `display_title`, computed server-side from `server/src/lib/trip-title.ts` so there is one implementation and clients cannot drift:
 
@@ -119,9 +121,10 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
   - the trip bundle omits `flight` entirely (the key is absent, not `null`);
   - `GET /api/trips/:tripId/search` drops `hotel` places and any tip whose parent is one;
   - itinerary items keep their `title`/`note` but come back with `place_id: null` when it pointed at a `hotel`;
-  - anything under `/api/trips/:tripId/files` → `403 FORBIDDEN`, reads included, and the `files` array in zone/place responses comes back `[]`.
+  - anything under `/api/trips/:tripId/files` → `403 FORBIDDEN`, reads included, and the `files` array in zone/place responses comes back `[]`;
+  - anything under `/api/trips/:tripId/shopping` → `403 FORBIDDEN`, reads included, when `can_see_shopping` is off.
 
-  These are reads, so none of it can be done by HTTP method — each read path takes the `TripView` from the trip context. The bundle also reports that view back as `shows: {stays, flight, documents}`, which is the only way a client can tell "nothing saved here" apart from "not shared with you".
+  These are reads, so none of it can be done by HTTP method — each read path takes the `TripView` from the trip context. The bundle also reports that view back as `shows: {stays, flight, documents, shopping}`, which is the only way a client can tell "nothing saved here" apart from "not shared with you".
 
 - **Error envelope**: `{"error":{"code":"<MACHINE_CODE>","message":"<human text>"}}`. Codes: `UNAUTHORIZED`, `FORBIDDEN` (403), `NOT_FOUND`, `VALIDATION` (400, with `details` array), `FILE_MISSING` (404), `INTERNAL` (500).
 - **IDs** are UUID strings. Timestamps ISO-8601. Dates `YYYY-MM-DD`.
@@ -174,7 +177,7 @@ The caller's trips, oldest first (powers the "Where to next?" trips list). An ac
 - Request: `{"name":"…","start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","description?":"…","people?":[{"name":"…","email?":"…"} | "…"]}`
 - 201: `{"trip": {…}}` · 400 `VALIDATION` (missing/blank name, bad dates, end before start, name/description too long, more than 12 travellers, a traveller missing a name, a traveller name too long, or an `email` that isn't a valid address).
 
-> **`my_role` and `shows` (2026-08-22)**: the trip bundle (`GET /api/trips/:tripId`) carries `"my_role": "owner" | "partner" | "viewer"` — what this caller may do here — and `"shows": {"stays":bool,"flight":bool,"documents":bool}` — what they are shown. `POST /api/trips` carries `my_role` and always makes its creator an `owner`. Both drive which buttons the UI offers and how it explains an absence; neither is ever what decides whether a request succeeds.
+> **`my_role` and `shows` (2026-08-22)**: the trip bundle (`GET /api/trips/:tripId`) carries `"my_role": "owner" | "partner" | "viewer"` — what this caller may do here — and `"shows": {"stays":bool,"flight":bool,"documents":bool,"shopping":bool}` — what they are shown. `POST /api/trips` carries `my_role` and always makes its creator an `owner`. Both drive which buttons the UI offers and how it explains an absence; neither is ever what decides whether a request succeeds.
 
 ### GET /api/trips/:tripId
 
@@ -416,6 +419,8 @@ Trip-level list of things to buy in Japan: what it is, where to buy it, what it 
 - 201: `{"item": {…}}` · 400 `VALIDATION` (missing name, unknown category, negative/non-numeric `price_yen`, non-http(s) `url`/`image_url`) · 404 unknown zone.
 
 **Trip-scoped (2026-08-08 addition):** `GET|POST /api/trips/:tripId/shopping` are the same two routes pointed at a specific trip instead of the legacy default (oldest) trip — same request/response shapes.
+
+**Hidden for a member without `can_see_shopping` (2026-08-22):** every route under `/api/trips/:tripId/shopping` answers `403 FORBIDDEN`, reads included. The whole section or none of it — see "Per-member visibility" above.
 
 ### PATCH /api/shopping/:itemId
 

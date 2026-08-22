@@ -51,7 +51,7 @@ describe('the inbox', () => {
       trip_name: 'Test Trip',
       role: 'viewer',
       invited_by: 'Yuval',
-      shows: { stays: true, flight: true, documents: true },
+      shows: { stays: true, flight: true, documents: true, shopping: true },
     })
     // An unaccepted invitation is not access.
     expect(JSON.stringify(res.body)).not.toContain('Ramen')

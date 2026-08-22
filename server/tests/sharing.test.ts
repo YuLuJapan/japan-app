@@ -47,6 +47,7 @@ describe('minting an invite', () => {
     expect(res.body.invite).toMatchObject({
       can_see_stays: true,
       can_see_flight: true,
+      can_see_shopping: true,
       can_see_documents: false,
     })
   })
@@ -145,7 +146,7 @@ describe('the preview before signing in', () => {
     expect(res.body.invite).toMatchObject({
       trip_name: 'Test Trip',
       role: 'viewer',
-      shows: { stays: true, flight: true, documents: true },
+      shows: { stays: true, flight: true, documents: true, shopping: true },
     })
     // An unaccepted invitation is not access.
     expect(res.body.invite).not.toHaveProperty('trip_id')

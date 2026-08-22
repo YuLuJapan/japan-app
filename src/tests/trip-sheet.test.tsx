@@ -344,6 +344,7 @@ describe('TripSheet — inviting a traveller', () => {
         email: 'noa@example.com',
         can_see_stays: true,
         can_see_flight: false,
+        can_see_shopping: true,
         can_see_documents: false,
       })
     )

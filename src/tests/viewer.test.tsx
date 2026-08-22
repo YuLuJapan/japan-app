@@ -35,7 +35,7 @@ vi.mock('../api/client', async (importOriginal) => ({
 
 const viewer = {
   tripRole: 'viewer' as const,
-  shows: { stays: false, flight: false, documents: false },
+  shows: { stays: false, flight: false, documents: false, shopping: false },
 }
 
 const place = {
@@ -287,23 +287,33 @@ describe('viewer — stays and flight', () => {
 })
 
 describe('viewer — navigation', () => {
-  it('has no Documents tab and says it is view-only', () => {
-    renderAt(
-      '/trips/trip-1',
-      [{ path: '/trips/:tripId', element: <Layout>content</Layout> }],
-      viewer
-    )
+  const layoutRoute = [{ path: '/trips/:tripId', element: <Layout>content</Layout> }]
+
+  it('drops the tabs it is not shown and says it is view-only', () => {
+    renderAt('/trips/trip-1', layoutRoute, viewer)
 
     expect(screen.queryByRole('link', { name: /Documents/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Shopping/ })).not.toBeInTheDocument()
     expect(screen.getByText('View only')).toBeInTheDocument()
     // the rest of the app is still reachable
-    for (const tab of ['Journey', 'Shopping', 'Reminders', 'Essentials']) {
+    for (const tab of ['Journey', 'Reminders', 'Essentials']) {
       expect(screen.getByRole('link', { name: new RegExp(tab) })).toBeInTheDocument()
     }
   })
 
+  // The two flags are independent: read-only says nothing about which sections
+  // are shared, so a viewer with the shopping list keeps its tab.
+  it('keeps the Shopping tab when the list is shared with them', () => {
+    renderAt('/trips/trip-1', layoutRoute, {
+      ...viewer,
+      shows: { ...viewer.shows, shopping: true },
+    })
+
+    expect(screen.getByRole('link', { name: /Shopping/ })).toBeInTheDocument()
+  })
+
   it('keeps the Documents tab for the travelers', () => {
-    renderAt('/trips/trip-1', [{ path: '/trips/:tripId', element: <Layout>content</Layout> }])
+    renderAt('/trips/trip-1', layoutRoute)
 
     expect(screen.getByRole('link', { name: /Documents/ })).toBeInTheDocument()
     expect(screen.queryByText('View only')).not.toBeInTheDocument()

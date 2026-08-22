@@ -111,6 +111,7 @@ describe('the roster adapts to your role', () => {
       role: 'viewer',
       can_see_stays: true,
       can_see_flight: true,
+      can_see_shopping: true,
       can_see_documents: false,
     })
   })

@@ -1,6 +1,8 @@
 import { Router } from 'express'
-import { asyncHandler } from '../lib/errors.js'
+import type { NextFunction, Request, Response } from 'express'
+import { asyncHandler, forbidden } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
+import { tripContextOf } from '../lib/trip-context.js'
 import {
   createShoppingItem,
   deleteShoppingItem,
@@ -34,8 +36,29 @@ const remove = asyncHandler(async (req, res) => {
   res.status(204).end()
 })
 
+/**
+ * The whole section, or none of it.
+ *
+ * The list is one thing a viewer may not be shown (lib/trip-view.ts), and
+ * unlike the stays there is no partial version worth serving — a shopping item
+ * *is* the secret. Mounted on the path rather than repeated per handler, so a
+ * route added below inherits the check the way the trip guard works one level
+ * up. Writers never reach the refusal: their view is full by construction.
+ */
+function requireShoppingView(req: Request, _res: Response, next: NextFunction) {
+  try {
+    if (!tripContextOf(req).view.shopping) {
+      throw forbidden('The shopping list is not part of your view of this trip')
+    }
+    next()
+  } catch (err) {
+    next(err)
+  }
+}
+
 /** Mounted under /api/trips/:tripId, behind requireTripAccess. */
 export const shoppingTripRouter = Router({ mergeParams: true })
+shoppingTripRouter.use('/shopping', requireShoppingView)
 shoppingTripRouter.get('/shopping', list)
 shoppingTripRouter.post('/shopping', create)
 shoppingTripRouter.patch('/shopping/:itemId', update)

@@ -45,6 +45,7 @@ export interface InviteInput {
   can_see_stays?: unknown
   can_see_flight?: unknown
   can_see_documents?: unknown
+  can_see_shopping?: unknown
 }
 
 export async function listInvites(store: DataStore, tripId: string, actorRole: TripRole) {
@@ -82,7 +83,12 @@ export async function createInvite(
   const errors: string[] = []
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
   if (email && !EMAIL_RE.test(email)) errors.push('email must be a valid email address')
-  for (const key of ['can_see_stays', 'can_see_flight', 'can_see_documents'] as const) {
+  for (const key of [
+    'can_see_stays',
+    'can_see_flight',
+    'can_see_documents',
+    'can_see_shopping',
+  ] as const) {
     if (body[key] !== undefined && typeof body[key] !== 'boolean') {
       errors.push(`${key} must be true or false`)
     }
@@ -100,6 +106,7 @@ export async function createInvite(
     // A document is a raw file whose contents the owner cannot audit at a
     // glance, so it is the one thing off by default.
     can_see_documents: (body.can_see_documents as boolean | undefined) ?? false,
+    can_see_shopping: (body.can_see_shopping as boolean | undefined) ?? true,
     token_hash: hashToken(token),
     invited_by: actor.userId,
     expires_at: expires.toISOString(),
@@ -166,6 +173,7 @@ async function summarize(store: DataStore, invite: TripInvite) {
       stays: writer || invite.can_see_stays,
       flight: writer || invite.can_see_flight,
       documents: writer || invite.can_see_documents,
+      shopping: writer || invite.can_see_shopping,
     },
   }
 }
@@ -224,6 +232,7 @@ async function claim(
     can_see_stays: invite.can_see_stays,
     can_see_flight: invite.can_see_flight,
     can_see_documents: invite.can_see_documents,
+    can_see_shopping: invite.can_see_shopping,
   })
   return { trip_id: invite.trip_id, role: invite.role, already_member: false }
 }

@@ -218,6 +218,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         can_see_stays: input.can_see_stays ?? true,
         can_see_flight: input.can_see_flight ?? true,
         can_see_documents: input.can_see_documents ?? false,
+        can_see_shopping: input.can_see_shopping ?? true,
         token_hash: input.token_hash,
         invited_by: input.invited_by,
         expires_at: input.expires_at,
@@ -264,6 +265,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         can_see_stays: input.can_see_stays ?? existing?.can_see_stays ?? true,
         can_see_flight: input.can_see_flight ?? existing?.can_see_flight ?? true,
         can_see_documents: input.can_see_documents ?? existing?.can_see_documents ?? false,
+        can_see_shopping: input.can_see_shopping ?? existing?.can_see_shopping ?? true,
       }
       if (existing) Object.assign(existing, next)
       else members.push(next)

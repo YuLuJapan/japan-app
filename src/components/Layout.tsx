@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTrip } from '../api/hooks'
 import { clearReminderBadge, hasUnseenReminder } from '../lib/push'
-import { useCanEdit } from '../lib/session'
+import { useCanEdit, useTripShows } from '../lib/session'
 import { useTripId } from '../lib/trip'
 import { RingMark } from './RingMark'
 import { SignOutButton } from './SignOutButton'
@@ -83,6 +83,7 @@ function TabIcon({ name, active }: { name: IconName; active: boolean }) {
 export function Layout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
   const canEdit = useCanEdit()
+  const shows = useTripShows()
   const tripId = useTripId()
   const trip = useTrip(tripId)
   const base = `/trips/${tripId}`
@@ -130,8 +131,9 @@ export function Layout({ children }: { children: ReactNode }) {
   }, [])
 
   // Five tabs share a 360px phone, so the labels stay tight — otherwise
-  // "Reminders"/"Essentials"/"Documents" run into each other. The guest view
-  // drops Documents and gets by with four.
+  // "Reminders"/"Essentials"/"Documents" run into each other. A restricted
+  // view drops Documents, and Shopping with it when that isn't shared, and
+  // gets by with three or four.
   const tab = (
     to: string,
     name: IconName,
@@ -213,7 +215,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-canvas/95 backdrop-blur">
         <div className="mx-auto flex max-w-app px-4 py-1.5">
           {tab(base, 'journey', 'Journey', journeyActive)}
-          {tab(`${base}/shopping`, 'shopping', 'Shopping', shoppingActive)}
+          {shows.shopping && tab(`${base}/shopping`, 'shopping', 'Shopping', shoppingActive)}
           {tab(`${base}/reminders`, 'reminders', 'Reminders', remindersActive, unseenReminder)}
           {tab(`${base}/essentials`, 'essentials', 'Essentials', essentialsActive)}
           {canEdit && tab(`${base}/files`, 'docs', 'Documents', docsActive)}
