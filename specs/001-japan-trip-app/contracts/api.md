@@ -19,7 +19,36 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
 
   A trip that isn't yours answers **`404`, never `403`** — a 403 would confirm it exists. A member who merely lacks the verb (a viewer writing) gets `403`, because they already know it exists.
 
-  Per-trip roles are `owner` > `partner` > `viewer` (`server/src/lib/permissions.ts`). Phase 2 only ever creates `owner`; invites arrive in phase 4.
+  Per-trip roles are `owner` > `partner` > `viewer` (`server/src/lib/permissions.ts`).
+
+- **Sharing (2026-08-22, feature 002 phase 4)**: a trip is shared with a link, not an email. `POST /api/trips/:tripId/invites` mints one and returns the plaintext **exactly once**; only its SHA-256 is stored, so a leaked backup hands out no working invites. `owner` is ungrantable by invite (a schema check constraint, not a service rule).
+
+  | capability                                  | owner | partner  |        viewer        |
+  | ------------------------------------------- | :---: | :------: | :------------------: |
+  | read trip content                           |   ✓   |    ✓     |          ✓           |
+  | read stays · flight · documents             |   ✓   |    ✓     | **per-member flags** |
+  | create / edit / delete content              |   ✓   |    ✓     |          ✗           |
+  | invite a **viewer**                         |   ✓   |    ✓     |          ✗           |
+  | invite a **partner**                        |   ✓   |    ✗     |          ✗           |
+  | change roles / visibility · remove a member |   ✓   |    ✗     |          ✗           |
+  | revoke an invite                            |  any  | own only |          ✗           |
+  | leave the trip                              |   —   |    ✓     |          ✓           |
+
+  `canInvite` takes the **target** role, which is what stops a partner inviting another partner and spreading write access sideways with no owner in the loop.
+
+  **Every trip keeps at least one owner** — enforced in the service, since Postgres cannot express it without a deferred constraint trigger. A trip with no owner is unreachable by anyone, forever.
+
+  **Read-only is enforced at the router.** `authMiddleware` blocks writes for the deprecated guest _code_, but a viewer is an ordinary signed-in account and passes straight through it; `requireTripAccess` refuses non-`GET` for any role that cannot write. The single exception is `DELETE /members/:userId` on yourself — leaving a trip is a write anyone may make.
+
+  Routes: `GET/PATCH/DELETE /api/trips/:tripId/members[/:userId]`, `GET/POST /api/trips/:tripId/invites`, `DELETE /api/trips/:tripId/invites/:inviteId`, plus `GET /api/invites/:token` (preview) and `POST /api/invites/:token/accept`. Accepting is single-use, idempotent for an existing member, and never a downgrade. A shared access code cannot accept — a code proves a right, not an identity.
+
+- **Per-member visibility (phase 4)**: three flags on `trip_members` — `can_see_stays`, `can_see_flight`, `can_see_documents` — collapse into one `TripView` (`server/src/lib/trip-view.ts`) that rides on the trip context. Writers always get the full view: the flags are _ignored_ for owner and partner rather than validated, so an owner cannot lock themselves out of their own bookings.
+
+  Enforcement points: place detail (`403` on a hidden stay), zone detail and its category counts, the zone place list including the map's all-categories sweep, the trip bundle's `flight` block (the key is absent, not null), search, and files.
+
+  **Files: place-attached ones inherit their place.** A hotel's reservation PDF disappears exactly when the stays do. Trip- and zone-attached files are governed solely by `can_see_documents` — a "flight booking.pdf" attached to the trip is a blob with a display name, and the app cannot know what is inside it. So `flight: false` with `documents: true` still shows it; the members screen says so rather than pretending otherwise. Upgrade path if that is not enough: a `files.kind` tag set at upload.
+
+  Defaults on a new invite: stays **on**, flight **on**, documents **off**.
 
   **The single-trip-era routes are scoped too.** `GET /api/trip`, `/api/itinerary`, `/api/shopping`, `/api/reminders`, `/api/files` and `/api/steps` carry no trip id and used to resolve to the oldest trip _in the database_. They now resolve to the caller's oldest trip, and `404` when they have none.
 

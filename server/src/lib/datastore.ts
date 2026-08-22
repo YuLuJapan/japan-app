@@ -1,6 +1,6 @@
 // Datastore interface — every service depends on this, never on a concrete
 // backend. DATA_BACKEND=memory (placeholder JSON, default) | supabase (Phase 8).
-import type { TripRole } from './permissions.js'
+import type { InviteRole, TripRole } from './permissions.js'
 
 export const CATEGORIES = ['hotel', 'attraction', 'food', 'shopping', 'other'] as const
 export type Category = (typeof CATEGORIES)[number]
@@ -60,6 +60,51 @@ export interface TripMemberInput {
   can_see_stays?: boolean
   can_see_flight?: boolean
   can_see_documents?: boolean
+}
+
+/**
+ * A pending (or spent) invitation to a trip.
+ *
+ * `token_hash` is a SHA-256 of the token; the plaintext exists only in the
+ * response that mints it. Nothing in the app can recover a token from a row,
+ * which is the point — a leaked backup hands out no working invites.
+ */
+export interface TripInvite {
+  id: string
+  trip_id: string
+  /** null = an open link; set = only that address may accept it. */
+  email: string | null
+  role: InviteRole
+  can_see_stays: boolean
+  can_see_flight: boolean
+  can_see_documents: boolean
+  invited_by: string | null
+  expires_at: string
+  accepted_at: string | null
+  accepted_by: string | null
+  revoked_at: string | null
+  created_at: string
+}
+
+/**
+ * What a backend persists. `token_hash` is deliberately absent from
+ * `TripInvite` itself, so the hash cannot travel out of a store by accident —
+ * no service or route can reach a field its type does not have.
+ */
+export interface StoredTripInvite extends TripInvite {
+  token_hash: string
+}
+
+export interface TripInviteInput {
+  trip_id: string
+  email?: string | null
+  role: InviteRole
+  can_see_stays?: boolean
+  can_see_flight?: boolean
+  can_see_documents?: boolean
+  token_hash: string
+  invited_by: string | null
+  expires_at: string
 }
 
 export interface Trip {
@@ -336,6 +381,18 @@ export interface DataStore {
   listTripsForUser(userId: string): Promise<Trip[]>
 
   listMembershipsForUser(userId: string): Promise<TripMember[]>
+
+  /** Pending invites for a trip, newest first. Spent and revoked ones are excluded. */
+  listTripInvites(tripId: string): Promise<TripInvite[]>
+  /** The only lookup the accept flow does — by hash, never by id. */
+  getInviteByTokenHash(tokenHash: string): Promise<TripInvite | null>
+  getTripInvite(tripId: string, inviteId: string): Promise<TripInvite | null>
+  createTripInvite(input: TripInviteInput): Promise<TripInvite>
+  /** Stamps `accepted_at`/`accepted_by`, or `revoked_at`. Single-use is enforced here. */
+  updateTripInvite(
+    inviteId: string,
+    patch: { accepted_at?: string; accepted_by?: string; revoked_at?: string }
+  ): Promise<TripInvite | null>
   listTripMembers(tripId: string): Promise<TripMember[]>
   getTripMember(tripId: string, userId: string): Promise<TripMember | null>
   /** Idempotent: re-adding an existing member updates their role and visibility. */

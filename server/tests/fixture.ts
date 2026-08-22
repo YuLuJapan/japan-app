@@ -23,10 +23,17 @@ export const OUTSIDER_USER = {
   display_name: 'Outsider',
   avatar_url: null,
 }
+/** A friend the trip is shared with, read-only. Visibility set per test. */
+export const VIEWER_USER = {
+  id: 'user-friend',
+  email: 'friend@example.com',
+  display_name: 'Friend',
+  avatar_url: null,
+}
 
 export function fixture(): MemoryData {
   return {
-    profiles: [OWNER_USER, PARTNER_USER, OUTSIDER_USER],
+    profiles: [OWNER_USER, PARTNER_USER, OUTSIDER_USER, VIEWER_USER],
     members: [
       {
         trip_id: 'trip-1',

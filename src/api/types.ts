@@ -129,11 +129,46 @@ export interface FlightInfo {
   return_flight: FlightItinerary
 }
 
+/** What this caller may do on a trip. Drives which buttons the UI offers. */
+export type TripRole = 'owner' | 'partner' | 'viewer'
+
 export interface TripBundle {
   trip: Trip
   steps: TripStep[]
   trip_files_count: number
+  /** Absent only for the deprecated shared access codes, which have no membership. */
+  my_role?: TripRole | null
   flight?: FlightInfo
+}
+
+export interface TripMember {
+  user_id: string
+  role: TripRole
+  email: string
+  display_name: string | null
+  avatar_url: string | null
+  can_see_stays: boolean
+  can_see_flight: boolean
+  can_see_documents: boolean
+}
+
+export interface TripInvite {
+  id: string
+  email: string | null
+  role: 'partner' | 'viewer'
+  can_see_stays: boolean
+  can_see_flight: boolean
+  can_see_documents: boolean
+  expires_at: string
+}
+
+export interface InvitePreview {
+  trip_name: string
+  role: 'partner' | 'viewer'
+  invited_by: string | null
+  email: string | null
+  expires_at: string
+  shows: { stays: boolean; flight: boolean; documents: boolean }
 }
 
 export interface Tip {

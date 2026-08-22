@@ -7,7 +7,9 @@ import { filesTripRouter } from './routes/files.js'
 import { geocodeRouter } from './routes/geocode.js'
 import { healthRouter } from './routes/health.js'
 import { imagesRouter } from './routes/images.js'
+import { invitesRouter } from './routes/invites.js'
 import { itineraryTripRouter } from './routes/itinerary.js'
+import { membersTripRouter } from './routes/members.js'
 import { meRouter } from './routes/me.js'
 import { placesTripRouter } from './routes/places.js'
 import { productUrlRouter } from './routes/producturl.js'
@@ -43,6 +45,7 @@ export function tripScopedRouter() {
   router.use(remindersTripRouter)
   router.use(filesTripRouter)
   router.use(searchTripRouter)
+  router.use(membersTripRouter)
   // Last: its '/' routes would otherwise swallow nothing, but keeping the
   // bundle after the sub-resources makes the nesting read top-down.
   router.use(tripDetailRouter)
@@ -67,6 +70,7 @@ export function createApp() {
   app.use('/api', healthRouter)
   app.use('/api', authRouter)
   app.use('/api', meRouter)
+  app.use('/api', invitesRouter)
 
   // Every content route. There is no flat equivalent any more: reaching trip
   // content without naming the trip is no longer expressible.

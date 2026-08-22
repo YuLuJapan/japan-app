@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { isGuest } from '../lib/auth.js'
+import { tripContextOf } from '../lib/trip-context.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import { createPlace, deletePlace, getPlaceDetail, updatePlace } from '../services/places.js'
@@ -7,8 +7,8 @@ import { createPlace, deletePlace, getPlaceDetail, updatePlace } from '../servic
 const placeDetail = asyncHandler(async (req, res) => {
   res.json(
     await getPlaceDetail(await getDataStore(), req.params.tripId, req.params.placeId, {
-      includeFiles: !isGuest(req),
-      includeStays: !isGuest(req),
+      includeFiles: tripContextOf(req).view.documents,
+      includeStays: tripContextOf(req).view.stays,
     })
   )
 })

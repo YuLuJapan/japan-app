@@ -14,7 +14,8 @@
 // description and links, so the category is withheld entirely — a price typed
 // into a description tomorrow would slip straight through any filter. The
 // flight is the same story in structured form.
-import type { Category, Place } from './datastore.js'
+import type { Category, Place, TripMember } from './datastore.js'
+import { canWrite } from './permissions.js'
 
 export interface TripView {
   /** The stays — a hotel place carries the reservation. */
@@ -30,6 +31,24 @@ export const FULL_VIEW: TripView = { stays: true, flight: true, documents: true 
 
 /** The deprecated guest code: read-only, and none of the bookings. */
 export const GUEST_VIEW: TripView = { stays: false, flight: false, documents: false }
+
+/**
+ * What this member is shown.
+ *
+ * Writers always see everything: the flags are *ignored* for owner and partner
+ * rather than validated, so an owner can never lock themselves out of their own
+ * bookings by fiddling with a form. They exist for viewers.
+ */
+export function tripView(
+  member: Pick<TripMember, 'role' | 'can_see_stays' | 'can_see_flight' | 'can_see_documents'>
+): TripView {
+  if (canWrite(member.role)) return FULL_VIEW
+  return {
+    stays: member.can_see_stays,
+    flight: member.can_see_flight,
+    documents: member.can_see_documents,
+  }
+}
 
 /** The category that carries the accommodation booking. */
 export const STAY_CATEGORY: Category = 'hotel'

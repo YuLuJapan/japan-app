@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { DataStore, FileAttachment } from '../lib/datastore.js'
 import { requireTrip } from '../lib/access.js'
+import { STAY_CATEGORY, type TripView } from '../lib/trip-view.js'
 import { ApiError, notFound, validation } from '../lib/errors.js'
 
 const MAX_BYTES = 3 * 1024 * 1024 // 3 MB — stays under Vercel's request-body limit once base64-encoded
@@ -35,9 +36,30 @@ export function downloadName(file: FileAttachment) {
   return base.toLowerCase().endsWith(`.${ext}`) ? base : `${base}.${ext}`
 }
 
-export async function listTripDocuments(store: DataStore, tripId: string) {
+/**
+ * The Documents tab.
+ *
+ * Two visibility rules meet here, and only one of them can be exact:
+ *
+ * - A file hanging off a **place** inherits that place's visibility, so a
+ *   hotel's reservation PDF disappears exactly when the stays do. Mechanical,
+ *   no guessing.
+ * - A file hanging off the **trip or a zone** is governed solely by
+ *   `view.documents`. "flight booking.pdf" attached to the trip is a blob with
+ *   a display name; the app cannot know what is inside it, so `flight: false`
+ *   with `documents: true` still shows it. The members screen says so rather
+ *   than pretending otherwise — the same reasoning as withholding a whole
+ *   category instead of redacting prose.
+ */
+export async function listTripDocuments(store: DataStore, tripId: string, view: TripView) {
   const trip = await requireTrip(store, tripId)
-  const files = await store.listAllFiles(trip.id)
+  if (!view.documents) return { files: [] }
+  const all = await store.listAllFiles(trip.id)
+
+  const stayIds = view.stays
+    ? new Set<string>()
+    : new Set(await store.listPlaceIdsByCategory(trip.id, STAY_CATEGORY))
+  const files = all.filter((f) => !f.place_id || !stayIds.has(f.place_id))
 
   const zoneNames = new Map<string, string>()
   const placeNames = new Map<string, string>()

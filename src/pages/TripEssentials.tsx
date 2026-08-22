@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
 import { CurrencyCalculator } from '../components/CurrencyCalculator'
 
 // Curated static reference for the trip. Phrases are romaji (Latin script) +
@@ -204,6 +205,7 @@ const PACK_KEY = 'trip_packing_v1'
 const PACK_EXTRA_KEY = 'trip_packing_extra_v1'
 
 export default function TripEssentials() {
+  const { tripId = '' } = useParams<{ tripId: string }>()
   const [checked, setChecked] = useState<Record<string, boolean>>({})
   const [extra, setExtra] = useState<string[]>([])
   const [packInput, setPackInput] = useState('')
@@ -265,6 +267,32 @@ export default function TripEssentials() {
       </div>
 
       <CurrencyCalculator />
+
+      <Link
+        to={`/trips/${tripId}/members`}
+        className="flex items-center gap-3 rounded-2xl border border-line bg-white px-4.5 py-4 shadow-card"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block font-bold leading-snug text-ink">Who’s on this trip</span>
+          <span className="mt-1 block text-xs leading-snug text-muted">
+            Share it with a friend, or change what they can see
+          </span>
+        </span>
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="text-muted"
+          aria-hidden
+        >
+          <path d="m9 18 6-6-6-6" />
+        </svg>
+      </Link>
 
       <section>
         <p className="section-title">Trip notes</p>
