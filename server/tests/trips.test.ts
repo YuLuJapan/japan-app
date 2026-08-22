@@ -90,7 +90,7 @@ describe('trips', () => {
     expect(legacy.body.trip.id).toBe('trip-1')
   })
 
-  it('POST /api/trips rejects a missing name and end before start', async () => {
+  it('POST /api/trips rejects end before start', async () => {
     const res = await request(app)
       .post('/api/trips')
       .set('Authorization', `Bearer ${TEST_CODE}`)
@@ -98,8 +98,48 @@ describe('trips', () => {
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('VALIDATION')
     expect(res.body.error.details).toEqual(
-      expect.arrayContaining([expect.stringContaining('name'), expect.stringContaining('end_date')])
+      expect.arrayContaining([expect.stringContaining('end_date')])
     )
+    // The name is no longer among them: it is an override, and an empty one
+    // means "build the title from who is going and where".
+    expect(res.body.error.details.join(' ')).not.toContain('name is required')
+  })
+
+  it('POST /api/trips names an unnamed trip from its travellers and country', async () => {
+    const res = await request(app)
+      .post('/api/trips')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({
+        country: 'Italy',
+        start_date: '2027-02-06',
+        end_date: '2027-02-14',
+        people: ['Alex', 'Sam'],
+      })
+    expect(res.status).toBe(201)
+    expect(res.body.trip.name).toBeNull()
+    expect(res.body.trip.display_title).toBe('Alex and Sam in Italy')
+  })
+
+  it('lets a title given later win over the built one', async () => {
+    const created = await request(app)
+      .post('/api/trips')
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({ country: 'Italy', start_date: '2027-02-06', end_date: '2027-02-14' })
+    expect(created.body.trip.display_title).toBe('Trip to Italy')
+
+    const named = await request(app)
+      .patch(`/api/trips/${created.body.trip.id}`)
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({ name: 'Dolomites' })
+    expect(named.body.trip.display_title).toBe('Dolomites')
+
+    // …and clearing it goes back to the built one rather than storing "".
+    const cleared = await request(app)
+      .patch(`/api/trips/${created.body.trip.id}`)
+      .set('Authorization', `Bearer ${TEST_CODE}`)
+      .send({ name: '' })
+    expect(cleared.body.trip.name).toBeNull()
+    expect(cleared.body.trip.display_title).toBe('Trip to Italy')
   })
 
   it('GET /api/trips/:tripId 404s for an unknown trip', async () => {

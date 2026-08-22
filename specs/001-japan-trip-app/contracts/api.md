@@ -50,6 +50,20 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
 
   Defaults on a new invite: stays **on**, flight **on**, documents **off**.
 
+- **The trip's title (2026-08-22, feature 002 phase 5)**: `trips.name` is **nullable** and is an _override_, not the title. Every trip payload carries `display_title`, computed server-side from `server/src/lib/trip-title.ts` so there is one implementation and clients cannot drift:
+
+  | given                | title                        |
+  | -------------------- | ---------------------------- |
+  | a `name`             | that name                    |
+  | `people` + `country` | `Yuval and Luciana in Japan` |
+  | `country` only       | `Trip to Japan`              |
+  | `people` only        | `Yuval and Luciana’s trip`   |
+  | neither              | `Untitled trip`              |
+
+  Names come from `trips.people` — the deliberate roster of who is going. Member display names are a fallback used **only** when that roster is empty, because membership answers "who can open the app" and includes anyone the trip was shared with.
+
+  `POST /api/trips` no longer requires `name`; sending `""` on create or patch clears the override rather than storing an empty string. `country` is a new optional field (max 80 chars).
+
   **The single-trip-era routes are scoped too.** `GET /api/trip`, `/api/itinerary`, `/api/shopping`, `/api/reminders`, `/api/files` and `/api/steps` carry no trip id and used to resolve to the oldest trip _in the database_. They now resolve to the caller's oldest trip, and `404` when they have none.
 
   **Every content route is now nested (2026-08-22, phase 3a).** They live under `/api/trips/:tripId/…` behind a single `requireTripAccess` middleware (`server/src/lib/trip-context.ts`), applied once to the whole router — so a route added there is access-checked by construction rather than by remembering to guard it:

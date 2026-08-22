@@ -6,6 +6,7 @@ import { normalizeTraveller } from '../lib/datastore.js'
 import { assertTripAccess, roleForTrip, type AccessContext } from '../lib/access.js'
 import { canDeleteTrip, canEditTrip } from '../lib/permissions.js'
 import { forbidden, notFound, validation } from '../lib/errors.js'
+import { displayTitle } from '../lib/trip-title.js'
 import { FLIGHT } from '../lib/flight.js'
 import { hideStayCounts } from '../lib/guest-view.js'
 import type { DateRange } from '../lib/trip-dates.js'
@@ -14,6 +15,7 @@ import { addDays, daysBetween, rangeLabel, withinRange } from '../lib/trip-dates
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const NAME_MAX = 120
+const COUNTRY_MAX = 80
 const PERSON_MAX = 60
 const PEOPLE_MAX = 12
 
@@ -22,10 +24,26 @@ const PEOPLE_MAX = 12
  * everybody's — this one line is what makes open registration safe, and the
  * reason `listTrips()` on the store is documented as unscoped.
  */
+/**
+ * The title travels with every trip, computed here rather than in each client.
+ *
+ * Member names are only ever a fallback for a trip whose roster is empty: the
+ * roster answers "who is going", membership answers "who can open the app",
+ * and those differ the moment a trip is shared with a friend.
+ */
+async function withTitle(store: DataStore, trip: Trip) {
+  let memberNames: string[] = []
+  if (!trip.people.some((p) => p.name.trim())) {
+    const members = await store.listTripMembers(trip.id)
+    const profiles = await Promise.all(members.map((m) => store.getProfile(m.user_id)))
+    memberNames = profiles.map((p) => p?.display_name ?? '').filter(Boolean)
+  }
+  return { ...trip, display_title: displayTitle({ ...trip, memberNames }) }
+}
+
 export async function listTrips(store: DataStore, access: AccessContext) {
-  const trips = access.userId
-    ? await store.listTripsForUser(access.userId)
-    : await store.listTrips()
+  const rows = access.userId ? await store.listTripsForUser(access.userId) : await store.listTrips()
+  const trips = await Promise.all(rows.map((t) => withTitle(store, t)))
   return { trips }
 }
 
@@ -67,7 +85,7 @@ export async function getTripBundle(
   )
   const trip_files_count = await store.countTripFiles(trip.id)
   return {
-    trip,
+    trip: await withTitle(store, trip),
     steps: stepsWithZones,
     trip_files_count,
     // What this caller may do here. The frontend uses it to decide which
@@ -89,10 +107,16 @@ function collectTripErrors(input: Partial<TripInput>, partial: boolean): string[
   const errors: string[] = []
   const has = (k: keyof TripInput) => input[k] !== undefined
 
-  if (!partial || has('name')) {
-    const name = (input.name ?? '').trim()
-    if (!name) errors.push('name is required')
-    else if (name.length > NAME_MAX) errors.push(`name must be at most ${NAME_MAX} characters`)
+  // The name is an override now, not the title — an empty one means "build it
+  // from who is going and where" (lib/trip-title.ts), so it is never required.
+  if (has('name') && input.name != null) {
+    const name = input.name.trim()
+    if (name.length > NAME_MAX) errors.push(`name must be at most ${NAME_MAX} characters`)
+  }
+  if (has('country') && input.country != null) {
+    const country = input.country.trim()
+    if (country.length > COUNTRY_MAX)
+      errors.push(`country must be at most ${COUNTRY_MAX} characters`)
   }
   if (!partial || has('start_date')) {
     if (!input.start_date || !DATE_RE.test(input.start_date))
@@ -256,7 +280,8 @@ export async function createTrip(
   const errors = collectTripErrors(input, false)
   if (errors.length) throw validation(errors)
   const trip = await store.createTrip({
-    name: input.name!.trim(),
+    name: input.name?.trim() || null,
+    country: input.country?.trim() || null,
     start_date: input.start_date!,
     end_date: input.end_date!,
     description: input.description?.trim() || null,
@@ -268,7 +293,10 @@ export async function createTrip(
   if (access.userId) {
     await store.upsertTripMember({ trip_id: trip.id, user_id: access.userId, role: 'owner' })
   }
-  return { trip, my_role: access.userId ? 'owner' : roleForTrip(access, trip.id) }
+  return {
+    trip: await withTitle(store, trip),
+    my_role: access.userId ? 'owner' : roleForTrip(access, trip.id),
+  }
 }
 
 /** What to do with activities the new dates would leave outside the trip. */
@@ -328,7 +356,9 @@ export async function updateTrip(
   }
 
   const clean: Partial<TripInput> = { ...fields }
-  if (clean.name !== undefined) clean.name = clean.name.trim()
+  // An emptied field clears the override rather than storing "".
+  if (clean.name !== undefined) clean.name = clean.name?.trim() || null
+  if (clean.country !== undefined) clean.country = clean.country?.trim() || null
   if (clean.description !== undefined) clean.description = clean.description?.trim() || null
   if (clean.people !== undefined) clean.people = cleanPeople(clean.people)
   const trip = await store.updateTrip(tripId, clean)
@@ -358,7 +388,7 @@ export async function updateTrip(
   }
 
   return {
-    trip,
+    trip: await withTitle(store, trip),
     ...(movedStops.length && { moved_stops: movedStops }),
     ...(moved.length && { moved }),
     ...(deleted.length && { deleted }),
