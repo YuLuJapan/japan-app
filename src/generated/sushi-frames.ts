@@ -8,4 +8,4 @@ export const FRAME_COUNT = 322
 export const FRAME_WIDTH = 1280
 export const FRAME_HEIGHT = 720
 export const FRAME_EXT = 'webp'
-export const ASSET_VERSION = '717ef4da'
+export const ASSET_VERSION = '72c503ef'
