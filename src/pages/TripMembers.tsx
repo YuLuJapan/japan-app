@@ -110,7 +110,7 @@ export default function TripMembers() {
   return (
     <div className="flex flex-col gap-6 pb-24">
       <header>
-        <h1 className="font-display text-2xl font-extrabold text-ink">Who’s on this trip</h1>
+        <h1 className="font-display text-2xl font-bold text-ink">Who’s on this trip</h1>
         <p className="mt-1 text-sm text-muted">
           Share it with a link. Anyone who opens it and signs in joins with the access you chose.
         </p>
@@ -176,7 +176,7 @@ export default function TripMembers() {
 
       {canInvite && (
         <section className="rounded-2xl border border-line bg-white p-4">
-          <h2 className="font-display text-lg font-bold text-ink">Invite someone</h2>
+          <h2 className="font-display text-lg font-semibold text-ink">Invite someone</h2>
 
           <div className="mt-3 flex flex-col gap-2">
             {(isOwner ? (['partner', 'viewer'] as const) : (['viewer'] as const)).map((r) => (
@@ -262,7 +262,7 @@ export default function TripMembers() {
 
       {canInvite && !!invites.data?.invites.length && (
         <section className="flex flex-col gap-2">
-          <h2 className="font-display text-lg font-bold text-ink">Waiting to be accepted</h2>
+          <h2 className="font-display text-lg font-semibold text-ink">Waiting to be accepted</h2>
           {invites.data.invites.map((i) => (
             <div
               key={i.id}

@@ -44,7 +44,7 @@ export default function JourneySteps() {
         ‹ Back
       </Link>
       <div>
-        <h1 className="font-display text-2xl font-extrabold">Edit the journey</h1>
+        <h1 className="font-display text-2xl font-bold">Edit the journey</h1>
         <p className="mt-1 text-sm text-muted">
           Change dates, or add or remove a destination. Stops are ordered by arrival date.
         </p>

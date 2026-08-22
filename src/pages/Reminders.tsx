@@ -52,7 +52,7 @@ export default function Reminders() {
     <div className="space-y-5">
       <div>
         <p className="section-title text-brand">Reminders</p>
-        <h1 className="mt-1 font-display text-[34px] font-extrabold leading-[1.05] tracking-tight">
+        <h1 className="mt-1 font-display text-[34px] font-bold leading-[1.05] tracking-tight">
           Don&apos;t forget
         </h1>
         <p className="mt-1.5 text-sm text-muted">
@@ -165,7 +165,7 @@ function UpcomingReminderCard({
         <span className="text-[9px] font-bold uppercase tracking-wide text-brand">
           {monthFmt(zone).format(when)}
         </span>
-        <span className="font-display text-base font-bold leading-none text-brand">
+        <span className="font-display text-base font-semibold leading-none text-brand">
           {dayFmt(zone).format(when)}
         </span>
       </div>

@@ -60,12 +60,12 @@ function TripCard({ trip, onEdit }: { trip: Trip; onEdit: () => void }) {
         style={{ background: swatchFor(trip.id) }}
         aria-hidden
       >
-        <span className="font-display text-4xl font-extrabold leading-none text-white/90">
+        <span className="font-display text-4xl font-bold leading-none text-white/90">
           {trip.name[0]?.toUpperCase()}
         </span>
       </div>
       <div className="min-w-0 flex-1">
-        <p className="font-display text-lg font-extrabold tracking-tight">{trip.name}</p>
+        <p className="font-display text-lg font-bold tracking-tight">{trip.name}</p>
         <p className="mt-0.5 text-xs text-muted">{dateRange(trip)}</p>
         {trip.people.length > 0 && (
           <div className="mt-2 flex items-center gap-1.5">
@@ -115,13 +115,13 @@ export default function TripsList() {
       <header className="sticky top-0 z-10 flex items-center justify-between bg-canvas/85 px-5 py-4 backdrop-blur">
         <div className="flex items-center gap-2">
           <RingMark size={30} />
-          <span className="font-display text-lg font-extrabold tracking-tight">Onward</span>
+          <span className="font-display text-lg font-bold tracking-tight">Onward</span>
         </div>
         <SignOutButton />
       </header>
 
       <main className="flex-1 px-5 pb-10 pt-1">
-        <h1 className="font-display text-4xl font-extrabold leading-[1.05] tracking-tight">
+        <h1 className="font-display text-4xl font-bold leading-[1.05] tracking-tight">
           Where to
           <br />
           next?

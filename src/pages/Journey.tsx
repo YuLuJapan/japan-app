@@ -72,7 +72,7 @@ export default function Journey() {
         <>
           <div>
             <div className="mb-3 flex items-baseline justify-between">
-              <h2 className="font-display text-2xl font-bold tracking-tight">The journey</h2>
+              <h2 className="font-display text-2xl font-semibold tracking-tight">The journey</h2>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-muted">swipe →</span>
                 {canEdit && (
@@ -89,7 +89,7 @@ export default function Journey() {
           </div>
 
           <section>
-            <h2 className="mb-3 font-display text-2xl font-bold tracking-tight">Day by day</h2>
+            <h2 className="mb-3 font-display text-2xl font-semibold tracking-tight">Day by day</h2>
             {itinerary.isPending ? (
               <Loading label="Loading the schedule…" />
             ) : itinerary.isError ? (
@@ -111,7 +111,7 @@ export default function Journey() {
         </>
       ) : (
         <div className="rounded-3xl border border-dashed border-line px-5 py-6 text-center">
-          <p className="font-display text-base font-bold">No stops yet</p>
+          <p className="font-display text-base font-semibold">No stops yet</p>
           <p className="mt-1.5 text-sm text-muted">
             Add the cities you&apos;ll sleep in and the day-by-day plan builds itself.
           </p>

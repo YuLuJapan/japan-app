@@ -75,9 +75,7 @@ export default function PlaceForm() {
       >
         ‹ Back
       </Link>
-      <h1 className="font-display text-2xl font-extrabold">
-        {editing ? 'Edit place' : 'Add a place'}
-      </h1>
+      <h1 className="font-display text-2xl font-bold">{editing ? 'Edit place' : 'Add a place'}</h1>
 
       <div>
         <label className="label" htmlFor="name">

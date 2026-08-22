@@ -30,7 +30,9 @@ function useFitOneLine(text: string, max: number, min: number) {
       // jsdom lays nothing out and reports 0 for both — there the heading just
       // stays at its base size.
       if (!avail || !width || width <= avail) return
-      el.style.fontSize = `${Math.max(min, (avail / width) * max)}px`
+      // A hair under the full column so the line never kisses the right edge
+      // (and survives the odd rounding difference between measure and paint).
+      el.style.fontSize = `${Math.max(min, ((avail * 0.98) / width) * max)}px`
     }
 
     fit()
@@ -63,7 +65,7 @@ export function HeroTitle({
     <h1
       ref={ref}
       style={{ fontSize: max }}
-      className={`whitespace-nowrap font-display font-extrabold leading-[1.06] tracking-tight ${className}`}
+      className={`whitespace-nowrap font-display font-medium leading-[1.06] tracking-tight ${className}`}
     >
       {lead}
       {accent && <span className="text-brand">{accent}</span>}

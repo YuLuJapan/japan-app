@@ -76,7 +76,7 @@ export default function AcceptInvite() {
       <p className="text-white/85">
         {invite.invited_by ? `${invite.invited_by} invited you to` : 'You’ve been invited to'}
       </p>
-      <h2 className="mt-1 font-display text-2xl font-extrabold text-white">{invite.trip_name}</h2>
+      <h2 className="mt-1 font-display text-2xl font-bold text-white">{invite.trip_name}</h2>
       <p className="mt-3 text-sm text-white/85">
         You’ll be able to {ROLE_LABEL[invite.role] ?? 'look around'}
         {shows.length ? `, and see ${shows.join(', ')}` : ''}.

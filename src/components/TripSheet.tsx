@@ -390,7 +390,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
         className="max-h-[92vh] w-full max-w-app overflow-y-auto rounded-t-[2rem] bg-canvas p-6 pb-8"
       >
         <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-line" />
-        <h2 className="font-display text-2xl font-extrabold tracking-tight">
+        <h2 className="font-display text-2xl font-bold tracking-tight">
           {mode === 'edit' ? 'Edit trip' : 'Add a destination'}
         </h2>
         <p className="mt-1 text-sm text-muted">

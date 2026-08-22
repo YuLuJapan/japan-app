@@ -171,7 +171,7 @@ export function Layout({ children }: { children: ReactNode }) {
             the mark + trip name goes back to the trips list, like the prototype. */}
         <Link to="/trips" className="flex min-w-0 items-center gap-2">
           <RingMark size={34} />
-          <span className="truncate font-display text-lg font-extrabold tracking-tight">
+          <span className="truncate font-display text-lg font-bold tracking-tight">
             {trip.data?.trip.name ?? ' '}
           </span>
           {!canEdit && (

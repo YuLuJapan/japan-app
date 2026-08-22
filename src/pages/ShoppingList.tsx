@@ -53,7 +53,7 @@ export default function ShoppingList() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="section-title text-brand">Shopping</p>
-          <h1 className="mt-1 font-display text-[34px] font-extrabold leading-[1.05] tracking-tight">
+          <h1 className="mt-1 font-display text-[34px] font-bold leading-[1.05] tracking-tight">
             Things to buy
           </h1>
           {items.length === 0 && <p className="mt-1 text-sm text-muted">Nothing on the list yet.</p>}
@@ -71,7 +71,7 @@ export default function ShoppingList() {
             <p className="text-[13px] text-muted">
               {boughtCount} of {items.length} bought
             </p>
-            <p className="font-display text-lg font-bold text-ink">¥{yen.format(totalYen)}</p>
+            <p className="font-display text-lg font-semibold text-ink">¥{yen.format(totalYen)}</p>
           </div>
           <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-line">
             <div
@@ -131,7 +131,7 @@ function CategorySection({
   return (
     <section>
       <div className="mb-2 flex items-baseline justify-between gap-3">
-        <h2 className="font-display text-lg font-extrabold">
+        <h2 className="font-display text-lg font-bold">
           {meta.icon} {meta.label}
         </h2>
         <Link

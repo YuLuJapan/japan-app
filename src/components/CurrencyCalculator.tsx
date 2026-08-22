@@ -19,7 +19,7 @@ export function CurrencyCalculator() {
   return (
     <div className="rounded-3xl border border-line bg-white p-5 shadow-card">
       <div className="flex items-center justify-between">
-        <h3 className="font-display text-base font-extrabold">Exchange calculator</h3>
+        <h3 className="font-display text-base font-bold">Exchange calculator</h3>
         {data && <span className="text-[11px] font-semibold text-muted">Rate · {data.date}</span>}
       </div>
 
@@ -36,7 +36,7 @@ export function CurrencyCalculator() {
         Amount in yen
       </label>
       <div className="mt-1 flex items-center gap-2 rounded-2xl border border-line bg-canvas px-3 py-2.5 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20">
-        <span className="font-display text-2xl font-extrabold text-muted">¥</span>
+        <span className="font-display text-2xl font-bold text-muted">¥</span>
         <input
           id="yen"
           inputMode="decimal"
@@ -72,13 +72,13 @@ export function CurrencyCalculator() {
         <div className="mt-3 grid grid-cols-2 gap-2">
           <div className="rounded-2xl border border-brand/20 bg-brand/5 px-3 py-3 text-center">
             <p className="text-[11px] font-bold uppercase tracking-wide text-muted">US Dollar</p>
-            <p className="mt-0.5 font-display text-2xl font-extrabold text-ink">
+            <p className="mt-0.5 font-display text-2xl font-bold text-ink">
               {isPending || !data ? '…' : usdFmt.format(amount * data.usd)}
             </p>
           </div>
           <div className="rounded-2xl border border-brand/20 bg-brand/5 px-3 py-3 text-center">
             <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Shekel (ILS)</p>
-            <p className="mt-0.5 font-display text-2xl font-extrabold text-ink">
+            <p className="mt-0.5 font-display text-2xl font-bold text-ink">
               {isPending || !data ? '…' : ilsFmt.format(amount * data.ils)}
             </p>
           </div>

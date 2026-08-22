@@ -77,9 +77,7 @@ export default function ShoppingItemDetail() {
         )}
         {/* title gets the full width — the chip sits under it, so long product
             names don't get squeezed into a narrow column */}
-        <h1
-          className={`mt-3 font-display text-2xl font-extrabold ${item.bought ? 'line-through' : ''}`}
-        >
+        <h1 className={`mt-3 font-display text-2xl font-bold ${item.bought ? 'line-through' : ''}`}>
           {item.name}
         </h1>
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -93,9 +91,7 @@ export default function ShoppingItemDetail() {
       {item.price_yen != null && (
         <section className="rounded-3xl border border-brand/20 bg-brand/5 px-4 py-3">
           <h2 className="section-title">Should cost about</h2>
-          <p className="mt-0.5 font-display text-2xl font-extrabold">
-            ¥{yen.format(item.price_yen)}
-          </p>
+          <p className="mt-0.5 font-display text-2xl font-bold">¥{yen.format(item.price_yen)}</p>
           {rates && (
             <p className="mt-0.5 text-sm text-muted">
               ≈ {ilsFmt.format(item.price_yen * rates.ils)} ≈{' '}

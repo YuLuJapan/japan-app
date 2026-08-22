@@ -89,7 +89,7 @@ export function ShoppingTile({ item, onToggle, busy }: CardProps) {
             {item.name}
           </p>
           {item.price_yen != null && (
-            <p className="mt-auto pt-1 font-display text-sm font-extrabold text-brand">
+            <p className="mt-auto pt-1 font-display text-sm font-bold text-brand">
               ¥{yen.format(item.price_yen)}
             </p>
           )}
@@ -142,7 +142,7 @@ export function ShoppingRow({ item, zoneName, rates, onToggle, busy }: CardProps
           </p>
           {where && <p className="mt-1 truncate text-xs font-semibold text-muted">📍 {where}</p>}
           {item.price_yen != null && (
-            <p className="mt-1 truncate font-display text-sm font-extrabold text-brand">
+            <p className="mt-1 truncate font-display text-sm font-bold text-brand">
               {priceLabel(item.price_yen, rates)}
             </p>
           )}

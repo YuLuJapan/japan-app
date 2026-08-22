@@ -37,7 +37,7 @@ export function ConfirmDialog({
         className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-pop"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="font-display text-lg font-extrabold">{title}</h2>
+        <h2 className="font-display text-lg font-bold">{title}</h2>
         {message && <p className="mt-1 text-sm text-muted">{message}</p>}
         <div className="mt-5 flex gap-3">
           <button type="button" className="btn-ghost flex-1" onClick={onCancel}>

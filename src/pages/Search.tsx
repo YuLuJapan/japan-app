@@ -37,7 +37,7 @@ export default function Search() {
   return (
     <div>
       <p className="section-title text-brand">Search</p>
-      <h1 className="mt-1 font-display text-2xl font-extrabold">Find anything</h1>
+      <h1 className="mt-1 font-display text-2xl font-bold">Find anything</h1>
 
       <input
         className="field mt-4"

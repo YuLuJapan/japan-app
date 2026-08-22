@@ -8,7 +8,7 @@ import { timeUntil } from '../lib/countdown'
 function Unit({ value, label }: { value: number; label: string }) {
   return (
     <div className="flex flex-col items-center">
-      <span className="font-display text-3xl font-extrabold leading-none tabular-nums text-ink">
+      <span className="font-display text-3xl font-bold leading-none tabular-nums text-ink">
         {String(value).padStart(2, '0')}
       </span>
       <span className="mt-1 text-[10px] font-bold uppercase tracking-wide text-muted">{label}</span>
@@ -45,7 +45,7 @@ export function GenericCountdown({
         </p>
 
         {left.done ? (
-          <p className="mt-3 font-display text-2xl font-extrabold text-ink">Bon voyage! 🧳</p>
+          <p className="mt-3 font-display text-2xl font-bold text-ink">Bon voyage! 🧳</p>
         ) : (
           <div
             className="mt-4 grid grid-cols-4 gap-2"
