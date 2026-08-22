@@ -18,6 +18,7 @@ export interface MemberView {
   can_see_stays: boolean
   can_see_flight: boolean
   can_see_documents: boolean
+  can_see_shopping: boolean
 }
 
 /** Members with their profiles attached, owners first, then by name. */
@@ -35,6 +36,7 @@ export async function listMembers(store: DataStore, tripId: string) {
         can_see_stays: m.can_see_stays,
         can_see_flight: m.can_see_flight,
         can_see_documents: m.can_see_documents,
+        can_see_shopping: m.can_see_shopping,
       }
     })
   )
@@ -67,6 +69,7 @@ export interface MemberPatch {
   can_see_stays?: unknown
   can_see_flight?: unknown
   can_see_documents?: unknown
+  can_see_shopping?: unknown
 }
 
 export async function updateMember(
@@ -85,7 +88,12 @@ export async function updateMember(
   if (patch.role !== undefined && !isTripRole(patch.role)) {
     errors.push('role must be one of: owner, partner, viewer')
   }
-  for (const key of ['can_see_stays', 'can_see_flight', 'can_see_documents'] as const) {
+  for (const key of [
+    'can_see_stays',
+    'can_see_flight',
+    'can_see_documents',
+    'can_see_shopping',
+  ] as const) {
     if (patch[key] !== undefined && typeof patch[key] !== 'boolean') {
       errors.push(`${key} must be true or false`)
     }
@@ -105,6 +113,7 @@ export async function updateMember(
     can_see_flight: (patch.can_see_flight as boolean | undefined) ?? existing.can_see_flight,
     can_see_documents:
       (patch.can_see_documents as boolean | undefined) ?? existing.can_see_documents,
+    can_see_shopping: (patch.can_see_shopping as boolean | undefined) ?? existing.can_see_shopping,
   })
   return { member }
 }

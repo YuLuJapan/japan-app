@@ -148,6 +148,7 @@ export interface TripShows {
   stays: boolean
   flight: boolean
   documents: boolean
+  shopping: boolean
 }
 
 export interface TripBundle {
@@ -169,6 +170,7 @@ export interface TripMember {
   can_see_stays: boolean
   can_see_flight: boolean
   can_see_documents: boolean
+  can_see_shopping: boolean
 }
 
 export interface TripInvite {
@@ -178,6 +180,7 @@ export interface TripInvite {
   can_see_stays: boolean
   can_see_flight: boolean
   can_see_documents: boolean
+  can_see_shopping: boolean
   expires_at: string
   /** Set when the invitee said no. Distinct from an invite you revoked. */
   declined_at?: string | null

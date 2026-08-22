@@ -2,7 +2,13 @@ import { Navigate, Outlet, createBrowserRouter, useParams } from 'react-router-d
 import { getAccessCode } from './api/client'
 import { Layout } from './components/Layout'
 import { useTrip } from './api/hooks'
-import { SessionProvider, TripRoleContext, TripShowsContext, useCanEdit } from './lib/session'
+import {
+  SessionProvider,
+  TripRoleContext,
+  TripShowsContext,
+  useCanEdit,
+  useTripShows,
+} from './lib/session'
 import AcceptInvite from './pages/AcceptInvite'
 import AccessGate from './pages/AccessGate'
 import CategoryList from './pages/CategoryList'
@@ -45,7 +51,7 @@ function TripLayout() {
   return (
     <TripRoleContext.Provider value={trip.data?.my_role ?? null}>
       <TripShowsContext.Provider
-        value={trip.data?.shows ?? { stays: true, flight: true, documents: true }}
+        value={trip.data?.shows ?? { stays: true, flight: true, documents: true, shopping: true }}
       >
         <Layout>
           <Outlet />
@@ -63,6 +69,17 @@ function TripLayout() {
 function RequireOwner() {
   const { tripId } = useParams<{ tripId: string }>()
   return useCanEdit() ? <Outlet /> : <Navigate to={`/trips/${tripId}`} replace />
+}
+
+/**
+ * The shopping section, when this trip shares it with you. The tab is already
+ * gone from the nav; this catches the other ways in — a bookmark, a link
+ * somebody pasted — so they land on the journey rather than on an error the
+ * API is right to return but nobody needs to read.
+ */
+function RequireShopping() {
+  const { tripId } = useParams<{ tripId: string }>()
+  return useTripShows().shopping ? <Outlet /> : <Navigate to={`/trips/${tripId}`} replace />
 }
 
 export const router = createBrowserRouter([
@@ -84,9 +101,14 @@ export const router = createBrowserRouter([
           { path: 'zones/:zoneId/c/:category', element: <CategoryList /> },
           { path: 'places/:placeId', element: <PlaceDetail /> },
           { path: 'search', element: <Search /> },
-          { path: 'shopping', element: <ShoppingList /> },
-          { path: 'shopping/c/:category', element: <ShoppingCategoryPage /> },
-          { path: 'shopping/:itemId', element: <ShoppingItemDetail /> },
+          {
+            element: <RequireShopping />,
+            children: [
+              { path: 'shopping', element: <ShoppingList /> },
+              { path: 'shopping/c/:category', element: <ShoppingCategoryPage /> },
+              { path: 'shopping/:itemId', element: <ShoppingItemDetail /> },
+            ],
+          },
           { path: 'reminders', element: <Reminders /> },
           { path: 'essentials', element: <TripEssentials /> },
 

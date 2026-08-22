@@ -1,5 +1,5 @@
-// What a caller is shown on a trip, as one value rather than three loose
-// booleans threaded through six services.
+// What a caller is shown on a trip, as one value rather than a handful of
+// loose booleans threaded through six services.
 //
 // This began as lib/guest-view.ts, which answered one question — "is this the
 // guest code?" — and handed the services `includeStays` / `includeFlight` /
@@ -13,7 +13,10 @@
 // cancellation terms and the Booking.com link all live in its free-text
 // description and links, so the category is withheld entirely — a price typed
 // into a description tomorrow would slip straight through any filter. The
-// flight is the same story in structured form.
+// flight is the same story in structured form. The shopping list is withheld
+// wholesale for a different reason: it is where the gifts get written down, so
+// the person it should be hidden from is often the very person you are sharing
+// the rest of the trip with.
 import type { Category, Place, TripMember } from './datastore.js'
 import { canWrite } from './permissions.js'
 
@@ -24,10 +27,17 @@ export interface TripView {
   flight: boolean
   /** Attachments: the Documents tab, and files hung off a zone or place. */
   documents: boolean
+  /** The shopping list: the Shopping tab, and everything under it. */
+  shopping: boolean
 }
 
 /** Everyone who can write, and every owner. */
-export const FULL_VIEW: TripView = { stays: true, flight: true, documents: true }
+export const FULL_VIEW: TripView = {
+  stays: true,
+  flight: true,
+  documents: true,
+  shopping: true,
+}
 
 /**
  * What this member is shown.
@@ -37,13 +47,17 @@ export const FULL_VIEW: TripView = { stays: true, flight: true, documents: true 
  * bookings by fiddling with a form. They exist for viewers.
  */
 export function tripView(
-  member: Pick<TripMember, 'role' | 'can_see_stays' | 'can_see_flight' | 'can_see_documents'>
+  member: Pick<
+    TripMember,
+    'role' | 'can_see_stays' | 'can_see_flight' | 'can_see_documents' | 'can_see_shopping'
+  >
 ): TripView {
   if (canWrite(member.role)) return FULL_VIEW
   return {
     stays: member.can_see_stays,
     flight: member.can_see_flight,
     documents: member.can_see_documents,
+    shopping: member.can_see_shopping,
   }
 }
 

@@ -40,6 +40,7 @@ export function fixture(): MemoryData {
         can_see_stays: true,
         can_see_flight: true,
         can_see_documents: true,
+        can_see_shopping: true,
       },
       // A second tenant, so "does not leak across trips" can be asserted
       // against real data rather than an empty database.
@@ -50,6 +51,7 @@ export function fixture(): MemoryData {
         can_see_stays: true,
         can_see_flight: true,
         can_see_documents: true,
+        can_see_shopping: true,
       },
     ],
     trips: [

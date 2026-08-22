@@ -1,6 +1,6 @@
 // What an invitation grants: two independent axes, deliberately two controls.
 //
-// The **role** decides which verbs someone gets; the three **toggles** decide
+// The **role** decides which verbs someone gets; the **toggles** decide
 // which content a viewer is shown. Writers ignore the toggles entirely — the
 // server ignores them too, rather than validating them, so an owner can never
 // lock themselves out of their own bookings — which is why they are only
@@ -31,18 +31,24 @@ export type Shows = {
   can_see_stays: boolean
   can_see_flight: boolean
   can_see_documents: boolean
+  can_see_shopping: boolean
 }
 
 /** A document is a file nobody can audit at a glance, so it is off by default. */
 export const DEFAULT_SHOWS: Shows = {
   can_see_stays: true,
   can_see_flight: true,
+  can_see_shopping: true,
   can_see_documents: false,
 }
 
 export const SHOWS: { key: keyof Shows; label: string; hint: string }[] = [
   { key: 'can_see_stays', label: 'Where we’re staying', hint: 'Hotels, and what they cost' },
   { key: 'can_see_flight', label: 'Flights', hint: 'Times and booking reference' },
+  // Off means the Shopping tab isn't there at all — which is the point when
+  // what's on the list is a present for the person you're sharing with.
+  { key: 'can_see_shopping', label: 'Shopping list', hint: 'What we want to buy, and presents' },
+  // Last, so the caveat below sits next to the toggle it is about.
   { key: 'can_see_documents', label: 'Documents', hint: 'Everything in the Docs tab' },
 ]
 
@@ -141,7 +147,7 @@ export function AccessPicker({
               inside it. Only files attached to a hotel follow the stays. */}
           <p className="mt-1 text-xs text-muted">
             Documents are shown as they are — a file you attached to the trip isn’t filtered by the
-            other two.
+            others.
           </p>
         </div>
       )}

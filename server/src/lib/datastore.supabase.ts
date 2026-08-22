@@ -72,12 +72,13 @@ const zoneIdsFor = async (
 const PROFILE_COLS = 'id,email,display_name,avatar_url'
 
 // trip_members (migration 0012).
-const MEMBER_COLS = 'trip_id,user_id,role,can_see_stays,can_see_flight,can_see_documents'
+const MEMBER_COLS =
+  'trip_id,user_id,role,can_see_stays,can_see_flight,can_see_documents,can_see_shopping'
 
 // trip_invites (migration 0014). token_hash is never selected: the accept flow
 // looks up *by* hash, and nothing else has a reason to read it back.
 const INVITE_COLS =
-  'id,trip_id,email,role,can_see_stays,can_see_flight,can_see_documents,invited_by,expires_at,accepted_at,accepted_by,revoked_at,declined_at,created_at'
+  'id,trip_id,email,role,can_see_stays,can_see_flight,can_see_documents,can_see_shopping,invited_by,expires_at,accepted_at,accepted_by,revoked_at,declined_at,created_at'
 
 function isMissingProfilesTable(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false
@@ -346,6 +347,7 @@ export function createSupabaseStore(): DataStore {
         can_see_stays: input.can_see_stays ?? true,
         can_see_flight: input.can_see_flight ?? true,
         can_see_documents: input.can_see_documents ?? false,
+        can_see_shopping: input.can_see_shopping ?? true,
         token_hash: input.token_hash,
         invited_by: input.invited_by,
         expires_at: input.expires_at,
@@ -412,6 +414,7 @@ export function createSupabaseStore(): DataStore {
       if (input.can_see_stays !== undefined) row.can_see_stays = input.can_see_stays
       if (input.can_see_flight !== undefined) row.can_see_flight = input.can_see_flight
       if (input.can_see_documents !== undefined) row.can_see_documents = input.can_see_documents
+      if (input.can_see_shopping !== undefined) row.can_see_shopping = input.can_see_shopping
       const { data, error } = await db
         .from('trip_members')
         .upsert(row, { onConflict: 'trip_id,user_id' })

@@ -368,6 +368,7 @@ export function useCreateInvite(tripId: string) {
       can_see_stays: boolean
       can_see_flight: boolean
       can_see_documents: boolean
+      can_see_shopping: boolean
     }) => api.post<{ invite: TripInvite; token: string }>(`/trips/${tripId}/invites`, input),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['invites', tripId] }),
   })

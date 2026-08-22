@@ -25,7 +25,7 @@ export { TripRoleContext }
 
 /** Everything is shown until a bundle says otherwise — outside a trip there is
  *  nothing withheld, and a writer's flags are ignored server-side anyway. */
-const ALL: TripShows = { stays: true, flight: true, documents: true }
+const ALL: TripShows = { stays: true, flight: true, documents: true, shopping: true }
 const TripShowsContext = createContext<TripShows>(ALL)
 
 /**

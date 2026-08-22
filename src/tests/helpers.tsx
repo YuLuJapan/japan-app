@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { TripRole, TripShows } from '../api/types'
 import { TripRoleContext, TripShowsContext } from '../lib/session'
 
-const ALL: TripShows = { stays: true, flight: true, documents: true }
+const ALL: TripShows = { stays: true, flight: true, documents: true, shopping: true }
 
 interface Options {
   /** The caller's role on the trip being rendered. `null` = outside a trip. */

@@ -1,6 +1,6 @@
 // What a viewer is shown, flag by flag.
 //
-// Role decides which *verbs*; these three flags decide which *content*. The
+// Role decides which *verbs*; these flags decide which *content*. The
 // route guard does not cover any of this — a viewer is a member, so they are
 // allowed through it. What is asserted here is the layer underneath.
 //
@@ -23,10 +23,16 @@ interface Flags {
   stays?: boolean
   flight?: boolean
   documents?: boolean
+  shopping?: boolean
 }
 
 /** Puts the friend on trip-1 as a viewer with the given visibility. */
-async function asViewer({ stays = true, flight = true, documents = false }: Flags = {}) {
+async function asViewer({
+  stays = true,
+  flight = true,
+  documents = false,
+  shopping = true,
+}: Flags = {}) {
   await store.upsertTripMember({
     trip_id: 'trip-1',
     user_id: VIEWER_USER.id,
@@ -34,6 +40,7 @@ async function asViewer({ stays = true, flight = true, documents = false }: Flag
     can_see_stays: stays,
     can_see_flight: flight,
     can_see_documents: documents,
+    can_see_shopping: shopping,
   })
 }
 
@@ -113,6 +120,37 @@ describe('documents', () => {
   })
 })
 
+describe('shopping', () => {
+  // The whole section rather than a filtered version of it: an item on the
+  // list *is* the thing being kept quiet, so there is nothing partial to
+  // serve. Every route under /shopping refuses, not just the list.
+  it('refuses the section when off', async () => {
+    await asViewer({ shopping: false })
+    const res = await request(app).get('/api/trips/trip-1/shopping').set(viewer)
+    expect(res.status).toBe(403)
+    // The refusal is the section guard's, not the read-only one a viewer
+    // meets on any write — the list is a GET they would otherwise be served.
+    expect(res.body.error.message).toMatch(/shopping list/i)
+  })
+
+  it('serves it when on', async () => {
+    await asViewer({ shopping: true })
+    const res = await request(app).get('/api/trips/trip-1/shopping').set(viewer)
+    expect(res.status).toBe(200)
+    expect(res.body.items.length).toBeGreaterThan(0)
+  })
+
+  it('says so on the trip bundle either way', async () => {
+    await asViewer({ shopping: false })
+    const off = await request(app).get('/api/trips/trip-1').set(viewer)
+    expect(off.body.shows.shopping).toBe(false)
+
+    await asViewer({ shopping: true })
+    const on = await request(app).get('/api/trips/trip-1').set(viewer)
+    expect(on.body.shows.shopping).toBe(true)
+  })
+})
+
 describe('a file hanging off a stay inherits the stay', () => {
   // The case the finer-grained model creates: with documents on and stays off,
   // a hotel's reservation PDF must still disappear. Place-attached files can
@@ -159,9 +197,11 @@ describe('the flags never apply to writers', () => {
       can_see_stays: false,
       can_see_flight: false,
       can_see_documents: false,
+      can_see_shopping: false,
     })
 
     await request(app).get('/api/trips/trip-1/places/place-hotel').set(owner).expect(200)
+    await request(app).get('/api/trips/trip-1/shopping').set(owner).expect(200)
     const bundle = await request(app).get('/api/trips/trip-1').set(owner)
     expect(bundle.body.flight).toBeTruthy()
     const files = await request(app).get('/api/trips/trip-1/files').set(owner)

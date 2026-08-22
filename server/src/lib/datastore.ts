@@ -52,6 +52,7 @@ export interface TripMember {
   can_see_stays: boolean
   can_see_flight: boolean
   can_see_documents: boolean
+  can_see_shopping: boolean
 }
 
 export interface TripMemberInput {
@@ -61,6 +62,7 @@ export interface TripMemberInput {
   can_see_stays?: boolean
   can_see_flight?: boolean
   can_see_documents?: boolean
+  can_see_shopping?: boolean
 }
 
 /**
@@ -79,6 +81,7 @@ export interface TripInvite {
   can_see_stays: boolean
   can_see_flight: boolean
   can_see_documents: boolean
+  can_see_shopping: boolean
   invited_by: string | null
   expires_at: string
   accepted_at: string | null
@@ -106,6 +109,7 @@ export interface TripInviteInput {
   can_see_stays?: boolean
   can_see_flight?: boolean
   can_see_documents?: boolean
+  can_see_shopping?: boolean
   token_hash: string
   invited_by: string | null
   expires_at: string
