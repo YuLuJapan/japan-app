@@ -1,0 +1,13 @@
+{
+  "name": "onward-video",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "The product video. Kept out of the app's dependency tree on purpose: nothing here ships.",
+  "scripts": {
+    "capture": "node scripts/capture.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.62.1"
+  }
+}

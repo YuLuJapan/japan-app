@@ -16,3 +16,7 @@ Thumbs.db
 .idea/
 __pycache__/
 *.py[cod]
+
+# Symlinks into the gitignored .agents/ store; skills-lock.json is the record,
+# and `npx skills add` restores them.
+.claude/skills/remotion-*
