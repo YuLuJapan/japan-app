@@ -22,9 +22,166 @@ import {
   type InviteRole,
   type Shows,
 } from '../components/AccessPicker'
+import { Breadcrumbs } from '../components/Breadcrumbs'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
+import { saveErrorMessage } from '../lib/errors'
+
+/** Everything about one member an owner is allowed to change, in one patch. */
+type MemberDraft = { role: TripRole } & Shows
+
+function toDraft(m: TripMember): MemberDraft {
+  return {
+    role: m.role,
+    can_see_stays: m.can_see_stays,
+    can_see_flight: m.can_see_flight,
+    can_see_documents: m.can_see_documents,
+  }
+}
+
+const DRAFT_KEYS: (keyof MemberDraft)[] = [
+  'role',
+  'can_see_stays',
+  'can_see_flight',
+  'can_see_documents',
+]
+
+/**
+ * One person on the trip.
+ *
+ * The owner-only controls edit a *draft* and save on a button rather than
+ * firing a request per keystroke. That is not only taste: the server refuses
+ * some of these (demoting the last owner), and a change that saves itself has
+ * nowhere to put the refusal — the control just sprang back with no
+ * explanation. An explicit Save gives the failure somewhere to land, and the
+ * three visibility flags a way to move together in one request.
+ */
+function MemberCard({
+  member,
+  isOwner,
+  onRemove,
+  onSave,
+}: {
+  member: TripMember
+  isOwner: boolean
+  onRemove: () => void
+  onSave: (draft: MemberDraft) => Promise<unknown>
+}) {
+  // What is on the server as far as this card knows: where it started, moving
+  // forward only on a save that actually went through. Deliberately not
+  // re-read from the roster on every refetch — a background refetch landing
+  // mid-edit would otherwise wipe what you were in the middle of typing.
+  const [baseline, setBaseline] = useState<MemberDraft>(() => toDraft(member))
+  const [draft, setDraft] = useState<MemberDraft>(baseline)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [justSaved, setJustSaved] = useState(false)
+
+  const dirty = DRAFT_KEYS.some((k) => draft[k] !== baseline[k])
+
+  function edit(patch: Partial<MemberDraft>) {
+    setDraft((d) => ({ ...d, ...patch }))
+    setError(null)
+    setJustSaved(false)
+  }
+
+  async function save() {
+    setSaving(true)
+    setError(null)
+    try {
+      await onSave(draft)
+      setBaseline(draft)
+      setJustSaved(true)
+    } catch (err) {
+      setError(saveErrorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const who = member.display_name ?? member.email
+
+  return (
+    <article className="rounded-2xl border border-line bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-ink">{who}</p>
+          <p className="truncate text-xs text-muted">{member.email}</p>
+        </div>
+        {isOwner ? (
+          <select
+            aria-label={`Access for ${who}`}
+            className="field w-auto py-1 text-sm"
+            value={draft.role}
+            onChange={(e) => edit({ role: e.target.value as TripRole })}
+          >
+            {(['owner', 'partner', 'viewer'] as TripRole[]).map((r) => (
+              <option key={r} value={r}>
+                {ROLE_LABEL[r]}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span className="rounded-full bg-canvas px-3 py-1 text-xs font-semibold text-muted">
+            {ROLE_LABEL[member.role]}
+          </span>
+        )}
+      </div>
+
+      {isOwner && draft.role === 'viewer' && (
+        <div className="mt-3 border-t border-line pt-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">They can see</p>
+          {SHOWS.map((s) => (
+            <Toggle
+              key={s.key}
+              label={s.label}
+              hint={s.hint}
+              checked={draft[s.key]}
+              onChange={(v) => edit({ [s.key]: v })}
+            />
+          ))}
+        </div>
+      )}
+
+      {error && <p className="mt-2 text-sm font-semibold text-brand">{error}</p>}
+
+      {isOwner && (dirty || saving) && (
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            className="btn flex-1 bg-ink text-white"
+            disabled={saving}
+            onClick={save}
+          >
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
+            disabled={saving}
+            onClick={() => {
+              setDraft(baseline)
+              setError(null)
+            }}
+          >
+            Discard
+          </button>
+        </div>
+      )}
+
+      {/* Only after a save that actually went through, and only until the next
+          edit — a permanent "Saved" tells you nothing. */}
+      {justSaved && <p className="mt-2 text-xs font-semibold text-muted">Saved.</p>}
+
+      {isOwner && (
+        <button type="button" onClick={onRemove} className="mt-2 text-sm font-semibold text-brand">
+          Remove
+        </button>
+      )}
+    </article>
+  )
+}
 
 export default function TripMembers() {
   const { tripId = '' } = useParams<{ tripId: string }>()
@@ -41,28 +198,40 @@ export default function TripMembers() {
   const [shows, setShows] = useState<Shows>(DEFAULT_SHOWS)
   const [link, setLink] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [inviteError, setInviteError] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<TripMember | null>(null)
 
   const myRole = trip.data?.my_role ?? null
   const isOwner = myRole === 'owner'
   const canInvite = isOwner || myRole === 'partner'
 
+  // The way in is the Essentials tab, and the tab strip only leads back to the
+  // top of a tab — without this the screen was a dead end.
+  const crumbs = [{ label: 'Essentials', to: `/trips/${tripId}/essentials` }]
+
   if (members.isLoading || trip.isLoading) return <Loading />
   if (members.isError) return <ErrorState onRetry={() => void members.refetch()} />
 
   async function invite() {
-    const res = await createInvite.mutateAsync({
-      role,
-      ...(email.trim() ? { email: email.trim() } : {}),
-      ...shows,
-    })
-    setLink(`${window.location.origin}/invite/${res.token}`)
-    setCopied(false)
-    setEmail('')
+    setInviteError(null)
+    try {
+      const res = await createInvite.mutateAsync({
+        role,
+        ...(email.trim() ? { email: email.trim() } : {}),
+        ...shows,
+      })
+      setLink(`${window.location.origin}/invite/${res.token}`)
+      setCopied(false)
+      setEmail('')
+    } catch (err) {
+      setInviteError(saveErrorMessage(err, 'Could not create that invitation — try again.'))
+    }
   }
 
   return (
     <div className="flex flex-col gap-6 pb-24">
+      <Breadcrumbs trail={crumbs} />
+
       <header>
         <h1 className="font-display text-2xl font-bold text-ink">Who’s on this trip</h1>
         <p className="mt-1 text-sm text-muted">
@@ -73,59 +242,13 @@ export default function TripMembers() {
 
       <section className="flex flex-col gap-2">
         {members.data?.members.map((m) => (
-          <article key={m.user_id} className="rounded-2xl border border-line bg-white p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-ink">{m.display_name ?? m.email}</p>
-                <p className="truncate text-xs text-muted">{m.email}</p>
-              </div>
-              {isOwner ? (
-                <select
-                  aria-label={`Access for ${m.display_name ?? m.email}`}
-                  className="field w-auto py-1 text-sm"
-                  value={m.role}
-                  onChange={(e) => updateMember.mutate({ userId: m.user_id, role: e.target.value })}
-                >
-                  {(['owner', 'partner', 'viewer'] as TripRole[]).map((r) => (
-                    <option key={r} value={r}>
-                      {ROLE_LABEL[r]}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <span className="rounded-full bg-canvas px-3 py-1 text-xs font-semibold text-muted">
-                  {ROLE_LABEL[m.role]}
-                </span>
-              )}
-            </div>
-
-            {isOwner && m.role === 'viewer' && (
-              <div className="mt-3 border-t border-line pt-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                  They can see
-                </p>
-                {SHOWS.map((s) => (
-                  <Toggle
-                    key={s.key}
-                    label={s.label}
-                    hint={s.hint}
-                    checked={m[s.key]}
-                    onChange={(v) => updateMember.mutate({ userId: m.user_id, [s.key]: v })}
-                  />
-                ))}
-              </div>
-            )}
-
-            {isOwner && (
-              <button
-                type="button"
-                onClick={() => setConfirming(m)}
-                className="mt-2 text-sm font-semibold text-brand"
-              >
-                Remove
-              </button>
-            )}
-          </article>
+          <MemberCard
+            key={m.user_id}
+            member={m}
+            isOwner={isOwner}
+            onRemove={() => setConfirming(m)}
+            onSave={(draft) => updateMember.mutateAsync({ userId: m.user_id, ...draft })}
+          />
         ))}
       </section>
 
@@ -153,6 +276,8 @@ export default function TripMembers() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
+
+          {inviteError && <p className="mt-2 text-sm font-semibold text-brand">{inviteError}</p>}
 
           <button
             type="button"

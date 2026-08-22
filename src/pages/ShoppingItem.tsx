@@ -6,6 +6,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useRates, useShoppingList } from '../api/hooks'
 import { useDeleteShoppingItem } from '../api/mutations'
 import { SHOPPING_CATEGORY_META } from '../api/types'
+import { Breadcrumbs } from '../components/Breadcrumbs'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorState } from '../components/ErrorState'
 import { ImagePicker } from '../components/ImagePicker'
@@ -38,9 +39,7 @@ export default function ShoppingItemDetail() {
   if (!item) {
     return (
       <div className="space-y-4">
-        <Link to={`/trips/${tripId}/shopping`} className="text-sm font-semibold text-muted">
-          ‹ Shopping
-        </Link>
+        <Breadcrumbs trail={[{ label: 'Shopping', to: `/trips/${tripId}/shopping` }]} />
         <ErrorState message="That item is no longer on the list." />
       </div>
     )
@@ -52,12 +51,12 @@ export default function ShoppingItemDetail() {
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          to={`/trips/${tripId}/shopping/c/${item.category}`}
-          className="text-sm font-semibold text-muted"
-        >
-          ‹ {meta.label}
-        </Link>
+        <Breadcrumbs
+          trail={[
+            { label: 'Shopping', to: `/trips/${tripId}/shopping` },
+            { label: meta.label, to: `/trips/${tripId}/shopping/c/${item.category}` },
+          ]}
+        />
         <div className="mt-3 overflow-hidden rounded-3xl shadow-card">
           <ZoneImage
             src={item.image_url}

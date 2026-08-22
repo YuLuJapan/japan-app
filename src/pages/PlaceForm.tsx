@@ -2,11 +2,12 @@
 // text is preserved and a retry is offered (FR-019) — form state lives here,
 // never cleared on error.
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { usePlace } from '../api/hooks'
 import { useCreatePlace, useUpdatePlace } from '../api/mutations'
 import type { Category, PlaceInput, PlaceLink } from '../api/types'
 import { CATEGORIES, CATEGORY_META } from '../api/types'
+import { Breadcrumbs } from '../components/Breadcrumbs'
 import { Loading } from '../components/Loading'
 import { useTripId } from '../lib/trip'
 
@@ -69,12 +70,14 @@ export default function PlaceForm() {
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <Link
-        to={editing ? `/trips/${tripId}/places/${placeId}` : `/trips/${tripId}/zones/${targetZone}`}
-        className="text-sm font-semibold text-muted"
-      >
-        ‹ Back
-      </Link>
+      <Breadcrumbs
+        trail={[
+          { label: 'Journey', to: `/trips/${tripId}` },
+          editing
+            ? { label: name || 'This place', to: `/trips/${tripId}/places/${placeId}` }
+            : { label: 'Zone', to: `/trips/${tripId}/zones/${targetZone}` },
+        ]}
+      />
       <h1 className="font-display text-2xl font-bold">{editing ? 'Edit place' : 'Add a place'}</h1>
 
       <div>

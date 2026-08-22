@@ -6,6 +6,7 @@ import { useRates, useShoppingList } from '../api/hooks'
 import { useDeleteShoppingItem } from '../api/mutations'
 import type { ShoppingCategory as Category, ShoppingItem } from '../api/types'
 import { SHOPPING_CATEGORY_META } from '../api/types'
+import { Breadcrumbs } from '../components/Breadcrumbs'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
@@ -70,9 +71,7 @@ export default function ShoppingCategoryPage() {
 
   return (
     <div className="space-y-5">
-      <Link to={`/trips/${tripId}/shopping`} className="text-sm font-semibold text-muted">
-        ‹ Shopping
-      </Link>
+      <Breadcrumbs trail={[{ label: 'Shopping', to: `/trips/${tripId}/shopping` }]} />
 
       <div className="flex items-start justify-between gap-3">
         <div>
