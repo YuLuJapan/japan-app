@@ -51,8 +51,29 @@ export function tripScopedRouter() {
   return router
 }
 
+/**
+ * The headers that cost nothing and close whole classes of attack.
+ *
+ * Vercel serves the same set for the static app (`vercel.json` → headers), but
+ * the API must not depend on the host it happens to be deployed behind: local
+ * dev, a preview, or any future runtime gets them from here. Deliberately
+ * *not* a full CSP — a `script-src` policy that has never been exercised
+ * against the live Supabase/OAuth flow would fail closed on sign-in, which is
+ * worse than the thin XSS surface React already gives us. `frame-ancestors` is
+ * the half that can't break a fetch, so it is enforced.
+ */
+function securityHeaders(_req: express.Request, res: express.Response, next: express.NextFunction) {
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-Frame-Options', 'DENY')
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'none'")
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+  next()
+}
+
 export function createApp() {
   const app = express()
+  app.disable('x-powered-by')
+  app.use(securityHeaders)
   // File uploads post a base64 blob, so /files needs a larger body than the rest.
   // Matches both the legacy flat route and the trip-scoped one.
   const bigJson = express.json({ limit: '8mb' })

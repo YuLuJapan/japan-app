@@ -40,9 +40,28 @@ self.addEventListener('push', (event) => {
   )
 })
 
+/**
+ * Where a tapped notification may go.
+ *
+ * "Starts with a slash" is not "stays on this site": `//evil.com` is a
+ * protocol-relative URL and navigates off-site, as does `/\\evil.com`.
+ * The API refuses to store those now, but a row written before that fix
+ * would still be sitting in someone's database — and a notification tap is
+ * the least examined click there is. Anything unrecognised falls back to
+ * the reminders screen.
+ */
+function safeTarget(url) {
+  if (typeof url !== 'string' || !url) return '/reminders'
+  // Browsers ignore tabs and newlines inside a URL when they navigate.
+  const clean = url.replace(/[\u0000-\u0020\u007f]/g, '')
+  if (/^https?:\/\//i.test(clean)) return clean
+  if (clean.startsWith('/') && !clean.startsWith('//') && !clean.startsWith('/\\')) return clean
+  return '/reminders'
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const target = (event.notification.data && event.notification.data.url) || '/reminders'
+  const target = safeTarget(event.notification.data && event.notification.data.url)
   const external = /^https?:\/\//i.test(target)
 
   event.waitUntil(
