@@ -30,11 +30,22 @@ const unnamedTrip = {
 }
 
 describe('a trip with no name override', () => {
-  it('lists under its composed title', async () => {
+  it('lists under its destination, not the composed sentence', async () => {
     mocks.get.mockResolvedValue({ trips: [unnamedTrip] })
     renderAt('/trips', [{ path: '/trips', element: <TripsList /> }])
 
-    expect(await screen.findByText('Yuval and Luciana in Japan')).toBeInTheDocument()
+    expect(await screen.findByText('Japan')).toBeInTheDocument()
+    expect(screen.queryByText('Yuval and Luciana in Japan')).not.toBeInTheDocument()
+  })
+
+  it('lists under the name override when there is one', async () => {
+    mocks.get.mockResolvedValue({
+      trips: [{ ...unnamedTrip, name: 'Honeymoon', display_title: 'Honeymoon' }],
+    })
+    renderAt('/trips', [{ path: '/trips', element: <TripsList /> }])
+
+    expect(await screen.findByText('Honeymoon')).toBeInTheDocument()
+    expect(screen.queryByText('Japan')).not.toBeInTheDocument()
   })
 
   it('accents the country inside the hero title', async () => {
