@@ -12,6 +12,9 @@ import { TEST_CODE, fixture } from './fixture.js'
 const mocks = vi.hoisted(() => ({ resolveAuthUser: vi.fn() }))
 vi.mock('../src/lib/supabaseAuth.js', () => ({ resolveAuthUser: mocks.resolveAuthUser }))
 
+// Matches OWNER_USER in the fixture, which holds the membership on trip-1 —
+// /api/trip is scoped to the caller's trips now, so an account with none
+// would 404 here for reasons that have nothing to do with identity.
 const GOOGLE_USER = {
   id: 'user-yuval',
   email: 'yuval@example.com',
@@ -26,11 +29,9 @@ beforeEach(() => {
   setDataStore(createMemoryStore(fixture()))
   mocks.resolveAuthUser.mockReset()
   clearTokenCache()
-  process.env.TRIP_OWNER_EMAILS = 'yuval@example.com'
 })
 
 afterEach(() => {
-  delete process.env.TRIP_OWNER_EMAILS
   delete process.env.TRIP_GUEST_CODE
 })
 
@@ -62,13 +63,13 @@ describe('resolvePrincipal', () => {
     expect(verify).toHaveBeenCalledTimes(1)
   })
 
-  it('resolves a user who buys no role — authentication is not authorization', async () => {
-    const verify = vi.fn().mockResolvedValue({ ...GOOGLE_USER, email: 'stranger@example.com' })
-    const principal = await resolvePrincipal('a.jwt', verify)
-    expect(principal).toEqual({
-      kind: 'user',
-      user: { ...GOOGLE_USER, email: 'stranger@example.com' },
-    })
+  it('resolves any account — reaching a trip is a separate question', async () => {
+    // Identity says nothing about authorization: a stranger resolves to a
+    // perfectly valid principal and then reaches no trip at all
+    // (see membership.test.ts).
+    const stranger = { ...GOOGLE_USER, id: 'user-stranger', email: 'stranger@example.com' }
+    const verify = vi.fn().mockResolvedValue(stranger)
+    expect(await resolvePrincipal('a.jwt', verify)).toEqual({ kind: 'user', user: stranger })
   })
 })
 
@@ -124,6 +125,7 @@ describe('profile sync', () => {
       id: 'user-yuval',
       email: 'yuval@example.com',
       display_name: 'Yuval',
+      // Refreshed from the token: the fixture row carries no avatar.
       avatar_url: 'https://example.com/y.png',
     })
   })

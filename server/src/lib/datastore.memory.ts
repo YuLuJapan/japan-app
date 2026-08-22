@@ -10,6 +10,7 @@ import type {
   Category,
   DataStore,
   Profile,
+  TripMember,
   ExchangeRates,
   FileAttachment,
   FileBytesResult,
@@ -38,6 +39,7 @@ import { CATEGORIES } from './datastore.js'
 
 export interface MemoryData {
   profiles?: Profile[]
+  members?: TripMember[]
   trips: Trip[]
   steps: JourneyStep[]
   zones: Zone[]
@@ -103,6 +105,12 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
     Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<Category, number>
 
   const profiles: Profile[] = db.profiles ? db.profiles.map((p) => structuredClone(p)) : []
+  const members: TripMember[] = db.members ? db.members.map((m) => structuredClone(m)) : []
+
+  const tripsForUser = (userId: string) => {
+    const mine = new Set(members.filter((m) => m.user_id === userId).map((m) => m.trip_id))
+    return db.trips.filter((t) => mine.has(t.id))
+  }
 
   return {
     async ping() {
@@ -144,6 +152,47 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return db.trips.map((t) => structuredClone(t))
     },
 
+    async listTripsForUser(userId) {
+      return tripsForUser(userId).map((t) => structuredClone(t))
+    },
+
+    async listMembershipsForUser(userId) {
+      return members.filter((m) => m.user_id === userId).map((m) => structuredClone(m))
+    },
+
+    async listTripMembers(tripId) {
+      return members.filter((m) => m.trip_id === tripId).map((m) => structuredClone(m))
+    },
+
+    async getTripMember(tripId, userId) {
+      const found = members.find((m) => m.trip_id === tripId && m.user_id === userId)
+      return found ? structuredClone(found) : null
+    },
+
+    async upsertTripMember(input) {
+      const existing = members.find(
+        (m) => m.trip_id === input.trip_id && m.user_id === input.user_id
+      )
+      const next: TripMember = {
+        trip_id: input.trip_id,
+        user_id: input.user_id,
+        role: input.role,
+        can_see_stays: input.can_see_stays ?? existing?.can_see_stays ?? true,
+        can_see_flight: input.can_see_flight ?? existing?.can_see_flight ?? true,
+        can_see_documents: input.can_see_documents ?? existing?.can_see_documents ?? false,
+      }
+      if (existing) Object.assign(existing, next)
+      else members.push(next)
+      return structuredClone(next)
+    },
+
+    async removeTripMember(tripId, userId) {
+      const i = members.findIndex((m) => m.trip_id === tripId && m.user_id === userId)
+      if (i === -1) return false
+      members.splice(i, 1)
+      return true
+    },
+
     async getTrip(tripId) {
       const trip = db.trips.find((t) => t.id === tripId)
       return trip ? structuredClone(trip) : null
@@ -178,6 +227,9 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       if (idx === -1) return false
       db.trips.splice(idx, 1)
       // mirror the DB's `on delete cascade` on trip_id (real Postgres does this for free)
+      for (let i = members.length - 1; i >= 0; i--) {
+        if (members[i].trip_id === tripId) members.splice(i, 1)
+      }
       db.steps = db.steps.filter((s) => s.trip_id !== tripId)
       db.itinerary = (db.itinerary ?? []).filter((i) => i.trip_id !== tripId)
       db.shopping = (db.shopping ?? []).filter((s) => s.trip_id !== tripId)

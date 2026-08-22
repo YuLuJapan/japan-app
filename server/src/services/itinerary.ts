@@ -1,7 +1,7 @@
 // Day-by-day itinerary: a flat list of activities the client groups by day.
 // GET returns every item for the trip; the client maps each day to its city.
 import type { DataStore, ItineraryItemInput } from '../lib/datastore.js'
-import { getDefaultTrip } from '../lib/datastore.js'
+import { resolveTrip, type AccessContext } from '../lib/access.js'
 import { notFound, validation } from '../lib/errors.js'
 import { STAY_CATEGORY } from '../lib/guest-view.js'
 import { collectRangeErrors } from '../lib/trip-dates.js'
@@ -17,11 +17,11 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
  */
 export async function listItinerary(
   store: DataStore,
+  access: AccessContext,
   tripId?: string,
   { includeStays = true }: { includeStays?: boolean } = {}
 ) {
-  const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
-  if (!trip) throw notFound('Trip')
+  const trip = await resolveTrip(store, access, tripId)
   const items = await store.listItinerary(trip.id)
   if (includeStays) return { items }
   const stayIds = new Set(await store.listPlaceIdsByCategory(STAY_CATEGORY))
@@ -56,13 +56,13 @@ function collectErrors(input: Partial<ItineraryItemInput>, partial: boolean): st
 
 export async function createItineraryItem(
   store: DataStore,
+  access: AccessContext,
   input: ItineraryItemInput,
   tripId?: string
 ) {
   const errors = collectErrors(input, false)
   if (errors.length) throw validation(errors)
-  const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
-  if (!trip) throw notFound('Trip')
+  const trip = await resolveTrip(store, access, tripId)
   // An activity only exists on a day the trip actually covers.
   const rangeErrors = collectRangeErrors('day', input.day, trip)
   if (rangeErrors.length) throw validation(rangeErrors)

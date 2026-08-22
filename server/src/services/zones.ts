@@ -1,5 +1,6 @@
 import type { Category, DataStore } from '../lib/datastore.js'
 import { CATEGORIES } from '../lib/datastore.js'
+import { assertZoneAccess, reachableZoneIds, type AccessContext } from '../lib/access.js'
 import { notFound, validation } from '../lib/errors.js'
 import { hideStayCounts, isStay } from '../lib/guest-view.js'
 
@@ -9,12 +10,14 @@ import { hideStayCounts, isStay } from '../lib/guest-view.js'
  */
 export async function getZoneDetail(
   store: DataStore,
+  access: AccessContext,
   zoneId: string,
   {
     includeFiles = true,
     includeStays = true,
   }: { includeFiles?: boolean; includeStays?: boolean } = {}
 ) {
+  assertZoneAccess(await reachableZoneIds(store, access), zoneId)
   const zone = await store.getZone(zoneId)
   if (!zone) throw notFound('Zone')
   const [tips, files, place_counts] = await Promise.all([
@@ -39,6 +42,7 @@ export async function getZoneDetail(
 // all of a zone's places and filters client-side).
 export async function listZonePlaces(
   store: DataStore,
+  access: AccessContext,
   zoneId: string,
   category: string,
   { includeStays = true }: { includeStays?: boolean } = {}
@@ -46,6 +50,7 @@ export async function listZonePlaces(
   if (category !== '' && !CATEGORIES.includes(category as Category)) {
     throw validation([`category must be one of: ${CATEGORIES.join(', ')}`])
   }
+  assertZoneAccess(await reachableZoneIds(store, access), zoneId)
   const zone = await store.getZone(zoneId)
   if (!zone) throw notFound('Zone')
   const all = category

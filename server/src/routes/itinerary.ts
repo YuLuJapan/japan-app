@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { isGuest } from '../lib/auth.js'
+import { accessOf, isGuest } from '../lib/auth.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import {
@@ -14,14 +14,14 @@ export const itineraryRouter = Router()
 itineraryRouter.get(
   '/itinerary',
   asyncHandler(async (req, res) => {
-    res.json(await listItinerary(await getDataStore(), undefined, { includeStays: !isGuest(req) }))
+    res.json(await listItinerary(await getDataStore(), accessOf(req), undefined, { includeStays: !isGuest(req) }))
   })
 )
 
 itineraryRouter.post(
   '/itinerary',
   asyncHandler(async (req, res) => {
-    res.status(201).json(await createItineraryItem(await getDataStore(), req.body ?? {}))
+    res.status(201).json(await createItineraryItem(await getDataStore(), accessOf(req), req.body ?? {}))
   })
 )
 
@@ -29,7 +29,7 @@ itineraryRouter.get(
   '/trips/:tripId/itinerary',
   asyncHandler(async (req, res) => {
     res.json(
-      await listItinerary(await getDataStore(), req.params.tripId, {
+      await listItinerary(await getDataStore(), accessOf(req), req.params.tripId, {
         includeStays: !isGuest(req),
       })
     )
@@ -41,7 +41,7 @@ itineraryRouter.post(
   asyncHandler(async (req, res) => {
     res
       .status(201)
-      .json(await createItineraryItem(await getDataStore(), req.body ?? {}, req.params.tripId))
+      .json(await createItineraryItem(await getDataStore(), accessOf(req), req.body ?? {}, req.params.tripId))
   })
 )
 

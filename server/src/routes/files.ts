@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { accessOf } from '../lib/auth.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import {
@@ -14,29 +15,29 @@ export const filesRouter = Router()
 
 filesRouter.get(
   '/files',
-  asyncHandler(async (_req, res) => {
-    res.json(await listTripDocuments(await getDataStore()))
+  asyncHandler(async (req, res) => {
+    res.json(await listTripDocuments(await getDataStore(), accessOf(req)))
   })
 )
 
 filesRouter.post(
   '/files',
   asyncHandler(async (req, res) => {
-    res.status(201).json(await createFile(await getDataStore(), req.body ?? {}))
+    res.status(201).json(await createFile(await getDataStore(), accessOf(req), req.body ?? {}))
   })
 )
 
 filesRouter.get(
   '/trips/:tripId/files',
   asyncHandler(async (req, res) => {
-    res.json(await listTripDocuments(await getDataStore(), req.params.tripId))
+    res.json(await listTripDocuments(await getDataStore(), accessOf(req), req.params.tripId))
   })
 )
 
 filesRouter.post(
   '/trips/:tripId/files',
   asyncHandler(async (req, res) => {
-    res.status(201).json(await createFile(await getDataStore(), req.body ?? {}, req.params.tripId))
+    res.status(201).json(await createFile(await getDataStore(), accessOf(req), req.body ?? {}, req.params.tripId))
   })
 )
 

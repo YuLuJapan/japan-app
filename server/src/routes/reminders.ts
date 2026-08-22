@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import type { Request } from 'express'
-import { accessCode } from '../lib/auth.js'
+import { accessCode, accessOf } from '../lib/auth.js'
 import { getDataStore } from '../lib/datastore.js'
 import { ApiError, asyncHandler } from '../lib/errors.js'
 import {
@@ -41,29 +41,29 @@ remindersRouter.post('/reminders/dispatch', dispatch)
 
 remindersRouter.get(
   '/reminders',
-  asyncHandler(async (_req, res) => {
-    res.json(await listReminders(await getDataStore()))
+  asyncHandler(async (req, res) => {
+    res.json(await listReminders(await getDataStore(), accessOf(req)))
   })
 )
 
 remindersRouter.post(
   '/reminders',
   asyncHandler(async (req, res) => {
-    res.status(201).json(await createReminder(await getDataStore(), req.body))
+    res.status(201).json(await createReminder(await getDataStore(), accessOf(req), req.body))
   })
 )
 
 remindersRouter.get(
   '/trips/:tripId/reminders',
   asyncHandler(async (req, res) => {
-    res.json(await listReminders(await getDataStore(), req.params.tripId))
+    res.json(await listReminders(await getDataStore(), accessOf(req), req.params.tripId))
   })
 )
 
 remindersRouter.post(
   '/trips/:tripId/reminders',
   asyncHandler(async (req, res) => {
-    res.status(201).json(await createReminder(await getDataStore(), req.body, req.params.tripId))
+    res.status(201).json(await createReminder(await getDataStore(), accessOf(req), req.body, req.params.tripId))
   })
 )
 

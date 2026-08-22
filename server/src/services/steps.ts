@@ -5,7 +5,7 @@
 // client); a destination reuses an existing zone when the name matches,
 // otherwise a new zone is created on the fly.
 import type { DataStore } from '../lib/datastore.js'
-import { getDefaultTrip } from '../lib/datastore.js'
+import { resolveTrip, type AccessContext } from '../lib/access.js'
 import { notFound, validation } from '../lib/errors.js'
 import type { DateRange } from '../lib/trip-dates.js'
 import { collectRangeErrors } from '../lib/trip-dates.js'
@@ -89,11 +89,15 @@ async function resolveZoneId(
   return created.id
 }
 
-export async function createStep(store: DataStore, input: StepFields, tripId?: string) {
+export async function createStep(
+  store: DataStore,
+  access: AccessContext,
+  input: StepFields,
+  tripId?: string
+) {
   const errors = collectErrors(input, false)
   if (errors.length) throw validation(errors)
-  const trip = tripId ? await store.getTrip(tripId) : await getDefaultTrip(store)
-  if (!trip) throw notFound('Trip')
+  const trip = await resolveTrip(store, access, tripId)
   const rangeErrors = collectStepRangeErrors(input.start_date!, input.end_date!, trip)
   if (rangeErrors.length) throw validation(rangeErrors)
   const zoneId = await resolveZoneId(store, input.zone_id, input.destination)

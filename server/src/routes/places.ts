@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { isGuest } from '../lib/auth.js'
+import { accessOf, isGuest } from '../lib/auth.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import { createPlace, deletePlace, getPlaceDetail, updatePlace } from '../services/places.js'
@@ -10,7 +10,7 @@ placesRouter.get(
   '/places/:placeId',
   asyncHandler(async (req, res) => {
     res.json(
-      await getPlaceDetail(await getDataStore(), req.params.placeId, {
+      await getPlaceDetail(await getDataStore(), accessOf(req), req.params.placeId, {
         includeFiles: !isGuest(req),
         includeStays: !isGuest(req),
       })
@@ -21,21 +21,21 @@ placesRouter.get(
 placesRouter.post(
   '/places',
   asyncHandler(async (req, res) => {
-    res.status(201).json(await createPlace(await getDataStore(), req.body ?? {}))
+    res.status(201).json(await createPlace(await getDataStore(), accessOf(req), req.body ?? {}))
   })
 )
 
 placesRouter.patch(
   '/places/:placeId',
   asyncHandler(async (req, res) => {
-    res.json(await updatePlace(await getDataStore(), req.params.placeId, req.body ?? {}))
+    res.json(await updatePlace(await getDataStore(), accessOf(req), req.params.placeId, req.body ?? {}))
   })
 )
 
 placesRouter.delete(
   '/places/:placeId',
   asyncHandler(async (req, res) => {
-    await deletePlace(await getDataStore(), req.params.placeId)
+    await deletePlace(await getDataStore(), accessOf(req), req.params.placeId)
     res.status(204).end()
   })
 )

@@ -2,6 +2,7 @@
 // the trip's schedule (the horizontal cards on the Journey page). Order is
 // derived from start_date, not client-controlled.
 import { Router } from 'express'
+import { accessOf } from '../lib/auth.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import { createStep, deleteStep, updateStep } from '../services/steps.js'
@@ -11,14 +12,14 @@ export const stepsRouter = Router()
 stepsRouter.post(
   '/steps',
   asyncHandler(async (req, res) => {
-    res.status(201).json(await createStep(await getDataStore(), req.body ?? {}))
+    res.status(201).json(await createStep(await getDataStore(), accessOf(req), req.body ?? {}))
   })
 )
 
 stepsRouter.post(
   '/trips/:tripId/steps',
   asyncHandler(async (req, res) => {
-    res.status(201).json(await createStep(await getDataStore(), req.body ?? {}, req.params.tripId))
+    res.status(201).json(await createStep(await getDataStore(), accessOf(req), req.body ?? {}, req.params.tripId))
   })
 )
 

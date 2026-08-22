@@ -3,8 +3,40 @@ import type { MemoryData } from '../src/lib/datastore.memory.js'
 
 export const TEST_CODE = 'test-code'
 
+/** Accounts the tests sign in as. `OUTSIDER` is a real, valid account that is
+ *  a member of nothing — the shape every new signup arrives in. */
+export const OWNER_USER = {
+  id: 'user-yuval',
+  email: 'yuval@example.com',
+  display_name: 'Yuval',
+  avatar_url: null,
+}
+export const PARTNER_USER = {
+  id: 'user-sam',
+  email: 'sam@example.com',
+  display_name: 'Sam',
+  avatar_url: null,
+}
+export const OUTSIDER_USER = {
+  id: 'user-outsider',
+  email: 'outsider@example.com',
+  display_name: 'Outsider',
+  avatar_url: null,
+}
+
 export function fixture(): MemoryData {
   return {
+    profiles: [OWNER_USER, PARTNER_USER, OUTSIDER_USER],
+    members: [
+      {
+        trip_id: 'trip-1',
+        user_id: OWNER_USER.id,
+        role: 'owner',
+        can_see_stays: true,
+        can_see_flight: true,
+        can_see_documents: true,
+      },
+    ],
     trips: [
       {
         id: 'trip-1',

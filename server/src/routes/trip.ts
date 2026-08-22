@@ -1,5 +1,5 @@
 import { Router, type Request } from 'express'
-import { isGuest } from '../lib/auth.js'
+import { accessOf, isGuest } from '../lib/auth.js'
 import { asyncHandler } from '../lib/errors.js'
 import { getDataStore } from '../lib/datastore.js'
 import {
@@ -26,28 +26,30 @@ const guestView = (req: Request) => ({
 tripRouter.get(
   '/trip',
   asyncHandler(async (req, res) => {
-    res.json(await getDefaultTripBundle(await getDataStore(), guestView(req)))
+    res.json(await getDefaultTripBundle(await getDataStore(), accessOf(req), guestView(req)))
   })
 )
 
 tripRouter.get(
   '/trips',
-  asyncHandler(async (_req, res) => {
-    res.json(await listTrips(await getDataStore()))
+  asyncHandler(async (req, res) => {
+    res.json(await listTrips(await getDataStore(), accessOf(req)))
   })
 )
 
 tripRouter.post(
   '/trips',
   asyncHandler(async (req, res) => {
-    res.status(201).json(await createTrip(await getDataStore(), req.body ?? {}))
+    res.status(201).json(await createTrip(await getDataStore(), accessOf(req), req.body ?? {}))
   })
 )
 
 tripRouter.get(
   '/trips/:tripId',
   asyncHandler(async (req, res) => {
-    res.json(await getTripBundle(await getDataStore(), req.params.tripId, guestView(req)))
+    res.json(
+      await getTripBundle(await getDataStore(), accessOf(req), req.params.tripId, guestView(req))
+    )
   })
 )
 
@@ -58,7 +60,7 @@ tripRouter.get(
   asyncHandler(async (req, res) => {
     const pick = (v: unknown) => (typeof v === 'string' && v ? v : undefined)
     res.json(
-      await getDateImpact(await getDataStore(), req.params.tripId, {
+      await getDateImpact(await getDataStore(), accessOf(req), req.params.tripId, {
         start_date: pick(req.query.start_date),
         end_date: pick(req.query.end_date),
       })
@@ -69,14 +71,16 @@ tripRouter.get(
 tripRouter.patch(
   '/trips/:tripId',
   asyncHandler(async (req, res) => {
-    res.json(await updateTrip(await getDataStore(), req.params.tripId, req.body ?? {}))
+    res.json(
+      await updateTrip(await getDataStore(), accessOf(req), req.params.tripId, req.body ?? {})
+    )
   })
 )
 
 tripRouter.delete(
   '/trips/:tripId',
   asyncHandler(async (req, res) => {
-    await deleteTrip(await getDataStore(), req.params.tripId)
+    await deleteTrip(await getDataStore(), accessOf(req), req.params.tripId)
     res.status(204).end()
   })
 )

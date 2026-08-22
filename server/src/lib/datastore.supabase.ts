@@ -6,6 +6,7 @@ import type {
   Category,
   DataStore,
   Profile,
+  TripMember,
   ExchangeRates,
   FileAttachment,
   FileBytesResult,
@@ -41,6 +42,9 @@ const SIGNED_URL_TTL = 300 // seconds
 // forgiving — a failed upsert is swallowed by the caller (lib/identity.ts),
 // which is where "profile sync must never fail a request" is decided.
 const PROFILE_COLS = 'id,email,display_name,avatar_url'
+
+// trip_members (migration 0012).
+const MEMBER_COLS = 'trip_id,user_id,role,can_see_stays,can_see_flight,can_see_documents'
 
 function isMissingProfilesTable(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false
@@ -180,6 +184,82 @@ export function createSupabaseStore(): DataStore {
         .single()
       if (error) throw new Error(error.message)
       return data as Profile
+    },
+
+    async listTripsForUser(userId) {
+      const { data: memberships, error: memberError } = await db
+        .from('trip_members')
+        .select('trip_id')
+        .eq('user_id', userId)
+      if (memberError) throw new Error(memberError.message)
+      const ids = (memberships ?? []).map((m) => m.trip_id as string)
+      // `.in()` with an empty list is a valid query but a pointless round-trip.
+      if (!ids.length) return []
+
+      const run = (cols: string) =>
+        db.from('trips').select(cols).in('id', ids).order('created_at', { ascending: true })
+      let { data, error } = await run(TRIP_COLS)
+      if (error && isMissingPeopleColumn(error)) ({ data, error } = await run(TRIP_BASE_COLS))
+      if (error) throw new Error(error.message)
+      return ((data as unknown as Record<string, unknown>[]) ?? []).map(withPeopleDefault)
+    },
+
+    async listMembershipsForUser(userId) {
+      const { data, error } = await db.from('trip_members').select(MEMBER_COLS).eq('user_id', userId)
+      if (error) throw new Error(error.message)
+      return (data as unknown as TripMember[]) ?? []
+    },
+
+    async listTripMembers(tripId) {
+      const { data, error } = await db
+        .from('trip_members')
+        .select(MEMBER_COLS)
+        .eq('trip_id', tripId)
+        .order('created_at', { ascending: true })
+      if (error) throw new Error(error.message)
+      return (data as unknown as TripMember[]) ?? []
+    },
+
+    async getTripMember(tripId, userId) {
+      const { data, error } = await db
+        .from('trip_members')
+        .select(MEMBER_COLS)
+        .eq('trip_id', tripId)
+        .eq('user_id', userId)
+        .maybeSingle()
+      if (error) throw new Error(error.message)
+      return (data as unknown as TripMember | null) ?? null
+    },
+
+    async upsertTripMember(input) {
+      const row: Record<string, unknown> = {
+        trip_id: input.trip_id,
+        user_id: input.user_id,
+        role: input.role,
+      }
+      // Undefined flags are left to the column defaults on insert, and left
+      // untouched on update — the owner's visibility choices survive a role change.
+      if (input.can_see_stays !== undefined) row.can_see_stays = input.can_see_stays
+      if (input.can_see_flight !== undefined) row.can_see_flight = input.can_see_flight
+      if (input.can_see_documents !== undefined) row.can_see_documents = input.can_see_documents
+      const { data, error } = await db
+        .from('trip_members')
+        .upsert(row, { onConflict: 'trip_id,user_id' })
+        .select(MEMBER_COLS)
+        .single()
+      if (error) throw new Error(error.message)
+      return data as unknown as TripMember
+    },
+
+    async removeTripMember(tripId, userId) {
+      const { data, error } = await db
+        .from('trip_members')
+        .delete()
+        .eq('trip_id', tripId)
+        .eq('user_id', userId)
+        .select('user_id')
+      if (error) throw new Error(error.message)
+      return (data ?? []).length > 0
     },
 
     async listTrips() {

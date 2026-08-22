@@ -1,5 +1,4 @@
-// Sign out and go back to the gate — the way to swap the code this phone is
-// holding, e.g. leaving the read-only guest view for the travelers' code.
+// Sign out and go back to the gate.
 //
 // Clears the stored code *and* the query cache, so the next code in doesn't
 // briefly render the previous one's data (a guest's file-less zone payload,
@@ -52,10 +51,13 @@ export function SignOutButton() {
       <ConfirmDialog
         open={confirming}
         title="Sign out?"
+        // Deliberately neutral about *how* you get back in: this session may be
+        // a Google or password account, or one of the deprecated shared codes,
+        // and the button cannot tell which without another round-trip.
         message={
           canEdit
-            ? 'You’ll need the access code to get back in.'
-            : 'Enter the travelers’ code next to be able to edit, or the guest code to come back to this view.'
+            ? 'You’ll need to sign in again to get back in.'
+            : 'Sign in with the travellers’ code next to be able to edit, or the guest code to come back to this view.'
         }
         confirmLabel="Sign out"
         onConfirm={signOut}
