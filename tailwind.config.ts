@@ -36,6 +36,17 @@ export default {
       maxWidth: {
         app: '30rem',
       },
+      // A short segment falling down the hero's hairline cue — the quietest
+      // way to say "downwards" without a bouncing arrow.
+      keyframes: {
+        trace: {
+          '0%': { transform: 'translateY(-120%)' },
+          '100%': { transform: 'translateY(320%)' },
+        },
+      },
+      animation: {
+        trace: 'trace 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite',
+      },
       // Tailwind v3's default scale stops offering halves after 3.5, so the
       // `px-4.5` the card padding wants silently generates nothing (v4 has it
       // built in). Defining it keeps 18px available as a real token instead of
