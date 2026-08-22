@@ -11,7 +11,11 @@ let hasCoordColumns = true
 const UNDEFINED_COLUMN = { code: '42703', message: 'column places.lat does not exist' }
 
 function fakeBuilder() {
-  const state: { op: 'select' | 'insert' | 'update'; cols: string; row: Record<string, unknown> | null } = {
+  const state: {
+    op: 'select' | 'insert' | 'update'
+    cols: string
+    row: Record<string, unknown> | null
+  } = {
     op: 'select',
     cols: '',
     row: null,

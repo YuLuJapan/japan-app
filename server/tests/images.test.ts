@@ -139,7 +139,9 @@ describe('POST /api/shopping photo fallback', () => {
     )
 
     const res = await auth(
-      request(app).post('/api/shopping').send({ name: 'Uniqlo fleece', category: 'clothes' })
+      request(app)
+        .post('/api/trips/trip-1/shopping')
+        .send({ name: 'Uniqlo fleece', category: 'clothes' })
     )
     expect(res.status).toBe(201)
     expect(res.body.item.image_url).toBe('https://upload.wikimedia.org/full.jpg')
@@ -151,7 +153,7 @@ describe('POST /api/shopping photo fallback', () => {
 
     const res = await auth(
       request(app)
-        .post('/api/shopping')
+        .post('/api/trips/trip-1/shopping')
         .send({ name: 'Kit Kat', image_url: 'https://example.com/mine.jpg' })
     )
     expect(res.status).toBe(201)
@@ -162,7 +164,9 @@ describe('POST /api/shopping photo fallback', () => {
   it('still saves the item when the photo lookup fails', async () => {
     mockFetch(() => null)
 
-    const res = await auth(request(app).post('/api/shopping').send({ name: 'Something obscure' }))
+    const res = await auth(
+      request(app).post('/api/trips/trip-1/shopping').send({ name: 'Something obscure' })
+    )
     expect(res.status).toBe(201)
     expect(res.body.item.image_url).toBeNull()
   })

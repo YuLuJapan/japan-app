@@ -30,13 +30,13 @@ describe('foundation', () => {
   })
 
   it('rejects API calls without a bearer token', async () => {
-    const res = await request(app).get('/api/trip')
+    const res = await request(app).get('/api/trips/trip-1')
     expect(res.status).toBe(401)
     expect(res.body.error.code).toBe('UNAUTHORIZED')
   })
 
   it('rejects API calls with a wrong bearer token', async () => {
-    const res = await request(app).get('/api/trip').set('Authorization', 'Bearer wrong')
+    const res = await request(app).get('/api/trips/trip-1').set('Authorization', 'Bearer wrong')
     expect(res.status).toBe(401)
   })
 

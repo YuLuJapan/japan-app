@@ -3,24 +3,24 @@ import { authMiddleware } from './lib/auth.js'
 import { errorMiddleware, notFound } from './lib/errors.js'
 import { requireTripAccess } from './lib/trip-context.js'
 import { authRouter } from './routes/auth.js'
-import { filesRouter, filesTripRouter } from './routes/files.js'
+import { filesTripRouter } from './routes/files.js'
 import { geocodeRouter } from './routes/geocode.js'
 import { healthRouter } from './routes/health.js'
 import { imagesRouter } from './routes/images.js'
-import { itineraryRouter, itineraryTripRouter } from './routes/itinerary.js'
+import { itineraryTripRouter } from './routes/itinerary.js'
 import { meRouter } from './routes/me.js'
-import { placesRouter, placesTripRouter } from './routes/places.js'
+import { placesTripRouter } from './routes/places.js'
 import { productUrlRouter } from './routes/producturl.js'
 import { pushRouter } from './routes/push.js'
 import { ratesRouter } from './routes/rates.js'
 import { remindersRouter, remindersTripRouter } from './routes/reminders.js'
-import { searchRouter, searchTripRouter } from './routes/search.js'
-import { shoppingRouter, shoppingTripRouter } from './routes/shopping.js'
-import { stepsRouter, stepsTripRouter } from './routes/steps.js'
-import { tipsRouter, tipsTripRouter } from './routes/tips.js'
+import { searchTripRouter } from './routes/search.js'
+import { shoppingTripRouter } from './routes/shopping.js'
+import { stepsTripRouter } from './routes/steps.js'
+import { tipsTripRouter } from './routes/tips.js'
 import { translateRouter } from './routes/translate.js'
 import { tripDetailRouter, tripRouter } from './routes/trip.js'
-import { zonesRouter, zonesTripRouter } from './routes/zones.js'
+import { zonesTripRouter } from './routes/zones.js'
 
 /**
  * Everything that belongs to one trip, behind a single access check.
@@ -68,20 +68,13 @@ export function createApp() {
   app.use('/api', authRouter)
   app.use('/api', meRouter)
 
-  // Trip-scoped first, so nothing flat can shadow a guarded path.
+  // Every content route. There is no flat equivalent any more: reaching trip
+  // content without naming the trip is no longer expressible.
   app.use('/api/trips/:tripId', tripScopedRouter())
 
-  // The trip collection (list/create) and the deprecated flat routes.
+  // The trip collection (list/create) — not trip-scoped by definition.
   app.use('/api', tripRouter)
-  app.use('/api', itineraryRouter)
-  app.use('/api', stepsRouter)
-  app.use('/api', zonesRouter)
-  app.use('/api', placesRouter)
-  app.use('/api', tipsRouter)
-  app.use('/api', shoppingRouter)
-  app.use('/api', filesRouter)
 
-  app.use('/api', searchRouter)
   app.use('/api', ratesRouter)
   app.use('/api', geocodeRouter)
   app.use('/api', imagesRouter)

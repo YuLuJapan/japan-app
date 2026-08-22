@@ -35,11 +35,7 @@ export function downloadName(file: FileAttachment) {
   return base.toLowerCase().endsWith(`.${ext}`) ? base : `${base}.${ext}`
 }
 
-export async function listTripDocuments(
-  store: DataStore,
-  access: AccessContext,
-  tripId?: string
-) {
+export async function listTripDocuments(store: DataStore, access: AccessContext, tripId: string) {
   const trip = await resolveTrip(store, access, tripId)
   const files = await store.listAllFiles(trip.id)
 
@@ -93,7 +89,7 @@ export async function createFile(
   store: DataStore,
   access: AccessContext,
   body: UploadBody,
-  tripId?: string
+  tripId: string
 ) {
   const errors: string[] = []
   const display_name = (body.display_name ?? '').trim()

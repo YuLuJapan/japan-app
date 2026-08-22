@@ -9,11 +9,7 @@ import { findImageUrl } from './images.js'
 const MAX_PRICE_YEN = 10_000_000
 const isHttpUrl = (u: string) => /^https?:\/\/.+/.test(u)
 
-export async function listShoppingItems(
-  store: DataStore,
-  access: AccessContext,
-  tripId?: string
-) {
+export async function listShoppingItems(store: DataStore, access: AccessContext, tripId: string) {
   const trip = await resolveTrip(store, access, tripId)
   const items = await store.listShoppingItems(trip.id)
   return { items }
@@ -71,7 +67,7 @@ export async function createShoppingItem(
   store: DataStore,
   access: AccessContext,
   input: ShoppingItemInput,
-  tripId?: string
+  tripId: string
 ) {
   const errors = collectShoppingErrors(input, false)
   if (errors.length) throw validation(errors)

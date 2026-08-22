@@ -3,12 +3,7 @@
 // full journey skeleton for one (steps + zones + flight + file count).
 import type { DataStore, ItineraryItem, JourneyStep, Trip, TripInput } from '../lib/datastore.js'
 import { normalizeTraveller } from '../lib/datastore.js'
-import {
-  assertTripAccess,
-  resolveTrip,
-  roleForTrip,
-  type AccessContext,
-} from '../lib/access.js'
+import { assertTripAccess, roleForTrip, type AccessContext } from '../lib/access.js'
 import { canDeleteTrip, canEditTrip } from '../lib/permissions.js'
 import { forbidden, notFound, validation } from '../lib/errors.js'
 import { FLIGHT } from '../lib/flight.js'
@@ -28,7 +23,9 @@ const PEOPLE_MAX = 12
  * reason `listTrips()` on the store is documented as unscoped.
  */
 export async function listTrips(store: DataStore, access: AccessContext) {
-  const trips = access.userId ? await store.listTripsForUser(access.userId) : await store.listTrips()
+  const trips = access.userId
+    ? await store.listTripsForUser(access.userId)
+    : await store.listTrips()
   return { trips }
 }
 
@@ -78,16 +75,6 @@ export async function getTripBundle(
     my_role: roleForTrip(access, trip.id),
     ...(includeFlight ? { flight: FLIGHT } : {}),
   }
-}
-
-/** Legacy GET /api/trip: the caller's oldest trip, kept for the pre-multi-trip UI. */
-export async function getDefaultTripBundle(
-  store: DataStore,
-  access: AccessContext,
-  options: TripBundleOptions = {}
-) {
-  const trip = await resolveTrip(store, access)
-  return getTripBundle(store, access, trip.id, options)
 }
 
 function cleanPeople(people: unknown[] | undefined) {

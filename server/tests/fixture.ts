@@ -36,6 +36,16 @@ export function fixture(): MemoryData {
         can_see_flight: true,
         can_see_documents: true,
       },
+      // A second tenant, so "does not leak across trips" can be asserted
+      // against real data rather than an empty database.
+      {
+        trip_id: 'trip-2',
+        user_id: PARTNER_USER.id,
+        role: 'owner',
+        can_see_stays: true,
+        can_see_flight: true,
+        can_see_documents: true,
+      },
     ],
     trips: [
       {
@@ -46,8 +56,24 @@ export function fixture(): MemoryData {
         description: null,
         people: [{ name: 'Alex' }, { name: 'Sam' }],
       },
+      {
+        id: 'trip-2',
+        name: 'Someone Else’s Trip',
+        start_date: '2026-11-01',
+        end_date: '2026-11-10',
+        description: null,
+        people: [{ name: 'Sam' }],
+      },
     ],
     steps: [
+      {
+        id: 'step-other',
+        trip_id: 'trip-2',
+        zone_id: 'zone-osaka',
+        position: 1,
+        start_date: '2026-11-02',
+        end_date: '2026-11-06',
+      },
       {
         id: 'step-2',
         trip_id: 'trip-1',
@@ -68,6 +94,7 @@ export function fixture(): MemoryData {
     zones: [
       { id: 'zone-tokyo', name: 'Tokyo', name_ja: '東京', summary: 'Big city' },
       { id: 'zone-kyoto', name: 'Kyoto', name_ja: '京都', summary: 'Old capital' },
+      { id: 'zone-osaka', name: 'Osaka', name_ja: '大阪', summary: 'Someone else’s city' },
     ],
     places: [
       {
@@ -91,10 +118,21 @@ export function fixture(): MemoryData {
         address: null,
         links: [],
       },
+      {
+        id: 'place-other',
+        zone_id: 'zone-osaka',
+        category: 'hotel',
+        name: 'Secret Osaka Hotel',
+        name_ja: null,
+        description: 'Confirmation ABC123, paid ¥40000',
+        address: null,
+        links: [],
+      },
     ],
     tips: [
       { id: 'tip-zone', zone_id: 'zone-tokyo', place_id: null, body: 'Get a Suica card' },
       { id: 'tip-place', zone_id: null, place_id: 'place-ramen', body: 'Cash only' },
+      { id: 'tip-other', zone_id: 'zone-osaka', place_id: null, body: 'Secret Osaka plan' },
     ],
     itinerary: [
       {

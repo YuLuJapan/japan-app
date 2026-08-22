@@ -24,16 +24,9 @@ const update = asyncHandler(async (req, res) => {
 })
 
 const remove = asyncHandler(async (req, res) => {
-  await deletePlace(await getDataStore(), accessOf(req), req.params.placeId)
+  await deletePlace(await getDataStore(), accessOf(req), req.params.tripId, req.params.placeId)
   res.status(204).end()
 })
-
-/** Legacy flat mount at /api. Removed once every client uses the nested form. */
-export const placesRouter = Router()
-placesRouter.get('/places/:placeId', placeDetail)
-placesRouter.post('/places', create)
-placesRouter.patch('/places/:placeId', update)
-placesRouter.delete('/places/:placeId', remove)
 
 /** Mounted under /api/trips/:tripId, behind requireTripAccess. */
 export const placesTripRouter = Router({ mergeParams: true })

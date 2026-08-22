@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({ resolveAuthUser: vi.fn() }))
 vi.mock('../src/lib/supabaseAuth.js', () => ({ resolveAuthUser: mocks.resolveAuthUser }))
 
 // Matches OWNER_USER in the fixture, which holds the membership on trip-1 —
-// /api/trip is scoped to the caller's trips now, so an account with none
+// /api/trips/trip-1 is scoped to the caller's trips now, so an account with none
 // would 404 here for reasons that have nothing to do with identity.
 const GOOGLE_USER = {
   id: 'user-yuval',
@@ -118,7 +118,7 @@ describe('token cache', () => {
 describe('profile sync', () => {
   it('records the signed-in account on first authenticated request', async () => {
     mocks.resolveAuthUser.mockResolvedValue(GOOGLE_USER)
-    await request(app).get('/api/trip').set('Authorization', 'Bearer a.jwt').expect(200)
+    await request(app).get('/api/trips/trip-1').set('Authorization', 'Bearer a.jwt').expect(200)
 
     const profile = await (await getDataStore()).getProfile('user-yuval')
     expect(profile).toEqual({
@@ -137,7 +137,7 @@ describe('profile sync', () => {
     mocks.resolveAuthUser.mockResolvedValue(GOOGLE_USER)
 
     for (let i = 0; i < 3; i++) {
-      await request(app).get('/api/trip').set('Authorization', 'Bearer a.jwt').expect(200)
+      await request(app).get('/api/trips/trip-1').set('Authorization', 'Bearer a.jwt').expect(200)
     }
     expect(upsert).toHaveBeenCalledTimes(1)
   })
@@ -151,7 +151,7 @@ describe('profile sync', () => {
 
     // The whole point: an unmigrated database degrades to "no profile row",
     // not to a 500 on every authenticated call.
-    await request(app).get('/api/trip').set('Authorization', 'Bearer a.jwt').expect(200)
+    await request(app).get('/api/trips/trip-1').set('Authorization', 'Bearer a.jwt').expect(200)
     expect(quiet).toHaveBeenCalled()
     quiet.mockRestore()
   })

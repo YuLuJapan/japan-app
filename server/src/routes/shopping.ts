@@ -35,13 +35,6 @@ const remove = asyncHandler(async (req, res) => {
   res.status(204).end()
 })
 
-/** Legacy flat mount at /api. Removed once every client uses the nested form. */
-export const shoppingRouter = Router()
-shoppingRouter.get('/shopping', list)
-shoppingRouter.post('/shopping', create)
-shoppingRouter.patch('/shopping/:itemId', update)
-shoppingRouter.delete('/shopping/:itemId', remove)
-
 /** Mounted under /api/trips/:tripId, behind requireTripAccess. */
 export const shoppingTripRouter = Router({ mergeParams: true })
 shoppingTripRouter.get('/shopping', list)

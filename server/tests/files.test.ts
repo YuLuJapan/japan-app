@@ -15,7 +15,7 @@ const pdfBase64 = Buffer.from('%PDF-1.4 tiny test file').toString('base64')
 
 describe('files', () => {
   it('GET /api/files lists every file with its attachment context', async () => {
-    const res = await auth(request(app).get('/api/files'))
+    const res = await auth(request(app).get('/api/trips/trip-1/files'))
     expect(res.status).toBe(200)
     const byName = (n: string) =>
       res.body.files.find((f: { display_name: string }) => f.display_name === n)
@@ -29,26 +29,26 @@ describe('files', () => {
     )
   })
 
-  it('GET /api/files/:id/url resolves an openable url', async () => {
-    const res = await auth(request(app).get('/api/files/file-place/url'))
+  it('GET /api/trips/trip-1/files/:id/url resolves an openable url', async () => {
+    const res = await auth(request(app).get('/api/trips/trip-1/files/file-place/url'))
     expect(res.status).toBe(200)
     expect(res.body.url).toBe('/placeholder-files/kyoto-walking-map.svg')
     expect(res.body.expires_in).toBeGreaterThan(0)
   })
 
   it('distinguishes FILE_MISSING (row exists, blob gone) from NOT_FOUND', async () => {
-    const missing = await auth(request(app).get('/api/files/file-gone/url'))
+    const missing = await auth(request(app).get('/api/trips/trip-1/files/file-gone/url'))
     expect(missing.status).toBe(404)
     expect(missing.body.error.code).toBe('FILE_MISSING')
 
-    const unknown = await auth(request(app).get('/api/files/file-nope/url'))
+    const unknown = await auth(request(app).get('/api/trips/trip-1/files/file-nope/url'))
     expect(unknown.status).toBe(404)
     expect(unknown.body.error.code).toBe('NOT_FOUND')
   })
 
   describe('content (preview)', () => {
-    it('GET /api/files/:id/content streams the blob inline for the preview screen', async () => {
-      const res = await auth(request(app).get('/api/files/file-place/content'))
+    it('GET /api/trips/trip-1/files/:id/content streams the blob inline for the preview screen', async () => {
+      const res = await auth(request(app).get('/api/trips/trip-1/files/file-place/content'))
       expect(res.status).toBe(200)
       expect(res.headers['content-type']).toMatch(/^image\/svg\+xml/)
       expect(res.headers['content-disposition']).toMatch(/^inline; filename\*=UTF-8''Menu%20photo/)
@@ -57,13 +57,15 @@ describe('files', () => {
     })
 
     it('serves an uploaded document with its own bytes and name', async () => {
-      const created = await auth(request(app).post('/api/files')).send({
+      const created = await auth(request(app).post('/api/trips/trip-1/files')).send({
         parent: { kind: 'trip' },
         display_name: '搭乗券', // non-ASCII names survive the header encoding
         mime_type: 'application/pdf',
         data_base64: pdfBase64,
       })
-      const res = await auth(request(app).get(`/api/files/${created.body.file.id}/content`))
+      const res = await auth(
+        request(app).get(`/api/trips/trip-1/files/${created.body.file.id}/content`)
+      )
       expect(res.status).toBe(200)
       expect(res.headers['content-type']).toMatch(/^application\/pdf/)
       expect(res.headers['content-disposition']).toBe(
@@ -73,33 +75,35 @@ describe('files', () => {
     })
 
     it('?download=1 switches the disposition to attachment', async () => {
-      const res = await auth(request(app).get('/api/files/file-trip/content?download=1'))
+      const res = await auth(
+        request(app).get('/api/trips/trip-1/files/file-trip/content?download=1')
+      )
       expect(res.status).toBe(200)
       expect(res.headers['content-disposition']).toMatch(/^attachment;/)
     })
 
     it('reports FILE_MISSING and NOT_FOUND the same way as /url', async () => {
-      const missing = await auth(request(app).get('/api/files/file-gone/content'))
+      const missing = await auth(request(app).get('/api/trips/trip-1/files/file-gone/content'))
       expect(missing.status).toBe(404)
       expect(missing.body.error.code).toBe('FILE_MISSING')
 
-      const unknown = await auth(request(app).get('/api/files/file-nope/content'))
+      const unknown = await auth(request(app).get('/api/trips/trip-1/files/file-nope/content'))
       expect(unknown.status).toBe(404)
       expect(unknown.body.error.code).toBe('NOT_FOUND')
     })
 
     it('requires auth', async () => {
-      expect((await request(app).get('/api/files/file-trip/content')).status).toBe(401)
+      expect((await request(app).get('/api/trips/trip-1/files/file-trip/content')).status).toBe(401)
     })
   })
 
   it('requires auth', async () => {
-    expect((await request(app).get('/api/files')).status).toBe(401)
+    expect((await request(app).get('/api/trips/trip-1/files')).status).toBe(401)
   })
 
   it('deleting a place re-parents its files to the trip (no silent loss)', async () => {
-    await auth(request(app).delete('/api/places/place-ramen')).expect(204)
-    const res = await auth(request(app).get('/api/files'))
+    await auth(request(app).delete('/api/trips/trip-1/places/place-ramen')).expect(204)
+    const res = await auth(request(app).get('/api/trips/trip-1/files'))
     const names = res.body.files.map((f: { display_name: string }) => f.display_name)
     expect(names).toContain('Menu photo')
     expect(names).toContain('Flight booking')
@@ -107,7 +111,7 @@ describe('files', () => {
 
   describe('upload', () => {
     it('POST /api/files attaches a document to a place and it opens via a data URL', async () => {
-      const res = await auth(request(app).post('/api/files')).send({
+      const res = await auth(request(app).post('/api/trips/trip-1/files')).send({
         parent: { kind: 'place', id: 'place-ramen' },
         display_name: 'Park reservation',
         mime_type: 'application/pdf',
@@ -118,17 +122,17 @@ describe('files', () => {
       expect(id).toBeTruthy()
 
       // shows under the place in the Documents view…
-      const list = await auth(request(app).get('/api/files'))
+      const list = await auth(request(app).get('/api/trips/trip-1/files'))
       const doc = list.body.files.find((f: { id: string }) => f.id === id)
       expect(doc.attached_to).toEqual(expect.objectContaining({ kind: 'place', id: 'place-ramen' }))
 
       // …and is openable (memory backend serves a data URL)
-      const url = await auth(request(app).get(`/api/files/${id}/url`))
+      const url = await auth(request(app).get(`/api/trips/trip-1/files/${id}/url`))
       expect(url.body.url).toMatch(/^data:application\/pdf;base64,/)
     })
 
     it('POST /api/files 400 on missing name, bad type, and missing parent id', async () => {
-      const res = await auth(request(app).post('/api/files')).send({
+      const res = await auth(request(app).post('/api/trips/trip-1/files')).send({
         parent: { kind: 'place' },
         display_name: '  ',
         mime_type: 'application/zip',
@@ -142,7 +146,7 @@ describe('files', () => {
     })
 
     it('POST /api/files 404 for an unknown place', async () => {
-      const res = await auth(request(app).post('/api/files')).send({
+      const res = await auth(request(app).post('/api/trips/trip-1/files')).send({
         parent: { kind: 'place', id: 'place-nope' },
         display_name: 'Ghost doc',
         mime_type: 'application/pdf',
@@ -153,7 +157,7 @@ describe('files', () => {
 
     it('POST /api/files 400 when the file is too large', async () => {
       const big = Buffer.alloc(3 * 1024 * 1024 + 1).toString('base64')
-      const res = await auth(request(app).post('/api/files')).send({
+      const res = await auth(request(app).post('/api/trips/trip-1/files')).send({
         parent: { kind: 'trip' },
         display_name: 'Huge',
         mime_type: 'application/pdf',
@@ -163,17 +167,17 @@ describe('files', () => {
       expect(res.body.error.details.join(' ')).toMatch(/too large/)
     })
 
-    it('DELETE /api/files/:id removes it; 404 when unknown', async () => {
-      const created = await auth(request(app).post('/api/files')).send({
+    it('DELETE /api/trips/trip-1/files/:id removes it; 404 when unknown', async () => {
+      const created = await auth(request(app).post('/api/trips/trip-1/files')).send({
         parent: { kind: 'trip' },
         display_name: 'Temp',
         mime_type: 'application/pdf',
         data_base64: pdfBase64,
       })
       const id = created.body.file.id
-      expect((await auth(request(app).delete(`/api/files/${id}`))).status).toBe(204)
-      expect((await auth(request(app).delete(`/api/files/${id}`))).status).toBe(404)
-      expect((await auth(request(app).get(`/api/files/${id}/url`))).status).toBe(404)
+      expect((await auth(request(app).delete(`/api/trips/trip-1/files/${id}`))).status).toBe(204)
+      expect((await auth(request(app).delete(`/api/trips/trip-1/files/${id}`))).status).toBe(404)
+      expect((await auth(request(app).get(`/api/trips/trip-1/files/${id}/url`))).status).toBe(404)
     })
   })
 })

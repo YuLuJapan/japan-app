@@ -79,7 +79,7 @@ function normalize(input: Partial<ReminderInput>): Partial<ReminderInput> {
 async function requireTripId(
   store: DataStore,
   access: AccessContext,
-  tripId?: string
+  tripId: string
 ): Promise<string> {
   const trip = await resolveTrip(store, access, tripId)
   return trip.id
@@ -88,7 +88,7 @@ async function requireTripId(
 export async function listReminders(
   store: DataStore,
   access: AccessContext,
-  tripId?: string
+  tripId: string
 ): Promise<{ reminders: Reminder[] }> {
   const resolvedTripId = await requireTripId(store, access, tripId)
   return { reminders: await store.listReminders(resolvedTripId) }
@@ -98,7 +98,7 @@ export async function createReminder(
   store: DataStore,
   access: AccessContext,
   body: unknown,
-  tripId?: string
+  tripId: string
 ) {
   const input = (body ?? {}) as Partial<ReminderInput>
   const errors = collectReminderErrors(input, false)

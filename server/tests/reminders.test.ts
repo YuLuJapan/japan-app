@@ -45,7 +45,7 @@ const subscribe = (endpoint: string) =>
 
 describe('reminders CRUD', () => {
   it('creates a reminder and lists it', async () => {
-    const res = await auth(request(app).post('/api/reminders')).send({
+    const res = await auth(request(app).post('/api/trips/trip-1/reminders')).send({
       title: 'Book the ryokan',
       body: 'Two people, dinner included',
       url: 'https://booking.example.com',
@@ -57,7 +57,7 @@ describe('reminders CRUD', () => {
     expect(res.body.reminder.remind_at).toBe('2026-09-12T00:00:00.000Z')
     expect(res.body.reminder.sent_at).toBeNull()
 
-    const list = await auth(request(app).get('/api/reminders'))
+    const list = await auth(request(app).get('/api/trips/trip-1/reminders'))
     expect(list.body.reminders).toHaveLength(1)
     expect(list.body.reminders[0].title).toBe('Book the ryokan')
   })
@@ -67,14 +67,14 @@ describe('reminders CRUD', () => {
       ['later', '2026-09-20T10:00:00Z'],
       ['sooner', '2026-09-12T10:00:00Z'],
     ]) {
-      await auth(request(app).post('/api/reminders')).send({ title, remind_at: at })
+      await auth(request(app).post('/api/trips/trip-1/reminders')).send({ title, remind_at: at })
     }
-    const list = await auth(request(app).get('/api/reminders'))
+    const list = await auth(request(app).get('/api/trips/trip-1/reminders'))
     expect(list.body.reminders.map((r: { title: string }) => r.title)).toEqual(['sooner', 'later'])
   })
 
   it('collects every validation error at once', async () => {
-    const res = await auth(request(app).post('/api/reminders')).send({
+    const res = await auth(request(app).post('/api/trips/trip-1/reminders')).send({
       title: '   ',
       remind_at: 'next tuesday',
       url: 'ftp://nope',
@@ -90,25 +90,25 @@ describe('reminders CRUD', () => {
   })
 
   it('401s without the access code', async () => {
-    const res = await request(app).get('/api/reminders')
+    const res = await request(app).get('/api/trips/trip-1/reminders')
     expect(res.status).toBe(401)
   })
 
   it('patches and deletes', async () => {
-    const created = await auth(request(app).post('/api/reminders')).send({
+    const created = await auth(request(app).post('/api/trips/trip-1/reminders')).send({
       title: 'Book something',
       remind_at: '2026-09-12T09:00:00Z',
     })
     const id = created.body.reminder.id
 
-    const patched = await auth(request(app).patch(`/api/reminders/${id}`)).send({
+    const patched = await auth(request(app).patch(`/api/trips/trip-1/reminders/${id}`)).send({
       title: 'Book the bus seats',
     })
     expect(patched.status).toBe(200)
     expect(patched.body.reminder.title).toBe('Book the bus seats')
 
-    expect((await auth(request(app).delete(`/api/reminders/${id}`))).status).toBe(204)
-    expect((await auth(request(app).delete(`/api/reminders/${id}`))).status).toBe(404)
+    expect((await auth(request(app).delete(`/api/trips/trip-1/reminders/${id}`))).status).toBe(204)
+    expect((await auth(request(app).delete(`/api/trips/trip-1/reminders/${id}`))).status).toBe(404)
   })
 
   it('re-arms a sent reminder when it is moved into the future', async () => {
@@ -119,7 +119,7 @@ describe('reminders CRUD', () => {
     })
     await store.updateReminder(reminder.id, { sent_at: '2026-09-12T09:01:00.000Z' })
 
-    const res = await auth(request(app).patch(`/api/reminders/${reminder.id}`)).send({
+    const res = await auth(request(app).patch(`/api/trips/trip-1/reminders/${reminder.id}`)).send({
       remind_at: '2026-09-20T09:00:00.000Z',
     })
     expect(res.body.reminder.sent_at).toBeNull()

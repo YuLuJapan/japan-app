@@ -132,12 +132,19 @@ export async function updatePlace(
   return { place }
 }
 
-export async function deletePlace(store: DataStore, access: AccessContext, placeId: string) {
+export async function deletePlace(
+  store: DataStore,
+  access: AccessContext,
+  tripId: string,
+  placeId: string
+) {
   const place = await store.getPlace(placeId)
   if (!place) throw notFound('Place')
   assertZoneAccess(await reachableZoneIds(store, access), place.zone_id)
-  // no silent file loss (data-model.md): move the place's files to the trip first
-  const trip = await resolveTrip(store, access)
+  // no silent file loss (data-model.md): move the place's files to the trip
+  // first. That trip is now the one in the path rather than the caller's
+  // oldest, so a place deleted from one trip cannot dump its files on another.
+  const trip = await resolveTrip(store, access, tripId)
   await store.reparentFilesToTrip(placeId, trip.id)
   await store.deletePlace(placeId)
 }

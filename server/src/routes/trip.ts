@@ -6,7 +6,6 @@ import {
   createTrip,
   deleteTrip,
   getDateImpact,
-  getDefaultTripBundle,
   getTripBundle,
   listTrips,
   updateTrip,
@@ -50,15 +49,6 @@ const remove = asyncHandler(async (req, res) => {
  * and creating happen before there is a trip to be a member of.
  */
 export const tripRouter = Router()
-
-// Legacy, pre-multi-trip route: the caller's oldest trip. Kept so a client that
-// predates trip-scoped URLs keeps working; superseded by GET /api/trips/:tripId.
-tripRouter.get(
-  '/trip',
-  asyncHandler(async (req, res) => {
-    res.json(await getDefaultTripBundle(await getDataStore(), accessOf(req), guestView(req)))
-  })
-)
 
 tripRouter.get(
   '/trips',

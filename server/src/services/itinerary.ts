@@ -18,7 +18,7 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 export async function listItinerary(
   store: DataStore,
   access: AccessContext,
-  tripId?: string,
+  tripId: string,
   { includeStays = true }: { includeStays?: boolean } = {}
 ) {
   const trip = await resolveTrip(store, access, tripId)
@@ -58,7 +58,7 @@ export async function createItineraryItem(
   store: DataStore,
   access: AccessContext,
   input: ItineraryItemInput,
-  tripId?: string
+  tripId: string
 ) {
   const errors = collectErrors(input, false)
   if (errors.length) throw validation(errors)

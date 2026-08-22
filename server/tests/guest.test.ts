@@ -32,14 +32,14 @@ describe('guest access code', () => {
 
   it('reads the trip, the zones, the places and the schedule', async () => {
     for (const path of [
-      '/api/trip',
-      '/api/itinerary',
-      '/api/zones/zone-tokyo',
-      '/api/zones/zone-tokyo/places?category=food',
-      '/api/places/place-ramen',
-      '/api/shopping',
-      '/api/reminders',
-      '/api/search?q=ramen',
+      '/api/trips/trip-1',
+      '/api/trips/trip-1/itinerary',
+      '/api/trips/trip-1/zones/zone-tokyo',
+      '/api/trips/trip-1/zones/zone-tokyo/places?category=food',
+      '/api/trips/trip-1/places/place-ramen',
+      '/api/trips/trip-1/shopping',
+      '/api/trips/trip-1/reminders',
+      '/api/trips/trip-1/search?q=ramen',
     ]) {
       const res = await asGuest(request(app).get(path))
       expect(res.status, path).toBe(200)
@@ -49,26 +49,30 @@ describe('guest access code', () => {
 
 describe('guest is read-only', () => {
   const writes: [string, string, object][] = [
-    ['post', '/api/places', { zone_id: 'zone-tokyo', category: 'food', name: 'New' }],
-    ['patch', '/api/places/place-ramen', { name: 'Renamed' }],
-    ['delete', '/api/places/place-ramen', {}],
-    ['post', '/api/tips', { body: 'hello', zone_id: 'zone-tokyo' }],
-    ['patch', '/api/tips/tip-zone', { body: 'edited' }],
-    ['delete', '/api/tips/tip-zone', {}],
-    ['post', '/api/shopping', { name: 'Thing', category: 'other' }],
-    ['patch', '/api/shopping/buy-1', { bought: true }],
-    ['delete', '/api/shopping/buy-1', {}],
-    ['post', '/api/itinerary', { day: '2026-10-06', title: 'Something' }],
-    ['patch', '/api/itinerary/itin-ramen', { title: 'Edited' }],
-    ['delete', '/api/itinerary/itin-ramen', {}],
+    ['post', '/api/trips/trip-1/places', { zone_id: 'zone-tokyo', category: 'food', name: 'New' }],
+    ['patch', '/api/trips/trip-1/places/place-ramen', { name: 'Renamed' }],
+    ['delete', '/api/trips/trip-1/places/place-ramen', {}],
+    ['post', '/api/trips/trip-1/tips', { body: 'hello', zone_id: 'zone-tokyo' }],
+    ['patch', '/api/trips/trip-1/tips/tip-zone', { body: 'edited' }],
+    ['delete', '/api/trips/trip-1/tips/tip-zone', {}],
+    ['post', '/api/trips/trip-1/shopping', { name: 'Thing', category: 'other' }],
+    ['patch', '/api/trips/trip-1/shopping/buy-1', { bought: true }],
+    ['delete', '/api/trips/trip-1/shopping/buy-1', {}],
+    ['post', '/api/trips/trip-1/itinerary', { day: '2026-10-06', title: 'Something' }],
+    ['patch', '/api/trips/trip-1/itinerary/itin-ramen', { title: 'Edited' }],
+    ['delete', '/api/trips/trip-1/itinerary/itin-ramen', {}],
     [
       'post',
-      '/api/steps',
+      '/api/trips/trip-1/steps',
       { zone_id: 'zone-tokyo', start_date: '2026-10-06', end_date: '2026-10-07' },
     ],
-    ['patch', '/api/steps/step-1', { start_date: '2026-10-06' }],
-    ['delete', '/api/steps/step-1', {}],
-    ['post', '/api/reminders', { title: 'Book it', remind_at: '2026-09-01T10:00:00.000Z' }],
+    ['patch', '/api/trips/trip-1/steps/step-1', { start_date: '2026-10-06' }],
+    ['delete', '/api/trips/trip-1/steps/step-1', {}],
+    [
+      'post',
+      '/api/trips/trip-1/reminders',
+      { title: 'Book it', remind_at: '2026-09-01T10:00:00.000Z' },
+    ],
     ['post', '/api/push/subscriptions', { endpoint: 'https://example.com/x', keys: {} }],
   ]
 
@@ -82,8 +86,8 @@ describe('guest is read-only', () => {
   })
 
   it('leaves the data untouched after a refused delete', async () => {
-    await asGuest(request(app).delete('/api/places/place-ramen'))
-    const res = await asOwner(request(app).get('/api/places/place-ramen'))
+    await asGuest(request(app).delete('/api/trips/trip-1/places/place-ramen'))
+    const res = await asOwner(request(app).get('/api/trips/trip-1/places/place-ramen'))
     expect(res.status).toBe(200)
     expect(res.body.place.name).toBe('Ramen Bar')
   })
@@ -91,21 +95,25 @@ describe('guest is read-only', () => {
 
 describe('guest sees no documents', () => {
   it('refuses every /api/files route', async () => {
-    const paths = ['/api/files', '/api/files/file-trip/url', '/api/files/file-trip/content']
+    const paths = [
+      '/api/trips/trip-1/files',
+      '/api/trips/trip-1/files/file-trip/url',
+      '/api/trips/trip-1/files/file-trip/content',
+    ]
     for (const path of paths) {
       const res = await asGuest(request(app).get(path))
       expect(res.status, path).toBe(403)
       expect(res.body.error.code, path).toBe('FORBIDDEN')
     }
-    const del = await asGuest(request(app).delete('/api/files/file-trip'))
+    const del = await asGuest(request(app).delete('/api/trips/trip-1/files/file-trip'))
     expect(del.status).toBe(403)
   })
 
   it('strips files attached to a place', async () => {
-    const owner = await asOwner(request(app).get('/api/places/place-ramen'))
+    const owner = await asOwner(request(app).get('/api/trips/trip-1/places/place-ramen'))
     expect(owner.body.files.length).toBeGreaterThan(0) // the fixture has one
 
-    const guest = await asGuest(request(app).get('/api/places/place-ramen'))
+    const guest = await asGuest(request(app).get('/api/trips/trip-1/places/place-ramen'))
     expect(guest.status).toBe(200)
     expect(guest.body.files).toEqual([])
     expect(guest.body.place.name).toBe('Ramen Bar') // everything else is still there
@@ -113,10 +121,10 @@ describe('guest sees no documents', () => {
   })
 
   it('strips files attached to a zone', async () => {
-    const owner = await asOwner(request(app).get('/api/zones/zone-kyoto'))
+    const owner = await asOwner(request(app).get('/api/trips/trip-1/zones/zone-kyoto'))
     expect(owner.body.files.length).toBeGreaterThan(0)
 
-    const guest = await asGuest(request(app).get('/api/zones/zone-kyoto'))
+    const guest = await asGuest(request(app).get('/api/trips/trip-1/zones/zone-kyoto'))
     expect(guest.status).toBe(200)
     expect(guest.body.files).toEqual([])
     expect(guest.body.zone.name).toBe('Kyoto')
@@ -128,27 +136,31 @@ describe('guest sees no documents', () => {
 // reference — neither belongs in a friend's copy of the trip.
 describe('guest sees no stays and no flight', () => {
   it('refuses the stay page outright', async () => {
-    const res = await asGuest(request(app).get('/api/places/place-hotel'))
+    const res = await asGuest(request(app).get('/api/trips/trip-1/places/place-hotel'))
     expect(res.status).toBe(403)
     expect(res.body.error.code).toBe('FORBIDDEN')
   })
 
   it('leaves stays out of a zone’s lists and counts', async () => {
-    const zone = await asGuest(request(app).get('/api/zones/zone-tokyo'))
+    const zone = await asGuest(request(app).get('/api/trips/trip-1/zones/zone-tokyo'))
     expect(zone.status).toBe(200)
     expect(zone.body.place_counts.hotel).toBe(0)
     expect(zone.body.place_counts.food).toBe(1) // the rest is untouched
 
-    const stays = await asGuest(request(app).get('/api/zones/zone-tokyo/places?category=hotel'))
+    const stays = await asGuest(
+      request(app).get('/api/trips/trip-1/zones/zone-tokyo/places?category=hotel')
+    )
     expect(stays.body.places).toEqual([])
 
     // the map's all-categories sweep is the other way in
-    const all = await asGuest(request(app).get('/api/zones/zone-tokyo/places?category='))
+    const all = await asGuest(
+      request(app).get('/api/trips/trip-1/zones/zone-tokyo/places?category=')
+    )
     expect(all.body.places.map((p: { id: string }) => p.id)).toEqual(['place-ramen'])
   })
 
   it('drops the flight and the stay counts from the trip bundle', async () => {
-    for (const path of ['/api/trip', '/api/trips/trip-1']) {
+    for (const path of ['/api/trips/trip-1', '/api/trips/trip-1']) {
       const res = await asGuest(request(app).get(path))
       expect(res.status, path).toBe(200)
       expect(res.body.flight, path).toBeUndefined()
@@ -169,10 +181,10 @@ describe('guest sees no stays and no flight', () => {
       })
     )
 
-    const owner = await asOwner(request(app).get('/api/search?q=Test Hotel'))
+    const owner = await asOwner(request(app).get('/api/trips/trip-1/search?q=Test Hotel'))
     expect(owner.body.results.length).toBeGreaterThan(0)
 
-    const guest = await asGuest(request(app).get('/api/search?q=Test Hotel'))
+    const guest = await asGuest(request(app).get('/api/trips/trip-1/search?q=Test Hotel'))
     expect(guest.status).toBe(200)
     // neither the stay itself nor a tip whose only link is to the stay
     expect(guest.body.results).toEqual([])
@@ -191,7 +203,7 @@ describe('guest sees no stays and no flight', () => {
       })
     )
 
-    const res = await asGuest(request(app).get('/api/itinerary'))
+    const res = await asGuest(request(app).get('/api/trips/trip-1/itinerary'))
     expect(res.status).toBe(200)
     const checkIn = res.body.items.find((i: { id: string }) => i.id === 'itin-checkin')
     expect(checkIn.title).toBe('Check in') // the day still reads the same
@@ -204,24 +216,24 @@ describe('guest sees no stays and no flight', () => {
 
 describe('the owner code is unaffected', () => {
   it('still sees the stays and the flight', async () => {
-    const stay = await asOwner(request(app).get('/api/places/place-hotel'))
+    const stay = await asOwner(request(app).get('/api/trips/trip-1/places/place-hotel'))
     expect(stay.status).toBe(200)
     expect(stay.body.place.name).toBe('Test Hotel')
 
-    const zone = await asOwner(request(app).get('/api/zones/zone-tokyo'))
+    const zone = await asOwner(request(app).get('/api/trips/trip-1/zones/zone-tokyo'))
     expect(zone.body.place_counts.hotel).toBe(1)
 
-    const trip = await asOwner(request(app).get('/api/trip'))
+    const trip = await asOwner(request(app).get('/api/trips/trip-1'))
     expect(trip.body.flight.booking_ref).toBeTruthy()
   })
 
   it('still writes and still sees documents', async () => {
-    const patch = await asOwner(request(app).patch('/api/places/place-ramen')).send({
+    const patch = await asOwner(request(app).patch('/api/trips/trip-1/places/place-ramen')).send({
       name: 'Ramen Bar 2',
     })
     expect(patch.status).toBe(200)
 
-    const files = await asOwner(request(app).get('/api/files'))
+    const files = await asOwner(request(app).get('/api/trips/trip-1/files'))
     expect(files.status).toBe(200)
     expect(files.body.files.length).toBeGreaterThan(0)
   })

@@ -38,7 +38,11 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
   /api/trips/:tripId/files      /files/:fileId · /files/:fileId/url · /files/:fileId/content
   ```
 
-  The flat equivalents (`/api/places/:placeId`, `/api/itinerary/:itemId`, …) and the singleton routes still answer, guarded individually as before, and are removed in phase 3b once no client calls them. The trip collection (`GET`/`POST /api/trips`) stays at `/api` by definition — listing and creating happen before there is a trip to be a member of.
+  `/api/trips/:tripId/search` joins them (phase 3a-ii).
+
+  **The flat and singleton routes are gone (phase 3a-ii).** `/api/trip`, `/api/itinerary`, `/api/shopping`, `/api/reminders`, `/api/files`, `/api/steps`, `/api/places`, `/api/tips`, `/api/zones/:zoneId` and `/api/search` all answer `404`. Reaching trip content without naming the trip is no longer expressible, and `getDefaultTrip` — which once resolved to "the oldest trip in the database" — no longer exists.
+
+  Still at `/api`, none of them trip content: `/health`, `/auth/*`, `/me`, `/trips` (the collection — listing and creating happen before there is a trip to be a member of), `/rates`, `/geocode`, `/images`, `/product-preview`, `/translate`, `/push/*`, and `/reminders/dispatch` (called by an external scheduler with no trip in hand, guarding itself with `CRON_SECRET`).
 
   **What nesting does not yet prove**: that a resource named later in the path belongs to the trip named earlier. `/api/trips/A/places/<place-in-B>` still resolves, because zones are not trip-scoped in the schema until phase 3b. `server/tests/tenancy.test.ts` carries those cases as `it.todo`; 3b is the commit that turns them on.
 

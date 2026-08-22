@@ -469,24 +469,3 @@ export async function getDataStore(): Promise<DataStore> {
 export function setDataStore(next: DataStore | null): void {
   store = next
 }
-
-/**
- * The trip that single-trip-era routes (itinerary/steps/shopping/reminders/
- * files) still implicitly operate on: the caller's oldest.
- *
- * **The `userId` argument is load-bearing, not cosmetic.** This used to return
- * the oldest trip in the database full stop, which was harmless while the only
- * way in was a shared code held by the two travellers. The moment anyone can
- * register, that same lookup hands a stranger the first trip ever created — so
- * every one of these routes is scoped to the caller until phase 3a nests them
- * under an explicit /api/trips/:tripId and this function disappears.
- *
- * `null` userId is the legacy access code, which keeps the old behaviour.
- */
-export async function getDefaultTrip(
-  store: DataStore,
-  userId: string | null
-): Promise<Trip | null> {
-  const trips = userId ? await store.listTripsForUser(userId) : await store.listTrips()
-  return trips[0] ?? null
-}

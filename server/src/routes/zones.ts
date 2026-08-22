@@ -22,11 +22,6 @@ const zonePlaces = asyncHandler(async (req, res) => {
   )
 })
 
-/** Legacy flat mount at /api. Removed once every client uses the nested form. */
-export const zonesRouter = Router()
-zonesRouter.get('/zones/:zoneId', zoneDetail)
-zonesRouter.get('/zones/:zoneId/places', zonePlaces)
-
 /** Mounted under /api/trips/:tripId, behind requireTripAccess. */
 export const zonesTripRouter = Router({ mergeParams: true })
 zonesTripRouter.get('/zones/:zoneId', zoneDetail)
