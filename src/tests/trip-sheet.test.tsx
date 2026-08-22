@@ -20,8 +20,8 @@ vi.mock('../api/client', async (importOriginal) => ({
 const TRIP: Trip = {
   id: 'trip-1',
   name: 'Lisbon',
-    country: 'Japan',
-    display_title: 'Lisbon',
+  country: 'Japan',
+  display_title: 'Lisbon',
   start_date: '2027-03-01',
   end_date: '2027-03-08',
   description: null,
@@ -263,16 +263,18 @@ describe('TripSheet travellers', () => {
     expect(screen.queryByRole('link', { name: /invite/i })).not.toBeInTheDocument()
   })
 
-  it('adds a traveller with an email and shows a mailto invite link', async () => {
+  it('cannot invite from a trip that does not exist yet, and says so', async () => {
+    // An invitation belongs to a trip. In add mode there isn't one, so the
+    // roster takes the email now and offers the invite after saving.
     const user = userEvent.setup()
     renderSheet()
     await user.type(screen.getByLabelText('Traveller name'), 'Noa')
     await user.type(screen.getByLabelText('Traveller email (optional)'), 'noa@example.com')
     await user.click(screen.getByRole('button', { name: 'Add traveller' }))
 
-    const invite = screen.getByRole('link', { name: /invite/i })
-    expect(invite.getAttribute('href')).toMatch(/^mailto:noa%40example\.com\?/)
-    expect(invite.getAttribute('href')).toContain('subject=')
+    expect(screen.getByText('Noa')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Invite' })).not.toBeInTheDocument()
+    expect(screen.getByText(/invite them once the trip is saved/i)).toBeInTheDocument()
   })
 
   it('rejects an invalid email instead of adding the traveller', async () => {
@@ -295,5 +297,97 @@ describe('TripSheet travellers', () => {
 
     await user.click(screen.getByRole('button', { name: 'Remove Noa' }))
     expect(screen.queryByText('Noa')).not.toBeInTheDocument()
+  })
+})
+
+// Inviting from the roster, with the same access controls the members screen
+// uses — the point being that "add their email" and "decide what they see" are
+// one gesture rather than two screens.
+describe('TripSheet — inviting a traveller', () => {
+  const withRoster = { ...TRIP, people: [{ name: 'Noa', email: 'noa@example.com' }] }
+
+  /** The three GETs the sheet makes in edit mode. */
+  function mockTrip({
+    my_role = 'owner',
+    members = [] as unknown[],
+    invites = [] as unknown[],
+  } = {}) {
+    mocks.get.mockImplementation((path: string) => {
+      if (path === '/trips/trip-1') return Promise.resolve({ trip: withRoster, steps: [], my_role })
+      if (path === '/trips/trip-1/members') return Promise.resolve({ members })
+      if (path === '/trips/trip-1/invites') return Promise.resolve({ invites })
+      return Promise.resolve(IMPACT)
+    })
+  }
+
+  beforeEach(() => {
+    mocks.get.mockReset()
+    mocks.post.mockReset()
+  })
+
+  it('offers an owner both roles, and mints the invitation with what was chosen', async () => {
+    const user = userEvent.setup()
+    mockTrip()
+    mocks.post.mockResolvedValue({ invite: { id: 'inv-1' }, token: 'tok' })
+    renderSheet({ mode: 'edit', trip: withRoster })
+
+    await user.click(await screen.findByRole('button', { name: 'Invite' }))
+    expect(screen.getByText(/waiting for them the next time they sign in/i)).toBeInTheDocument()
+
+    // Default is a viewer who sees the bookings but not the documents.
+    await user.click(screen.getByLabelText(/Flights/))
+    await user.click(screen.getByRole('button', { name: 'Send invitation' }))
+
+    await waitFor(() =>
+      expect(mocks.post).toHaveBeenCalledWith('/trips/trip-1/invites', {
+        role: 'viewer',
+        email: 'noa@example.com',
+        can_see_stays: true,
+        can_see_flight: false,
+        can_see_documents: false,
+      })
+    )
+  })
+
+  it('offers a partner viewer only — write access cannot spread sideways', async () => {
+    const user = userEvent.setup()
+    mockTrip({ my_role: 'partner' })
+    renderSheet({ mode: 'edit', trip: withRoster })
+
+    await user.click(await screen.findByRole('button', { name: 'Invite' }))
+    expect(screen.getByLabelText(/View only/)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/Partner/)).not.toBeInTheDocument()
+  })
+
+  it('says where someone already stands instead of offering to invite again', async () => {
+    mockTrip({ members: [{ user_id: 'u1', role: 'viewer', email: 'NOA@example.com' }] })
+    renderSheet({ mode: 'edit', trip: withRoster })
+
+    // Matched case-insensitively, as email is.
+    expect(await screen.findByText('On trip')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Invite' })).not.toBeInTheDocument()
+  })
+
+  it('shows an outstanding invitation as already sent', async () => {
+    mockTrip({ invites: [{ id: 'inv-1', email: 'noa@example.com', role: 'viewer' }] })
+    renderSheet({ mode: 'edit', trip: withRoster })
+
+    expect(await screen.findByText('Invited')).toBeInTheDocument()
+  })
+
+  it('offers again once they have declined', async () => {
+    mockTrip({
+      invites: [
+        {
+          id: 'inv-1',
+          email: 'noa@example.com',
+          role: 'viewer',
+          declined_at: '2026-08-22T00:00:00Z',
+        },
+      ],
+    })
+    renderSheet({ mode: 'edit', trip: withRoster })
+
+    expect(await screen.findByRole('button', { name: 'Invite' })).toBeInTheDocument()
   })
 })

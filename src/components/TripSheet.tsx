@@ -9,10 +9,11 @@
 // anything is written.
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { tripDateImpact } from '../api/hooks'
-import { useCreateTrip, useDeleteTrip, useUpdateTrip } from '../api/mutations'
+import { tripDateImpact, useTrip, useTripInvites, useTripMembers } from '../api/hooks'
+import { useCreateInvite, useCreateTrip, useDeleteTrip, useUpdateTrip } from '../api/mutations'
 import type { StrandedResolution, Traveller, Trip, TripDateImpact } from '../api/types'
 import { saveErrorMessage } from '../lib/errors'
+import { AccessPicker, DEFAULT_SHOWS, type InviteRole, type Shows } from './AccessPicker'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -55,18 +56,6 @@ function avatarBg(name: string): string {
   let h = 0
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 997
   return palette[h % palette.length]
-}
-
-/** No accounts to invite into — this just hands the guest link + a nudge to
- *  the traveller's own inbox via the device's mail app. No server email involved. */
-function inviteHref(email: string, tripName: string): string {
-  const subject = `Join us on Onward${tripName ? ` — ${tripName}` : ''}`
-  const body = [
-    `Hey! I added you as a traveller on ${tripName ? `"${tripName}"` : 'our trip'} on Onward.`,
-    '',
-    `Sign in at ${window.location.origin}/gate with the trip's guest code (ask us if you don't have it) to see the plans, shopping list and documents.`,
-  ].join('\n')
-  return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
@@ -250,9 +239,17 @@ interface Props {
 }
 
 export function TripSheet({ mode, trip, onClose }: Props) {
+  const tripId = trip?.id ?? ''
   const create = useCreateTrip()
-  const update = useUpdateTrip(trip?.id ?? '')
+  const update = useUpdateTrip(tripId)
   const remove = useDeleteTrip()
+
+  // Sharing, from the roster. Only meaningful once the trip exists — an
+  // invitation belongs to a trip, and in add mode there isn't one yet.
+  const bundle = useTrip(tripId)
+  const members = useTripMembers(tripId)
+  const invites = useTripInvites(tripId)
+  const createInvite = useCreateInvite(tripId)
 
   const [name, setName] = useState('')
   const [country, setCountry] = useState('')
@@ -268,6 +265,64 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   const [confirm, setConfirm] = useState<0 | 1 | 2>(0)
   const [reason, setReason] = useState('')
   const [personError, setPersonError] = useState(false)
+  // Which traveller's access is being chosen, by roster index. null = none.
+  const [inviting, setInviting] = useState<number | null>(null)
+  const [inviteRole, setInviteRole] = useState<InviteRole>('viewer')
+  const [inviteShows, setInviteShows] = useState<Shows>(DEFAULT_SHOWS)
+  const [inviteError, setInviteError] = useState<string | null>(null)
+
+  // Inviting is a separate write from saving the trip, and lands on a separate
+  // endpoint — so it happens on tap, not on Save. That also means an
+  // invitation survives closing the sheet without saving, which is the
+  // behaviour someone expects after being told "invited".
+  const myRole = bundle.data?.my_role ?? null
+  const canShare = mode === 'edit' && !!tripId && (myRole === 'owner' || myRole === 'partner')
+
+  const sameAddress = (a: string | null | undefined, b: string) =>
+    !!a && a.trim().toLowerCase() === b.trim().toLowerCase()
+
+  /**
+   * Where this address already stands on the trip. A roster entry and a
+   * membership are different things — someone can be on the roster without an
+   * account, or a member without being a traveller — so this answers only
+   * "have they already been invited or joined?".
+   */
+  const shareState = (email: string): 'member' | 'invited' | 'none' => {
+    if (members.data?.members.some((m) => sameAddress(m.email, email))) return 'member'
+    const invite = invites.data?.invites.find((i) => sameAddress(i.email, email))
+    return invite && !invite.declined_at ? 'invited' : 'none'
+  }
+
+  function ShareChip({ email, index }: { email: string; index: number }) {
+    const state = shareState(email)
+    if (state === 'member') return <span className="text-xs font-semibold text-muted">On trip</span>
+    if (state === 'invited')
+      return <span className="text-xs font-semibold text-muted">Invited</span>
+    return (
+      <button
+        type="button"
+        className="text-xs font-bold text-brand"
+        onClick={() => {
+          setInviteError(null)
+          setInviteRole('viewer')
+          setInviteShows(DEFAULT_SHOWS)
+          setInviting(inviting === index ? null : index)
+        }}
+      >
+        {inviting === index ? 'Cancel' : 'Invite'}
+      </button>
+    )
+  }
+
+  async function sendInvite(email: string) {
+    setInviteError(null)
+    try {
+      await createInvite.mutateAsync({ role: inviteRole, email, ...inviteShows })
+      setInviting(null)
+    } catch (err) {
+      setInviteError(saveErrorMessage(err))
+    }
+  }
   // What the new dates would strand, once checked; null until the traveller saves.
   const [impact, setImpact] = useState<TripDateImpact | null>(null)
   const [resolution, setResolution] = useState<StrandedResolution>('move')
@@ -300,6 +355,10 @@ export function TripSheet({ mode, trip, onClose }: Props) {
     setPersonName('')
     setPersonEmail('')
     setPersonError(false)
+    setInviting(null)
+    setInviteRole('viewer')
+    setInviteShows(DEFAULT_SHOWS)
+    setInviteError(null)
     setConfirm(0)
     setReason('')
     setImpact(null)
@@ -599,8 +658,9 @@ export function TripSheet({ mode, trip, onClose }: Props) {
           </p>
         ) : (
           <p className="mt-1 text-xs text-muted">
-            Add an email to invite them by mail — they still sign in with the trip's guest code
-            (there are no individual logins).
+            {canShare
+              ? 'Add an email and you can invite them to this trip, choosing what they see.'
+              : 'Add an email now; you can invite them once the trip is saved.'}
           </p>
         )}
         {people.length > 0 && (
@@ -618,15 +678,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
                   {p.name?.[0]?.toUpperCase()}
                 </span>
                 <span className="text-sm font-semibold">{p.name}</span>
-                {p.email && (
-                  <a
-                    href={inviteHref(p.email, name)}
-                    className="text-xs font-bold text-brand"
-                    title={`Email an invite to ${p.email}`}
-                  >
-                    Invite
-                  </a>
-                )}
+                {p.email && canShare && <ShareChip email={p.email} index={i} />}
                 <button
                   type="button"
                   aria-label={`Remove ${p.name}`}
@@ -637,6 +689,37 @@ export function TripSheet({ mode, trip, onClose }: Props) {
                 </button>
               </span>
             ))}
+          </div>
+        )}
+
+        {inviting !== null && people[inviting]?.email && (
+          <div className="mt-3 rounded-2xl border border-line bg-canvas p-3.5">
+            <p className="text-sm font-semibold text-ink">
+              Invite {people[inviting].name}
+              <span className="font-normal text-muted"> · {people[inviting].email}</span>
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              The invitation is waiting for them the next time they sign in — nothing to send.
+            </p>
+            <div className="mt-3">
+              <AccessPicker
+                actorRole={myRole}
+                role={inviteRole}
+                onRole={setInviteRole}
+                shows={inviteShows}
+                onShows={setInviteShows}
+                idPrefix="roster-invite"
+              />
+            </div>
+            {inviteError && <p className="mt-2 text-xs font-semibold text-brand">{inviteError}</p>}
+            <button
+              type="button"
+              className="btn mt-3 w-full bg-ink text-white"
+              disabled={createInvite.isPending}
+              onClick={() => sendInvite(people[inviting].email!)}
+            >
+              {createInvite.isPending ? 'Inviting…' : 'Send invitation'}
+            </button>
           </div>
         )}
 
