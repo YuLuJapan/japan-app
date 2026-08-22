@@ -119,6 +119,30 @@ describe('the roster adapts to your role', () => {
     expect(screen.getByRole('button', { name: 'Discard' })).toBeInTheDocument()
   })
 
+  it('says why an owner has nothing to tick, rather than showing a gap', async () => {
+    mockApi('owner')
+    renderAt('/trips/trip-1/members', membersRoutes)
+
+    // Yuval is an owner: no toggles, and the reason spelled out where they
+    // would have been. Friend is a viewer, so the three toggles are there.
+    expect(await screen.findByText(/Owners can edit this trip/)).toBeInTheDocument()
+    expect(screen.getAllByText('Where we’re staying')).toHaveLength(2)
+
+    // Demoting them offers the toggles straight away, before the save — the
+    // role and what they see are one decision.
+    await userEvent.selectOptions(screen.getByLabelText('Access for Yuval'), 'viewer')
+    expect(screen.getAllByText('Where we’re staying')).toHaveLength(3)
+  })
+
+  it('says the invite settings are not about anyone already here', async () => {
+    mockApi('owner')
+    renderAt('/trips/trip-1/members', membersRoutes)
+
+    expect(
+      await screen.findByText(/does not change anyone already on the trip/)
+    ).toBeInTheDocument()
+  })
+
   it('offers a way back to Essentials, the only screen that leads here', async () => {
     mockApi('viewer')
     renderAt('/trips/trip-1/members', membersRoutes)

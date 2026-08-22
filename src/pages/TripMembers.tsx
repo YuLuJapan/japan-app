@@ -129,18 +129,35 @@ function MemberCard({
         )}
       </div>
 
-      {isOwner && draft.role === 'viewer' && (
+      {isOwner && (
         <div className="mt-3 border-t border-line pt-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">They can see</p>
-          {SHOWS.map((s) => (
-            <Toggle
-              key={s.key}
-              label={s.label}
-              hint={s.hint}
-              checked={draft[s.key]}
-              onChange={(v) => edit({ [s.key]: v })}
-            />
-          ))}
+          {draft.role === 'viewer' ? (
+            <>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                They can see
+              </p>
+              {SHOWS.map((s) => (
+                <Toggle
+                  key={s.key}
+                  label={s.label}
+                  hint={s.hint}
+                  checked={draft[s.key]}
+                  onChange={(v) => edit({ [s.key]: v })}
+                />
+              ))}
+            </>
+          ) : (
+            // Said out loud rather than shown as an empty space. Anyone can
+            // edit this trip is *why* there is nothing to tick here, and
+            // without the sentence the screen just looks like it forgot the
+            // controls — or like the ones in the invite form below, which
+            // belong to a different person entirely, ought to apply here.
+            <p className="py-2 text-xs leading-relaxed text-muted">
+              {ROLE_LABEL[draft.role]}s can edit this trip, so they see all of it — the stays, the
+              flight and the documents. Choose <span className="font-semibold">View only</span>{' '}
+              above to pick what this person sees.
+            </p>
+          )}
         </div>
       )}
 
@@ -255,6 +272,10 @@ export default function TripMembers() {
       {canInvite && (
         <section className="rounded-2xl border border-line bg-white p-4">
           <h2 className="font-display text-lg font-semibold text-ink">Invite someone</h2>
+          <p className="mt-1 text-xs leading-relaxed text-muted">
+            What you pick here applies to the person you are inviting — it does not change anyone
+            already on the trip above.
+          </p>
 
           <div className="mt-3">
             <AccessPicker
