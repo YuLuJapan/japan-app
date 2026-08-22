@@ -24,6 +24,7 @@
 // device before this one won; they are in the history around 3701e19 if a
 // comparison is ever wanted again.
 import { useEffect, useRef, useState } from 'react'
+import { HeroTitle } from './HeroTitle'
 import { ASSET_VERSION, FRAME_COUNT, FRAME_HEIGHT, FRAME_WIDTH } from '../generated/sushi-frames'
 
 const DIR = '/sushi/'
@@ -142,6 +143,7 @@ function preload(urls: string[], onProgress: (ratio: number) => void, alive: () 
 
 export function SushiSequence({
   title,
+  destination,
   meta,
   eyebrow = 'Our trip',
   // How much scroll the sequence consumes once pinned. Shorten this to bring
@@ -149,6 +151,7 @@ export function SushiSequence({
   scrollLength = '+=150%',
 }: {
   title: string
+  destination?: string
   meta?: string
   eyebrow?: string
   scrollLength?: string
@@ -436,10 +439,12 @@ export function SushiSequence({
         <div className="pointer-events-none absolute inset-x-0 top-0 h-2/5 bg-gradient-to-b from-white/75 to-transparent" />
 
         <div className="relative flex h-full flex-col p-5">
-          <p className="section-title text-brand">{eyebrow}</p>
-          <h1 className="mt-1 max-w-[9ch] font-display text-4xl font-extrabold leading-[1.03] tracking-tight drop-shadow-[0_1px_0_rgba(255,255,255,0.6)]">
-            {title}
-          </h1>
+          <p className="section-title">{eyebrow}</p>
+          <HeroTitle
+            title={title}
+            destination={destination}
+            className="mt-1 drop-shadow-[0_1px_0_rgba(255,255,255,0.6)]"
+          />
           {meta && <p className="mt-1.5 text-sm font-medium text-muted">{meta}</p>}
         </div>
 

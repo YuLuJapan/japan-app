@@ -3,6 +3,7 @@ import { useItinerary, useTrip } from '../api/hooks'
 import { CountdownWidget } from '../components/CountdownWidget'
 import { ErrorState } from '../components/ErrorState'
 import { GenericCountdown } from '../components/GenericCountdown'
+import { HeroTitle } from '../components/HeroTitle'
 import { JourneyStepsSlider } from '../components/JourneyStepsSlider'
 import { Loading } from '../components/Loading'
 import { Schedule } from '../components/Schedule'
@@ -43,14 +44,13 @@ export default function Journey() {
       {japan ? (
         <SushiSequence
           title={heroTitle}
+          destination={data.trip.name}
           meta={`${fmt(data.trip.start_date)} – ${fmt(data.trip.end_date)} · ${data.steps.length} stops`}
         />
       ) : (
         <div>
-          <p className="section-title text-brand">Our trip</p>
-          <h1 className="mt-1 font-display text-[34px] font-extrabold leading-[1.05] tracking-tight">
-            {heroTitle}
-          </h1>
+          <p className="section-title">Our trip</p>
+          <HeroTitle title={heroTitle} destination={data.trip.name} max={34} className="mt-1" />
           <p className="mt-1.5 text-sm text-muted">
             {fmt(data.trip.start_date)} – {fmt(data.trip.end_date)} · {data.steps.length} stops
           </p>
