@@ -77,7 +77,7 @@ const MEMBER_COLS = 'trip_id,user_id,role,can_see_stays,can_see_flight,can_see_d
 // trip_invites (migration 0014). token_hash is never selected: the accept flow
 // looks up *by* hash, and nothing else has a reason to read it back.
 const INVITE_COLS =
-  'id,trip_id,email,role,can_see_stays,can_see_flight,can_see_documents,invited_by,expires_at,accepted_at,accepted_by,revoked_at,created_at'
+  'id,trip_id,email,role,can_see_stays,can_see_flight,can_see_documents,invited_by,expires_at,accepted_at,accepted_by,revoked_at,declined_at,created_at'
 
 function isMissingProfilesTable(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false
@@ -286,9 +286,34 @@ export function createSupabaseStore(): DataStore {
         .eq('trip_id', tripId)
         .is('accepted_at', null)
         .is('revoked_at', null)
+        // Declined rows are deliberately *not* filtered here: the service
+        // labels them, so the inviter sees "declined" rather than an invite
+        // that quietly vanished.
         .order('created_at', { ascending: false })
       if (error) throw new Error(error.message)
       return (data as unknown as TripInvite[]) ?? []
+    },
+
+    async listInvitesForEmail(email) {
+      const wanted = email.trim().toLowerCase()
+      if (!wanted) return []
+      const { data, error } = await db
+        .from('trip_invites')
+        .select(INVITE_COLS)
+        .ilike('email', wanted)
+        .order('created_at', { ascending: false })
+      if (error) throw new Error(error.message)
+      return (data as unknown as TripInvite[]) ?? []
+    },
+
+    async getInviteById(inviteId) {
+      const { data, error } = await db
+        .from('trip_invites')
+        .select(INVITE_COLS)
+        .eq('id', inviteId)
+        .maybeSingle()
+      if (error) throw new Error(error.message)
+      return (data as unknown as TripInvite | null) ?? null
     },
 
     async getInviteByTokenHash(tokenHash) {
@@ -339,6 +364,7 @@ export function createSupabaseStore(): DataStore {
         .eq('id', inviteId)
         .is('accepted_at', null)
         .is('revoked_at', null)
+        .is('declined_at', null)
         .select(INVITE_COLS)
         .maybeSingle()
       if (error) throw new Error(error.message)

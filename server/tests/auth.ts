@@ -5,20 +5,33 @@
 // that reads this table — the same seam `setDataStore` provides for the
 // datastore, and one that keeps the token → account mapping in one place.
 import request from 'supertest'
-import { setTokenVerifier } from '../src/lib/identity.js'
+import { setTokenVerifier, type AuthUser } from '../src/lib/identity.js'
 import { OUTSIDER_USER, OWNER_USER, PARTNER_USER, VIEWER_USER } from './fixture.js'
 
+/** A fixture profile as the token would present it: confirmed unless said otherwise. */
+const signedIn = (
+  profile: Omit<AuthUser, 'email_confirmed'>,
+  email_confirmed = true
+): AuthUser => ({
+  ...profile,
+  email_confirmed,
+})
+
 /** Token → account. Anything else is an invalid token, i.e. a 401. */
-export const TOKENS = {
-  'owner.jwt': OWNER_USER,
-  'partner.jwt': PARTNER_USER,
-  'viewer.jwt': VIEWER_USER,
-  'outsider.jwt': OUTSIDER_USER,
+export const TOKENS: Record<string, AuthUser> = {
+  'owner.jwt': signedIn(OWNER_USER),
+  'partner.jwt': signedIn(PARTNER_USER),
+  'viewer.jwt': signedIn(VIEWER_USER),
+  'outsider.jwt': signedIn(OUTSIDER_USER),
+  // Same account as outsider.jwt, signed in before confirming the address.
+  // Anyone can type someone else's email at sign-up, so this token must not
+  // be able to claim an invitation addressed to it.
+  'unconfirmed.jwt': signedIn(OUTSIDER_USER, false),
 }
 
 /** Call in `beforeEach`, alongside `setDataStore`. */
 export function useTestTokens(): void {
-  setTokenVerifier(async (token) => TOKENS[token as keyof typeof TOKENS] ?? null)
+  setTokenVerifier(async (token) => TOKENS[token] ?? null)
 }
 
 /** For the odd call that builds its own request and wants a header object. */
@@ -34,3 +47,5 @@ export const asPartner = bearer('partner.jwt')
 export const asViewer = bearer('viewer.jwt')
 /** A valid account that is a member of nothing — the shape every signup arrives in. */
 export const asOutsider = bearer('outsider.jwt')
+/** The same account, before it confirmed its email address. */
+export const asUnconfirmed = bearer('unconfirmed.jwt')

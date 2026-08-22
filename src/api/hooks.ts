@@ -165,6 +165,20 @@ export const useTripInvites = (tripId: string) =>
     queryFn: () => api.get<{ invites: TripInvite[] }>(`/trips/${tripId}/invites`),
   })
 
+/**
+ * Invitations waiting for the signed-in account — the ones addressed to their
+ * email, which arrive without anyone having to send the link.
+ *
+ * `email_unconfirmed` is not an error: the account simply hasn't proved the
+ * address is theirs yet, and the list is empty until it does.
+ */
+export const useMyInvitations = () =>
+  useQuery({
+    queryKey: ['invitations'],
+    queryFn: () =>
+      api.get<{ invitations: InvitePreview[]; email_unconfirmed?: true }>('/invitations'),
+  })
+
 // The invite link's own preview, read before signing in decides anything.
 export const useInvitePreview = (token: string) =>
   useQuery({

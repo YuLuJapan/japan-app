@@ -83,7 +83,10 @@ export interface TripInvite {
   expires_at: string
   accepted_at: string | null
   accepted_by: string | null
+  /** The inviter withdrew it. */
   revoked_at: string | null
+  /** The invitee said no. Distinct from revoked: the inviter deserves to know which. */
+  declined_at: string | null
   created_at: string
 }
 
@@ -401,14 +404,36 @@ export interface DataStore {
 
   /** Pending invites for a trip, newest first. Spent and revoked ones are excluded. */
   listTripInvites(tripId: string): Promise<TripInvite[]>
+  /**
+   * Every invitation addressed to this email, across every trip — the
+   * invitee's side of the table. Matched case-insensitively, because email
+   * addresses are.
+   *
+   * Unscoped by trip on purpose: an invitation is addressed to a person, and
+   * the caller has proved they hold that address. Filtering to open ones is
+   * the service's job, so it can say "expired" rather than "no such thing".
+   */
+  listInvitesForEmail(email: string): Promise<TripInvite[]>
   /** The only lookup the accept flow does — by hash, never by id. */
   getInviteByTokenHash(tokenHash: string): Promise<TripInvite | null>
   getTripInvite(tripId: string, inviteId: string): Promise<TripInvite | null>
+  /**
+   * One invitation by id, without naming its trip — the invitee does not know
+   * the trip yet, and is authorized by the address on the invitation rather
+   * than by membership. Exactly the same shape of claim as
+   * `getInviteByTokenHash`, which is authorized by holding the token.
+   */
+  getInviteById(inviteId: string): Promise<TripInvite | null>
   createTripInvite(input: TripInviteInput): Promise<TripInvite>
   /** Stamps `accepted_at`/`accepted_by`, or `revoked_at`. Single-use is enforced here. */
   updateTripInvite(
     inviteId: string,
-    patch: { accepted_at?: string; accepted_by?: string; revoked_at?: string }
+    patch: {
+      accepted_at?: string
+      accepted_by?: string
+      revoked_at?: string
+      declined_at?: string
+    }
   ): Promise<TripInvite | null>
   listTripMembers(tripId: string): Promise<TripMember[]>
   getTripMember(tripId: string, userId: string): Promise<TripMember | null>

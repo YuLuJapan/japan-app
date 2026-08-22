@@ -112,7 +112,8 @@ export default function TripMembers() {
       <header>
         <h1 className="font-display text-2xl font-bold text-ink">Who’s on this trip</h1>
         <p className="mt-1 text-sm text-muted">
-          Share it with a link. Anyone who opens it and signs in joins with the access you chose.
+          Add their email and the invitation is waiting when they next sign in — no link to send.
+          Leave it blank and you get a link to share instead.
         </p>
       </header>
 
@@ -224,7 +225,7 @@ export default function TripMembers() {
             type="email"
             inputMode="email"
             className="field mt-3"
-            placeholder="Their email (optional — locks the link to them)"
+            placeholder="Their email (optional)"
             aria-label="Their email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -262,7 +263,7 @@ export default function TripMembers() {
 
       {canInvite && !!invites.data?.invites.length && (
         <section className="flex flex-col gap-2">
-          <h2 className="font-display text-lg font-semibold text-ink">Waiting to be accepted</h2>
+          <h2 className="font-display text-lg font-semibold text-ink">Invitations</h2>
           {invites.data.invites.map((i) => (
             <div
               key={i.id}
@@ -272,15 +273,23 @@ export default function TripMembers() {
                 <p className="truncate text-sm font-semibold text-ink">
                   {i.email ?? 'Anyone with the link'}
                 </p>
-                <p className="text-xs text-muted">{ROLE_LABEL[i.role]}</p>
+                <p className="text-xs text-muted">
+                  {ROLE_LABEL[i.role]}
+                  {/* Declined and revoked are different facts, and the person
+                      who sent it deserves to know which one happened rather
+                      than watching the row disappear. */}
+                  {i.declined_at ? ' · declined' : ''}
+                </p>
               </div>
-              <button
-                type="button"
-                className="text-sm font-semibold text-brand"
-                onClick={() => revokeInvite.mutate(i.id)}
-              >
-                Revoke
-              </button>
+              {!i.declined_at && (
+                <button
+                  type="button"
+                  className="text-sm font-semibold text-brand"
+                  onClick={() => revokeInvite.mutate(i.id)}
+                >
+                  Revoke
+                </button>
+              )}
             </div>
           ))}
         </section>

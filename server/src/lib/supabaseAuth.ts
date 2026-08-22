@@ -24,6 +24,15 @@ function getAuthClient(): SupabaseClient | null {
 export interface AuthUser {
   id: string
   email: string
+  /**
+   * Whether Supabase has confirmed the address — the account clicked a link
+   * sent to it, or an OAuth provider vouched for it.
+   *
+   * Load-bearing exactly once: an invitation addressed to an email is claimed
+   * by matching it, so an unconfirmed address must not be able to claim one.
+   * Anyone can *type* someone else's address at sign-up.
+   */
+  email_confirmed: boolean
   display_name: string | null
   avatar_url: string | null
 }
@@ -63,6 +72,10 @@ export async function resolveAuthUser(token: string): Promise<AuthUser | null> {
     return {
       id: data.user.id,
       email: data.user.email,
+      // Absent on an account created while confirmations were switched off.
+      // Treated as unconfirmed, which is the safe direction: it costs a
+      // confirmation email, it does not hand anyone someone else's trip.
+      email_confirmed: Boolean(data.user.email_confirmed_at),
       ...readMetadata(data.user.user_metadata as Record<string, unknown> | undefined),
     }
   } catch {

@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTrips } from '../api/hooks'
 import type { Trip } from '../api/types'
 import { EmptyState } from '../components/EmptyState'
+import { InvitationInbox } from '../components/InvitationInbox'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
 import { RingMark } from '../components/RingMark'
@@ -129,6 +130,10 @@ export default function TripsList() {
         <p className="mt-2.5 max-w-[280px] text-sm text-muted">
           Add a destination to start a trip. Everything — plans, lists, papers — lives inside it.
         </p>
+
+        {/* Above the trips: an invitation is the one thing here that someone
+            else is waiting on an answer to. */}
+        <InvitationInbox />
 
         <p className="section-title mt-7">Your trips</p>
         <div className="mt-3 flex flex-col gap-3.5">

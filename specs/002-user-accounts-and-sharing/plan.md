@@ -5,8 +5,9 @@ real accounts (Google OAuth + email/password), trips owned by people, and
 per-trip sharing with `owner` / `partner` / `viewer` roles.
 
 Status: **shipped.** Phases 1–6 are merged; the phasing table at the end records
-what each one landed. Phase 7 (invitations that reach the invited account
-without the link, and an optional email) is scoped separately.
+what each one landed. Phase 7 — an invitation that reaches the invited account
+without the link, and an optional email on top — was added afterwards and is in
+the same table.
 
 ---
 
@@ -486,6 +487,8 @@ already uses for `PushSender`. Reuse it rather than inventing a mock layer.
 | 5   | **Title**                   | nullable `name`, `country`, `display_title`                                                                                                                                                      |   low    |   8    |
 | 6a  | **De-globalise**            | `push_subscriptions.user_id` + dispatch by membership, `trips.flight`                                                                                                                            |   med    |   16   |
 | 6b  | **Remove the access codes** | `TRIP_ACCESS_CODE` / `TRIP_GUEST_CODE`, `Principal.legacy`, `LEGACY_ACCESS`, `GUEST_VIEW`, `isGuest`, `guest-view.ts`, `/api/auth/*`, the frontend `Role` plumbing; `shows` on the bundle        |   med    |  ~58   |
+| 7a  | **Invitation inbox**        | `trip_invites.declined_at`, `GET /api/invitations` + accept/decline by id, the card on the trips list, `AuthUser.email_confirmed`                                                                |   low    |   16   |
+| 7b  | **The invitation email**    | optional Brevo send when an invite names an address, behind an injectable sender                                                                                                                 |   low    |   ~8   |
 
 ### What 6b removed beyond the codes themselves
 
@@ -502,6 +505,20 @@ signed-in account read as `owner` globally, so a viewer with `stays: false` was
 still offered a Stays card the server had already emptied. The bundle now
 reports the caller's own `TripView`, which is also the only way a client can
 tell "nothing saved here" from "not shared with you".
+
+### Why phase 7 exists at all
+
+The original design said, plainly, that an invite is a link and no email is
+ever sent — which kept the feature inside the free tier and matched the
+`mailto:` invite `trips.people` already offered. What it missed is that the
+token being the _only_ authorization makes the link load-bearing: lose it in a
+chat thread and the invitation is unreachable, with nothing in the app to say
+it ever existed.
+
+7a fixes that without any mail infrastructure at all, by adding a second way to
+authorize the same invitation — your confirmed sign-in address. The email in
+7b then becomes what it should always have been: a convenience, whose failure
+costs a notification rather than the invitation.
 
 ### Why phase 6 is split
 

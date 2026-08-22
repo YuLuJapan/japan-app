@@ -15,6 +15,7 @@ import { fixture } from './fixture.js'
 const GOOGLE_USER = {
   id: 'user-yuval',
   email: 'yuval@example.com',
+  email_confirmed: true,
   display_name: 'Yuval',
   avatar_url: 'https://example.com/y.png',
 }
