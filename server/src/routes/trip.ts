@@ -12,17 +12,47 @@ import {
   updateTrip,
 } from '../services/trips.js'
 
-export const tripRouter = Router()
-
 /** Guests get the bundle without the flight and without the stay counts. */
 const guestView = (req: Request) => ({
   includeFlight: !isGuest(req),
   includeStays: !isGuest(req),
 })
 
-// Legacy, pre-multi-trip route: the oldest trip's bundle. Kept so the current
-// (single-trip) frontend keeps working unchanged; superseded by
-// GET /api/trips/:tripId once the UI can pick a trip.
+const bundle = asyncHandler(async (req, res) => {
+  res.json(
+    await getTripBundle(await getDataStore(), accessOf(req), req.params.tripId, guestView(req))
+  )
+})
+
+// GET .../date-impact?start_date=&end_date=
+// Dry run for a date change: which stops and activities it would strand.
+const dateImpact = asyncHandler(async (req, res) => {
+  const pick = (v: unknown) => (typeof v === 'string' && v ? v : undefined)
+  res.json(
+    await getDateImpact(await getDataStore(), accessOf(req), req.params.tripId, {
+      start_date: pick(req.query.start_date),
+      end_date: pick(req.query.end_date),
+    })
+  )
+})
+
+const update = asyncHandler(async (req, res) => {
+  res.json(await updateTrip(await getDataStore(), accessOf(req), req.params.tripId, req.body ?? {}))
+})
+
+const remove = asyncHandler(async (req, res) => {
+  await deleteTrip(await getDataStore(), accessOf(req), req.params.tripId)
+  res.status(204).end()
+})
+
+/**
+ * The trip collection, mounted at /api. Not trip-scoped by definition: listing
+ * and creating happen before there is a trip to be a member of.
+ */
+export const tripRouter = Router()
+
+// Legacy, pre-multi-trip route: the caller's oldest trip. Kept so a client that
+// predates trip-scoped URLs keeps working; superseded by GET /api/trips/:tripId.
 tripRouter.get(
   '/trip',
   asyncHandler(async (req, res) => {
@@ -44,43 +74,12 @@ tripRouter.post(
   })
 )
 
-tripRouter.get(
-  '/trips/:tripId',
-  asyncHandler(async (req, res) => {
-    res.json(
-      await getTripBundle(await getDataStore(), accessOf(req), req.params.tripId, guestView(req))
-    )
-  })
-)
-
-// GET /api/trips/:tripId/date-impact?start_date=&end_date=
-// Dry run for a date change: which stops and activities it would strand.
-tripRouter.get(
-  '/trips/:tripId/date-impact',
-  asyncHandler(async (req, res) => {
-    const pick = (v: unknown) => (typeof v === 'string' && v ? v : undefined)
-    res.json(
-      await getDateImpact(await getDataStore(), accessOf(req), req.params.tripId, {
-        start_date: pick(req.query.start_date),
-        end_date: pick(req.query.end_date),
-      })
-    )
-  })
-)
-
-tripRouter.patch(
-  '/trips/:tripId',
-  asyncHandler(async (req, res) => {
-    res.json(
-      await updateTrip(await getDataStore(), accessOf(req), req.params.tripId, req.body ?? {})
-    )
-  })
-)
-
-tripRouter.delete(
-  '/trips/:tripId',
-  asyncHandler(async (req, res) => {
-    await deleteTrip(await getDataStore(), accessOf(req), req.params.tripId)
-    res.status(204).end()
-  })
-)
+/**
+ * The trip itself, mounted under /api/trips/:tripId behind requireTripAccess.
+ * `''` is the bundle — GET /api/trips/:tripId.
+ */
+export const tripDetailRouter = Router({ mergeParams: true })
+tripDetailRouter.get('/', bundle)
+tripDetailRouter.get('/date-impact', dateImpact)
+tripDetailRouter.patch('/', update)
+tripDetailRouter.delete('/', remove)

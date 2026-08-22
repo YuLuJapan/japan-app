@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { DayPlan } from '../components/DayPlan'
 import { RoleContext } from '../lib/session'
@@ -51,8 +51,15 @@ function renderPlan(items = [ITEM]) {
   return render(
     <QueryClientProvider client={queryClient}>
       <RoleContext.Provider value="owner">
-        <MemoryRouter>
-          <DayPlan day="2027-03-02" items={items} tripId="trip-1" />
+        {/* Mounted on a real /trips/:tripId route: the API hooks read the
+            trip from the URL, exactly as they do in the app. */}
+        <MemoryRouter initialEntries={['/trips/trip-1']}>
+          <Routes>
+            <Route
+              path="/trips/:tripId"
+              element={<DayPlan day="2027-03-02" items={items} tripId="trip-1" />}
+            />
+          </Routes>
         </MemoryRouter>
       </RoleContext.Provider>
     </QueryClientProvider>
@@ -94,7 +101,7 @@ describe('DayPlan — moving an activity to another day', () => {
 
     await user.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(mocks.patch).toHaveBeenCalled())
-    expect(mocks.patch.mock.calls[0][0]).toBe('/itinerary/itin-1')
+    expect(mocks.patch.mock.calls[0][0]).toBe('/trips/trip-1/itinerary/itin-1')
     expect(mocks.patch.mock.calls[0][1]).toMatchObject({ title: 'Tram 28', day: '2027-03-05' })
     // The activity has left this day — the list would otherwise just lose a row.
     expect(await screen.findByText(/Moved to .*Mar 5/)).toBeInTheDocument()

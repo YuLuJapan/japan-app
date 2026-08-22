@@ -67,7 +67,7 @@ function mockApi(zoneId: string, name: string) {
   mocks.get.mockImplementation((path: string) => {
     if (path === '/trips/trip-1') return Promise.resolve(TRIP_BUNDLE)
     if (path === '/trips/trip-1/itinerary') return Promise.resolve({ items: ITEMS })
-    if (path === `/zones/${zoneId}`)
+    if (path === `/trips/trip-1/zones/${zoneId}`)
       return Promise.resolve({
         zone: { id: zoneId, name, name_ja: null, summary: null },
         tips: [],
