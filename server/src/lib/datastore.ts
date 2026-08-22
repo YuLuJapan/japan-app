@@ -109,7 +109,9 @@ export interface TripInviteInput {
 
 export interface Trip {
   id: string
-  name: string
+  /** An override, not the title — see lib/trip-title.ts. Null means "build one". */
+  name: string | null
+  country: string | null
   start_date: string
   end_date: string
   description: string | null
@@ -117,7 +119,8 @@ export interface Trip {
 }
 
 export interface TripInput {
-  name: string
+  name?: string | null
+  country?: string | null
   start_date: string
   end_date: string
   description?: string | null

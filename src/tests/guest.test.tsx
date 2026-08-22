@@ -77,6 +77,8 @@ function mockShoppingApi() {
         trip: {
           id: 'trip-1',
           name: 'Japan',
+    country: 'Japan',
+    display_title: 'Japan',
           start_date: '2026-09-19',
           end_date: '2026-10-16',
           description: null,
@@ -193,6 +195,8 @@ describe('guest view — stays and flight', () => {
     trip: {
       id: 'trip-1',
       name: 'Japan',
+    country: 'Japan',
+    display_title: 'Japan',
       start_date: '2026-09-19',
       end_date: '2026-10-16',
       description: null,

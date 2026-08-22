@@ -106,7 +106,8 @@ const SHOPPING_COLS =
 // not-yet-migrated database gets trips back with people defaulted to [],
 // rather than a hard 500.
 const TRIP_BASE_COLS = 'id,name,start_date,end_date,description'
-const TRIP_COLS = `${TRIP_BASE_COLS},people`
+// country arrives in 0015; `people` in 0009. Both degrade the same way.
+const TRIP_COLS = `${TRIP_BASE_COLS},people,country`
 
 function isMissingPeopleColumn(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false
@@ -119,7 +120,9 @@ function isMissingPeopleColumn(error: { code?: string; message?: string } | null
 // name+email support), so an unmigrated production row still renders.
 function withPeopleDefault(row: Record<string, unknown>): Trip {
   const people = Array.isArray(row.people) ? row.people.map(normalizeTraveller) : []
-  return { ...row, people } as unknown as Trip
+  // `country` (0015) defaults the same way `people` (0009) does, so an old
+  // deploy against a not-yet-migrated database still renders a trip.
+  return { ...row, people, country: (row.country as string | null) ?? null } as unknown as Trip
 }
 
 // Tables added in migration 0006 (scheduled reminders + push subscriptions).
@@ -419,12 +422,12 @@ export function createSupabaseStore(): DataStore {
     async createTrip(input: TripInput) {
       const base = {
         id: randomUUID(),
-        name: input.name,
+        name: input.name ?? null,
         start_date: input.start_date,
         end_date: input.end_date,
         description: input.description ?? null,
       }
-      const row = { ...base, people: input.people ?? [] }
+      const row = { ...base, people: input.people ?? [], country: input.country ?? null }
       let { data, error } = await db.from('trips').insert(row).select(TRIP_COLS).single()
       if (error && isMissingPeopleColumn(error))
         ({ data, error } = await db.from('trips').insert(base).select(TRIP_BASE_COLS).single())
@@ -435,6 +438,7 @@ export function createSupabaseStore(): DataStore {
     async updateTrip(tripId, patch) {
       const fields: Record<string, unknown> = {}
       if (patch.name !== undefined) fields.name = patch.name
+      if (patch.country !== undefined) fields.country = patch.country ?? null
       if (patch.start_date !== undefined) fields.start_date = patch.start_date
       if (patch.end_date !== undefined) fields.end_date = patch.end_date
       if (patch.description !== undefined) fields.description = patch.description ?? null
@@ -445,6 +449,7 @@ export function createSupabaseStore(): DataStore {
       if (error && isMissingPeopleColumn(error)) {
         const rest = { ...fields }
         delete rest.people
+        delete rest.country
         if (Object.keys(rest).length === 0) {
           throw new Error(
             'Cannot save travellers: the trips.people column is missing — run supabase/migrations/0009_multi_trip.sql'

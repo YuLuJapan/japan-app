@@ -273,7 +273,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
     async createTrip(input: TripInput) {
       const trip: Trip = {
         id: randomUUID(),
-        name: input.name,
+        name: input.name ?? null,
+        country: input.country ?? null,
         start_date: input.start_date,
         end_date: input.end_date,
         description: input.description ?? null,
