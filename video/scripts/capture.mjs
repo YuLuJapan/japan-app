@@ -17,10 +17,20 @@ const TRIP = 'trip-japan'
 /** A tall phone at 3x, so the stills stay sharp scaled into a 1080² frame. */
 const PHONE = { ...devices['iPhone 13 Pro'], deviceScaleFactor: 3, isMobile: true }
 
-/** Each shot: a route, a thing to wait for, and optional business first. */
+/**
+ * Each shot: a route, a thing to wait for, and optionally what to scroll into
+ * view first. A screenshot is one viewport, so without `scrollTo` a long
+ * screen only ever shows its header — which is how the journey shot ended up
+ * being the hero animation rather than the journey.
+ *
+ * `scrollTo` is a selector rather than a pixel offset on purpose: the page
+ * height moves with the content and with whether the hero is pinned, so a
+ * number that framed the right thing today frames something else tomorrow.
+ */
 const SHOTS = [
   { name: 'trips', url: '/trips', wait: 'text=Where to' },
-  { name: 'journey', url: `/trips/${TRIP}`, wait: 'text=The journey' },
+  // Past the pinned sushi hero, onto the stops themselves.
+  { name: 'journey', url: `/trips/${TRIP}`, wait: 'text=The journey', scrollTo: 'text=The journey' },
   { name: 'zone', url: `/trips/${TRIP}/zones/zone-tokyo`, wait: 'text=Tokyo' },
   { name: 'schedule', url: `/trips/${TRIP}/journey/edit`, wait: 'body' },
   { name: 'shopping', url: `/trips/${TRIP}/shopping`, wait: 'body' },
@@ -66,6 +76,13 @@ async function main() {
       await page.waitForSelector(shot.wait, { timeout: 8000 })
     } catch {
       console.warn(`! ${shot.name}: "${shot.wait}" never appeared — capturing anyway`)
+    }
+    if (shot.scrollTo) {
+      // `start` so the heading sits just under the sticky header, with the
+      // content it introduces filling the rest of the shot.
+      await page.locator(shot.scrollTo).first().scrollIntoViewIfNeeded()
+      await page.evaluate(() => window.scrollBy({ top: -96, behavior: 'instant' }))
+      await settle(page, 600)
     }
     await settle(page)
     // An error card or a skeleton makes a still that looks like the product is

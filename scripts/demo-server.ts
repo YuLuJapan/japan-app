@@ -39,9 +39,44 @@ const PARTNER = {
 }
 
 /**
+ * A booking that does not exist.
+ *
+ * `placeholder-data.json` carries the travellers' real Ethiopian Airlines
+ * reference and ticket numbers, because it mirrors what is in the live
+ * database. That is right for the seed and wrong for a video going on
+ * LinkedIn, so the capture rig swaps it for a fictional one. The seed itself
+ * is left alone.
+ */
+const DEMO_FLIGHT = {
+  airline: 'Pacific Air',
+  booking_ref: 'DEMO42',
+  outbound: {
+    depart_at: '2026-09-18T15:35:00+03:00',
+    depart_tz: 'Asia/Jerusalem',
+    arrive_at: '2026-09-19T19:40:00+09:00',
+    arrive_tz: 'Asia/Tokyo',
+    legs: [
+      { flight_no: 'PA 101', from: 'Tel Aviv (TLV)', to: 'Singapore (SIN)' },
+      { flight_no: 'PA 220', from: 'Singapore (SIN)', to: 'Narita (NRT)' },
+    ],
+  },
+  return_flight: {
+    depart_at: '2026-10-16T20:40:00+09:00',
+    depart_tz: 'Asia/Tokyo',
+    arrive_at: '2026-10-17T14:35:00+03:00',
+    arrive_tz: 'Asia/Jerusalem',
+    legs: [
+      { flight_no: 'PA 221', from: 'Narita (NRT)', to: 'Singapore (SIN)' },
+      { flight_no: 'PA 102', from: 'Singapore (SIN)', to: 'Tel Aviv (TLV)' },
+    ],
+  },
+}
+
+/**
  * The shipped placeholder trip, plus the two accounts it belongs to. The
  * content is the real thing — that JSON is the seed the live database was
- * built from — so the footage shows the actual app, not a mock of it.
+ * built from — so the footage shows the actual app, not a mock of it. Only
+ * the flight is substituted, for the reason above.
  */
 function demoData(): MemoryData {
   const file = path.join(ROOT, 'server/src/data/placeholder-data.json')
@@ -49,6 +84,7 @@ function demoData(): MemoryData {
   const full = { can_see_stays: true, can_see_flight: true, can_see_documents: true }
   return {
     ...data,
+    trips: data.trips.map((t) => ({ ...t, flight: DEMO_FLIGHT })),
     profiles: [DEMO_USER, PARTNER].map(({ email_confirmed: _c, ...p }) => p),
     members: [
       { trip_id: 'trip-japan', user_id: DEMO_USER.id, role: 'owner', ...full },

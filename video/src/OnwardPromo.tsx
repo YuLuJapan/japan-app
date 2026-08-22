@@ -54,13 +54,13 @@ const Caption: React.FC<{ text: string; length: number }> = ({ text, length }) =
       name="Caption"
       style={{
         position: 'absolute',
-        top: 96,
-        left: 88,
-        right: 88,
+        top: 86,
+        left: 84,
+        right: 84,
         fontFamily: DISPLAY,
-        fontSize: 62,
+        fontSize: 57,
         fontWeight: 700,
-        lineHeight: 1.14,
+        lineHeight: 1.15,
         letterSpacing: '-0.02em',
         color: COLORS.ink,
         textAlign: 'center',
@@ -89,7 +89,7 @@ const Pin: React.FC<{ text: string }> = ({ text }) => {
       name="Pin"
       style={{
         position: 'absolute',
-        top: 292,
+        top: 242,
         left: 0,
         right: 0,
         textAlign: 'center',
