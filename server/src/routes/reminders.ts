@@ -39,45 +39,34 @@ const dispatch = asyncHandler(async (req, res) => {
 remindersRouter.get('/reminders/dispatch', dispatch)
 remindersRouter.post('/reminders/dispatch', dispatch)
 
-remindersRouter.get(
-  '/reminders',
-  asyncHandler(async (req, res) => {
-    res.json(await listReminders(await getDataStore(), accessOf(req)))
-  })
-)
+const list = asyncHandler(async (req, res) => {
+  res.json(await listReminders(await getDataStore(), accessOf(req), req.params.tripId))
+})
 
-remindersRouter.post(
-  '/reminders',
-  asyncHandler(async (req, res) => {
-    res.status(201).json(await createReminder(await getDataStore(), accessOf(req), req.body))
-  })
-)
+const create = asyncHandler(async (req, res) => {
+  res
+    .status(201)
+    .json(await createReminder(await getDataStore(), accessOf(req), req.body, req.params.tripId))
+})
 
-remindersRouter.get(
-  '/trips/:tripId/reminders',
-  asyncHandler(async (req, res) => {
-    res.json(await listReminders(await getDataStore(), accessOf(req), req.params.tripId))
-  })
-)
+const update = asyncHandler(async (req, res) => {
+  res.json(await updateReminder(await getDataStore(), req.params.reminderId, req.body))
+})
 
-remindersRouter.post(
-  '/trips/:tripId/reminders',
-  asyncHandler(async (req, res) => {
-    res.status(201).json(await createReminder(await getDataStore(), accessOf(req), req.body, req.params.tripId))
-  })
-)
+const remove = asyncHandler(async (req, res) => {
+  await deleteReminder(await getDataStore(), req.params.reminderId)
+  res.status(204).end()
+})
 
-remindersRouter.patch(
-  '/reminders/:reminderId',
-  asyncHandler(async (req, res) => {
-    res.json(await updateReminder(await getDataStore(), req.params.reminderId, req.body))
-  })
-)
+/** Legacy flat mount at /api. Removed once every client uses the nested form. */
+remindersRouter.get('/reminders', list)
+remindersRouter.post('/reminders', create)
+remindersRouter.patch('/reminders/:reminderId', update)
+remindersRouter.delete('/reminders/:reminderId', remove)
 
-remindersRouter.delete(
-  '/reminders/:reminderId',
-  asyncHandler(async (req, res) => {
-    await deleteReminder(await getDataStore(), req.params.reminderId)
-    res.status(204).end()
-  })
-)
+/** Mounted under /api/trips/:tripId, behind requireTripAccess. */
+export const remindersTripRouter = Router({ mergeParams: true })
+remindersTripRouter.get('/reminders', list)
+remindersTripRouter.post('/reminders', create)
+remindersTripRouter.patch('/reminders/:reminderId', update)
+remindersTripRouter.delete('/reminders/:reminderId', remove)
