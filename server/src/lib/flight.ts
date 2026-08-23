@@ -18,24 +18,25 @@ export interface FlightLeg {
 }
 
 export interface FlightItinerary {
-  /** First departure of this direction. */
-  depart_at: string
+  /** First departure of this direction. Absent until someone fills in times. */
+  depart_at?: string
   /** IANA zone of the first departure airport. */
-  depart_tz: string
+  depart_tz?: string
   /** Final arrival of this direction. */
-  arrive_at: string
+  arrive_at?: string
   /** IANA zone of the final arrival airport. */
-  arrive_tz: string
+  arrive_tz?: string
+  /** At least one. Two or more are a connection. */
   legs: FlightLeg[]
 }
 
 export interface FlightInfo {
-  airline: string
-  booking_ref: string
-  /** TLV → NRT via Addis. Its `depart_at` is the countdown target. */
-  outbound: FlightItinerary
-  /** NRT → TLV via Addis. */
-  return_flight: FlightItinerary
+  airline?: string
+  booking_ref?: string
+  /** TLV → NRT via Addis. Its `depart_at`, when set, is the countdown target. */
+  outbound?: FlightItinerary | null
+  /** NRT → TLV via Addis. Absent on a one-way booking. */
+  return_flight?: FlightItinerary | null
 }
 
 /**
@@ -45,27 +46,33 @@ export interface FlightInfo {
  * hand-edited in the SQL editor, or written before a field existed, must not
  * reach the countdown as a half-object. Anything that doesn't hold up reads as
  * "no flight booked", which the UI already has a card for.
+ *
+ * A leg is the part worth having: a flight number and two airports is a useful
+ * thing to carry through an airport, and the times are what you look up later.
+ * So times are optional, and only a direction with no legs at all is dropped.
+ * The countdown asks for `depart_at` and falls back when it isn't there.
  */
 export function normalizeFlight(value: unknown): FlightInfo | null {
   if (!value || typeof value !== 'object') return null
   const flight = value as Record<string, unknown>
   const outbound = normalizeItinerary(flight.outbound)
   const returnFlight = normalizeItinerary(flight.return_flight)
-  if (!outbound || !returnFlight) return null
-  if (typeof flight.airline !== 'string' || typeof flight.booking_ref !== 'string') return null
+  // One direction is enough — a one-way booking is a real thing, and a return
+  // is often added later. With neither there is nothing to show.
+  if (!outbound && !returnFlight) return null
   return {
-    airline: flight.airline,
-    booking_ref: flight.booking_ref,
-    outbound,
-    return_flight: returnFlight,
+    ...(typeof flight.airline === 'string' && flight.airline ? { airline: flight.airline } : {}),
+    ...(typeof flight.booking_ref === 'string' && flight.booking_ref
+      ? { booking_ref: flight.booking_ref }
+      : {}),
+    ...(outbound ? { outbound } : {}),
+    ...(returnFlight ? { return_flight: returnFlight } : {}),
   }
 }
 
 function normalizeItinerary(value: unknown): FlightItinerary | null {
   if (!value || typeof value !== 'object') return null
   const itinerary = value as Record<string, unknown>
-  const strings = ['depart_at', 'depart_tz', 'arrive_at', 'arrive_tz'] as const
-  if (strings.some((key) => typeof itinerary[key] !== 'string')) return null
   if (!Array.isArray(itinerary.legs)) return null
   const legs = itinerary.legs.filter(
     (leg): leg is FlightLeg =>
@@ -76,11 +83,14 @@ function normalizeItinerary(value: unknown): FlightItinerary | null {
       typeof (leg as FlightLeg).to === 'string'
   )
   if (!legs.length) return null
-  return {
-    depart_at: itinerary.depart_at as string,
-    depart_tz: itinerary.depart_tz as string,
-    arrive_at: itinerary.arrive_at as string,
-    arrive_tz: itinerary.arrive_tz as string,
-    legs,
+  // Times travel as a pair: an instant without its zone renders in whichever
+  // zone the phone happens to be in, which is the bug the zones exist to stop.
+  const at = (key: 'depart' | 'arrive') => {
+    const instant = itinerary[`${key}_at`]
+    const zone = itinerary[`${key}_tz`]
+    return typeof instant === 'string' && instant && typeof zone === 'string' && zone
+      ? { [`${key}_at`]: instant, [`${key}_tz`]: zone }
+      : {}
   }
+  return { ...at('depart'), ...at('arrive'), legs }
 }

@@ -234,6 +234,28 @@ The whole journey skeleton for one trip — powers the Journey (home) view and o
 }
 ```
 
+> **Writing the flight (2026-08-23)**: `flight` is accepted by `POST /api/trips`
+> and `PATCH /api/trips/:tripId`, so a booking is attached from the trip form
+> rather than seeded by a migration. `trips.flight` is still jsonb and its shape
+> is unchanged — **no migration is needed**, because extra `legs` already _were_
+> the way a connection is expressed.
+>
+> Everything except `legs` is optional. A leg needs a `flight_no`; `from`/`to`,
+> the airline, the booking reference and all four time fields may be omitted, so
+> flight numbers can be recorded now and times looked up later. Times are
+> validated and stored **in pairs** — `depart_at` without `depart_tz` is a `400`,
+> because an instant without its zone renders in whichever zone the reader's
+> phone is in, which is what the stored zones exist to prevent. A direction with
+> no legs is read as absent; with neither direction present the whole booking is
+> `null`. One direction alone is valid — a one-way booking, or a return not
+> booked yet.
+>
+> Omitting the key leaves the stored booking untouched; `"flight": null` clears
+> it. That distinction is load-bearing for the client: the trip sheet reads the
+> booking from the bundle, which resolves _after_ the sheet opens, so it omits
+> `flight` entirely until it has one — otherwise saving early would blank a
+> booking nobody edited.
+
 - Current/past/future step status is **computed client-side** from device date (FR-006).
 - `flight` is the trip's own booking, stored as `trips.flight` jsonb (migration 0017) and read back through `normalizeFlight` in `server/src/lib/flight.ts` — a malformed value reads as no flight rather than reaching the client half-formed. It was a module constant until phase 6, which meant every trip anyone created was served the two travellers' booking reference. `outbound.depart_at` is the countdown target; the `*_tz` fields are IANA zones so ticket times render the same on a phone set to Israel or to Japan. **Absent** both for a trip with no booking attached and for a caller whose view withholds it, along with any `place_counts.hotel` — clients must treat `flight` as optional (the UI falls back to a plain countdown on the trip's `start_date`), and cannot tell the two cases apart. There is no endpoint that writes it yet.
 

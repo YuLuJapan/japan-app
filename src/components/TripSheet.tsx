@@ -19,6 +19,8 @@ import {
 import { useCreateInvite, useCreateTrip, useDeleteTrip, useUpdateTrip } from '../api/mutations'
 import type { StrandedResolution, Traveller, Trip, TripDateImpact } from '../api/types'
 import { saveErrorMessage } from '../lib/errors'
+import { FlightFields } from './FlightFields'
+import { emptyFlight, fromDraft, toDraft, type FlightDraft } from '../lib/flight-draft'
 import { AccessPicker, DEFAULT_SHOWS, type InviteRole, type Shows } from './AccessPicker'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -251,6 +253,33 @@ interface Props {
   onClose: () => void
 }
 
+/**
+ * Where one roster entry stands, and the button to change it.
+ *
+ * Deliberately at module scope. Declared inside the sheet it would be a new
+ * component type on every render, so any re-render between a tap's mousedown
+ * and its click — the trip bundle resolving, say — remounts this button and
+ * the click lands on a node React has already thrown away, silently doing
+ * nothing.
+ */
+function ShareChip({
+  state,
+  active,
+  onToggle,
+}: {
+  state: 'member' | 'invited' | 'none'
+  active: boolean
+  onToggle: () => void
+}) {
+  if (state === 'member') return <span className="text-xs font-semibold text-muted">On trip</span>
+  if (state === 'invited') return <span className="text-xs font-semibold text-muted">Invited</span>
+  return (
+    <button type="button" className="text-xs font-bold text-brand" onClick={onToggle}>
+      {active ? 'Cancel' : 'Invite'}
+    </button>
+  )
+}
+
 export function TripSheet({ mode, trip, onClose }: Props) {
   const tripId = trip?.id ?? ''
   const create = useCreateTrip()
@@ -286,6 +315,12 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   const [personName, setPersonName] = useState('')
   const [personEmail, setPersonEmail] = useState('')
   const [confirm, setConfirm] = useState<0 | 1 | 2>(0)
+  const [flightDraft, setFlightDraft] = useState<FlightDraft>(emptyFlight)
+  // The flight rides on the bundle, which loads after the sheet opens. Until it
+  // has, the draft is empty — and sending an empty draft would clear a booking
+  // nobody touched. So `flight` is left out of the payload entirely until the
+  // real one has been read, which the server takes as "leave it alone".
+  const [flightReady, setFlightReady] = useState(false)
   const [reason, setReason] = useState('')
   const [personError, setPersonError] = useState(false)
   // Which traveller's access is being chosen, by roster index. null = none.
@@ -314,27 +349,6 @@ export function TripSheet({ mode, trip, onClose }: Props) {
     if (members.data?.members.some((m) => sameAddress(m.email, email))) return 'member'
     const invite = invites.data?.invites.find((i) => sameAddress(i.email, email))
     return invite && !invite.declined_at ? 'invited' : 'none'
-  }
-
-  function ShareChip({ email, index }: { email: string; index: number }) {
-    const state = shareState(email)
-    if (state === 'member') return <span className="text-xs font-semibold text-muted">On trip</span>
-    if (state === 'invited')
-      return <span className="text-xs font-semibold text-muted">Invited</span>
-    return (
-      <button
-        type="button"
-        className="text-xs font-bold text-brand"
-        onClick={() => {
-          setInviteError(null)
-          setInviteRole('viewer')
-          setInviteShows(DEFAULT_SHOWS)
-          setInviting(inviting === index ? null : index)
-        }}
-      >
-        {inviting === index ? 'Cancel' : 'Invite'}
-      </button>
-    )
   }
 
   async function sendInvite(email: string) {
@@ -368,6 +382,9 @@ export function TripSheet({ mode, trip, onClose }: Props) {
       setLocalCurrency(trip.local_currency)
       setHomeCurrencies(trip.home_currencies)
       setCurrencyPicked(true)
+      // The booking is not on `trip` — it rides on the bundle, which is still
+      // in flight. The effect below fills it in once, when that lands.
+      setFlightReady(false)
     } else {
       setName('')
       setSy('')
@@ -381,6 +398,9 @@ export function TripSheet({ mode, trip, onClose }: Props) {
       setLocalCurrency(DEFAULT_LOCAL_CURRENCY)
       setHomeCurrencies([...DEFAULT_HOME_CURRENCIES])
       setCurrencyPicked(false)
+      // A new trip has no booking to wait for.
+      setFlightDraft(emptyFlight())
+      setFlightReady(mode === 'add')
     }
     setPersonName('')
     setPersonEmail('')
@@ -395,6 +415,21 @@ export function TripSheet({ mode, trip, onClose }: Props) {
     setResolution('move')
     setChecking(false)
   }, [mode, trip])
+
+  // Separate from the reset above because the flight arrives on the bundle,
+  // which resolves after the sheet is already open — and it must sit above the
+  // `if (!mode)` return, or it becomes a conditional hook.
+  const bundleFlight = bundle.data?.flight
+  useEffect(() => {
+    // Once only, per open. `toDraft` returns a fresh object every call, so
+    // hydrating on each `bundle.data` identity change would re-render, refetch
+    // and hydrate again — a loop that quietly wipes anything being typed.
+    if (mode !== 'edit' || flightReady || !bundle.data) return
+    // A writer always gets the full view, so no flight here means the trip has
+    // none — not that it is being withheld from them.
+    setFlightDraft(toDraft(bundleFlight))
+    setFlightReady(true)
+  }, [mode, flightReady, bundle.data, bundleFlight])
 
   if (!mode) return null
 
@@ -448,6 +483,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
       people,
       local_currency: localCurrency,
       home_currencies: homeCurrencies,
+      ...(flightReady ? { flight: fromDraft(flightDraft) } : {}),
     }
     if (mode !== 'edit') {
       create.mutate(input, { onSuccess: onClose })
@@ -613,6 +649,11 @@ export function TripSheet({ mode, trip, onClose }: Props) {
           What the exchange calculator converts: {localCurrency} into{' '}
           {homeCurrencies.join(', ') || '…'}.
         </p>
+
+        <span className="label mt-4 block">Flights</span>
+        <div className="mt-1">
+          <FlightFields draft={flightDraft} onChange={setFlightDraft} />
+        </div>
 
         <span className="label mt-4 block">Starts</span>
         <div className="mt-1 flex gap-2">
@@ -796,7 +837,18 @@ export function TripSheet({ mode, trip, onClose }: Props) {
                   {p.name?.[0]?.toUpperCase()}
                 </span>
                 <span className="text-sm font-semibold">{p.name}</span>
-                {p.email && canShare && <ShareChip email={p.email} index={i} />}
+                {p.email && canShare && (
+                  <ShareChip
+                    state={shareState(p.email)}
+                    active={inviting === i}
+                    onToggle={() => {
+                      setInviteError(null)
+                      setInviteRole('viewer')
+                      setInviteShows(DEFAULT_SHOWS)
+                      setInviting(inviting === i ? null : i)
+                    }}
+                  />
+                )}
                 <button
                   type="button"
                   aria-label={`Remove ${p.name}`}

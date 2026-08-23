@@ -58,6 +58,8 @@ export interface TripInput {
   people?: Traveller[]
   local_currency?: string
   home_currencies?: string[]
+  /** The booking, or null to clear it. Absent means "leave it alone". */
+  flight?: FlightInfo | null
 }
 
 /** What a date change would leave outside the trip (GET /trips/:id/date-impact). */
@@ -128,18 +130,20 @@ export interface FlightLeg {
 }
 
 export interface FlightItinerary {
-  depart_at: string // ISO instant of this direction's first departure
-  depart_tz: string // IANA zone of the departure airport
-  arrive_at: string // ISO instant of this direction's final arrival
-  arrive_tz: string // IANA zone of the arrival airport
+  depart_at?: string // ISO instant of this direction's first departure
+  depart_tz?: string // IANA zone of the departure airport
+  arrive_at?: string // ISO instant of this direction's final arrival
+  arrive_tz?: string // IANA zone of the arrival airport
+  /** At least one. Two or more are a connection. */
   legs: FlightLeg[]
 }
 
+/** Mirrors server/src/lib/flight.ts — everything but the legs is optional. */
 export interface FlightInfo {
-  airline: string
-  booking_ref: string
-  outbound: FlightItinerary
-  return_flight: FlightItinerary
+  airline?: string
+  booking_ref?: string
+  outbound?: FlightItinerary | null
+  return_flight?: FlightItinerary | null
 }
 
 /** What this caller may do on a trip. Drives which buttons the UI offers. */
