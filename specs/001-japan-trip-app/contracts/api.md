@@ -353,6 +353,27 @@ Zone header + zone-level tips + zone-level files + per-category counts (drives c
 
 - 404 `NOT_FOUND` for unknown id.
 
+### PATCH /api/trips/:tripId/zones/:zoneId
+
+The zone's photo, and only that. Zones were read-only until 2026-08-23 — the
+`image_url` migration 0001 seeded onto a city was the only one it could have.
+`name`, `name_ja` and `summary` stay read-only on purpose: journey steps and the
+search index read them, and nothing has asked to change them.
+
+No migration — `zones.image_url` has existed since 0001.
+
+- Body: `{"image_url": "https://…"}`. `null` **or** `""` clears it, and the UI
+  falls back to its gradient. Omitting the key leaves the photo alone.
+- Must start with `http://` or `https://` and be at most 2000 characters → else
+  400 `VALIDATION`. That rules out `javascript:` and `data:` URLs, which would
+  otherwise reach an `<img src>`.
+- 200: `{"zone": {…}}`.
+- 404 `NOT_FOUND` for a zone that is not in this trip — the store scopes the
+  write by `trip_id` in the same statement, so a zone id belonging to another
+  trip is never quietly writable.
+- Access is the usual: the route is mounted on the trip-scoped router, so a
+  viewer gets 403 and a non-member 404 without this route deciding anything.
+
 ### GET /api/zones/:zoneId/places?category=food
 
 Places of one category in a zone, list form (name + summary line, FR-002).

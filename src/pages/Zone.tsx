@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useItinerary, useTrip, useZone } from '../api/hooks'
 import { CATEGORIES, CATEGORY_META } from '../api/types'
@@ -10,6 +11,7 @@ import { Loading } from '../components/Loading'
 import { Schedule } from '../components/Schedule'
 import { TipEditor } from '../components/TipEditor'
 import { ZoneImage } from '../components/ZoneImage'
+import { ZonePhotoEditor } from '../components/ZonePhotoEditor'
 import { enumerateDays, toISODate, zoneDays } from '../lib/schedule'
 import { useCanEdit } from '../lib/session'
 import { useTripId } from '../lib/trip'
@@ -17,6 +19,7 @@ import { useTripId } from '../lib/trip'
 export default function Zone() {
   const { zoneId = '' } = useParams()
   const canEdit = useCanEdit()
+  const [editingPhoto, setEditingPhoto] = useState(false)
   const tripId = useTripId()
   const { data, isPending, isError, refetch } = useZone(zoneId)
   const trip = useTrip(tripId)
@@ -43,7 +46,25 @@ export default function Zone() {
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-5 pb-4 pt-10">
             <h1 className="font-display text-3xl font-bold text-white drop-shadow">{zone.name}</h1>
           </div>
+          {canEdit && !editingPhoto && (
+            <button
+              type="button"
+              aria-label="Change photo"
+              onClick={() => setEditingPhoto(true)}
+              className="absolute right-3 top-3 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-ink shadow-card active:scale-95"
+            >
+              Photo
+            </button>
+          )}
         </div>
+        {editingPhoto && (
+          <ZonePhotoEditor
+            zoneId={zone.id}
+            zoneName={zone.name}
+            imageUrl={zone.image_url}
+            onClose={() => setEditingPhoto(false)}
+          />
+        )}
         {zone.summary && <p className="mt-3 text-sm leading-relaxed text-muted">{zone.summary}</p>}
       </div>
 

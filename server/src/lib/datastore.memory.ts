@@ -420,6 +420,15 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return structuredClone(zone)
     },
 
+    async updateZone(tripId, zoneId, patch) {
+      // Scoped by trip, like getZone: a zone id from another trip must read as
+      // "no such zone" rather than being quietly writable.
+      const zone = db.zones.find((z) => z.id === zoneId && z.trip_id === tripId)
+      if (!zone) return null
+      if (patch.image_url !== undefined) zone.image_url = patch.image_url ?? null
+      return structuredClone(zone)
+    },
+
     async countPlacesByCategory(tripId, zoneId) {
       const counts = emptyCounts()
       if (!zoneIn(tripId, zoneId)) return counts

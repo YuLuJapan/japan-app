@@ -1,4 +1,4 @@
-import type { Category, DataStore } from '../lib/datastore.js'
+import type { Category, DataStore, ZonePatch } from '../lib/datastore.js'
 import { CATEGORIES } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
 import { hideStayCounts, isStay } from '../lib/trip-view.js'
@@ -74,4 +74,48 @@ export async function listZonePlaces(
       lng: p.lng ?? null,
     })),
   }
+}
+
+const isHttpUrl = (u: string) => /^https?:\/\/.+/.test(u)
+const IMAGE_URL_MAX = 2000
+
+/**
+ * Change a zone's photo.
+ *
+ * Zones were read-only until now: the seeded `image_url` from migration 0001
+ * was the only one a zone could ever have. Only the photo is writable — the
+ * name, its Japanese reading and the summary are what journey steps and the
+ * search index read, and none of that is asked for yet.
+ *
+ * No permission check here. Every route under `/api/trips/:tripId` sits behind
+ * `requireTripAccess`, which refuses a write from any role that cannot make one
+ * and answers 404 for a trip that isn't yours — so a service that re-checked
+ * would be duplicating the choke point, not adding to it.
+ */
+export async function updateZone(
+  store: DataStore,
+  tripId: string,
+  zoneId: string,
+  input: Partial<ZonePatch>
+) {
+  const errors: string[] = []
+  const patch: ZonePatch = {}
+  if (input.image_url !== undefined) {
+    const url = input.image_url
+    if (url === null || url === '') {
+      // Clearing it is a real choice: ZoneImage falls back to its gradient,
+      // which beats a photo that turned out to be of the wrong place.
+      patch.image_url = null
+    } else if (typeof url !== 'string' || !isHttpUrl(url)) {
+      errors.push('image_url must start with http(s)://')
+    } else if (url.length > IMAGE_URL_MAX) {
+      errors.push(`image_url must be at most ${IMAGE_URL_MAX} characters`)
+    } else {
+      patch.image_url = url.trim()
+    }
+  }
+  if (errors.length) throw validation(errors)
+  const zone = await store.updateZone(tripId, zoneId, patch)
+  if (!zone) throw notFound('Zone')
+  return { zone }
 }
