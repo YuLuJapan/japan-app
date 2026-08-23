@@ -12,7 +12,7 @@
 // or shown an empty list where the honest answer is "not shared with you".
 import { createContext, useContext, useEffect, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { setAccessCode } from '../api/client'
+import { clearAccessCode, setAccessCode } from '../api/client'
 import type { TripRole, TripShows } from '../api/types'
 import { capture, identify } from './posthog'
 import { getSupabaseClient } from './supabaseClient'
@@ -83,6 +83,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      // A session can end somewhere other than the sign-out button — another
+      // tab, an expired refresh token, a revoked account. Without this the
+      // bearer token in api/client outlives the session that justified it, and
+      // the app keeps rendering as if signed in until a request happens to 401.
+      if (event === 'SIGNED_OUT') {
+        clearAccessCode()
+        return
+      }
       if (session) {
         setAccessCode(session.access_token)
         // 'SIGNED_IN' is the one event that means *this* sign-in just happened:

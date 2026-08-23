@@ -16,12 +16,22 @@ export function SignOutButton() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const signOut = () => {
+  const signOut = async () => {
     capture('user_signed_out')
     reset()
     clearAccessCode()
     queryClient.clear()
-    getSupabaseClient()?.auth.signOut()
+    // Await, and only then navigate. supabase.auth.signOut() clears its own
+    // stored session asynchronously; navigating first lands on the gate while
+    // that session is still in localStorage, and the gate's restore effect
+    // reads it, calls completeSignIn() and sends you straight back to /trips —
+    // signed "in" with a token whose refresh has just been revoked. The app
+    // then looks signed in until the next request 401s.
+    await getSupabaseClient()
+      ?.auth.signOut()
+      // A failed revoke must not strand someone on a screen they asked to
+      // leave: the local session is already gone above either way.
+      .catch(() => undefined)
     navigate('/gate', { replace: true })
   }
 
