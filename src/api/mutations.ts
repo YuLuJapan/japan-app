@@ -58,7 +58,10 @@ export function useUpdatePlace(placeId: string) {
   return useMutation({
     mutationFn: (patch: Partial<PlaceInput>) =>
       api.patch<{ place: Place }>(path(`/places/${placeId}`), patch),
-    onSuccess: (data) => invalidate(data.place.zone_id, placeId),
+    onSuccess: (data) => {
+      posthog.capture('place_updated')
+      invalidate(data.place.zone_id, placeId)
+    },
   })
 }
 
@@ -69,6 +72,7 @@ export function useDeletePlace(zoneId: string | undefined) {
   return useMutation({
     mutationFn: (placeId: string) => api.delete<void>(path(`/places/${placeId}`)),
     onSuccess: (_data, placeId) => {
+      posthog.capture('place_deleted')
       qc.removeQueries({ queryKey: ['place', placeId] })
       invalidate(zoneId)
       qc.invalidateQueries({ queryKey: ['trip-files'] }) // deleted place's files re-parent to trip
@@ -99,7 +103,10 @@ export function useUpdateShoppingItem() {
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<ShoppingItemInput> }) =>
       api.patch<{ item: ShoppingItem }>(path(`/shopping/${id}`), patch),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      posthog.capture('shopping_item_updated')
+      invalidate()
+    },
   })
 }
 
@@ -108,7 +115,10 @@ export function useDeleteShoppingItem() {
   const invalidate = useShoppingInvalidation()
   return useMutation({
     mutationFn: (id: string) => api.delete<void>(path(`/shopping/${id}`)),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      posthog.capture('shopping_item_deleted')
+      invalidate()
+    },
   })
 }
 
@@ -162,7 +172,10 @@ export function useUpdateItineraryItem() {
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<ItineraryItemInput> }) =>
       api.patch<{ item: ItineraryItem }>(path(`/itinerary/${id}`), patch),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      posthog.capture('itinerary_item_updated')
+      invalidate()
+    },
   })
 }
 
@@ -171,7 +184,10 @@ export function useDeleteItineraryItem() {
   const invalidate = useItineraryInvalidation()
   return useMutation({
     mutationFn: (id: string) => api.delete<void>(path(`/itinerary/${id}`)),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      posthog.capture('itinerary_item_deleted')
+      invalidate()
+    },
   })
 }
 
