@@ -161,9 +161,14 @@ configuration at all; set two env vars to switch it on.
 2. Locally, add to `.env.local`:
 
    ```
-   VITE_POSTHOG_KEY=phc_...
+   VITE_POSTHOG_PROJECT_TOKEN=phc_...
    VITE_POSTHOG_HOST=https://us.i.posthog.com   # or https://eu.i.posthog.com
    ```
+
+   `VITE_POSTHOG_KEY` is accepted as an alias — PostHog's docs and its setup
+   wizard disagree on the name, and picking the wrong one fails silently: the
+   app runs normally and simply never sends an event. In dev the console says
+   so on boot; in production, check that PostHog shows a recent event.
 
 3. In production, set the same two as Vercel environment variables. They are
    `VITE_`-prefixed, so they are baked into the client bundle at build time —
