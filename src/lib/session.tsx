@@ -14,7 +14,7 @@ import { createContext, useContext, useEffect, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { setAccessCode } from '../api/client'
 import type { TripRole, TripShows } from '../api/types'
-import { identify } from './posthog'
+import { capture, identify } from './posthog'
 import { getSupabaseClient } from './supabaseClient'
 
 /**
@@ -85,7 +85,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
         setAccessCode(session.access_token)
-        if (event === 'SIGNED_IN') identifySessionUser(session)
+        // 'SIGNED_IN' is the one event that means *this* sign-in just happened:
+        // a restored session arrives as 'INITIAL_SESSION' and a rotated token as
+        // 'TOKEN_REFRESHED'. That distinction is why the sign-in event belongs
+        // here and not on the gate — Google and the magic link both leave the
+        // page and come back, so the gate's own submit handler never sees them,
+        // and the effect that finishes those redirects cannot tell a fresh
+        // sign-in from someone merely re-opening the app with a live session.
+        if (event === 'SIGNED_IN') {
+          identifySessionUser(session)
+          // 'google' | 'email' — Supabase records which credential was used.
+          capture('user_signed_in', { method: session.user.app_metadata.provider ?? 'unknown' })
+        }
       }
     })
     return () => {

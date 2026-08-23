@@ -99,10 +99,12 @@ export default function AccessGate() {
         setScreen('sent')
         return
       }
+      // Only the *account creation* is reported here — this is the one place
+      // that knows it was a sign-up rather than a sign-in. The session that
+      // follows is reported by SessionProvider, which sees every path (Google
+      // and the magic link never come back through this handler).
+      if (mode === 'signup') capture('user_signed_up', { method: 'password' })
       await completeSignIn(data.session.access_token, navigate)
-      capture('user_signed_in', {
-        method: mode === 'signup' ? 'password_signup' : 'password',
-      })
     } catch (err) {
       clearAccessCode()
       setError(
