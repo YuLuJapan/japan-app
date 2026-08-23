@@ -11,8 +11,10 @@
 // they may not see; this exists so nobody is offered a button that would fail,
 // or shown an empty list where the honest answer is "not shared with you".
 import { createContext, useContext, useEffect, type ReactNode } from 'react'
+import type { Session } from '@supabase/supabase-js'
 import { setAccessCode } from '../api/client'
 import type { TripRole, TripShows } from '../api/types'
+import posthog from './posthog'
 import { getSupabaseClient } from './supabaseClient'
 
 /**
@@ -61,12 +63,35 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const supabase = getSupabaseClient()
     if (!supabase) return
+
+    let cancelled = false
+    const identifySessionUser = (session: Session) => {
+      const personProperties: Record<string, string> = {}
+      if (session.user.email) personProperties.email = session.user.email
+      const fullName = session.user.user_metadata.full_name
+      if (typeof fullName === 'string' && fullName) personProperties.name = fullName
+      posthog.identify(session.user.id, personProperties)
+    }
+
+    // A refresh can begin with an already-authenticated Supabase session. The
+    // persisted PostHog identity may be absent (a new browser) so establish it
+    // from Supabase's immutable user id before protected screens report data.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!cancelled && session) identifySessionUser(session)
+    })
+
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) setAccessCode(session.access_token)
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        setAccessCode(session.access_token)
+        if (event === 'SIGNED_IN') identifySessionUser(session)
+      }
     })
-    return () => subscription.unsubscribe()
+    return () => {
+      cancelled = true
+      subscription.unsubscribe()
+    }
   }, [])
 
   return <>{children}</>

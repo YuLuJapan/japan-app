@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { clearAccessCode } from '../api/client'
+import posthog from '../lib/posthog'
 import { getSupabaseClient } from '../lib/supabaseClient'
 import { ConfirmDialog } from './ConfirmDialog'
 
@@ -16,6 +17,7 @@ export function SignOutButton() {
   const queryClient = useQueryClient()
 
   const signOut = () => {
+    posthog.reset()
     clearAccessCode()
     queryClient.clear()
     getSupabaseClient()?.auth.signOut()
