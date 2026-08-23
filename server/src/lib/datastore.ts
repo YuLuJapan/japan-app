@@ -211,6 +211,11 @@ export interface ZoneInput {
   lng?: number | null
 }
 
+/** What may be changed on an existing zone. Absent means "leave it alone". */
+export interface ZonePatch {
+  image_url?: string | null
+}
+
 export interface PlaceLink {
   label: string
   url: string
@@ -494,6 +499,8 @@ export interface DataStore {
   getZone(tripId: string, zoneId: string): Promise<Zone | null>
   /** Create a zone on the fly for a destination that doesn't match an existing one. */
   createZone(input: ZoneInput): Promise<Zone>
+  /** Patches one zone, scoped to its trip. Null for a zone that isn't in it. */
+  updateZone(tripId: string, zoneId: string, patch: ZonePatch): Promise<Zone | null>
   countPlacesByCategory(tripId: string, zoneId: string): Promise<Record<Category, number>>
 
   listPlaces(tripId: string, zoneId: string, category: Category): Promise<Place[]>

@@ -632,6 +632,23 @@ export function createSupabaseStore(): DataStore {
       return data as Zone
     },
 
+    async updateZone(tripId, zoneId, patch) {
+      const fields: Record<string, unknown> = {}
+      if (patch.image_url !== undefined) fields.image_url = patch.image_url ?? null
+      // The trip_id is in the WHERE clause, not checked first: a zone belonging
+      // to another trip matches no row and comes back null, with no second
+      // round-trip and no window between the check and the write.
+      const { data, error } = await db
+        .from('zones')
+        .update(fields)
+        .eq('id', zoneId)
+        .eq('trip_id', tripId)
+        .select(ZONE_COLS)
+        .maybeSingle()
+      if (error) throw new Error(error.message)
+      return (data as unknown as Zone | null) ?? null
+    },
+
     async countPlacesByCategory(tripId, zoneId) {
       const counts = Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<Category, number>
       if (!(await zoneIdsFor(db, tripId)).includes(zoneId)) return counts

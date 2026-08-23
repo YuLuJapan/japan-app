@@ -25,6 +25,7 @@ import type {
   TripInput,
   TripInvite,
   TripMember,
+  ZoneDetail,
 } from './types'
 import type { SubscriptionPayload } from '../lib/push'
 
@@ -83,6 +84,25 @@ export function useDeletePlace(zoneId: string | undefined) {
 function useShoppingInvalidation() {
   const qc = useQueryClient()
   return () => qc.invalidateQueries({ queryKey: ['shopping'] })
+}
+
+/**
+ * Change a zone's photo. Zones were read-only until now, so this is the only
+ * zone mutation there is — see server/src/services/zones.ts.
+ */
+export function useUpdateZone(zoneId: string) {
+  const path = useTripPath()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (patch: { image_url: string | null }) =>
+      api.patch<{ zone: ZoneDetail['zone'] }>(path(`/zones/${zoneId}`), patch),
+    onSuccess: () => {
+      capture('zone_image_updated')
+      qc.invalidateQueries({ queryKey: ['zone', zoneId] })
+      // The photo is on the journey cards too, so the bundle is now stale.
+      qc.invalidateQueries({ queryKey: ['trip'] })
+    },
+  })
 }
 
 export function useCreateShoppingItem(tripId: string) {
