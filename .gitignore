@@ -16,3 +16,4 @@ Thumbs.db
 .idea/
 __pycache__/
 *.py[cod]
+.claude/worktrees/

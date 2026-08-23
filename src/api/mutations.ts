@@ -2,7 +2,7 @@
 // the other traveler's phone via refetch-on-focus (FR-018).
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
-import posthog from '../lib/posthog'
+import { capture } from '../lib/posthog'
 import { useTripPath } from './tripPath'
 import type {
   FileMeta,
@@ -46,7 +46,7 @@ export function useCreatePlace() {
   return useMutation({
     mutationFn: (input: PlaceInput) => api.post<{ place: Place }>(path('/places'), input),
     onSuccess: (data) => {
-      posthog.capture('place_created')
+      capture('place_created')
       invalidate(data.place.zone_id, data.place.id)
     },
   })
@@ -59,7 +59,7 @@ export function useUpdatePlace(placeId: string) {
     mutationFn: (patch: Partial<PlaceInput>) =>
       api.patch<{ place: Place }>(path(`/places/${placeId}`), patch),
     onSuccess: (data) => {
-      posthog.capture('place_updated')
+      capture('place_updated')
       invalidate(data.place.zone_id, placeId)
     },
   })
@@ -72,7 +72,7 @@ export function useDeletePlace(zoneId: string | undefined) {
   return useMutation({
     mutationFn: (placeId: string) => api.delete<void>(path(`/places/${placeId}`)),
     onSuccess: (_data, placeId) => {
-      posthog.capture('place_deleted')
+      capture('place_deleted')
       qc.removeQueries({ queryKey: ['place', placeId] })
       invalidate(zoneId)
       qc.invalidateQueries({ queryKey: ['trip-files'] }) // deleted place's files re-parent to trip
@@ -91,7 +91,7 @@ export function useCreateShoppingItem(tripId: string) {
     mutationFn: (input: ShoppingItemInput) =>
       api.post<{ item: ShoppingItem }>(`/trips/${tripId}/shopping`, input),
     onSuccess: () => {
-      posthog.capture('shopping_item_created')
+      capture('shopping_item_created')
       invalidate()
     },
   })
@@ -104,7 +104,7 @@ export function useUpdateShoppingItem() {
     mutationFn: ({ id, patch }: { id: string; patch: Partial<ShoppingItemInput> }) =>
       api.patch<{ item: ShoppingItem }>(path(`/shopping/${id}`), patch),
     onSuccess: () => {
-      posthog.capture('shopping_item_updated')
+      capture('shopping_item_updated')
       invalidate()
     },
   })
@@ -116,7 +116,7 @@ export function useDeleteShoppingItem() {
   return useMutation({
     mutationFn: (id: string) => api.delete<void>(path(`/shopping/${id}`)),
     onSuccess: () => {
-      posthog.capture('shopping_item_deleted')
+      capture('shopping_item_deleted')
       invalidate()
     },
   })
@@ -134,7 +134,7 @@ export function useUploadFile(tripId: string) {
     mutationFn: (input: FileUploadInput) =>
       api.post<{ file: FileMeta }>(`/trips/${tripId}/files`, input),
     onSuccess: (_data, input) => {
-      posthog.capture('file_uploaded', { parent_type: input.parent.kind })
+      capture('file_uploaded', { parent_type: input.parent.kind })
       invalidateForFileParent(qc, input.parent)
     },
   })
@@ -160,7 +160,7 @@ export function useCreateItineraryItem(tripId: string) {
     mutationFn: (input: ItineraryItemInput) =>
       api.post<{ item: ItineraryItem }>(`/trips/${tripId}/itinerary`, input),
     onSuccess: () => {
-      posthog.capture('itinerary_item_created')
+      capture('itinerary_item_created')
       invalidate()
     },
   })
@@ -173,7 +173,7 @@ export function useUpdateItineraryItem() {
     mutationFn: ({ id, patch }: { id: string; patch: Partial<ItineraryItemInput> }) =>
       api.patch<{ item: ItineraryItem }>(path(`/itinerary/${id}`), patch),
     onSuccess: () => {
-      posthog.capture('itinerary_item_updated')
+      capture('itinerary_item_updated')
       invalidate()
     },
   })
@@ -185,7 +185,7 @@ export function useDeleteItineraryItem() {
   return useMutation({
     mutationFn: (id: string) => api.delete<void>(path(`/itinerary/${id}`)),
     onSuccess: () => {
-      posthog.capture('itinerary_item_deleted')
+      capture('itinerary_item_deleted')
       invalidate()
     },
   })
@@ -202,7 +202,7 @@ export function useCreateStep(tripId: string) {
     mutationFn: (input: JourneyStepInput) =>
       api.post<{ step: JourneyStep }>(`/trips/${tripId}/steps`, input),
     onSuccess: () => {
-      posthog.capture('journey_step_created')
+      capture('journey_step_created')
       invalidate()
     },
   })
@@ -279,7 +279,7 @@ export function useCreateReminder(tripId: string) {
     mutationFn: (input: ReminderInput) =>
       api.post<{ reminder: Reminder }>(`/trips/${tripId}/reminders`, input),
     onSuccess: () => {
-      posthog.capture('reminder_created')
+      capture('reminder_created')
       invalidate()
     },
   })
@@ -356,7 +356,7 @@ export function useCreateTrip() {
   return useMutation({
     mutationFn: (input: TripInput) => api.post<{ trip: Trip }>('/trips', input),
     onSuccess: () => {
-      posthog.capture('trip_created')
+      capture('trip_created')
       invalidate()
     },
   })
@@ -379,7 +379,7 @@ export function useUpdateTrip(tripId: string) {
         patch
       ),
     onSuccess: () => {
-      posthog.capture('trip_updated')
+      capture('trip_updated')
       invalidate()
       qc.invalidateQueries({ queryKey: ['trip', tripId] })
       // A move/delete rewrote the day plan under the trip.
@@ -393,7 +393,7 @@ export function useDeleteTrip() {
   return useMutation({
     mutationFn: (tripId: string) => api.delete<void>(`/trips/${tripId}`),
     onSuccess: () => {
-      posthog.capture('trip_deleted')
+      capture('trip_deleted')
       invalidate()
     },
   })
@@ -413,7 +413,7 @@ export function useCreateInvite(tripId: string) {
       can_see_shopping: boolean
     }) => api.post<{ invite: TripInvite; token: string }>(`/trips/${tripId}/invites`, input),
     onSuccess: () => {
-      posthog.capture('trip_member_invited')
+      capture('trip_member_invited')
       qc.invalidateQueries({ queryKey: ['invites', tripId] })
     },
   })
@@ -424,7 +424,7 @@ export function useRevokeInvite(tripId: string) {
   return useMutation({
     mutationFn: (inviteId: string) => api.delete<void>(`/trips/${tripId}/invites/${inviteId}`),
     onSuccess: () => {
-      posthog.capture('trip_invitation_revoked')
+      capture('trip_invitation_revoked')
       qc.invalidateQueries({ queryKey: ['invites', tripId] })
     },
   })
@@ -444,7 +444,7 @@ export function useRemoveMember(tripId: string) {
   return useMutation({
     mutationFn: (userId: string) => api.delete<void>(`/trips/${tripId}/members/${userId}`),
     onSuccess: () => {
-      posthog.capture('trip_member_removed')
+      capture('trip_member_removed')
       qc.invalidateQueries({ queryKey: ['members', tripId] })
       // Leaving a trip removes it from your list, so that has to refetch too.
       qc.invalidateQueries({ queryKey: ['trips'] })
@@ -459,7 +459,7 @@ function useInvitationAction(action: 'accept' | 'decline') {
     mutationFn: (inviteId: string) =>
       api.post<{ trip_id?: string }>(`/invitations/${inviteId}/${action}`, {}),
     onSuccess: () => {
-      posthog.capture(action === 'accept' ? 'invitation_accepted' : 'invitation_declined')
+      capture(action === 'accept' ? 'invitation_accepted' : 'invitation_declined')
       qc.invalidateQueries({ queryKey: ['invitations'] })
       qc.invalidateQueries({ queryKey: ['trips'] })
     },
