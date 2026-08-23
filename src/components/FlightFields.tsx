@@ -10,10 +10,15 @@
 // be able to save them and come back for the times later, so nothing here can
 // block Save; the fields the traveller left alone are simply absent from what
 // is sent (src/lib/flight-draft.ts).
-import { timeZoneOptions } from '../lib/flight-time'
+import { commonTimeZones, timeZoneOptions, zoneLabel } from '../lib/flight-time'
 import { emptyLeg, type DirectionDraft, type FlightDraft, type LegDraft } from '../lib/flight-draft'
 
 const MAX_LEGS = 8
+
+interface Zones {
+  common: ReturnType<typeof commonTimeZones>
+  all: string[]
+}
 const field =
   'w-full rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink placeholder:text-muted/70'
 
@@ -30,7 +35,7 @@ function Times({
   time: string
   tz: string
   onChange: (patch: { date?: string; time?: string; tz?: string }) => void
-  zones: string[]
+  zones: Zones
 }) {
   return (
     <div>
@@ -57,11 +62,23 @@ function Times({
         value={tz}
         onChange={(e) => onChange({ tz: e.target.value })}
       >
-        {zones.map((zone) => (
-          <option key={zone} value={zone}>
-            {zone.replace(/_/g, ' ')}
-          </option>
-        ))}
+        {/* A zone already stored on the trip must stay selectable even if it is
+            on neither list, or opening the form would silently move the flight. */}
+        {!zones.all.includes(tz) && tz && <option value={tz}>{zoneLabel(tz)}</option>}
+        <optgroup label="This trip">
+          {zones.common.map((o) => (
+            <option key={o.zone} value={o.zone}>
+              {o.label}
+            </option>
+          ))}
+        </optgroup>
+        <optgroup label="All time zones">
+          {zones.all.map((zone) => (
+            <option key={zone} value={zone}>
+              {zoneLabel(zone)}
+            </option>
+          ))}
+        </optgroup>
       </select>
     </div>
   )
@@ -76,7 +93,7 @@ function Direction({
   label: string
   draft: DirectionDraft
   onChange: (next: DirectionDraft) => void
-  zones: string[]
+  zones: Zones
 }) {
   const setLeg = (i: number, patch: Partial<LegDraft>) =>
     onChange({ ...draft, legs: draft.legs.map((l, j) => (i === j ? { ...l, ...patch } : l)) })
@@ -178,7 +195,7 @@ export function FlightFields({
   draft: FlightDraft
   onChange: (next: FlightDraft) => void
 }) {
-  const zones = timeZoneOptions()
+  const zones: Zones = { common: commonTimeZones(), all: timeZoneOptions() }
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted">

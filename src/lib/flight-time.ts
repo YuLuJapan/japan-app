@@ -87,11 +87,63 @@ export function deviceTimeZone(): string {
   }
 }
 
+export interface ZoneOption {
+  zone: string
+  label: string
+}
+
 /**
- * Every zone this browser knows, for the picker.
+ * The zones this trip actually routes through, offered before the other four
+ * hundred. Labelled by city because that is what is printed on a ticket — and
+ * because a zone name is not always the city you are standing in:
+ *
+ * There is no `Asia/Abu_Dhabi`. The UAE keeps one zone for the whole country,
+ * so Abu Dhabi *is* `Asia/Dubai` (UTC+4) — naming it here is the only way
+ * someone connecting through AUH finds the right entry instead of assuming it
+ * is missing. `Intl` rejects the invented spelling outright, so the API would
+ * refuse it too.
+ */
+export const COMMON_ZONES: ZoneOption[] = [
+  { zone: 'Asia/Jerusalem', label: 'Tel Aviv · Jerusalem' },
+  { zone: 'Asia/Tokyo', label: 'Tokyo · Osaka · Kyoto' },
+  { zone: 'Asia/Bangkok', label: 'Bangkok · Phuket (Thailand)' },
+  { zone: 'Asia/Dubai', label: 'Dubai · Abu Dhabi' },
+  { zone: 'Africa/Addis_Ababa', label: 'Addis Ababa' },
+  { zone: 'Europe/London', label: 'London' },
+  { zone: 'UTC', label: 'UTC' },
+]
+
+/** A zone id as a human would read it: "Asia/Bangkok" → "Asia / Bangkok". */
+export const zoneLabel = (zone: string) => zone.replace(/_/g, ' ').replace('/', ' / ')
+
+/**
+ * The shortlist, with this device's zone first when it isn't already on it.
+ *
+ * Only zones this runtime actually knows are offered — an option the API would
+ * reject with a 400 is worse than one that is missing.
+ */
+export function commonTimeZones(): ZoneOption[] {
+  const device = deviceTimeZone()
+  const known = COMMON_ZONES.filter((o) => isKnownZone(o.zone))
+  return known.some((o) => o.zone === device)
+    ? known
+    : [{ zone: device, label: `${zoneLabel(device)} (this device)` }, ...known]
+}
+
+function isKnownZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: zone })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Every zone this browser knows, for the picker's second group.
  *
  * `supportedValuesOf` is the whole IANA list and needs no curating; where it is
- * missing, a hand-written shortlist keeps the field usable rather than empty.
+ * missing, the shortlist above keeps the field usable rather than empty.
  */
 export function timeZoneOptions(): string[] {
   const withDevice = (list: string[]) =>
@@ -104,14 +156,5 @@ export function timeZoneOptions(): string[] {
   } catch {
     /* fall through to the shortlist */
   }
-  return withDevice([
-    'UTC',
-    'Asia/Jerusalem',
-    'Asia/Tokyo',
-    'Africa/Addis_Ababa',
-    'Europe/London',
-    'Europe/Paris',
-    'America/New_York',
-    'America/Los_Angeles',
-  ])
+  return withDevice(COMMON_ZONES.map((o) => o.zone))
 }

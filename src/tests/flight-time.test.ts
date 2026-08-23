@@ -2,7 +2,14 @@
 // what gets stored is an absolute instant plus the zone that time was written
 // in, and getting the offset wrong silently moves a flight by an hour.
 import { describe, expect, it } from 'vitest'
-import { deviceTimeZone, instantToZoned, timeZoneOptions, zonedToInstant } from '../lib/flight-time'
+import {
+  COMMON_ZONES,
+  commonTimeZones,
+  deviceTimeZone,
+  instantToZoned,
+  timeZoneOptions,
+  zonedToInstant,
+} from '../lib/flight-time'
 
 describe('zonedToInstant', () => {
   it('reads a local time as the zone it was written in', () => {
@@ -66,5 +73,34 @@ describe('the zone picker', () => {
     expect(options).toContain(deviceTimeZone())
     expect(options).toContain('Asia/Tokyo')
     expect(new Set(options).size).toBe(options.length)
+  })
+
+  it('shortlists the zones this trip routes through, and this device’s', () => {
+    const common = commonTimeZones().map((o) => o.zone)
+    expect(common).toEqual(expect.arrayContaining(['Asia/Tokyo', 'Asia/Bangkok', 'Asia/Dubai']))
+    expect(common).toContain(deviceTimeZone())
+  })
+
+  it('offers nothing the API would refuse', () => {
+    // A shortlist entry that Intl does not know would 400 on save, which is
+    // worse than the zone simply not being offered.
+    for (const { zone } of commonTimeZones()) {
+      expect(zonedToInstant('2026-09-18', '12:00', zone)).not.toBeNull()
+    }
+  })
+
+  it('finds Abu Dhabi under Asia/Dubai, because Asia/Abu_Dhabi is not a zone', () => {
+    // The UAE keeps one zone for the whole country. The invented spelling is
+    // rejected by Intl, so labelling is the only way someone connecting
+    // through AUH lands on the right entry.
+    expect(zonedToInstant('2026-09-18', '12:00', 'Asia/Abu_Dhabi')).toBeNull()
+    const uae = COMMON_ZONES.find((o) => o.zone === 'Asia/Dubai')
+    expect(uae?.label).toMatch(/abu dhabi/i)
+  })
+
+  it('reads Bangkok and Dubai at their real offsets', () => {
+    // Thailand UTC+7, UAE UTC+4, neither with DST.
+    expect(zonedToInstant('2026-09-18', '19:00', 'Asia/Bangkok')).toBe('2026-09-18T12:00:00.000Z')
+    expect(zonedToInstant('2026-09-18', '16:00', 'Asia/Dubai')).toBe('2026-09-18T12:00:00.000Z')
   })
 })
