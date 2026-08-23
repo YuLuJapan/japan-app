@@ -73,6 +73,7 @@ function Direction({
   navLabel,
   onNav,
   active,
+  solo = false,
 }: {
   label: string
   itinerary: FlightItinerary
@@ -80,6 +81,8 @@ function Direction({
   navLabel: string
   onNav: () => void
   active: boolean
+  /** One-way booking: there is no other direction to offer. */
+  solo?: boolean
 }) {
   const nav = (
     <button
@@ -97,13 +100,15 @@ function Direction({
     <div>
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-1">
-          {navDir === 'left' && nav}
+          {!solo && navDir === 'left' && nav}
           <span className="text-xs font-bold uppercase tracking-wide text-muted">{label}</span>
-          {navDir === 'right' && nav}
+          {!solo && navDir === 'right' && nav}
         </span>
-        <span className="font-semibold text-ink">
-          {fmtAt(itinerary.depart_at, itinerary.depart_tz)}
-        </span>
+        {itinerary.depart_at && itinerary.depart_tz && (
+          <span className="font-semibold text-ink">
+            {fmtAt(itinerary.depart_at, itinerary.depart_tz)}
+          </span>
+        )}
       </div>
       <div className="mt-1">
         {itinerary.legs.map((leg) => (
@@ -117,7 +122,11 @@ function Direction({
           </div>
         ))}
       </div>
-      <p className="text-xs text-muted">Lands {fmtAt(itinerary.arrive_at, itinerary.arrive_tz)}</p>
+      {itinerary.arrive_at && itinerary.arrive_tz && (
+        <p className="text-xs text-muted">
+          Lands {fmtAt(itinerary.arrive_at, itinerary.arrive_tz)}
+        </p>
+      )}
     </div>
   )
 }
@@ -133,8 +142,16 @@ export function CountdownWidget({ flight, now }: { flight: FlightInfo; now?: Dat
     return () => clearInterval(id)
   }, [now])
 
-  const target = new Date(flight.outbound.depart_at)
-  const left = timeUntil(target, tick)
+  // A booking recorded as flight numbers and airports, with the times left for
+  // later, is a perfectly ordinary state — the card then shows the flights and
+  // simply has nothing to count down to.
+  const panes = [
+    { label: 'Outbound', itinerary: flight.outbound },
+    { label: 'Return', itinerary: flight.return_flight },
+  ].filter((p): p is { label: string; itinerary: FlightItinerary } => !!p.itinerary)
+  const departAt = flight.outbound?.depart_at
+  const left = timeUntil(new Date(departAt ?? 0), tick)
+  const shown = Math.min(pane, Math.max(panes.length - 1, 0))
 
   // Swipe: commit once the horizontal drag clears a small threshold.
   const onTouchStart = (e: TouchEvent) => {
@@ -158,16 +175,20 @@ export function CountdownWidget({ flight, now }: { flight: FlightInfo; now?: Dat
         <div className="flex items-center gap-2 text-brand">
           <PlaneIcon />
           <p className="text-xs font-bold uppercase tracking-wide">
-            {left.done ? 'Takeoff' : 'Countdown to takeoff'}
+            {!departAt ? 'Your flights' : left.done ? 'Takeoff' : 'Countdown to takeoff'}
           </p>
         </div>
 
-        {left.done ? (
+        {!departAt ? null : left.done ? (
           <p className="mt-3 font-display text-2xl font-bold text-ink">
             Bon voyage — you're on your way! 🎌
           </p>
         ) : (
-          <div className="mt-4 grid grid-cols-4 gap-2" role="timer" aria-label="Time until departure">
+          <div
+            className="mt-4 grid grid-cols-4 gap-2"
+            role="timer"
+            aria-label="Time until departure"
+          >
             <Unit value={left.days} label="days" />
             <Unit value={left.hours} label="hrs" />
             <Unit value={left.minutes} label="min" />
@@ -176,53 +197,52 @@ export function CountdownWidget({ flight, now }: { flight: FlightInfo; now?: Dat
         )}
 
         <div className="mt-4 space-y-3 border-t border-line pt-3 text-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-muted">Booking ref</span>
-            <span className="font-mono font-bold tracking-widest text-ink">{flight.booking_ref}</span>
-          </div>
+          {flight.booking_ref && (
+            <div className="flex items-center justify-between">
+              <span className="text-muted">Booking ref</span>
+              <span className="font-mono font-bold tracking-widest text-ink">
+                {flight.booking_ref}
+              </span>
+            </div>
+          )}
 
           <div className="overflow-hidden" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
             <div
               className="flex items-start transition-transform duration-300 ease-out"
-              style={{ transform: `translateX(-${pane * 100}%)` }}
+              style={{ transform: `translateX(-${shown * 100}%)` }}
             >
-              <div className="w-full shrink-0" aria-hidden={pane !== 0}>
-                <Direction
-                  label="Outbound"
-                  itinerary={flight.outbound}
-                  navDir="right"
-                  navLabel="Show return flight"
-                  onNav={() => setPane(1)}
-                  active={pane === 0}
-                />
-              </div>
-              <div className="w-full shrink-0" aria-hidden={pane !== 1}>
-                <Direction
-                  label="Return"
-                  itinerary={flight.return_flight}
-                  navDir="left"
-                  navLabel="Show outbound flight"
-                  onNav={() => setPane(0)}
-                  active={pane === 1}
-                />
-              </div>
+              {panes.map((p, i) => (
+                <div key={p.label} className="w-full shrink-0" aria-hidden={shown !== i}>
+                  <Direction
+                    label={p.label}
+                    itinerary={p.itinerary}
+                    navDir={i === 0 ? 'right' : 'left'}
+                    navLabel={i === 0 ? 'Show return flight' : 'Show outbound flight'}
+                    onNav={() => setPane(i === 0 ? 1 : 0)}
+                    active={shown === i}
+                    solo={panes.length === 1}
+                  />
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="flex justify-center gap-1.5">
-            {['Outbound', 'Return'].map((label, i) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => setPane(i)}
-                aria-label={`${label} flight`}
-                aria-current={pane === i}
-                className={`h-1.5 rounded-full transition-all ${
-                  pane === i ? 'w-4 bg-brand' : 'w-1.5 bg-line'
-                }`}
-              />
-            ))}
-          </div>
+          {panes.length > 1 && (
+            <div className="flex justify-center gap-1.5">
+              {panes.map((p, i) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => setPane(i)}
+                  aria-label={`${p.label} flight`}
+                  aria-current={shown === i}
+                  className={`h-1.5 rounded-full transition-all ${
+                    shown === i ? 'w-4 bg-brand' : 'w-1.5 bg-line'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

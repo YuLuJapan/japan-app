@@ -12,6 +12,7 @@ import {
   MAX_HOME_CURRENCIES,
   normalizeCurrency,
 } from '../lib/currencies.js'
+import { normalizeFlight, type FlightInfo, type FlightItinerary } from '../lib/flight.js'
 import { displayTitle } from '../lib/trip-title.js'
 import { FULL_VIEW, hideStayCounts, type TripView } from '../lib/trip-view.js'
 import type { DateRange } from '../lib/trip-dates.js'
@@ -120,6 +121,126 @@ function cleanHomeCurrencies(codes: string[] | undefined): string[] | undefined 
   return [...new Set(codes.map((c) => normalizeCurrency(c)).filter((c): c is string => !!c))]
 }
 
+const FLIGHT_NO_MAX = 16
+const AIRPORT_MAX = 80
+const AIRLINE_MAX = 60
+const BOOKING_REF_MAX = 24
+/** Enough for the worst realistic routing; a guard against an unbounded array. */
+const MAX_LEGS = 8
+
+/** True for an IANA zone this runtime actually knows — the browser sends it. */
+function isKnownTimeZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: zone })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * One direction of a booking. `legs` is the substance — two or more legs *are*
+ * a connection, which is why this needs no separate notion of one.
+ *
+ * Times are optional and validated in pairs: an instant without its zone would
+ * render in whichever zone the reader's phone is in, which is exactly what the
+ * stored zones exist to prevent.
+ */
+function collectItineraryErrors(value: unknown, label: string): string[] {
+  const errors: string[] = []
+  if (value === null || value === undefined) return errors
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    return [`flight.${label} must be an object`]
+  }
+  const itinerary = value as Record<string, unknown>
+  const legs = itinerary.legs
+  if (!Array.isArray(legs)) return [`flight.${label}.legs must be an array`]
+  if (legs.length > MAX_LEGS) errors.push(`flight.${label} must have at most ${MAX_LEGS} legs`)
+  legs.forEach((leg, i) => {
+    const at = `flight.${label}.legs[${i}]`
+    if (!leg || typeof leg !== 'object') {
+      errors.push(`${at} must be an object`)
+      return
+    }
+    const { flight_no: no, from, to } = leg as Record<string, unknown>
+    // A leg with no flight number is the one thing this feature exists to
+    // record, so it is the one thing required.
+    if (typeof no !== 'string' || !no.trim()) errors.push(`${at}.flight_no is required`)
+    else if (no.trim().length > FLIGHT_NO_MAX)
+      errors.push(`${at}.flight_no must be at most ${FLIGHT_NO_MAX} characters`)
+    for (const [key, airport] of [
+      ['from', from],
+      ['to', to],
+    ] as const) {
+      if (airport === undefined || airport === null || airport === '') continue
+      if (typeof airport !== 'string') errors.push(`${at}.${key} must be text`)
+      else if (airport.trim().length > AIRPORT_MAX)
+        errors.push(`${at}.${key} must be at most ${AIRPORT_MAX} characters`)
+    }
+  })
+  for (const key of ['depart', 'arrive'] as const) {
+    const instant = itinerary[`${key}_at`]
+    const zone = itinerary[`${key}_tz`]
+    if (instant === undefined || instant === null || instant === '') continue
+    if (typeof instant !== 'string' || Number.isNaN(Date.parse(instant)))
+      errors.push(`flight.${label}.${key}_at must be an ISO instant`)
+    if (typeof zone !== 'string' || !zone)
+      errors.push(
+        `flight.${label}.${key}_at needs ${key}_tz — a time without its zone is ambiguous`
+      )
+    else if (!isKnownTimeZone(zone))
+      errors.push(`flight.${label}.${key}_tz must be an IANA time zone`)
+  }
+  return errors
+}
+
+function collectFlightErrors(value: unknown): string[] {
+  if (value === null || value === undefined) return []
+  if (typeof value !== 'object' || Array.isArray(value)) return ['flight must be an object or null']
+  const flight = value as Record<string, unknown>
+  const errors = [
+    ...collectItineraryErrors(flight.outbound, 'outbound'),
+    ...collectItineraryErrors(flight.return_flight, 'return_flight'),
+  ]
+  for (const [key, max] of [
+    ['airline', AIRLINE_MAX],
+    ['booking_ref', BOOKING_REF_MAX],
+  ] as const) {
+    const field = flight[key]
+    if (field === undefined || field === null || field === '') continue
+    if (typeof field !== 'string') errors.push(`flight.${key} must be text`)
+    else if (field.trim().length > max)
+      errors.push(`flight.${key} must be at most ${max} characters`)
+  }
+  return errors
+}
+
+/** Trim the strings and drop the empties, then re-run the reader's own rules. */
+function cleanFlight(value: FlightInfo | null | undefined): FlightInfo | null | undefined {
+  if (value === undefined) return undefined
+  if (value === null) return null
+  const direction = (itinerary: FlightItinerary | null | undefined) => {
+    if (!itinerary) return undefined
+    const legs = (itinerary.legs ?? [])
+      .map((leg) => ({
+        flight_no: leg.flight_no?.trim() ?? '',
+        from: leg.from?.trim() ?? '',
+        to: leg.to?.trim() ?? '',
+      }))
+      .filter((leg) => leg.flight_no || leg.from || leg.to)
+    return { ...itinerary, legs }
+  }
+  // normalizeFlight is the reader's rule; running it here means what is stored
+  // is exactly what will be read back, rather than something that survives the
+  // write and then silently vanishes on the way out.
+  return normalizeFlight({
+    airline: value.airline?.trim(),
+    booking_ref: value.booking_ref?.trim(),
+    outbound: direction(value.outbound),
+    return_flight: direction(value.return_flight),
+  })
+}
+
 function collectTripErrors(input: Partial<TripInput>, partial: boolean): string[] {
   const errors: string[] = []
   const has = (k: keyof TripInput) => input[k] !== undefined
@@ -152,6 +273,7 @@ function collectTripErrors(input: Partial<TripInput>, partial: boolean): string[
   ) {
     errors.push('end_date must be on or after start_date')
   }
+  if (has('flight')) errors.push(...collectFlightErrors(input.flight))
   if (has('local_currency') && input.local_currency != null) {
     if (!normalizeCurrency(input.local_currency))
       errors.push('local_currency must be a supported 3-letter currency code')
@@ -320,6 +442,7 @@ export async function createTrip(
     // doesn't know about currencies still creates a usable trip.
     local_currency: normalizeCurrency(input.local_currency) ?? DEFAULT_LOCAL_CURRENCY,
     home_currencies: cleanHomeCurrencies(input.home_currencies) ?? [...DEFAULT_HOME_CURRENCIES],
+    flight: cleanFlight(input.flight) ?? null,
   })
   // Whoever creates a trip owns it. Without this the trip would have no
   // members at all, which makes it invisible to everyone including its author

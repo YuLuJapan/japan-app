@@ -149,6 +149,8 @@ export interface TripInput {
   people?: Traveller[]
   local_currency?: string
   home_currencies?: string[]
+  /** The booking, or null to clear it. Absent means "leave it alone". */
+  flight?: FlightInfo | null
 }
 
 /** Coerces a legacy plain-string traveller (old seed/DB rows) or a loose object into a Traveller. */

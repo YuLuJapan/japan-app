@@ -15,10 +15,15 @@ import { useTripId } from '../lib/trip'
 const fmt = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString('en', { month: 'short', day: 'numeric' })
 
-// Only the Japan trip has hero artwork and a real flight booking for now — see
-// HEROES-equivalent note in the design prototype. Any other trip skips the
-// hero straight to a plain countdown, and shows empty states instead of
-// Japan's flight/steps data. Matches by word so "Japan Solo" etc. still count.
+// Only the Japan trip has hero artwork — see the HEROES-equivalent note in the
+// design prototype. Any other trip skips the hero. Matches by word so "Japan
+// Solo" etc. still count.
+//
+// The flight is *not* gated this way any more: it used to be, because the only
+// booking in existence was seeded onto this one trip, so showing the card
+// anywhere else would only ever have shown an empty state. Now that any trip
+// can have one added from the trip sheet, gating on the name would hide the
+// booking someone had just typed in.
 const isJapanTrip = (name: string) => /\bjapan\b/i.test(name)
 
 export default function Journey() {
@@ -62,7 +67,7 @@ export default function Journey() {
         </div>
       )}
 
-      {japan && data.flight ? (
+      {data.flight ? (
         <CountdownWidget flight={data.flight} />
       ) : (
         <GenericCountdown

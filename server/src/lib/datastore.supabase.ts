@@ -478,6 +478,7 @@ export function createSupabaseStore(): DataStore {
         country: input.country ?? null,
         local_currency: input.local_currency ?? DEFAULT_LOCAL_CURRENCY,
         home_currencies: input.home_currencies ?? [...DEFAULT_HOME_CURRENCIES],
+        flight: input.flight ?? null,
       }
       let { data, error } = await db.from('trips').insert(row).select(TRIP_COLS).single()
       if (error && isMissingPeopleColumn(error))
@@ -496,6 +497,7 @@ export function createSupabaseStore(): DataStore {
       if (patch.people !== undefined) fields.people = patch.people ?? []
       if (patch.local_currency !== undefined) fields.local_currency = patch.local_currency
       if (patch.home_currencies !== undefined) fields.home_currencies = patch.home_currencies
+      if (patch.flight !== undefined) fields.flight = patch.flight ?? null
       const run = (f: Record<string, unknown>, cols: string) =>
         db.from('trips').update(f).eq('id', tripId).select(cols).maybeSingle()
       let { data, error } = await run(fields, TRIP_COLS)
@@ -505,6 +507,7 @@ export function createSupabaseStore(): DataStore {
         delete rest.country
         delete rest.local_currency
         delete rest.home_currencies
+        delete rest.flight
         if (Object.keys(rest).length === 0) {
           throw new Error(
             'Cannot save travellers: the trips.people column is missing — run supabase/migrations/0009_multi_trip.sql'

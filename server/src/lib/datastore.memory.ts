@@ -310,9 +310,9 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         end_date: input.end_date,
         description: input.description ?? null,
         people: input.people ?? [],
-        // No API writes this yet: a new trip has no flight until one is
-        // seeded onto it. See lib/flight.ts.
-        flight: null,
+        // Checked on the way in exactly as a stored row is checked on the way
+        // out, so a trip cannot hold a flight it would never read back.
+        flight: normalizeFlight(input.flight),
         local_currency: input.local_currency ?? DEFAULT_LOCAL_CURRENCY,
         home_currencies: input.home_currencies ?? [...DEFAULT_HOME_CURRENCIES],
       }
@@ -331,6 +331,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       if (patch.country !== undefined) trip.country = patch.country ?? null
       if (patch.local_currency !== undefined) trip.local_currency = patch.local_currency
       if (patch.home_currencies !== undefined) trip.home_currencies = patch.home_currencies
+      if (patch.flight !== undefined) trip.flight = normalizeFlight(patch.flight)
       return structuredClone(trip)
     },
 
