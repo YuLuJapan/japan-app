@@ -1,11 +1,13 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
-import './lib/posthog'
+import PostHogErrorBoundary from './lib/PostHogErrorBoundary'
 import './styles/index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <PostHogErrorBoundary>
+      <App />
+    </PostHogErrorBoundary>
   </React.StrictMode>
 )

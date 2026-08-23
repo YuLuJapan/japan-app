@@ -17,6 +17,7 @@ export function SignOutButton() {
   const queryClient = useQueryClient()
 
   const signOut = () => {
+    posthog.capture('user_signed_out')
     posthog.reset()
     clearAccessCode()
     queryClient.clear()

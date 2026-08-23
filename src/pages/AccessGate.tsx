@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, clearAccessCode, setAccessCode } from '../api/client'
 import { RingMark } from '../components/RingMark'
+import posthog from '../lib/posthog'
 import { getSupabaseClient } from '../lib/supabaseClient'
 
 type Screen = 'choose' | 'email' | 'sent'
@@ -99,6 +100,9 @@ export default function AccessGate() {
         return
       }
       await completeSignIn(data.session.access_token, navigate)
+      posthog.capture('user_signed_in', {
+        method: mode === 'signup' ? 'password_signup' : 'password',
+      })
     } catch (err) {
       clearAccessCode()
       setError(
