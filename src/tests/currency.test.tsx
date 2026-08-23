@@ -85,6 +85,8 @@ const TRIP: Trip = {
   people: [],
   local_currency: 'EUR',
   home_currencies: ['USD'],
+  start_time: null,
+  start_tz: null,
 }
 
 describe('TripSheet currency pickers', () => {

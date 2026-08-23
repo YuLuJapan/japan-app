@@ -166,3 +166,41 @@ describe('who may attach one', () => {
     expect(res.status).toBe(404)
   })
 })
+
+describe('when the vacation itself begins', () => {
+  it('saves a start time with the zone it was written in', async () => {
+    const res = await patch({ start_time: '18:30', start_tz: 'Asia/Jerusalem' })
+    expect(res.status).toBe(200)
+    const bundle = await read()
+    expect(bundle.body.trip.start_time).toBe('18:30')
+    expect(bundle.body.trip.start_tz).toBe('Asia/Jerusalem')
+  })
+
+  it('clears it on null, back to no particular time', async () => {
+    await patch({ start_time: '18:30', start_tz: 'Asia/Jerusalem' })
+    await patch({ start_time: null, start_tz: null })
+    expect((await read()).body.trip.start_time).toBeNull()
+  })
+
+  it('refuses a time with no zone — the countdown would move with the phone', async () => {
+    const res = await patch({ start_time: '18:30' })
+    expect(res.status).toBe(400)
+    expect(res.body.error.details).toContain('start_time needs start_tz')
+  })
+
+  it.each([['half past six'], ['18:30:00'], ['25:00']])('refuses %s as a time', async (value) => {
+    const res = await patch({ start_time: value, start_tz: 'Asia/Tokyo' })
+    expect(res.status).toBe(400)
+  })
+
+  it('refuses a zone that is not a zone', async () => {
+    const res = await patch({ start_time: '18:30', start_tz: 'Mars/Olympus' })
+    expect(res.status).toBe(400)
+  })
+
+  it('leaves it alone when the patch does not mention it', async () => {
+    await patch({ start_time: '18:30', start_tz: 'Asia/Jerusalem' })
+    await patch({ name: 'Renamed' })
+    expect((await read()).body.trip.start_time).toBe('18:30')
+  })
+})

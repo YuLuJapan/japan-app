@@ -125,11 +125,15 @@ export interface Trip {
   description: string | null
   people: Traveller[]
   /**
-   * The booking, or null when none is attached. Stored as jsonb and read
-   * through `normalizeFlight` — there is no API to write it yet, so a trip
-   * gets one only by being seeded with it (migration 0017).
+   * The booking, or null when none is attached. Stored as jsonb (migration
+   * 0017) and read through `normalizeFlight`, which is the only place its
+   * shape is enforced. Written from the trip form.
    */
   flight: FlightInfo | null
+  /** 'HH:MM' the trip begins, in `start_tz`; null for "no particular time". */
+  start_time: string | null
+  /** IANA zone for `start_time` — the pair is what makes the countdown stable. */
+  start_tz: string | null
   /**
    * What money is spent in at the destination — the exchange calculator's
    * input side. Defaults to JPY, which is what every trip was before it could
@@ -151,6 +155,10 @@ export interface TripInput {
   home_currencies?: string[]
   /** The booking, or null to clear it. Absent means "leave it alone". */
   flight?: FlightInfo | null
+  /** 'HH:MM' the trip begins, in `start_tz`. Null for "no particular time". */
+  start_time?: string | null
+  /** IANA zone `start_time` is written in. Meaningless without it. */
+  start_tz?: string | null
 }
 
 /** Coerces a legacy plain-string traveller (old seed/DB rows) or a loose object into a Traveller. */

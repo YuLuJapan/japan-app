@@ -109,9 +109,9 @@ const SHOPPING_COLS =
 // not-yet-migrated database gets trips back with people defaulted to [],
 // rather than a hard 500.
 const TRIP_BASE_COLS = 'id,name,start_date,end_date,description'
-// country arrives in 0015 and flight in 0017; `people` in 0009. All three
-// degrade the same way.
-const TRIP_COLS = `${TRIP_BASE_COLS},people,country,flight,local_currency,home_currencies`
+// country arrives in 0015, flight in 0017, the start time in 0020; `people` in
+// 0009. All of them degrade the same way.
+const TRIP_COLS = `${TRIP_BASE_COLS},people,country,flight,local_currency,home_currencies,start_time,start_tz`
 
 function isMissingPeopleColumn(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false
@@ -152,6 +152,10 @@ function withPeopleDefault(row: Record<string, unknown>): Trip {
     // a database that hasn't run 0019) still gets a working calculator.
     local_currency: normalizeCurrency(row.local_currency) ?? DEFAULT_LOCAL_CURRENCY,
     home_currencies: cleanHomeCurrencies(row.home_currencies),
+    // 0020. Absent until that migration runs, and absent is a valid answer —
+    // it simply means the trip has no particular start time.
+    start_time: (row.start_time as string | null) ?? null,
+    start_tz: (row.start_tz as string | null) ?? null,
   } as unknown as Trip
 }
 
@@ -479,6 +483,8 @@ export function createSupabaseStore(): DataStore {
         local_currency: input.local_currency ?? DEFAULT_LOCAL_CURRENCY,
         home_currencies: input.home_currencies ?? [...DEFAULT_HOME_CURRENCIES],
         flight: input.flight ?? null,
+        start_time: input.start_time ?? null,
+        start_tz: input.start_tz ?? null,
       }
       let { data, error } = await db.from('trips').insert(row).select(TRIP_COLS).single()
       if (error && isMissingPeopleColumn(error))
@@ -498,6 +504,8 @@ export function createSupabaseStore(): DataStore {
       if (patch.local_currency !== undefined) fields.local_currency = patch.local_currency
       if (patch.home_currencies !== undefined) fields.home_currencies = patch.home_currencies
       if (patch.flight !== undefined) fields.flight = patch.flight ?? null
+      if (patch.start_time !== undefined) fields.start_time = patch.start_time ?? null
+      if (patch.start_tz !== undefined) fields.start_tz = patch.start_tz ?? null
       const run = (f: Record<string, unknown>, cols: string) =>
         db.from('trips').update(f).eq('id', tripId).select(cols).maybeSingle()
       let { data, error } = await run(fields, TRIP_COLS)
@@ -508,6 +516,8 @@ export function createSupabaseStore(): DataStore {
         delete rest.local_currency
         delete rest.home_currencies
         delete rest.flight
+        delete rest.start_time
+        delete rest.start_tz
         if (Object.keys(rest).length === 0) {
           throw new Error(
             'Cannot save travellers: the trips.people column is missing — run supabase/migrations/0009_multi_trip.sql'

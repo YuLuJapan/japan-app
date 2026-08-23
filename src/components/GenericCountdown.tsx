@@ -1,9 +1,9 @@
-// Countdown card for a trip whose flight the viewer doesn't get: none booked
-// yet (anything but the Japan trip, until flight data is trip-aware), or a
-// guest, for whom the API withholds it. Counts down to the trip's own
-// start_date instead of a real departure time; `note` explains which case it is.
+// Countdown card for a trip whose flight the viewer doesn't get: none attached
+// yet, or a member the API withholds it from. Counts down to the trip's own
+// start instead of a real departure; `note` explains which case it is.
 import { useEffect, useState } from 'react'
 import { timeUntil } from '../lib/countdown'
+import { zonedToInstant } from '../lib/flight-time'
 
 function Unit({ value, label }: { value: number; label: string }) {
   return (
@@ -18,10 +18,15 @@ function Unit({ value, label }: { value: number; label: string }) {
 
 export function GenericCountdown({
   startDate,
-  note = 'No flights added yet — attach a booking in Documents and the legs show up here.',
+  startTime,
+  startTz,
+  note = 'No flights added yet — add them from the trip form and the legs show up here.',
   now,
 }: {
   startDate: string
+  /** 'HH:MM' the trip begins, in `startTz`. */
+  startTime?: string | null
+  startTz?: string | null
   note?: string
   now?: Date
 }) {
@@ -33,7 +38,12 @@ export function GenericCountdown({
     return () => clearInterval(id)
   }, [now])
 
-  const target = new Date(`${startDate}T09:00:00`)
+  // A trip that says when it begins is counted to that exact instant, in the
+  // zone the time was written in — so the number doesn't jump when the phone
+  // lands and changes zone. 09:00 local remains the guess for a trip that
+  // hasn't said, which is what this always did.
+  const stated = startTime && startTz ? zonedToInstant(startDate, startTime, startTz) : null
+  const target = stated ? new Date(stated) : new Date(`${startDate}T09:00:00`)
   const left = timeUntil(target, tick)
 
   return (

@@ -10,8 +10,16 @@
 // be able to save them and come back for the times later, so nothing here can
 // block Save; the fields the traveller left alone are simply absent from what
 // is sent (src/lib/flight-draft.ts).
+import { useState } from 'react'
 import { commonTimeZones, timeZoneOptions, zoneLabel } from '../lib/flight-time'
-import { emptyLeg, type DirectionDraft, type FlightDraft, type LegDraft } from '../lib/flight-draft'
+import {
+  describeDraft,
+  emptyLeg,
+  isDraftEmpty,
+  type DirectionDraft,
+  type FlightDraft,
+  type LegDraft,
+} from '../lib/flight-draft'
 
 const MAX_LEGS = 8
 
@@ -195,41 +203,71 @@ export function FlightFields({
   draft: FlightDraft
   onChange: (next: FlightDraft) => void
 }) {
+  // Roughly twenty inputs across two directions, and most trips are planned
+  // before anything is booked — so this stays shut until asked for. It opens by
+  // default only when there is already a booking to edit, since arriving at a
+  // collapsed section that silently contains your flights is worse than the
+  // extra tap. The draft lives in the sheet above, so collapsing mid-edit
+  // keeps whatever has been typed.
+  const [open, setOpen] = useState(() => !isDraftEmpty(draft))
   const zones: Zones = { common: commonTimeZones(), all: timeZoneOptions() }
+  const summary = describeDraft(draft)
+
   return (
-    <div className="space-y-4">
-      <p className="text-xs text-muted">
-        Times are optional — the zone is the airport&rsquo;s, so a ticket reads the same on both
-        phones. Leave them blank and the trip counts down to its start date instead.
-      </p>
-      <div className="flex gap-2">
-        <input
-          aria-label="Airline"
-          className={field}
-          placeholder="Airline"
-          value={draft.airline}
-          onChange={(e) => onChange({ ...draft, airline: e.target.value })}
-        />
-        <input
-          aria-label="Booking reference"
-          className={field}
-          placeholder="Booking ref"
-          value={draft.booking_ref}
-          onChange={(e) => onChange({ ...draft, booking_ref: e.target.value })}
-        />
-      </div>
-      <Direction
-        label="Outbound"
-        draft={draft.outbound}
-        zones={zones}
-        onChange={(outbound) => onChange({ ...draft, outbound })}
-      />
-      <Direction
-        label="Return"
-        draft={draft.return_flight}
-        zones={zones}
-        onChange={(return_flight) => onChange({ ...draft, return_flight })}
-      />
+    <div className="rounded-2xl border border-line">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left"
+      >
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-ink">
+            {summary ? 'Flights' : 'Add flight details'}
+          </span>
+          <span className="mt-0.5 block truncate text-xs text-muted">
+            {summary ?? 'Flight numbers, airports and times — all optional'}
+          </span>
+        </span>
+        <span className="shrink-0 text-xs font-bold text-brand">{open ? 'Hide' : 'Add'}</span>
+      </button>
+
+      {open && (
+        <div className="space-y-4 border-t border-line px-3.5 py-3.5">
+          <p className="text-xs text-muted">
+            Times are optional — the zone is the airport&rsquo;s, so a ticket reads the same on both
+            phones.
+          </p>
+          <div className="flex gap-2">
+            <input
+              aria-label="Airline"
+              className={field}
+              placeholder="Airline"
+              value={draft.airline}
+              onChange={(e) => onChange({ ...draft, airline: e.target.value })}
+            />
+            <input
+              aria-label="Booking reference"
+              className={field}
+              placeholder="Booking ref"
+              value={draft.booking_ref}
+              onChange={(e) => onChange({ ...draft, booking_ref: e.target.value })}
+            />
+          </div>
+          <Direction
+            label="Outbound"
+            draft={draft.outbound}
+            zones={zones}
+            onChange={(outbound) => onChange({ ...draft, outbound })}
+          />
+          <Direction
+            label="Return"
+            draft={draft.return_flight}
+            zones={zones}
+            onChange={(return_flight) => onChange({ ...draft, return_flight })}
+          />
+        </div>
+      )}
     </div>
   )
 }

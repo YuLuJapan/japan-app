@@ -62,6 +62,27 @@ export const isDraftEmpty = (draft: FlightDraft): boolean =>
     (d) => !d.legs.some(hasContent) && !d.departDate && !d.arriveDate
   )
 
+/**
+ * The one-line summary shown while the flight section is collapsed, or null
+ * when there is nothing to summarise. Enough to recognise the booking without
+ * opening it: the route end to end, and how many hops it takes.
+ */
+export function describeDraft(draft: FlightDraft): string | null {
+  const filled = [draft.outbound, draft.return_flight].map((d) => d.legs.filter(hasContent))
+  const [out, back] = filled
+  if (!out.length && !back.length) {
+    return draft.airline.trim() || draft.booking_ref.trim() || null
+  }
+  const route = (legs: LegDraft[]) => {
+    if (!legs.length) return null
+    const from = legs[0].from.trim() || legs[0].flight_no.trim()
+    const to = legs[legs.length - 1].to.trim()
+    const stops = legs.length > 1 ? ` · ${legs.length - 1} stop${legs.length > 2 ? 's' : ''}` : ''
+    return to ? `${from} → ${to}${stops}` : `${from}${stops}`
+  }
+  return [route(out), route(back)].filter(Boolean).join('  ·  ')
+}
+
 function directionToDraft(itinerary: FlightItinerary | null | undefined): DirectionDraft {
   const base = emptyDirection()
   if (!itinerary) return base

@@ -2,7 +2,7 @@
 // half-filled form is worth keeping, so they are worth pinning down without
 // rendering anything.
 import { describe, expect, it } from 'vitest'
-import { emptyFlight, fromDraft, isDraftEmpty, toDraft } from '../lib/flight-draft'
+import { describeDraft, emptyFlight, fromDraft, isDraftEmpty, toDraft } from '../lib/flight-draft'
 
 const draftWith = (patch: Partial<ReturnType<typeof emptyFlight>> = {}) => ({
   ...emptyFlight(),
@@ -102,5 +102,43 @@ describe('toDraft', () => {
   it('opens an empty form for a trip with no flight', () => {
     expect(isDraftEmpty(toDraft(null))).toBe(true)
     expect(isDraftEmpty(toDraft(undefined))).toBe(true)
+  })
+})
+
+describe('describeDraft — the collapsed summary', () => {
+  it('says nothing when nothing is filled in', () => {
+    expect(describeDraft(emptyFlight())).toBeNull()
+  })
+
+  it('shows the route end to end, not every leg', () => {
+    const draft = emptyFlight()
+    draft.outbound.legs = [
+      { flight_no: 'ET 419', from: 'TLV', to: 'ADD' },
+      { flight_no: 'ET 672', from: 'ADD', to: 'NRT' },
+    ]
+    expect(describeDraft(draft)).toBe('TLV → NRT · 1 stop')
+  })
+
+  it('counts stops, plural', () => {
+    const draft = emptyFlight()
+    draft.outbound.legs = [
+      { flight_no: 'A', from: 'TLV', to: 'ADD' },
+      { flight_no: 'B', from: 'ADD', to: 'BKK' },
+      { flight_no: 'C', from: 'BKK', to: 'NRT' },
+    ]
+    expect(describeDraft(draft)).toBe('TLV → NRT · 2 stops')
+  })
+
+  it('shows both directions when both are booked', () => {
+    const draft = emptyFlight()
+    draft.outbound.legs = [{ flight_no: 'ET 419', from: 'TLV', to: 'NRT' }]
+    draft.return_flight.legs = [{ flight_no: 'ET 673', from: 'NRT', to: 'TLV' }]
+    expect(describeDraft(draft)).toBe('TLV → NRT  ·  NRT → TLV')
+  })
+
+  it('falls back to the flight number when airports are blank', () => {
+    const draft = emptyFlight()
+    draft.outbound.legs = [{ flight_no: 'ET 419', from: '', to: '' }]
+    expect(describeDraft(draft)).toBe('ET 419')
   })
 })

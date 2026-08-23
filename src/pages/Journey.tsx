@@ -72,6 +72,8 @@ export default function Journey() {
       ) : (
         <GenericCountdown
           startDate={data.trip.start_date}
+          startTime={data.trip.start_time}
+          startTz={data.trip.start_tz}
           // Two different absences look identical here: no booking attached
           // yet, or one this caller may not see. `shows` is what tells them
           // apart, so the second doesn't read as the first.
