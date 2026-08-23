@@ -8,7 +8,7 @@
 //  - the server may have no VAPID keys yet (see README → Reminders)
 import { useEffect, useState } from 'react'
 import { usePushKey } from '../api/hooks'
-import posthog from '../lib/posthog'
+import { capture } from '../lib/posthog'
 import {
   syncPushSubscription,
   useRegisterPush,
@@ -67,7 +67,7 @@ export function NotificationSetup() {
     try {
       const payload = await enablePush(publicKey, deviceLabel())
       await register.mutateAsync(payload)
-      posthog.capture('notifications_enabled')
+      capture('notifications_enabled')
       setEnabled(true)
       setMessage('Notifications are on for this phone.')
     } catch (err) {
@@ -84,7 +84,7 @@ export function NotificationSetup() {
       const endpoint = await disablePush()
       // 404 just means the server row was already gone — nothing to recover from
       if (endpoint) await unregister.mutateAsync(endpoint).catch(() => undefined)
-      posthog.capture('notifications_disabled')
+      capture('notifications_disabled')
       setEnabled(false)
       setMessage('Notifications are off on this phone.')
     } finally {
@@ -99,7 +99,7 @@ export function NotificationSetup() {
     else if (result.sent === 0)
       setMessage('No device is subscribed yet — turn notifications on first.')
     else {
-      posthog.capture('test_notification_sent')
+      capture('test_notification_sent')
       setMessage(`Test sent to ${result.sent} device${result.sent === 1 ? '' : 's'}.`)
     }
   }

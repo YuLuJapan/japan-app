@@ -14,7 +14,7 @@ import { createContext, useContext, useEffect, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { setAccessCode } from '../api/client'
 import type { TripRole, TripShows } from '../api/types'
-import posthog from './posthog'
+import { identify } from './posthog'
 import { getSupabaseClient } from './supabaseClient'
 
 /**
@@ -70,7 +70,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (session.user.email) personProperties.email = session.user.email
       const fullName = session.user.user_metadata.full_name
       if (typeof fullName === 'string' && fullName) personProperties.name = fullName
-      posthog.identify(session.user.id, personProperties)
+      identify(session.user.id, personProperties)
     }
 
     // A refresh can begin with an already-authenticated Supabase session. The

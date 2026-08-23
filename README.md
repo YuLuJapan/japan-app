@@ -150,6 +150,40 @@ pretending.
 Still $0: web push goes through Apple/Google/Mozilla's own push services, and
 cron-job.org's free tier covers this comfortably.
 
+## Analytics (PostHog — optional)
+
+Off by default. The app runs, builds and tests identically with no PostHog
+configuration at all; set two env vars to switch it on.
+
+1. In PostHog, **Settings → Project → Project ID**, copy the **project API
+   key** — the public `phc_...` token. (Not a `phx_...` personal API key:
+   that one is a server credential and must never be shipped to a browser.)
+2. Locally, add to `.env.local`:
+
+   ```
+   VITE_POSTHOG_KEY=phc_...
+   VITE_POSTHOG_HOST=https://us.i.posthog.com   # or https://eu.i.posthog.com
+   ```
+
+3. In production, set the same two as Vercel environment variables. They are
+   `VITE_`-prefixed, so they are baked into the client bundle at build time —
+   a redeploy is needed for a change to take effect.
+
+What gets collected: `$pageview` per route change, and the named events the
+app captures on its own actions (`place_created`, `trip_member_invited`,
+`notifications_enabled`, …). Signed-in people are identified by their Supabase
+user id, with email and name as person properties.
+
+What deliberately does _not_ get collected: **autocapture and session
+recording are both off.** Autocapture sends the text of whatever was clicked,
+and in this app that text is the trip's private content — a hotel's
+reservation details, or the shopping list, where an item _is_ the present. The
+same reasoning that lets a viewer be cut off from a whole category applies to
+what leaves the device. If you add an event, keep trip content out of its
+properties.
+
+Free tier covers this: PostHog's is 1M events/month, far beyond two phones.
+
 ## Notes
 
 - Authorization is the app's job, not the database's: the API holds Supabase's secret key, and RLS stays deny-all. Every read and write goes through `requireTripAccess`, which resolves the caller's membership on the trip named in the path.
