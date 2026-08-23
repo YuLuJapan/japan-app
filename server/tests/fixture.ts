@@ -65,6 +65,8 @@ export function fixture(): MemoryData {
         people: [{ name: 'Alex' }, { name: 'Sam' }],
         local_currency: 'JPY',
         home_currencies: ['USD', 'ILS'],
+        start_time: null,
+        start_tz: null,
         flight: {
           airline: 'Test Air',
           booking_ref: 'TESTREF',
@@ -96,6 +98,8 @@ export function fixture(): MemoryData {
         // currency choice is exercised (trip-1 keeps the JPY→USD/ILS default).
         local_currency: 'EUR',
         home_currencies: ['USD'],
+        start_time: null,
+        start_tz: null,
         // No booking attached — what every trip looks like until someone adds one.
         flight: null,
       },

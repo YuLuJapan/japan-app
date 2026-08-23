@@ -274,6 +274,21 @@ function collectTripErrors(input: Partial<TripInput>, partial: boolean): string[
     errors.push('end_date must be on or after start_date')
   }
   if (has('flight')) errors.push(...collectFlightErrors(input.flight))
+  // The pair rule again: a wall-clock time without its zone means one instant
+  // while packing at home and another after landing, so the countdown would
+  // jump when the phone changed zone.
+  if (has('start_time') && input.start_time != null) {
+    // Hours and minutes, not just two digits and a colon: "25:00" would sail
+    // through a looser shape and then silently roll the countdown into the
+    // next day.
+    if (typeof input.start_time !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.start_time))
+      errors.push('start_time must be HH:MM')
+    else if (!input.start_tz) errors.push('start_time needs start_tz')
+  }
+  if (has('start_tz') && input.start_tz != null) {
+    if (typeof input.start_tz !== 'string' || !isKnownTimeZone(input.start_tz))
+      errors.push('start_tz must be an IANA time zone')
+  }
   if (has('local_currency') && input.local_currency != null) {
     if (!normalizeCurrency(input.local_currency))
       errors.push('local_currency must be a supported 3-letter currency code')
@@ -443,6 +458,8 @@ export async function createTrip(
     local_currency: normalizeCurrency(input.local_currency) ?? DEFAULT_LOCAL_CURRENCY,
     home_currencies: cleanHomeCurrencies(input.home_currencies) ?? [...DEFAULT_HOME_CURRENCIES],
     flight: cleanFlight(input.flight) ?? null,
+    start_time: input.start_time ?? null,
+    start_tz: input.start_tz ?? null,
   })
   // Whoever creates a trip owns it. Without this the trip would have no
   // members at all, which makes it invisible to everyone including its author

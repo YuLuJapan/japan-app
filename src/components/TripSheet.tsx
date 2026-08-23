@@ -21,6 +21,7 @@ import type { StrandedResolution, Traveller, Trip, TripDateImpact } from '../api
 import { saveErrorMessage } from '../lib/errors'
 import { FlightFields } from './FlightFields'
 import { emptyFlight, fromDraft, toDraft, type FlightDraft } from '../lib/flight-draft'
+import { commonTimeZones, deviceTimeZone, timeZoneOptions, zoneLabel } from '../lib/flight-time'
 import { AccessPicker, DEFAULT_SHOWS, type InviteRole, type Shows } from './AccessPicker'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -315,6 +316,8 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   const [personName, setPersonName] = useState('')
   const [personEmail, setPersonEmail] = useState('')
   const [confirm, setConfirm] = useState<0 | 1 | 2>(0)
+  const [startTime, setStartTime] = useState('')
+  const [startTz, setStartTz] = useState(deviceTimeZone)
   const [flightDraft, setFlightDraft] = useState<FlightDraft>(emptyFlight)
   // The flight rides on the bundle, which loads after the sheet opens. Until it
   // has, the draft is empty — and sending an empty draft would clear a booking
@@ -382,6 +385,8 @@ export function TripSheet({ mode, trip, onClose }: Props) {
       setLocalCurrency(trip.local_currency)
       setHomeCurrencies(trip.home_currencies)
       setCurrencyPicked(true)
+      setStartTime(trip.start_time ?? '')
+      setStartTz(trip.start_tz || deviceTimeZone())
       // The booking is not on `trip` — it rides on the bundle, which is still
       // in flight. The effect below fills it in once, when that lands.
       setFlightReady(false)
@@ -398,6 +403,8 @@ export function TripSheet({ mode, trip, onClose }: Props) {
       setLocalCurrency(DEFAULT_LOCAL_CURRENCY)
       setHomeCurrencies([...DEFAULT_HOME_CURRENCIES])
       setCurrencyPicked(false)
+      setStartTime('')
+      setStartTz(deviceTimeZone())
       // A new trip has no booking to wait for.
       setFlightDraft(emptyFlight())
       setFlightReady(mode === 'add')
@@ -452,6 +459,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
     if (guess) setLocalCurrency(guess)
   }
 
+  const zoneList = { common: commonTimeZones(), all: timeZoneOptions() }
   const startDate = joinDate(sy, sm, sd)
   const endDate = joinDate(ey, em, ed)
   const mutation = mode === 'edit' ? update : create
@@ -484,6 +492,11 @@ export function TripSheet({ mode, trip, onClose }: Props) {
       local_currency: localCurrency,
       home_currencies: homeCurrencies,
       ...(flightReady ? { flight: fromDraft(flightDraft) } : {}),
+      // The pair travels together or not at all — the API refuses a time
+      // without its zone, because the countdown would otherwise jump when the
+      // phone changes zone mid-trip.
+      start_time: startTime || null,
+      start_tz: startTime ? startTz : null,
     }
     if (mode !== 'edit') {
       create.mutate(input, { onSuccess: onClose })
@@ -648,6 +661,46 @@ export function TripSheet({ mode, trip, onClose }: Props) {
         <p className="mt-1 text-xs text-muted">
           What the exchange calculator converts: {localCurrency} into{' '}
           {homeCurrencies.join(', ') || '…'}.
+        </p>
+
+        <span className="label mt-4 block">Starts at</span>
+        <div className="mt-1 flex gap-2">
+          <input
+            type="time"
+            className="field w-32"
+            aria-label="Trip start time"
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+          />
+          <select
+            className="field flex-1"
+            aria-label="Trip start time zone"
+            value={startTz}
+            disabled={!startTime}
+            onChange={(e) => setStartTz(e.target.value)}
+          >
+            {!zoneList.all.includes(startTz) && startTz && (
+              <option value={startTz}>{zoneLabel(startTz)}</option>
+            )}
+            <optgroup label="This trip">
+              {zoneList.common.map((o) => (
+                <option key={o.zone} value={o.zone}>
+                  {o.label}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="All time zones">
+              {zoneList.all.map((zone) => (
+                <option key={zone} value={zone}>
+                  {zoneLabel(zone)}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </div>
+        <p className="mt-1 text-xs text-muted">
+          Optional. Set it and the countdown targets the moment the trip begins; leave it and it
+          counts to the morning of the start date.
         </p>
 
         <span className="label mt-4 block">Flights</span>

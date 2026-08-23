@@ -256,6 +256,23 @@ The whole journey skeleton for one trip — powers the Journey (home) view and o
 > `flight` entirely until it has one — otherwise saving early would blank a
 > booking nobody edited.
 
+> **When the trip begins (2026-08-23, migration 0020)**: `start_time` (`"HH:MM"`)
+> and `start_tz` (IANA) are optional, nullable, and accepted by both trip
+> endpoints. They exist so the countdown can target the real start of a trip
+> without anyone filling in a booking to correct one number — it previously used
+> `start_date` at a hardcoded 09:00 local.
+>
+> The same pair rule as the flight times: a `start_time` without a `start_tz` is
+> a `400`, or the countdown would shift the moment a phone changed zone
+> mid-trip. `start_time` is validated as real hours and minutes, not just two
+> digits and a colon — `"25:00"` would otherwise roll the countdown into the
+> next day. Both null means "no particular time" and restores the 09:00 guess.
+>
+> `start_date` stays a plain `date` and is unchanged: every range rule in the
+> app compares against it, and widening it to a timestamptz would put a time
+> into all of those comparisons, where an evening start could exclude its own
+> first day.
+
 - Current/past/future step status is **computed client-side** from device date (FR-006).
 - `flight` is the trip's own booking, stored as `trips.flight` jsonb (migration 0017) and read back through `normalizeFlight` in `server/src/lib/flight.ts` — a malformed value reads as no flight rather than reaching the client half-formed. It was a module constant until phase 6, which meant every trip anyone created was served the two travellers' booking reference. `outbound.depart_at` is the countdown target; the `*_tz` fields are IANA zones so ticket times render the same on a phone set to Israel or to Japan. **Absent** both for a trip with no booking attached and for a caller whose view withholds it, along with any `place_counts.hotel` — clients must treat `flight` as optional (the UI falls back to a plain countdown on the trip's `start_date`), and cannot tell the two cases apart. There is no endpoint that writes it yet.
 

@@ -48,6 +48,10 @@ export interface Trip {
   local_currency: string
   /** What to convert it into: 1–3 codes, the calculator's output cards. */
   home_currencies: string[]
+  /** 'HH:MM' the trip begins, in `start_tz`; null for no particular time. */
+  start_time: string | null
+  /** IANA zone `start_time` is written in. */
+  start_tz: string | null
 }
 
 export interface TripInput {
@@ -60,6 +64,8 @@ export interface TripInput {
   home_currencies?: string[]
   /** The booking, or null to clear it. Absent means "leave it alone". */
   flight?: FlightInfo | null
+  start_time?: string | null
+  start_tz?: string | null
 }
 
 /** What a date change would leave outside the trip (GET /trips/:id/date-impact). */

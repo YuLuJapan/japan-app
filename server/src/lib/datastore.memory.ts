@@ -112,6 +112,9 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
   // on the way in exactly as the Supabase store checks it (lib/flight.ts).
   for (const t of db.trips) {
     t.flight = normalizeFlight(t.flight)
+    // 0020, same story: a seed row from before the columns existed still loads.
+    t.start_time = t.start_time ?? null
+    t.start_tz = t.start_tz ?? null
     // Seeded/legacy rows predate the currency pickers — default them the same
     // way the Postgres columns do, so every trip has a calculator that works.
     t.local_currency = normalizeCurrency(t.local_currency) ?? DEFAULT_LOCAL_CURRENCY
@@ -313,6 +316,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         // Checked on the way in exactly as a stored row is checked on the way
         // out, so a trip cannot hold a flight it would never read back.
         flight: normalizeFlight(input.flight),
+        start_time: input.start_time ?? null,
+        start_tz: input.start_tz ?? null,
         local_currency: input.local_currency ?? DEFAULT_LOCAL_CURRENCY,
         home_currencies: input.home_currencies ?? [...DEFAULT_HOME_CURRENCIES],
       }
@@ -332,6 +337,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       if (patch.local_currency !== undefined) trip.local_currency = patch.local_currency
       if (patch.home_currencies !== undefined) trip.home_currencies = patch.home_currencies
       if (patch.flight !== undefined) trip.flight = normalizeFlight(patch.flight)
+      if (patch.start_time !== undefined) trip.start_time = patch.start_time ?? null
+      if (patch.start_tz !== undefined) trip.start_tz = patch.start_tz ?? null
       return structuredClone(trip)
     },
 

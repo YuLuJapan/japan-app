@@ -28,6 +28,8 @@ const TRIP: Trip = {
   people: [],
   local_currency: 'JPY',
   home_currencies: ['USD', 'ILS'],
+  start_time: null,
+  start_tz: null,
 }
 
 function renderSheet(props: Partial<Parameters<typeof TripSheet>[0]> = {}) {
