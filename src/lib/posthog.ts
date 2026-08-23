@@ -11,8 +11,16 @@
 import posthog from 'posthog-js'
 import type { PostHogConfig } from 'posthog-js'
 
-/** The public project token, or null when analytics is switched off. */
-export const posthogKey = import.meta.env.VITE_POSTHOG_KEY || null
+/**
+ * The public project token, or null when analytics is switched off.
+ *
+ * Two names are accepted because two sources disagree: PostHog's own docs use
+ * VITE_POSTHOG_PROJECT_TOKEN, while its setup wizard writes VITE_POSTHOG_KEY.
+ * Reading only one of them fails in the worst possible way — the app runs
+ * perfectly and simply never sends an event — so both work, docs name first.
+ */
+export const posthogKey =
+  import.meta.env.VITE_POSTHOG_PROJECT_TOKEN || import.meta.env.VITE_POSTHOG_KEY || null
 
 /** True when `posthog.init` has actually run, so calls are worth making. */
 export const analyticsEnabled = Boolean(posthogKey)
@@ -41,6 +49,15 @@ export const posthogOptions: Partial<PostHogConfig> = {
     capture_unhandled_rejections: true,
     capture_console_errors: false,
   },
+}
+
+// Being switched off is legitimate, so this is not an error — but silence is
+// exactly how a misnamed env var goes unnoticed (it did once already), so say
+// so where a developer will see it. Never in production: it is normal there.
+if (!analyticsEnabled && import.meta.env.DEV) {
+  console.warn(
+    '[analytics] PostHog is off: no VITE_POSTHOG_PROJECT_TOKEN (or VITE_POSTHOG_KEY). No events will be sent.'
+  )
 }
 
 /**

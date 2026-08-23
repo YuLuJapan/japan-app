@@ -16,9 +16,11 @@ const mocks = vi.hoisted(() => ({
 vi.mock('posthog-js', () => ({ default: mocks }))
 
 /** Re-import the module with the env of this test — it reads the key at load. */
-async function loadWith(key?: string, host?: string) {
+async function loadWith(key?: string, host?: string, keyVar = 'VITE_POSTHOG_PROJECT_TOKEN') {
   vi.resetModules()
-  vi.stubEnv('VITE_POSTHOG_KEY', key ?? '')
+  vi.stubEnv('VITE_POSTHOG_PROJECT_TOKEN', '')
+  vi.stubEnv('VITE_POSTHOG_KEY', '')
+  vi.stubEnv(keyVar, key ?? '')
   vi.stubEnv('VITE_POSTHOG_HOST', host ?? '')
   return import('../lib/posthog')
 }
@@ -82,6 +84,15 @@ describe('analytics with a key configured', () => {
     const { posthogOptions } = await loadWith('phc_test')
     expect(posthogOptions.autocapture).toBe(false)
     expect(posthogOptions.disable_session_recording).toBe(true)
+  })
+
+  it('accepts either env var name — the docs use one, the wizard writes the other', async () => {
+    // Getting this wrong sends nothing at all while the app looks perfectly
+    // healthy, which is exactly how it went unnoticed the first time.
+    const fromDocs = await loadWith('phc_docs', undefined, 'VITE_POSTHOG_PROJECT_TOKEN')
+    expect(fromDocs.posthogKey).toBe('phc_docs')
+    const fromWizard = await loadWith('phc_wizard', undefined, 'VITE_POSTHOG_KEY')
+    expect(fromWizard.posthogKey).toBe('phc_wizard')
   })
 
   it('falls back to the US host when none is given', async () => {
