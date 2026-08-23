@@ -21,7 +21,7 @@ beforeEach(() => {
   useTestTokens()
 })
 
-const patch = (body: unknown, zone = 'zone-tokyo') =>
+const patch = (body: object, zone = 'zone-tokyo') =>
   request(app).patch(`/api/trips/trip-1/zones/${zone}`).set(OWNER_BEARER).send(body)
 
 const read = (zone = 'zone-tokyo') =>
