@@ -308,8 +308,13 @@ function ReminderForm({ initial, pending, error, submitLabel, onCancel, onSubmit
         />
       </div>
 
+      {/* Proportional columns rather than a fixed 8rem one for the time: on a
+          narrow phone that fixed width left the time control less room than
+          its own value needs, which is where it spilled over the border. Both
+          columns shrink together now, and `min-w-0` lets them — a flex item
+          refuses to go below its content width otherwise. */}
       <div className="flex gap-2">
-        <div className="flex-1">
+        <div className="min-w-0 flex-[3]">
           <label className="label" htmlFor="reminder-date">
             Date
           </label>
@@ -322,14 +327,14 @@ function ReminderForm({ initial, pending, error, submitLabel, onCancel, onSubmit
             required
           />
         </div>
-        <div className="w-32">
+        <div className="min-w-0 flex-[2]">
           <label className="label" htmlFor="reminder-time">
             Time
           </label>
           <input
             id="reminder-time"
             type="time"
-            className="field"
+            className="field px-3"
             value={time}
             onChange={(e) => setTime(e.target.value)}
             required

@@ -27,6 +27,21 @@
   .field {
     @apply w-full rounded-2xl border border-line bg-white px-4 py-3 text-base text-ink outline-none transition-colors placeholder:text-muted focus:border-brand focus:ring-2 focus:ring-brand/20;
   }
+  /* Native date and time controls do not size like the text inputs they sit
+     next to. WebKit draws the value in an inner box that carries its own
+     margins and its own minimum width, and that box ignores the field's
+     padding — so a time in a narrow column ("09:00", or "09:00 AM" on a
+     12-hour phone) is painted past the rounded border instead of shrinking
+     with it. Dropping the platform appearance and letting the value box fill
+     the field keeps the value inside the border at any column width. */
+  .field[type='date'],
+  .field[type='time'] {
+    @apply min-w-0 appearance-none;
+  }
+  .field[type='date']::-webkit-date-and-time-value,
+  .field[type='time']::-webkit-date-and-time-value {
+    @apply m-0 block w-full text-left;
+  }
   .label {
     @apply mb-1.5 block text-xs font-bold uppercase tracking-wide text-muted;
   }
