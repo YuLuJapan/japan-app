@@ -2,9 +2,9 @@
 //
 // These are not stand-ins for anything this app owns. `pushSupport()` decides
 // what the notifications card offers by asking what the browser can do, and
-// jsdom can do none of it — so a test that wants the "ready" or "install the
-// app first" branch has to give it a browser that answers accordingly. The
-// function under test still runs; only the platform beneath it is arranged.
+// the reminders badge asks the service worker what is in the notification
+// tray — jsdom has neither. Supplying them lets those functions run for real;
+// only the platform beneath them is arranged.
 import { afterEach } from 'vitest'
 
 const restores: (() => void)[] = []
@@ -21,17 +21,62 @@ function define(target: object, key: string, value: unknown): void {
   })
 }
 
+/** One notification in the tray, and whether anything has dismissed it. */
+export interface TrayNotification {
+  closed: boolean
+  close(): void
+}
+
+export interface BrowserPush {
+  /** What the service worker would report as showing. */
+  tray: TrayNotification[]
+  /** A push arriving while another tab is open, as the worker relays it. */
+  deliver(data: unknown): void
+}
+
+const notification = (): TrayNotification => {
+  const entry: TrayNotification = {
+    closed: false,
+    close() {
+      entry.closed = true
+    },
+  }
+  return entry
+}
+
 /**
  * A browser that can take web push: a service worker, notifications and a
  * push manager. `pushSupport()` reads all three and answers 'ready'.
+ *
+ * `pending` seeds the notification tray, which is what `hasUnseenReminder`
+ * counts and what `clearReminderBadge` closes.
  */
-export function withPushCapableBrowser(): void {
+export function withPushCapableBrowser({ pending = 0 } = {}): BrowserPush {
+  const tray = Array.from({ length: pending }, notification)
+  const listeners: Record<string, (event: MessageEvent) => void> = {}
+
+  const registration = {
+    getNotifications: async () => tray.filter((n) => !n.closed),
+    pushManager: { getSubscription: async () => null },
+  }
+
   define(navigator, 'serviceWorker', {
-    getRegistration: async () => undefined,
-    register: async () => undefined,
+    getRegistration: async () => registration,
+    register: async () => registration,
+    addEventListener: (type: string, handler: (event: MessageEvent) => void) => {
+      listeners[type] = handler
+    },
+    removeEventListener: (type: string) => {
+      delete listeners[type]
+    },
   })
   define(window, 'Notification', { permission: 'default' })
   define(window, 'PushManager', function PushManager() {})
+
+  return {
+    tray,
+    deliver: (data) => listeners.message?.(new MessageEvent('message', { data })),
+  }
 }
 
 /**
@@ -43,9 +88,7 @@ export function withIphoneInASafariTab(): void {
   define(navigator, 'userAgent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Safari')
   define(window, 'Notification', { permission: 'default' })
   define(navigator, 'serviceWorker', { getRegistration: async () => undefined })
-  // No PushManager, and not launched from the Home Screen.
   delete (window as unknown as Record<string, unknown>).PushManager
-  restores.push(() => {})
 }
 
 afterEach(() => {

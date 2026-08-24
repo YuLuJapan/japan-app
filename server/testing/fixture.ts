@@ -335,7 +335,17 @@ const TABLES: [string, unknown[]][] = [
 export async function seedFixture(db: SupabaseClient): Promise<void> {
   for (const [table, rows] of TABLES) {
     if (!rows.length) continue
-    const { error } = await db.from(table).insert(rows as never)
+    // profiles is upserted rather than inserted. The API records the signed-in
+    // account on every authenticated request, so a request still in flight
+    // when the previous test was torn down can re-create that row between the
+    // truncate and here. Every other table is a plain insert, so a leftover
+    // anywhere else is still a loud primary-key error rather than a silent
+    // overwrite.
+    const write =
+      table === 'profiles'
+        ? db.from(table).upsert(rows as never, { onConflict: 'id' })
+        : db.from(table).insert(rows as never)
+    const { error } = await write
     // The whole error, not just `.message`: PostgREST reports a missing table
     // or a constraint violation in `code`/`details`/`hint`, and a bare
     // "undefined" is a miserable thing to debug a fixture with.
