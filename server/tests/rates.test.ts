@@ -1,11 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
-import { setDataStore } from '../src/lib/datastore.js'
-import { createMemoryStore } from '../src/lib/datastore.memory.js'
+import { getDataStore } from '../src/lib/datastore.js'
 import { __resetRatesCache, getRates, getRatesFor } from '../src/services/rates.js'
-import { fixture } from './fixture.js'
-import { asOwner as auth, useTestTokens } from './auth.js'
+import { asOwner as auth } from './auth.js'
 
 const app = createApp()
 
@@ -26,15 +24,13 @@ function mockProvider(byBase: Record<string, object> = { JPY: payload }) {
 }
 
 beforeEach(() => {
-  setDataStore(createMemoryStore(fixture()))
-  useTestTokens()
   __resetRatesCache()
 })
 afterEach(() => vi.restoreAllMocks())
 
 describe('exchange rates', () => {
   it('getRates parses the quoted rates and the source date, and persists them', async () => {
-    const store = createMemoryStore(fixture())
+    const store = await getDataStore()
     mockProvider()
     const r = await getRates(store, 'JPY')
     expect(r).toMatchObject({ base: 'JPY', date: '2026-07-11' })
@@ -44,7 +40,7 @@ describe('exchange rates', () => {
   })
 
   it('fetches per base, and one base never answers for another', async () => {
-    const store = createMemoryStore(fixture())
+    const store = await getDataStore()
     mockProvider({
       JPY: payload,
       EUR: { ...payload, rates: { USD: 1.16, ILS: 4.3 } },
@@ -57,7 +53,7 @@ describe('exchange rates', () => {
   })
 
   it('falls back to the last DB rate for that base when the live fetch fails', async () => {
-    const store = createMemoryStore(fixture())
+    const store = await getDataStore()
     await store.saveRates({ base: 'JPY', date: '2026-07-10', rates: { USD: 0.0065, ILS: 0.024 } })
 
     __resetRatesCache()
@@ -69,14 +65,14 @@ describe('exchange rates', () => {
   })
 
   it('throws only when the fetch fails AND there is no stored rate', async () => {
-    const store = createMemoryStore(fixture()) // no saved rate
+    const store = await getDataStore() // no saved rate
     __resetRatesCache()
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network down'))
     await expect(getRates(store, 'JPY')).rejects.toThrow()
   })
 
   it('getRatesFor keeps the symbols asked for and names the ones with no rate', async () => {
-    const store = createMemoryStore(fixture())
+    const store = await getDataStore()
     mockProvider()
     const r = await getRatesFor(store, { base: 'JPY', symbols: 'USD,THB,usd' })
     expect(r.rates).toEqual({ USD: 0.0067 })
@@ -84,7 +80,7 @@ describe('exchange rates', () => {
   })
 
   it('getRatesFor rejects a currency we cannot quote', async () => {
-    const store = createMemoryStore(fixture())
+    const store = await getDataStore()
     await expect(getRatesFor(store, { base: 'XYZ' })).rejects.toMatchObject({ status: 400 })
     await expect(getRatesFor(store, { symbols: 'USD,XYZ' })).rejects.toMatchObject({ status: 400 })
   })

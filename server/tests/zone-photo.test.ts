@@ -5,20 +5,17 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
-import { setDataStore, type DataStore } from '../src/lib/datastore.js'
-import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { VIEWER_USER, fixture } from './fixture.js'
-import { OWNER_BEARER, asOutsider, asPartner, asViewer, useTestTokens } from './auth.js'
+import { getDataStore, type DataStore } from '../src/lib/datastore.js'
+import { PARTNER_USER, VIEWER_USER } from '../testing/fixture.js'
+import { OWNER_BEARER, asOutsider, asPartner, asViewer } from './auth.js'
 
 const app = createApp()
 let store: DataStore
 
 const PHOTO = 'https://upload.wikimedia.org/kyoto.jpg'
 
-beforeEach(() => {
-  store = createMemoryStore(fixture())
-  setDataStore(store)
-  useTestTokens()
+beforeEach(async () => {
+  store = await getDataStore()
 })
 
 const patch = (body: object, zone = 'zone-tokyo') =>
@@ -69,7 +66,7 @@ describe('who may change one', () => {
   it('lets a partner change it — they can write on this trip', async () => {
     await store.upsertTripMember({
       trip_id: 'trip-1',
-      user_id: 'user-sam',
+      user_id: PARTNER_USER.id,
       role: 'partner',
       can_see_stays: true,
       can_see_flight: true,

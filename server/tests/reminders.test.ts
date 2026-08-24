@@ -1,21 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
-import { setDataStore, getDataStore, type DataStore } from '../src/lib/datastore.js'
-import { createMemoryStore } from '../src/lib/datastore.memory.js'
+import { getDataStore, type DataStore } from '../src/lib/datastore.js'
 import type { PushPayload, PushResult } from '../src/lib/push.js'
 import { dispatchDueReminders } from '../src/services/reminders.js'
 import { sendTestPush } from '../src/services/push.js'
-import { OWNER_USER, PARTNER_USER, fixture } from './fixture.js'
-import { asOwner as auth, useTestTokens } from './auth.js'
+import { OWNER_USER, PARTNER_USER } from '../testing/fixture.js'
+import { asOwner as auth } from './auth.js'
 
 const app = createApp()
 
 let store: DataStore
-beforeEach(() => {
-  store = createMemoryStore(fixture())
-  setDataStore(store)
-  useTestTokens()
+beforeEach(async () => {
+  store = await getDataStore()
   delete process.env.CRON_SECRET
   delete process.env.VAPID_PUBLIC_KEY
   delete process.env.VAPID_PRIVATE_KEY

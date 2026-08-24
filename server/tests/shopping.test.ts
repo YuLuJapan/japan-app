@@ -1,16 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
-import { setDataStore } from '../src/lib/datastore.js'
-import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { fixture } from './fixture.js'
-import { asOwner as auth, useTestTokens } from './auth.js'
+import { asOwner as auth } from './auth.js'
 
 const app = createApp()
 
 beforeEach(() => {
-  setDataStore(createMemoryStore(fixture()))
-  useTestTokens()
   // Creating an item without a photo triggers a web lookup (services/images.ts).
   // Stub it to "found nothing" so these tests never touch the network — the
   // lookup itself is covered in images.test.ts.

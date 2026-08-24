@@ -1,17 +1,9 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
-import { setDataStore } from '../src/lib/datastore.js'
-import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { fixture } from './fixture.js'
-import { asOwner as auth, asPartner, useTestTokens } from './auth.js'
+import { asOwner as auth, asPartner } from './auth.js'
 
 const app = createApp()
-
-beforeEach(() => {
-  setDataStore(createMemoryStore(fixture()))
-  useTestTokens()
-})
 
 const pdfBase64 = Buffer.from('%PDF-1.4 tiny test file').toString('base64')
 
@@ -34,8 +26,17 @@ describe('files', () => {
   it('GET /api/trips/trip-1/files/:id/url resolves an openable url', async () => {
     const res = await auth(request(app).get('/api/trips/trip-1/files/file-place/url'))
     expect(res.status).toBe(200)
-    expect(res.body.url).toBe('/placeholder-files/kyoto-walking-map.svg')
     expect(res.body.expires_in).toBeGreaterThan(0)
+    // A signed URL for the object in the bucket…
+    expect(res.body.url).toContain(
+      '/storage/v1/object/sign/trip-files/placeholder-files/kyoto-walking-map.svg'
+    )
+    // …and "openable" means it opens: the signature is honoured and the bytes
+    // come back. Asserting the shape of the string alone would pass on a URL
+    // that 400s.
+    const opened = await fetch(res.body.url)
+    expect(opened.status).toBe(200)
+    expect(await opened.text()).toContain('<svg')
   })
 
   it('distinguishes FILE_MISSING (row exists, blob gone) from NOT_FOUND', async () => {
@@ -112,7 +113,7 @@ describe('files', () => {
   })
 
   describe('upload', () => {
-    it('POST /api/files attaches a document to a place and it opens via a data URL', async () => {
+    it('POST /api/files attaches a document to a place and it opens from storage', async () => {
       const res = await auth(request(app).post('/api/trips/trip-1/files')).send({
         parent: { kind: 'place', id: 'place-ramen' },
         display_name: 'Park reservation',
@@ -128,9 +129,12 @@ describe('files', () => {
       const doc = list.body.files.find((f: { id: string }) => f.id === id)
       expect(doc.attached_to).toEqual(expect.objectContaining({ kind: 'place', id: 'place-ramen' }))
 
-      // …and is openable (memory backend serves a data URL)
+      // …and is openable: following the signed URL returns exactly the bytes
+      // that were uploaded, through storage rather than through the API.
       const url = await auth(request(app).get(`/api/trips/trip-1/files/${id}/url`))
-      expect(url.body.url).toMatch(/^data:application\/pdf;base64,/)
+      const opened = await fetch(url.body.url)
+      expect(opened.status).toBe(200)
+      expect(Buffer.from(await opened.arrayBuffer()).toString()).toBe('%PDF-1.4 tiny test file')
     })
 
     it('POST /api/files 400 on missing name, bad type, and missing parent id', async () => {
@@ -230,14 +234,13 @@ describe('trip-scoped file routes', () => {
 // asking for it, and the web test asserted that exact flat call — so a suite
 // that was green described a page that 404'd on every document.
 describe('the flat file routes are gone', () => {
-  it.each([
-    ['/api/files'],
-    ['/api/files/file-trip/content'],
-    ['/api/files/file-trip/url'],
-  ])('%s answers 404 — content is only reachable through its trip', async (path) => {
-    const res = await auth(request(app).get(path))
-    expect(res.status).toBe(404)
-  })
+  it.each([['/api/files'], ['/api/files/file-trip/content'], ['/api/files/file-trip/url']])(
+    '%s answers 404 — content is only reachable through its trip',
+    async (path) => {
+      const res = await auth(request(app).get(path))
+      expect(res.status).toBe(404)
+    }
+  )
 
   it('still serves the same file under its trip', async () => {
     const res = await auth(request(app).get('/api/trips/trip-1/files/file-trip/content'))

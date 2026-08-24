@@ -10,14 +10,12 @@
 // belongs to the trip named earlier. `/trips/A/places/<place-in-B>` still
 // resolves, because zones are not trip-scoped in the schema until phase 3b.
 // Those cases are `it.todo` below, and 3b is the commit that turns them on.
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import request from 'supertest'
 import type { Router } from 'express'
 import { createApp, tripScopedRouter } from '../src/app.js'
-import { setDataStore } from '../src/lib/datastore.js'
-import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { fixture } from './fixture.js'
-import { useTestTokens } from './auth.js'
+import { OUTSIDER_USER, OWNER_USER, PARTNER_USER } from '../testing/fixture.js'
+import { tokenFor } from './auth.js'
 
 const app = createApp()
 
@@ -62,11 +60,6 @@ const fill = (path: string) =>
 
 const ROUTES = collectRoutes(tripScopedRouter())
 
-beforeEach(() => {
-  setDataStore(createMemoryStore(fixture()))
-  useTestTokens()
-})
-
 const as = (token: string) => ({ Authorization: `Bearer ${token}` })
 
 const url = (path: string) => `/api/trips/trip-1${fill(path)}`.replace(/\/$/, '')
@@ -87,7 +80,9 @@ describe('the sweep covers the whole trip-scoped surface', () => {
 describe('a non-member is refused everywhere under /api/trips/:tripId', () => {
   it.each(ROUTES.map((r) => [r.method, r.path] as const))('%s %s → 404', async (method, path) => {
     const send = request(app)[method.toLowerCase() as 'get']
-    const res = await send(url(path)).set('Authorization', 'Bearer outsider.jwt').send({})
+    const res = await send(url(path))
+      .set('Authorization', `Bearer ${tokenFor(OUTSIDER_USER)}`)
+      .send({})
     // 404, never 403: a 403 would confirm the trip exists to someone with no
     // business knowing that.
     expect(res.status).toBe(404)
@@ -100,7 +95,9 @@ describe('a member is not refused', () => {
   it.each(ROUTES.filter((r) => r.method === 'GET').map((r) => [r.path] as const))(
     'GET %s is reachable',
     async (path) => {
-      const res = await request(app).get(url(path)).set('Authorization', 'Bearer owner.jwt')
+      const res = await request(app)
+        .get(url(path))
+        .set('Authorization', `Bearer ${tokenFor(OWNER_USER)}`)
       expect(res.status).not.toBe(404)
       expect(res.status).not.toBe(403)
     }
@@ -111,14 +108,14 @@ describe('an unknown trip id is indistinguishable from someone else’s', () => 
   it('404s for a member of a different trip', async () => {
     await request(app)
       .get('/api/trips/trip-does-not-exist')
-      .set('Authorization', 'Bearer owner.jwt')
+      .set('Authorization', `Bearer ${tokenFor(OWNER_USER)}`)
       .expect(404)
   })
 
   it('404s for a brand-new account', async () => {
     await request(app)
       .get('/api/trips/trip-does-not-exist')
-      .set('Authorization', 'Bearer outsider.jwt')
+      .set('Authorization', `Bearer ${tokenFor(OUTSIDER_USER)}`)
       .expect(404)
   })
 })
@@ -131,7 +128,7 @@ describe('cross-resource scoping', () => {
   //
   // The caller is a full owner of trip-1 throughout. Nothing here is about
   // authentication; it is about trip-1 being the wrong door for trip-2's rows.
-  const owner = () => as('owner.jwt')
+  const owner = () => as(tokenFor(OWNER_USER))
 
   it.each([
     ['a place', 'GET', '/places/place-other'],
@@ -150,7 +147,7 @@ describe('cross-resource scoping', () => {
     // …and it is still there.
     await request(app)
       .get('/api/trips/trip-2/places/place-other')
-      .set(as('partner.jwt'))
+      .set(as(tokenFor(PARTNER_USER)))
       .expect(200)
   })
 
@@ -187,6 +184,9 @@ describe('cross-resource scoping', () => {
     // above while breaking the app.
     await request(app).get('/api/trips/trip-1/places/place-ramen').set(owner()).expect(200)
     await request(app).get('/api/trips/trip-1/zones/zone-tokyo').set(owner()).expect(200)
-    await request(app).get('/api/trips/trip-2/zones/zone-osaka').set(as('partner.jwt')).expect(200)
+    await request(app)
+      .get('/api/trips/trip-2/zones/zone-osaka')
+      .set(as(tokenFor(PARTNER_USER)))
+      .expect(200)
   })
 })

@@ -1,20 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
-import { setDataStore, type DataStore } from '../src/lib/datastore.js'
-import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { VIEWER_USER, fixture } from './fixture.js'
-import { OWNER_BEARER, asOutsider, asViewer, useTestTokens } from './auth.js'
+import { getDataStore, type DataStore } from '../src/lib/datastore.js'
+import { VIEWER_USER } from '../testing/fixture.js'
+import { OWNER_BEARER, asOutsider, asViewer } from './auth.js'
 
 const app = createApp()
 const auth = () => request(app).get('/api/trips').set(OWNER_BEARER)
 
 let store: DataStore
 
-beforeEach(() => {
-  store = createMemoryStore(fixture())
-  setDataStore(store)
-  useTestTokens()
+beforeEach(async () => {
+  store = await getDataStore()
 })
 
 /**

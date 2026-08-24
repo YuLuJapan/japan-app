@@ -6,19 +6,16 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
-import { setDataStore, type DataStore } from '../src/lib/datastore.js'
-import { createMemoryStore } from '../src/lib/datastore.memory.js'
+import { getDataStore, type DataStore } from '../src/lib/datastore.js'
 import { CURRENT_TERMS_VERSION } from '../src/lib/terms.js'
-import { fixture } from './fixture.js'
-import { OWNER_BEARER, useTestTokens } from './auth.js'
+import { OWNER_USER } from '../testing/fixture.js'
+import { OWNER_BEARER } from './auth.js'
 
 const app = createApp()
 let store: DataStore
 
-beforeEach(() => {
-  store = createMemoryStore(fixture())
-  setDataStore(store)
-  useTestTokens()
+beforeEach(async () => {
+  store = await getDataStore()
 })
 
 const me = () => request(app).get('/api/me').set(OWNER_BEARER)
@@ -38,7 +35,7 @@ describe('accepting the terms', () => {
 
   it('stores when, and which version', async () => {
     await accept()
-    const profile = await store.getProfile('user-yuval')
+    const profile = await store.getProfile(OWNER_USER.id)
     expect(profile?.accepted_terms_version).toBe(CURRENT_TERMS_VERSION)
     expect(Date.parse(profile?.accepted_terms_at ?? '')).not.toBeNaN()
   })
@@ -46,17 +43,14 @@ describe('accepting the terms', () => {
   it('asks again once the terms change', async () => {
     // The whole reason the version is stored beside the timestamp.
     await accept()
-    await store.acceptTerms('user-yuval', '2020-01-01', new Date().toISOString())
+    await store.acceptTerms(OWNER_USER.id, '2020-01-01', new Date().toISOString())
     expect((await me()).body.terms.accepted).toBe(false)
   })
 
   it('ignores a version sent by the client', async () => {
     // Otherwise an account could "accept" text it was never shown.
-    await request(app)
-      .post('/api/me/terms')
-      .set(OWNER_BEARER)
-      .send({ version: 'whatever-i-like' })
-    expect((await store.getProfile('user-yuval'))?.accepted_terms_version).toBe(
+    await request(app).post('/api/me/terms').set(OWNER_BEARER).send({ version: 'whatever-i-like' })
+    expect((await store.getProfile(OWNER_USER.id))?.accepted_terms_version).toBe(
       CURRENT_TERMS_VERSION
     )
   })
@@ -71,8 +65,8 @@ describe('accepting the terms', () => {
     // syncProfile runs on every authenticated request; it must never touch the
     // acceptance columns, or a version bump would silently re-accept itself.
     await accept()
-    await store.upsertProfile({ id: 'user-yuval', email: 'yuval@example.com' })
-    expect((await store.getProfile('user-yuval'))?.accepted_terms_version).toBe(
+    await store.upsertProfile({ id: OWNER_USER.id, email: 'yuval@example.com' })
+    expect((await store.getProfile(OWNER_USER.id))?.accepted_terms_version).toBe(
       CURRENT_TERMS_VERSION
     )
   })

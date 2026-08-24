@@ -558,8 +558,48 @@ export function createSupabaseStore(): DataStore {
 
     async deleteTrip(tripId) {
       // journey_steps/itinerary_items/shopping_items/reminders/files all
-      // reference trip_id with `on delete cascade` (0001/0002/0006/0007).
-      const { data } = await db.from('trips').delete().eq('id', tripId).select('id')
+      // reference trip_id with `on delete cascade` (0001/0002/0006/0007) — but
+      // the trip's files cannot be left to it.
+      //
+      // A file attached to a *place* has files.place_id set and the other two
+      // parents null, and that FK is `on delete set null`. Cascading the trip
+      // deletes the zone, which deletes the place, which nulls that last
+      // parent — and `files_check` requires exactly one. Postgres then refuses
+      // the whole delete. Clearing the rows up front is also the only thing
+      // that removes their blobs: a cascade drops the metadata and leaves the
+      // objects in the bucket for ever.
+      const zoneIds = await zoneIdsFor(db, tripId)
+      const placeIds = await placeIdsFor(db, zoneIds)
+      const cols = 'id,storage_path'
+      const owned = await Promise.all([
+        db.from('files').select(cols).eq('trip_id', tripId),
+        zoneIds.length
+          ? db.from('files').select(cols).in('zone_id', zoneIds)
+          : Promise.resolve({ data: [] as unknown[] }),
+        placeIds.length
+          ? db.from('files').select(cols).in('place_id', placeIds)
+          : Promise.resolve({ data: [] as unknown[] }),
+      ])
+      const paths = new Map<string, string>()
+      for (const result of owned) {
+        for (const row of (result.data ?? []) as { id: string; storage_path: string }[]) {
+          paths.set(row.id, row.storage_path)
+        }
+      }
+      if (paths.size) {
+        await db.storage.from(FILES_BUCKET).remove([...paths.values()])
+        const { error } = await db
+          .from('files')
+          .delete()
+          .in('id', [...paths.keys()])
+        if (error) throw new Error(error.message)
+      }
+
+      const { data, error } = await db.from('trips').delete().eq('id', tripId).select('id')
+      // Not swallowed: returning false for a database error reads as "no such
+      // trip" and answers 404, which is how the constraint above stayed
+      // invisible for as long as it did.
+      if (error) throw new Error(error.message)
       return (data?.length ?? 0) > 0
     },
 

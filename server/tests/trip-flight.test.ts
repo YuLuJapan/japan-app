@@ -7,22 +7,18 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
-import { setDataStore, type DataStore } from '../src/lib/datastore.js'
-import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { VIEWER_USER, fixture } from './fixture.js'
-import { OWNER_BEARER, asViewer, useTestTokens } from './auth.js'
+import { getDataStore, type DataStore } from '../src/lib/datastore.js'
+import { VIEWER_USER } from '../testing/fixture.js'
+import { OWNER_BEARER, asViewer } from './auth.js'
 
 const app = createApp()
 let store: DataStore
 
-beforeEach(() => {
-  store = createMemoryStore(fixture())
-  setDataStore(store)
-  useTestTokens()
+beforeEach(async () => {
+  store = await getDataStore()
 })
 
-const patch = (body: object) =>
-  request(app).patch('/api/trips/trip-1').set(OWNER_BEARER).send(body)
+const patch = (body: object) => request(app).patch('/api/trips/trip-1').set(OWNER_BEARER).send(body)
 
 const read = () => request(app).get('/api/trips/trip-1').set(OWNER_BEARER)
 
@@ -101,15 +97,12 @@ describe('attaching a flight to a trip', () => {
   })
 
   it('carries the flight through trip creation', async () => {
-    const res = await request(app)
-      .post('/api/trips')
-      .set(OWNER_BEARER)
-      .send({
-        name: 'Rome',
-        start_date: '2027-04-01',
-        end_date: '2027-04-08',
-        flight: { outbound },
-      })
+    const res = await request(app).post('/api/trips').set(OWNER_BEARER).send({
+      name: 'Rome',
+      start_date: '2027-04-01',
+      end_date: '2027-04-08',
+      flight: { outbound },
+    })
     expect(res.status).toBe(201)
     const bundle = await request(app).get(`/api/trips/${res.body.trip.id}`).set(OWNER_BEARER)
     expect(bundle.body.flight.outbound.legs).toEqual(outbound.legs)

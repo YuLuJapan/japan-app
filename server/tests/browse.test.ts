@@ -1,17 +1,9 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
-import { setDataStore } from '../src/lib/datastore.js'
-import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { fixture } from './fixture.js'
-import { asOwner as auth, asPartner, useTestTokens } from './auth.js'
+import { asOwner as auth, asPartner } from './auth.js'
 
 const app = createApp()
-
-beforeEach(() => {
-  setDataStore(createMemoryStore(fixture()))
-  useTestTokens()
-})
 
 describe('GET /api/trips/trip-1', () => {
   it('returns the journey skeleton: ordered steps, zone summaries, counts', async () => {

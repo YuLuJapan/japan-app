@@ -1,17 +1,9 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
-import { setDataStore } from '../src/lib/datastore.js'
-import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { fixture } from './fixture.js'
-import { asOwner as auth, useTestTokens } from './auth.js'
+import { asOwner as auth } from './auth.js'
 
 const app = createApp()
-
-beforeEach(() => {
-  setDataStore(createMemoryStore(fixture()))
-  useTestTokens()
-})
 
 describe('place mutations', () => {
   it('POST /api/places creates and it appears in the zone list', async () => {

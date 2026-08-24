@@ -10,10 +10,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
-import { setDataStore, type DataStore } from '../src/lib/datastore.js'
-import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { OWNER_USER, VIEWER_USER, fixture } from './fixture.js'
-import { useTestTokens } from './auth.js'
+import { getDataStore, type DataStore } from '../src/lib/datastore.js'
+import { OWNER_USER, VIEWER_USER } from '../testing/fixture.js'
+import { tokenFor } from './auth.js'
 
 const app = createApp()
 
@@ -44,13 +43,11 @@ async function asViewer({
   })
 }
 
-const viewer = { Authorization: 'Bearer viewer.jwt' }
-const owner = { Authorization: 'Bearer owner.jwt' }
+const viewer = { Authorization: `Bearer ${tokenFor(VIEWER_USER)}` }
+const owner = { Authorization: `Bearer ${tokenFor(OWNER_USER)}` }
 
-beforeEach(() => {
-  store = createMemoryStore(fixture())
-  setDataStore(store)
-  useTestTokens()
+beforeEach(async () => {
+  store = await getDataStore()
 })
 
 describe('stays', () => {

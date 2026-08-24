@@ -1,10 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
-import { setDataStore } from '../src/lib/datastore.js'
-import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { fixture } from './fixture.js'
-import { asOwner as auth, useTestTokens } from './auth.js'
+import { asOwner as auth } from './auth.js'
 
 const app = createApp()
 
@@ -60,10 +57,6 @@ function mockFetch(handler: (url: string) => unknown | null) {
   )
 }
 
-beforeEach(() => {
-  setDataStore(createMemoryStore(fixture()))
-  useTestTokens()
-})
 afterEach(() => vi.unstubAllGlobals())
 
 describe('GET /api/images', () => {

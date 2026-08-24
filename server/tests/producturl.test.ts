@@ -1,12 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
-import { setDataStore } from '../src/lib/datastore.js'
-import { createMemoryStore } from '../src/lib/datastore.memory.js'
 import { __resetRatesCache } from '../src/services/rates.js'
 import { __resetTranslateCache } from '../src/services/translate.js'
-import { fixture } from './fixture.js'
-import { asOwner as auth, useTestTokens } from './auth.js'
+import { asOwner as auth } from './auth.js'
 
 const app = createApp()
 
@@ -56,8 +53,6 @@ const productHtml = `
 </head><body>…</body></html>`
 
 beforeEach(() => {
-  setDataStore(createMemoryStore(fixture()))
-  useTestTokens()
   __resetRatesCache()
   // both caches are module-level: without this, one test's "couldn't translate"
   // answers the next test's lookup of the same string

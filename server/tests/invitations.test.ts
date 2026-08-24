@@ -11,20 +11,17 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
-import { setDataStore, type DataStore } from '../src/lib/datastore.js'
-import { createMemoryStore } from '../src/lib/datastore.memory.js'
+import { getDataStore, type DataStore } from '../src/lib/datastore.js'
 import { listMyInvitations } from '../src/services/invites.js'
-import { OUTSIDER_USER, OWNER_USER, fixture } from './fixture.js'
-import { asOutsider, asOwner, asUnconfirmed, useTestTokens } from './auth.js'
+import { OUTSIDER_USER, OWNER_USER } from '../testing/fixture.js'
+import { asOutsider, asOwner, asUnconfirmed } from './auth.js'
 
 const app = createApp()
 
 let store: DataStore
 
-beforeEach(() => {
-  store = createMemoryStore(fixture())
-  setDataStore(store)
-  useTestTokens()
+beforeEach(async () => {
+  store = await getDataStore()
 })
 
 /** Invite an address to trip-1 and return the created row. */

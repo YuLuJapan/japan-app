@@ -1,0 +1,113 @@
+# A real Supabase stack on your machine — the same four services a hosted
+# project runs, so `DATA_BACKEND=supabase` locally exercises the code path
+# production uses instead of the in-memory stand-in.
+#
+# Brought up by `npm run local:up` (which also applies migrations and seeds);
+# see README "Local Supabase stack".
+#
+# Every credential here is a fixed local-only constant, shared with
+# server/testing/stack-config.ts. Nothing in this file reaches a real project.
+name: japan-app-local
+
+services:
+  db:
+    image: supabase/postgres:15.8.1.060
+    environment:
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      # Gives the service roles their passwords before anything connects.
+      - ./init/zz-roles.sql:/docker-entrypoint-initdb.d/zz-roles.sql:ro
+      - db-data:/var/lib/postgresql/data
+    ports:
+      # Exposed so `psql` and the migration runner can reach it directly.
+      - '54322:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  rest:
+    image: postgrest/postgrest:v12.2.3
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://authenticator:postgres@db:5432/postgres
+      # storage is exposed too: the storage API reaches its own tables through
+      # PostgREST rather than opening a second connection pool.
+      PGRST_DB_SCHEMAS: public,storage
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      PGRST_DB_USE_LEGACY_GUCS: 'false'
+
+  auth:
+    image: supabase/gotrue:v2.177.0
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      PORT: '9999'
+      # Where GoTrue believes it is reachable — it builds confirmation and
+      # recovery links from this, so it points at the gateway, not at itself.
+      API_EXTERNAL_URL: http://localhost:54321/auth/v1
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:postgres@db:5432/postgres
+      GOTRUE_SITE_URL: http://localhost:3000
+      GOTRUE_URI_ALLOW_LIST: '*'
+      GOTRUE_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_EXP: '3600'
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_DISABLE_SIGNUP: 'false'
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: 'true'
+      # No SMTP locally: sign-ups are confirmed on the spot. The app treats an
+      # unconfirmed address as unable to claim an invitation, so leaving this
+      # off would make every locally created account a second-class one.
+      GOTRUE_MAILER_AUTOCONFIRM: 'true'
+
+  storage:
+    image: supabase/storage-api:v1.11.13
+    depends_on:
+      db:
+        condition: service_healthy
+      rest:
+        condition: service_started
+    environment:
+      ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1sb2NhbCIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzAwMDAwMDAwLCJleHAiOjQxMDI0NDQ4MDB9.kwHZKobM_724AIfuOR4SZJf09wkpkqhove24JXt26N0
+      SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1sb2NhbCIsInJvbGUiOiJzZXJ2aWNlX3JvbGUiLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6NDEwMjQ0NDgwMH0.Bb5JLSwE820_TOKSiCfPd2GDTrD9aZ2qATTVW-nodSc
+      PGRST_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      DATABASE_URL: postgres://supabase_storage_admin:postgres@db:5432/postgres
+      POSTGREST_URL: http://rest:3000
+      # Blobs on a docker volume rather than S3 — there is no minio here, and
+      # the free-tier budget rule says there never will be.
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      FILE_SIZE_LIMIT: '52428800'
+      TENANT_ID: local
+      REGION: local
+      GLOBAL_S3_BUCKET: local
+    volumes:
+      - storage-data:/var/lib/storage
+
+  gateway:
+    image: nginx:1.27-alpine
+    depends_on:
+      rest:
+        condition: service_started
+      auth:
+        condition: service_started
+      storage:
+        condition: service_started
+    volumes:
+      - ./init/gateway.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      # SUPABASE_URL=http://localhost:54321 — the supabase CLI's port, so a
+      # stack started either way looks the same to the app.
+      - '54321:8000'
+
+volumes:
+  db-data:
+  storage-data:
