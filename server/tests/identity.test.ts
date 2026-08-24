@@ -4,6 +4,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
+import { CURRENT_TERMS_VERSION } from '../src/lib/terms.js'
 import { getDataStore, setDataStore, type DataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
 import { clearTokenCache, resolveUser, setTokenVerifier, syncProfile } from '../src/lib/identity.js'
@@ -162,14 +163,14 @@ describe('GET /api/me', () => {
   it('names the signed-in account', async () => {
     const res = await request(app).get('/api/me').set(signedIn)
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({
-      user: {
-        id: 'user-yuval',
-        email: 'yuval@example.com',
-        display_name: 'Yuval',
-        avatar_url: 'https://example.com/y.png',
-      },
+    expect(res.body.user).toMatchObject({
+      id: 'user-yuval',
+      email: 'yuval@example.com',
+      display_name: 'Yuval',
+      avatar_url: 'https://example.com/y.png',
     })
+    // A fixture account has never accepted anything, so the app asks.
+    expect(res.body.terms).toEqual({ accepted: false, version: CURRENT_TERMS_VERSION })
   })
 
   it('requires authentication like every other route', async () => {

@@ -186,6 +186,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         existing.email = input.email
         if (input.display_name != null) existing.display_name = input.display_name
         if (input.avatar_url != null) existing.avatar_url = input.avatar_url
+        // Acceptance is never touched here: signing in again is not agreeing again.
         return structuredClone(existing)
       }
       const created: Profile = {
@@ -196,6 +197,14 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       }
       profiles.push(created)
       return structuredClone(created)
+    },
+
+    async acceptTerms(userId, version, at) {
+      const profile = profiles.find((p) => p.id === userId)
+      if (!profile) return null
+      profile.accepted_terms_at = at
+      profile.accepted_terms_version = version
+      return structuredClone(profile)
     },
 
     async listTripsForUser(userId) {

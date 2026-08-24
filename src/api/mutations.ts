@@ -371,6 +371,23 @@ function useTripsInvalidation() {
   return () => qc.invalidateQueries({ queryKey: ['trips'] })
 }
 
+/**
+ * Accept the terms as they currently stand.
+ *
+ * No version is sent: the server stamps its own, so a client cannot accept
+ * text it was never shown. See server/src/lib/terms.ts.
+ */
+export function useAcceptTerms() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.post<{ terms: { accepted: boolean } }>('/me/terms', {}),
+    onSuccess: () => {
+      capture('terms_accepted')
+      qc.invalidateQueries({ queryKey: ['me'] })
+    },
+  })
+}
+
 export function useCreateTrip() {
   const invalidate = useTripsInvalidation()
   return useMutation({

@@ -26,6 +26,10 @@ export interface Profile {
   email: string
   display_name: string | null
   avatar_url: string | null
+  /** When this account accepted the terms, or null if it never has. */
+  accepted_terms_at?: string | null
+  /** Which version was accepted — see lib/terms.ts for why both are stored. */
+  accepted_terms_version?: string | null
 }
 
 export interface ProfileInput {
@@ -420,6 +424,8 @@ export interface DataStore {
    * authenticated request of a session, so it must stay cheap and idempotent.
    */
   upsertProfile(input: ProfileInput): Promise<Profile>
+  /** Stamps this account as having accepted `version` of the terms, now. */
+  acceptTerms(userId: string, version: string, at: string): Promise<Profile | null>
 
   /**
    * The caller's trips, oldest first. Powers the "Where to next?" trips list.

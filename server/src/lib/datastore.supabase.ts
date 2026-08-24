@@ -70,7 +70,10 @@ const zoneIdsFor = async (
 // deploy run against a not-yet-migrated database. Writes are deliberately not
 // forgiving — a failed upsert is swallowed by the caller (lib/identity.ts),
 // which is where "profile sync must never fail a request" is decided.
-const PROFILE_COLS = 'id,email,display_name,avatar_url'
+// accepted_terms_* arrive in 0021 and degrade like every other late column:
+// absent reads as "never accepted", which asks again rather than 500ing.
+const PROFILE_COLS = 'id,email,display_name,avatar_url,accepted_terms_at,accepted_terms_version'
+const PROFILE_BASE_COLS = 'id,email,display_name,avatar_url'
 
 // trip_members (migration 0012).
 const MEMBER_COLS =
@@ -112,6 +115,11 @@ const TRIP_BASE_COLS = 'id,name,start_date,end_date,description'
 // country arrives in 0015, flight in 0017, the start time in 0020; `people` in
 // 0009. All of them degrade the same way.
 const TRIP_COLS = `${TRIP_BASE_COLS},people,country,flight,local_currency,home_currencies,start_time,start_tz`
+
+/** Postgres/PostgREST for "that column isn't there" — a migration not yet run. */
+function isMissingColumn(error: { code?: string } | null): boolean {
+  return error?.code === '42703' || error?.code === 'PGRST204'
+}
 
 function isMissingPeopleColumn(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false
@@ -278,13 +286,32 @@ export function createSupabaseStore(): DataStore {
       const row: Record<string, unknown> = { id: input.id, email: input.email }
       if (input.display_name != null) row.display_name = input.display_name
       if (input.avatar_url != null) row.avatar_url = input.avatar_url
-      const { data, error } = await db
+      let { data, error } = await db
         .from('profiles')
         .upsert(row, { onConflict: 'id' })
         .select(PROFILE_COLS)
         .single()
+      if (error && isMissingColumn(error))
+        ({ data, error } = await db
+          .from('profiles')
+          .upsert(row, { onConflict: 'id' })
+          .select(PROFILE_BASE_COLS)
+          .single())
       if (error) throw new Error(error.message)
       return data as Profile
+    },
+
+    async acceptTerms(userId, version, at) {
+      const { data, error } = await db
+        .from('profiles')
+        .update({ accepted_terms_at: at, accepted_terms_version: version })
+        .eq('id', userId)
+        .select(PROFILE_COLS)
+        .maybeSingle()
+      // A missing column here must be loud: silently "accepting" into nowhere
+      // would leave the app asking again on every single visit.
+      if (error) throw new Error(error.message)
+      return (data as unknown as Profile | null) ?? null
     },
 
     async listTripsForUser(userId) {
