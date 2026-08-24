@@ -52,6 +52,7 @@ beforeEach(() => {
   mocks.post.mockReset()
   mocks.getSupabaseClient.mockReturnValue(null)
   localStorage.clear()
+  window.history.replaceState({}, '', '/gate')
 })
 
 describe('AccessGate — Supabase Auth not configured', () => {
@@ -165,5 +166,49 @@ describe('AccessGate — Supabase Auth configured', () => {
     expect(await screen.findByText(/didn’t accept the session/)).toBeInTheDocument()
     expect(supabase.auth.signOut).toHaveBeenCalled()
     expect(screen.queryByText('trips page')).not.toBeInTheDocument()
+  })
+})
+
+// Google and the magic link both leave the page and come back to /gate with
+// the session in the URL. Reading it and proving it against /me takes a moment,
+// and the screen must not spend that moment claiming nobody is signed in.
+describe('AccessGate — coming back from a redirect', () => {
+  it('says it is signing you in instead of offering the buttons again', async () => {
+    const supabase = supabaseStub({
+      getSession: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve({ data: { session: { access_token: 'jwt-123' } } }), 20)
+          })
+      ),
+    })
+    mocks.getSupabaseClient.mockReturnValue(supabase)
+    mocks.get.mockResolvedValue({ user: { id: 'user-1' } })
+    window.history.replaceState({}, '', '/gate?code=oauth-code')
+    renderAt('/gate', routes)
+
+    expect(screen.getByText('Signing you in…')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Continue with Google/ })).not.toBeInTheDocument()
+    expect(await screen.findByText('trips page')).toBeInTheDocument()
+  })
+
+  it('offers the ways in again when the redirect brought no session', async () => {
+    const supabase = supabaseStub()
+    mocks.getSupabaseClient.mockReturnValue(supabase)
+    window.history.replaceState({}, '', '/gate#access_token=stale')
+    renderAt('/gate', routes)
+
+    expect(screen.getByText('Signing you in…')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /Continue with Google/ })).toBeInTheDocument()
+  })
+
+  it('shows the same wait while handing off to Google', async () => {
+    const supabase = supabaseStub()
+    mocks.getSupabaseClient.mockReturnValue(supabase)
+    renderAt('/gate', routes)
+
+    await userEvent.click(screen.getByRole('button', { name: /Continue with Google/ }))
+
+    expect(screen.getByText('Signing you in…')).toBeInTheDocument()
   })
 })
