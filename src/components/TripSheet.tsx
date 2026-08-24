@@ -23,6 +23,7 @@ import { FlightFields } from './FlightFields'
 import { emptyFlight, fromDraft, toDraft, type FlightDraft } from '../lib/flight-draft'
 import { commonTimeZones, deviceTimeZone, timeZoneOptions, zoneLabel } from '../lib/flight-time'
 import { AccessPicker, DEFAULT_SHOWS, type InviteRole, type Shows } from './AccessPicker'
+import { collectTripDraftErrors, tripErrorSummary, type TripField } from '../lib/trip-draft'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -248,6 +249,24 @@ function StrandedPanel({
   )
 }
 
+/**
+ * One blocker, beside the field it belongs to.
+ *
+ * `role="alert"` rather than a plain paragraph: these appear in response to
+ * pressing Save, and on a phone the field in question is often scrolled off
+ * screen, so a screen reader announcing it is the only way the message lands
+ * at all. Rendering nothing when there is no message keeps the alert region
+ * from announcing an empty string on every keystroke.
+ */
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null
+  return (
+    <p id={id} role="alert" className="mt-1 text-xs font-semibold text-brand">
+      {message}
+    </p>
+  )
+}
+
 interface Props {
   mode: 'add' | 'edit' | null
   trip?: Trip
@@ -326,6 +345,11 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   const [flightReady, setFlightReady] = useState(false)
   const [reason, setReason] = useState('')
   const [personError, setPersonError] = useState(false)
+  // Blockers stay quiet until Save is pressed. Shouting "pick a start date" at
+  // someone who has not reached the dropdowns yet is noise, not help — but
+  // once they have asked to save, every one of them is fair to show, and stays
+  // shown as they fix them one by one.
+  const [showErrors, setShowErrors] = useState(false)
   // Which traveller's access is being chosen, by roster index. null = none.
   const [inviting, setInviting] = useState<number | null>(null)
   const [inviteRole, setInviteRole] = useState<InviteRole>('viewer')
@@ -412,6 +436,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
     setPersonName('')
     setPersonEmail('')
     setPersonError(false)
+    setShowErrors(false)
     setInviting(null)
     setInviteRole('viewer')
     setInviteShows(DEFAULT_SHOWS)
@@ -463,8 +488,17 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   const startDate = joinDate(sy, sm, sd)
   const endDate = joinDate(ey, em, ed)
   const mutation = mode === 'edit' ? update : create
-  const canSubmit =
-    name.trim() && startDate && endDate && endDate >= startDate && homeCurrencies.length > 0
+  // The name is deliberately absent: it is an override, not the title, and an
+  // empty one means "build it from who is going and where" (the server says so
+  // in collectTripErrors, and the label under the field says so too). Requiring
+  // it here is what made "Name it (optional)" a lie.
+  const fieldErrors = collectTripDraftErrors({ startDate, endDate, homeCurrencies })
+  const errorSummary = tripErrorSummary(fieldErrors)
+  const shownError = (field: TripField): string | undefined => {
+    const error = fieldErrors[field]
+    if (!error) return undefined
+    return showErrors || error.when === 'contradiction' ? error.message : undefined
+  }
   const datesChanged =
     mode === 'edit' && !!trip && (startDate !== trip.start_date || endDate !== trip.end_date)
 
@@ -514,7 +548,13 @@ export function TripSheet({ mode, trip, onClose }: Props) {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!canSubmit) return
+    // Pressing a live button and being told what is missing beats pressing a
+    // dead one and guessing.
+    if (errorSummary) {
+      setShowErrors(true)
+      return
+    }
+    setShowErrors(false)
     // Second press: the traveller has seen what is in the way and chosen.
     if (impact) {
       save(impact)
@@ -662,6 +702,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
           What the exchange calculator converts: {localCurrency} into{' '}
           {homeCurrencies.join(', ') || '…'}.
         </p>
+        <FieldError id="trip-currencies-error" message={shownError('currencies')} />
 
         <span className="label mt-4 block">Starts at</span>
         <div className="mt-1 flex gap-2">
@@ -708,8 +749,16 @@ export function TripSheet({ mode, trip, onClose }: Props) {
           <FlightFields draft={flightDraft} onChange={setFlightDraft} />
         </div>
 
-        <span className="label mt-4 block">Starts</span>
-        <div className="mt-1 flex gap-2">
+        <span className="label mt-4 block" id="trip-start-label">
+          Starts
+        </span>
+        <div
+          className="mt-1 flex gap-2"
+          role="group"
+          aria-labelledby="trip-start-label"
+          aria-invalid={!!shownError('start')}
+          aria-describedby={shownError('start') ? 'trip-start-error' : undefined}
+        >
           <select
             className="field flex-1"
             aria-label="Start day"
@@ -757,8 +806,18 @@ export function TripSheet({ mode, trip, onClose }: Props) {
           </select>
         </div>
 
-        <span className="label mt-3 block">Ends</span>
-        <div className="mt-1 flex gap-2">
+        <FieldError id="trip-start-error" message={shownError('start')} />
+
+        <span className="label mt-3 block" id="trip-end-label">
+          Ends
+        </span>
+        <div
+          className="mt-1 flex gap-2"
+          role="group"
+          aria-labelledby="trip-end-label"
+          aria-invalid={!!shownError('end')}
+          aria-describedby={shownError('end') ? 'trip-end-error' : undefined}
+        >
           <select
             className="field flex-1"
             aria-label="End day"
@@ -805,13 +864,12 @@ export function TripSheet({ mode, trip, onClose }: Props) {
             ))}
           </select>
         </div>
-        {startDate && endDate && (
+        {startDate && endDate && endDate >= startDate && (
           <p className="mt-2 text-xs text-muted">
-            {endDate < startDate
-              ? 'End date is before the start date.'
-              : `${fmtPreview(startDate)} – ${fmtPreview(endDate)}`}
+            {fmtPreview(startDate)} – {fmtPreview(endDate)}
           </p>
         )}
+        <FieldError id="trip-end-error" message={shownError('end')} />
 
         {impact && (
           <StrandedPanel
@@ -1013,6 +1071,12 @@ export function TripSheet({ mode, trip, onClose }: Props) {
           </div>
         )}
 
+        {showErrors && errorSummary && (
+          <p role="alert" className="mt-4 text-sm font-semibold text-brand">
+            {errorSummary}
+          </p>
+        )}
+
         {mutation.isError && (
           <p className="mt-4 text-sm font-semibold text-brand">
             {saveErrorMessage(mutation.error)}
@@ -1026,7 +1090,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
           <button
             type="submit"
             className="btn-primary flex-1"
-            disabled={!canSubmit || checking || mutation.isPending}
+            disabled={checking || mutation.isPending}
           >
             {submitLabel({
               pending: mutation.isPending,

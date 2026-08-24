@@ -32,6 +32,9 @@ const TRIP: Trip = {
   start_tz: null,
 }
 
+/** The year dropdown offers this year - 1 through this year + 5. */
+const thisYear = new Date().getFullYear()
+
 function renderSheet(props: Partial<Parameters<typeof TripSheet>[0]> = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -394,5 +397,146 @@ describe('TripSheet — inviting a traveller', () => {
     renderSheet({ mode: 'edit', trip: withRoster })
 
     expect(await screen.findByRole('button', { name: 'Invite' })).toBeInTheDocument()
+  })
+})
+
+// The name is an override, not the title — leaving it empty means "name it
+// after who is going and where". The form said so ("Name it (optional)") while
+// refusing to submit without one, and said nothing about why, because the only
+// signal was a disabled button.
+describe('TripSheet — creating a trip', () => {
+  beforeEach(() => {
+    mocks.get.mockReset()
+    // The sheet asks for the currency catalogue on open; in add mode there is
+    // no trip to fetch, so this is the only GET it makes.
+    mocks.get.mockResolvedValue({ currencies: [], by_country: {} })
+    mocks.post.mockReset()
+    mocks.post.mockResolvedValue({ trip: TRIP })
+  })
+
+  /** Fill in the two things a trip genuinely cannot be created without. */
+  async function pickDates(user: ReturnType<typeof userEvent.setup>) {
+    await user.selectOptions(screen.getByLabelText('Start day'), '01')
+    await user.selectOptions(screen.getByLabelText('Start month'), '03')
+    await user.selectOptions(screen.getByLabelText('Start year'), String(thisYear + 1))
+    await user.selectOptions(screen.getByLabelText('End day'), '08')
+    await user.selectOptions(screen.getByLabelText('End month'), '03')
+    await user.selectOptions(screen.getByLabelText('End year'), String(thisYear + 1))
+  }
+
+  it('creates a trip with no name, since the name is optional', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    renderSheet({ onClose })
+
+    await pickDates(user)
+    await user.click(screen.getByRole('button', { name: 'Create trip' }))
+
+    await waitFor(() => expect(mocks.post).toHaveBeenCalled())
+    expect(mocks.post.mock.calls[0][1]).toMatchObject({
+      name: '',
+      start_date: `${thisYear + 1}-03-01`,
+      end_date: `${thisYear + 1}-03-08`,
+    })
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+  })
+
+  it('creates a trip with no country either — only the dates are required', async () => {
+    const user = userEvent.setup()
+    renderSheet()
+
+    await pickDates(user)
+    await user.click(screen.getByRole('button', { name: 'Create trip' }))
+
+    await waitFor(() => expect(mocks.post).toHaveBeenCalled())
+    expect(mocks.post.mock.calls[0][1]).toMatchObject({ name: '', country: '' })
+  })
+
+  it('says what is missing instead of going quiet, and does not send', async () => {
+    const user = userEvent.setup()
+    renderSheet()
+
+    await user.click(screen.getByRole('button', { name: 'Create trip' }))
+
+    expect(screen.getByText(/pick the day, month and year the trip starts/i)).toBeInTheDocument()
+    expect(screen.getByText(/pick the day, month and year the trip ends/i)).toBeInTheDocument()
+    expect(screen.getByText(/2 things still need fixing/i)).toBeInTheDocument()
+    expect(mocks.post).not.toHaveBeenCalled()
+  })
+
+  it('never blames the name, however empty the form is', async () => {
+    const user = userEvent.setup()
+    renderSheet()
+
+    await user.click(screen.getByRole('button', { name: 'Create trip' }))
+
+    expect(screen.queryByText(/name is required/i)).not.toBeInTheDocument()
+    expect(
+      screen
+        .getAllByRole('alert')
+        .map((n) => n.textContent)
+        .join(' ')
+    ).not.toMatch(/name/i)
+  })
+
+  it('stays quiet about missing fields until Save is actually pressed', async () => {
+    renderSheet()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('clears each message as its field is filled in, and then saves', async () => {
+    const user = userEvent.setup()
+    renderSheet()
+
+    await user.click(screen.getByRole('button', { name: 'Create trip' }))
+    expect(screen.getByText(/2 things still need fixing/i)).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('Start day'), '01')
+    await user.selectOptions(screen.getByLabelText('Start month'), '03')
+    await user.selectOptions(screen.getByLabelText('Start year'), String(thisYear + 1))
+    expect(screen.getByText(/one thing still needs fixing/i)).toBeInTheDocument()
+    expect(
+      screen.queryByText(/pick the day, month and year the trip starts/i)
+    ).not.toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('End day'), '08')
+    await user.selectOptions(screen.getByLabelText('End month'), '03')
+    await user.selectOptions(screen.getByLabelText('End year'), String(thisYear + 1))
+    expect(screen.queryByText(/still need/i)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Create trip' }))
+    await waitFor(() => expect(mocks.post).toHaveBeenCalled())
+  })
+
+  it('flags an end date before the start date without waiting for Save', async () => {
+    const user = userEvent.setup()
+    renderSheet()
+
+    await pickDates(user)
+    await user.selectOptions(screen.getByLabelText('End day'), '01')
+    await user.selectOptions(screen.getByLabelText('End month'), '02')
+
+    // Both sides are filled in and they disagree — nothing is pending, so
+    // there is nothing to wait for.
+    expect(screen.getByText(/end date is before the start date/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Create trip' }))
+    expect(mocks.post).not.toHaveBeenCalled()
+  })
+
+  it('keeps the last currency rather than letting the form reach an unsavable state', async () => {
+    const user = userEvent.setup()
+    renderSheet()
+
+    await user.click(screen.getByRole('button', { name: 'Remove USD' }))
+    // A calculator with nothing on the right side has nothing to say, so the
+    // last chip has no Remove at all — the currency blocker below is the
+    // backstop for a state the UI does not offer a way into.
+    expect(screen.queryByRole('button', { name: 'Remove ILS' })).not.toBeInTheDocument()
+
+    await pickDates(user)
+    await user.click(screen.getByRole('button', { name: 'Create trip' }))
+    await waitFor(() => expect(mocks.post).toHaveBeenCalled())
+    expect(mocks.post.mock.calls[0][1]).toMatchObject({ home_currencies: ['ILS'] })
   })
 })
