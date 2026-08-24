@@ -8,6 +8,7 @@
 //  - the server may have no VAPID keys yet (see README → Reminders)
 import { useEffect, useState } from 'react'
 import { usePushKey } from '../api/hooks'
+import { InstallHelpSheet } from './InstallPrompt'
 import { capture } from '../lib/posthog'
 import {
   syncPushSubscription,
@@ -36,6 +37,7 @@ export function NotificationSetup() {
   const [enabled, setEnabled] = useState<boolean | null>(null) // null = still checking
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -105,11 +107,23 @@ export function NotificationSetup() {
   }
 
   if (support === 'needs-install') {
+    // Telling someone to install the app without telling them how is the whole
+    // reason this card used to dead-end — the Share menu is not discoverable.
     return (
-      <HintRow icon="📲">
-        <strong>Add the app to your Home Screen first</strong> — on iPhone, notifications only work
-        from the installed app.
-      </HintRow>
+      <>
+        <HintRow icon="📲">
+          <strong>Add the app to your Home Screen first</strong> — on iPhone, notifications only
+          work from the installed app.{' '}
+          <button
+            type="button"
+            className="font-semibold text-brand underline underline-offset-2"
+            onClick={() => setHelpOpen(true)}
+          >
+            Show me how
+          </button>
+        </HintRow>
+        <InstallHelpSheet open={helpOpen} onClose={() => setHelpOpen(false)} />
+      </>
     )
   }
 

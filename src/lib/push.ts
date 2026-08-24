@@ -6,7 +6,8 @@
 
 export type PushSupport = 'ready' | 'needs-install' | 'unsupported'
 
-const isIos = () =>
+/** Exported for lib/install.ts — one UA sniff, not two that can drift. */
+export const isIos = () =>
   /iPad|iPhone|iPod/.test(navigator.userAgent) ||
   // iPadOS 13+ reports as a Mac; the touch points give it away
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTrip } from '../api/hooks'
 import { CurrencyCalculator } from '../components/CurrencyCalculator'
+import { InstallHelpRow } from '../components/InstallPrompt'
 
 // Curated static reference for the trip. Phrases are romaji (Latin script) +
 // English meaning — a travel phrasebook, no Japanese characters in the UI.
@@ -300,6 +301,8 @@ export default function TripEssentials() {
           <path d="m9 18 6-6-6-6" />
         </svg>
       </Link>
+
+      <InstallHelpRow />
 
       <section>
         <p className="section-title">Trip notes</p>
