@@ -1,12 +1,39 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { api, clearAccessCode, setAccessCode } from '../api/client'
+import { api, clearAccessCode, getAccessCode, setAccessCode } from '../api/client'
 import { RingMark } from '../components/RingMark'
 import { capture } from '../lib/posthog'
 import { getSupabaseClient } from '../lib/supabaseClient'
 
-type Screen = 'choose' | 'email' | 'sent'
+type Screen = 'choose' | 'email' | 'sent' | 'resolving'
 type Mode = 'signin' | 'signup'
+
+/**
+ * Is a sign-in already in flight as this screen mounts?
+ *
+ * Google and the magic link both leave the page and come back to /gate with
+ * the session in the URL — `?code=` for the PKCE flow supabase-js uses now,
+ * `#access_token=` for the implicit one. Reading the URL takes supabase-js a
+ * moment and proving the token against /me takes a round trip, and for that
+ * second or two this screen used to render its full set of sign-in buttons:
+ * someone who had just authenticated with Google was shown "Continue with
+ * Google" again, as if it had not worked, and then bounced to the trips list
+ * mid-tap.
+ *
+ * A stored token counts too — it means the last session is being restored
+ * rather than started, which ends in the same navigation.
+ */
+function resumingSignIn(): boolean {
+  const params = new URLSearchParams(window.location.search)
+  const hash = window.location.hash
+  const fragment = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash)
+  return (
+    params.has('code') ||
+    fragment.has('access_token') ||
+    fragment.has('refresh_token') ||
+    !!getAccessCode()
+  )
+}
 
 /**
  * Store the token, then prove the API accepts it before navigating.
@@ -34,7 +61,11 @@ function readableAuthError(message: string): string {
 }
 
 export default function AccessGate() {
-  const [screen, setScreen] = useState<Screen>('choose')
+  // Resolved once, at mount: the URL still carries the redirect's payload
+  // here, and supabase-js strips it as soon as it has read it.
+  const [screen, setScreen] = useState<Screen>(() =>
+    getSupabaseClient() && resumingSignIn() ? 'resolving' : 'choose'
+  )
   const [mode, setMode] = useState<Mode>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -48,16 +79,30 @@ export default function AccessGate() {
   useEffect(() => {
     if (!supabase) return
     let cancelled = false
-    supabase.auth.getSession().then(({ data }) => {
-      if (cancelled || !data.session) return
-      completeSignIn(data.session.access_token, navigate).catch(() => {
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
         if (cancelled) return
-        clearAccessCode()
-        supabase.auth.signOut()
-        setError('Signed in, but this app didn’t accept the session. Try again.')
+        if (!data.session) {
+          // Nothing came back — a cancelled Google prompt, a link that had
+          // already been used. Whatever the guess at mount was, there is
+          // nobody to sign in, so offer the ways in again.
+          setScreen((current) => (current === 'resolving' ? 'choose' : current))
+          return
+        }
+        return completeSignIn(data.session.access_token, navigate).catch(() => {
+          if (cancelled) return
+          clearAccessCode()
+          supabase.auth.signOut()
+          setError('Signed in, but this app didn’t accept the session. Try again.')
+          setScreen('choose')
+        })
+      })
+      .catch(() => {
+        if (cancelled) return
+        setError('Could not check your sign-in — try again.')
         setScreen('choose')
       })
-    })
     return () => {
       cancelled = true
     }
@@ -67,6 +112,9 @@ export default function AccessGate() {
     if (!supabase || busy) return
     setBusy(true)
     setError(null)
+    // Handing off to Google takes a beat of its own; say so rather than
+    // leaving an unchanged button under a finger that has already tapped it.
+    setScreen('resolving')
     // Redirects away; the useEffect above finishes the job on the way back.
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -74,6 +122,7 @@ export default function AccessGate() {
     })
     if (oauthError) {
       setError('Could not reach Google — try again.')
+      setScreen('choose')
       setBusy(false)
     }
   }
@@ -150,6 +199,13 @@ export default function AccessGate() {
         </div>
         <h1 className="mt-6 font-display text-4xl font-bold tracking-tight text-white">Onward</h1>
         <p className="mt-2 text-white/85">Your trip companion</p>
+
+        {screen === 'resolving' && (
+          <div className="mt-10 flex flex-col items-center gap-3" role="status">
+            <span className="h-8 w-8 animate-spin rounded-full border-[3px] border-white/35 border-t-white" />
+            <p className="text-sm font-semibold text-white">Signing you in…</p>
+          </div>
+        )}
 
         {screen === 'sent' && (
           <div className="mt-10 flex flex-col gap-3 text-left">
