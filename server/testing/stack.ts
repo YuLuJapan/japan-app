@@ -186,6 +186,10 @@ export async function startSupabaseStack(): Promise<SupabaseStack> {
             source: path.join(INIT_DIR, 'gateway.conf'),
             target: '/etc/nginx/conf.d/default.conf',
           },
+          {
+            source: path.join(INIT_DIR, 'cors-headers.inc'),
+            target: '/etc/nginx/conf.d/cors-headers.inc',
+          },
         ])
         .withExposedPorts(GATEWAY_PORT)
         .start()

@@ -27,6 +27,75 @@ npm run lint       # ESLint
 npm run build      # production bundle (~157 KB gzip JS)
 ```
 
+`npm test` needs Docker running — it boots a real Supabase stack in containers
+rather than a stand-in. See **Testing** below.
+
+## Run it locally against a real Supabase stack
+
+The memory store above is enough for most work and needs no Docker. Use this
+when the answer depends on Postgres, PostgREST, Storage or Auth actually being
+there — which is everything the deployed app does.
+
+```
+npm run dev:local    # start the stack, migrate, seed, then run the API + client
+```
+
+That brings up the same five services a hosted project runs (Postgres,
+PostgREST, GoTrue, Storage, and an nginx gateway presenting them on one origin
+at `http://localhost:54321`), applies every file in `supabase/migrations/`,
+loads `server/src/data/placeholder-data.json`, uploads the document blobs, and
+creates an account that owns the seeded trips:
+
+```
+dev@example.com / devpassword        (override with LOCAL_DEV_EMAIL / LOCAL_DEV_PASSWORD)
+```
+
+No `.env.local` edits are needed — the script passes the stack's URL and keys
+to both halves of the app. The other commands:
+
+```
+npm run local:up      start + migrate + seed, without running the app
+npm run local:down    stop it; the data survives
+npm run local:reset   throw the data away and start again
+```
+
+Postgres is on `localhost:54322` (`postgres://postgres:postgres@localhost:54322/postgres`)
+if you want to poke at it with `psql`. Every credential in `local/` is a fixed
+local-only constant on a private docker network; none of it reaches a real
+project.
+
+## Testing
+
+```
+npm test                                    # everything
+npx vitest run --project server             # API only
+npx vitest run server/tests/browse.test.ts  # one file
+```
+
+**There are no mocks of this app's own code.** The suite boots the Supabase
+stack once per run with testcontainers and points the app at it through the
+normal `DATA_BACKEND=supabase` path, so routes talk to a real PostgREST, files
+go to real Storage, and every bearer token is one a real GoTrue issued in
+exchange for a real password. The database is truncated and reseeded before
+each test (`server/testing/setup.ts`), which is why test files run serially.
+
+Things the app fetches from the internet — exchange rates, Wikimedia photo
+search, a shop's product page, translation — are served by a real local HTTP
+server (`server/testing/external-web.ts`) rather than by replacing `fetch`.
+Replacing it was never only a stand-in for the web: supabase-js reaches for the
+same global.
+
+Iterating is faster against a stack you already have up:
+
+```
+npm run local:up
+TEST_SUPABASE_URL=http://localhost:54321 npx vitest run --project server
+```
+
+Note that this runs the tests against your local stack's database, truncating
+it between tests — re-run `npm run local:reset` afterwards to get the seed
+content back.
+
 ## Sharing a trip (read-only, and finer)
 
 Invite a friend from **Who's on this trip** and pick what they get. Add their email and the invitation is simply _there_ when they next sign in — nothing to send. Leave the email blank and you get a link to share instead.
@@ -68,8 +137,9 @@ Anyone can register — Google, or email + password — and each account sees on
 ## Infrastructure (Supabase — live)
 
 **Status: activated.** The deployed app runs on Supabase (`DATA_BACKEND=supabase`
-in the Vercel project), so edits made in the app persist. Local dev and the test
-suite still default to the in-memory store unless you set the env vars below.
+in the Vercel project), so edits made in the app persist. Plain `npm run dev`
+still defaults to the in-memory store; `npm run dev:local` and the test suite
+run against a real stack in containers (see above).
 
 ### Adding a table later
 
@@ -77,8 +147,12 @@ There is no migration runner: **committing a new `supabase/migrations/*.sql`
 file does not apply it.** After merging a change that adds a table or column,
 run that file against the live project (Supabase SQL editor, or the Supabase MCP
 `apply_migration`) and seed any rows it needs — otherwise the deployed feature
-fails on its first request even though every test passes locally, because tests
-use the memory store. Name the file with the next number free **on `main`**.
+fails on its first request. Name the file with the next number free **on `main`**.
+
+The tests do apply every migration, to a throwaway database, so a migration
+that does not run — or that disagrees with the code — now fails the suite
+rather than waiting to fail in production. What the suite still cannot know is
+whether anyone ran it against the live project.
 
 ### First-time setup (already done for this project)
 

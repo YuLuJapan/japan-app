@@ -3,3 +3,7 @@ dist/
 coverage/
 package-lock.json
 public/placeholder-files/
+
+# nginx config for the local Supabase stack. Prettier has no parser for these
+# and reflows them as prose, which produces a gateway that will not start.
+local/init/

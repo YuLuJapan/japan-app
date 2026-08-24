@@ -3,7 +3,16 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Pool } from 'pg'
+import { SERVICE_KEY } from './stack-config.js'
+
+/**
+ * Anything that can run SQL — `pg`'s Pool in tests, its Client in the local
+ * stack script. Structural rather than either concrete type, so this module
+ * does not force a caller to open a pool it does not otherwise want.
+ */
+export interface SqlRunner {
+  query(text: string, values?: unknown[]): Promise<{ rows: unknown[] }>
+}
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const MIGRATIONS_DIR = path.join(here, '../../supabase/migrations')
@@ -28,7 +37,7 @@ export function migrationFiles(): string[] {
  * a column a migration forgot is a failing test here rather than a 500 in
  * production, which is exactly the gap CLAUDE.md warns about.
  */
-export async function applyMigrations(pool: Pool): Promise<void> {
+export async function applyMigrations(pool: SqlRunner): Promise<void> {
   for (const file of migrationFiles()) {
     const sql = readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8')
     try {
@@ -38,17 +47,59 @@ export async function applyMigrations(pool: Pool): Promise<void> {
     }
   }
   // PostgREST caches the schema and would keep answering 404 for tables it did
-  // not know about at boot. It watches for DDL, but asking explicitly removes
-  // the race between "migrations finished" and "the first test queried".
+  // not know about at boot. Callers wait for that to land with
+  // `settleSchemaCache` — the notify alone is not enough, see below.
   await pool.query(`notify pgrst, 'reload schema'`)
 }
 
+/**
+ * Asks PostgREST to re-read the schema, and waits until the answer has
+ * *settled*.
+ *
+ * The settling is the point. PostgREST handles reloads asynchronously, and
+ * supabase/postgres has a DDL event trigger that queues one of its own for
+ * every statement — so applying twenty-two migrations leaves a queue of them.
+ * A probe taken right after the last NOTIFY can be answered by a cache that
+ * one of those queued reloads is still about to replace, which is how seeding
+ * fails with a 404 for a table that is plainly there. Seeing the state we want
+ * once proves nothing; seeing it hold for a stretch does, because a reload
+ * still in flight would land in the middle.
+ */
+export async function settleSchemaCache(options: {
+  runner: SqlRunner
+  restUrl: string
+  /** A PostgREST query, e.g. `trips?select=id&limit=1`. */
+  probe: string
+  /** Whether the probe should succeed once the cache is right. */
+  shouldExist?: boolean
+  /** Named in the timeout message. */
+  label?: string
+  timeoutMs?: number
+}): Promise<void> {
+  const { runner, restUrl, probe, shouldExist = true, label = probe, timeoutMs = 30_000 } = options
+  await runner.query(`notify pgrst, 'reload schema'`)
+  const url = `${restUrl}/rest/v1/${probe}`
+  const headers = { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` }
+  const SETTLED_FOR_MS = 1_000
+  const deadline = Date.now() + timeoutMs
+  let agreeingSince: number | null = null
+  while (Date.now() < deadline) {
+    const res = await fetch(url, { headers }).catch(() => null)
+    if (res && res.ok === shouldExist) {
+      agreeingSince ??= Date.now()
+      if (Date.now() - agreeingSince >= SETTLED_FOR_MS) return
+    } else {
+      agreeingSince = null
+    }
+    await new Promise((r) => setTimeout(r, 100))
+  }
+  throw new Error(`PostgREST never agreed that ${label} ${shouldExist ? 'exists' : 'is missing'}`)
+}
+
 /** The app's tables, discovered rather than listed — a new migration is covered for free. */
-async function appTables(pool: Pool): Promise<string[]> {
-  const { rows } = await pool.query<{ tablename: string }>(
-    `select tablename from pg_tables where schemaname = 'public'`
-  )
-  return rows.map((r) => r.tablename)
+async function appTables(pool: SqlRunner): Promise<string[]> {
+  const { rows } = await pool.query(`select tablename from pg_tables where schemaname = 'public'`)
+  return (rows as { tablename: string }[]).map((r) => r.tablename)
 }
 
 let cachedTables: string[] | null = null
@@ -60,7 +111,7 @@ let cachedTables: string[] | null = null
  * One TRUNCATE rather than a delete per table: it ignores foreign-key order,
  * so this does not need to know that files hang off places hang off zones.
  */
-export async function resetData(pool: Pool): Promise<void> {
+export async function resetData(pool: SqlRunner): Promise<void> {
   cachedTables ??= await appTables(pool)
   if (!cachedTables.length) return
   const list = cachedTables.map((t) => `public."${t}"`).join(', ')
@@ -77,7 +128,7 @@ export async function resetData(pool: Pool): Promise<void> {
  * confirmation withdrawn afterwards. That is the account shape the invitation
  * rules care about — anyone can type someone else's email at sign-up.
  */
-export async function unconfirmEmail(pool: Pool, userId: string): Promise<void> {
+export async function unconfirmEmail(pool: SqlRunner, userId: string): Promise<void> {
   // Only email_confirmed_at: confirmed_at is generated from it.
   await pool.query(`update auth.users set email_confirmed_at = null where id = $1`, [userId])
 }

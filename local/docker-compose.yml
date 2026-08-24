@@ -103,6 +103,7 @@ services:
         condition: service_started
     volumes:
       - ./init/gateway.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./init/cors-headers.inc:/etc/nginx/conf.d/cors-headers.inc:ro
     ports:
       # SUPABASE_URL=http://localhost:54321 — the supabase CLI's port, so a
       # stack started either way looks the same to the app.

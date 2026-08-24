@@ -1,48 +1,21 @@
 // Seed the Supabase database from server/src/data/placeholder-data.json.
 // Idempotent: upserts by primary key, so re-running syncs the current file.
 // Usage: DATA_BACKEND=supabase in .env.local, then `npm run seed`.
-// FK-safe order: trips → zones → journey_steps → places → tips → reminders → files.
-import { readFileSync } from 'node:fs'
-import path from 'node:path'
+//
+// The rows themselves live in scripts/seed-lib.ts, shared with the local stack
+// (`npm run local:up`) so both fill a database the same way.
 import { loadEnv } from './loadEnv'
+import { seedRows } from './seed-lib'
 
 loadEnv()
 
 async function main() {
   const { getSupabase } = await import('../server/src/lib/supabase')
-  const db = getSupabase()
-
-  const dataPath = path.join(process.cwd(), 'server/src/data/placeholder-data.json')
-  const data = JSON.parse(readFileSync(dataPath, 'utf-8'))
-
-  const steps: [string, unknown[]][] = [
-    ['trips', data.trips],
-    ['zones', data.zones],
-    ['journey_steps', data.steps],
-    ['places', data.places],
-    ['tips', data.tips],
-    ['itinerary_items', data.itinerary ?? []],
-    ['shopping_items', data.shopping ?? []],
-    ['reminders', data.reminders ?? []],
-    ['files', data.files],
-  ]
-
-  for (const [table, rows] of steps) {
-    if (!rows.length) {
-      console.log(`- ${table}: nothing to seed`)
-      continue
-    }
-    const { error } = await db.from(table).upsert(rows as never, { onConflict: 'id' })
-    if (error) {
-      console.error(`✗ ${table}: ${error.message}`)
-      process.exit(1)
-    }
-    console.log(`✓ ${table}: ${rows.length} rows`)
-  }
+  await seedRows(getSupabase())
   console.log('\nDone. File blobs are uploaded separately with `npm run seed:files`.')
 }
 
 main().catch((e) => {
-  console.error(e)
+  console.error(`✗ ${e.message}`)
   process.exit(1)
 })

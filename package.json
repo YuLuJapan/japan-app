@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "concurrently -k -n api,web \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "tsx watch server/dev.ts",
+    "dev:local": "tsx scripts/local-stack.ts dev",
     "dev:web": "vite",
     "build": "vite build",
     "preview": "vite preview",
@@ -16,7 +17,10 @@
     "push:keys": "node scripts/gen-vapid-keys.mjs",
     "seed": "tsx scripts/seed.ts",
     "seed:files": "tsx scripts/seed-files.ts",
-    "check:db": "tsx scripts/check-supabase.ts"
+    "check:db": "tsx scripts/check-supabase.ts",
+    "local:up": "tsx scripts/local-stack.ts up",
+    "local:down": "tsx scripts/local-stack.ts down",
+    "local:reset": "tsx scripts/local-stack.ts reset"
   },
   "dependencies": {
     "@posthog/react": "^1.10.4",

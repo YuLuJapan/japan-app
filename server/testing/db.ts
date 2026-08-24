@@ -3,7 +3,8 @@
 // real rather than injected.
 import { Pool } from 'pg'
 import { inject } from 'vitest'
-import { DB, SERVICE_KEY } from './stack-config.js'
+import { settleSchemaCache } from './schema.js'
+import { DB } from './stack-config.js'
 
 // Read once, at import: `inject` is only meaningful in a worker, and reaching
 // for it deep inside a helper makes a failure there look like a fixture bug.
@@ -47,14 +48,14 @@ export async function withTableMissing<T>(table: string, fn: () => Promise<T>): 
   // break every later test in the file with an error about the fixture rather
   // than about this one, which is a miserable trail to follow back.
   try {
-    await settleSchemaCache(`${table}?select=*&limit=1`, false, table)
+    await settle(`${table}?select=*&limit=1`, false, table)
     return await fn()
   } finally {
     await db.query(`alter table public."${hidden}" rename to "${table}"`)
     // Waiting for the reload matters more on the way back: PostgREST picks it
     // up asynchronously, and the next test seeds the fixture immediately.
     // Without this the table is there and PostgREST still says it is not.
-    await settleSchemaCache(`${table}?select=*&limit=1`, true, table)
+    await settle(`${table}?select=*&limit=1`, true, table)
   }
 }
 
@@ -79,7 +80,7 @@ export async function withColumnsMissing<T>(
   }
   const probe = `${table}?select=${columns.join(',')}&limit=1`
   try {
-    await settleSchemaCache(probe, false, `${table}.${columns.join('/')}`)
+    await settle(probe, false, `${table}.${columns.join('/')}`)
     return await fn()
   } finally {
     for (const column of columns) {
@@ -87,44 +88,10 @@ export async function withColumnsMissing<T>(
         `alter table public."${table}" rename column "${hidden(column)}" to "${column}"`
       )
     }
-    await settleSchemaCache(probe, true, `${table}.${columns.join('/')}`)
+    await settle(probe, true, `${table}.${columns.join('/')}`)
   }
 }
 
-/**
- * Asks PostgREST to re-read the schema, and waits until it has *settled*.
- *
- * The settling is the point. A rename produces two reloads in quick
- * succession, and PostgREST handles them asynchronously — so a single probe
- * taken right after the second NOTIFY can be answered by a cache the first
- * NOTIFY is still about to replace. Reading the state we want once therefore
- * proves nothing; reading it several times in a row does, because a reload
- * still in flight would land in the middle.
- */
-async function settleSchemaCache(
-  probe: string,
-  shouldExist: boolean,
-  label: string
-): Promise<void> {
-  await testDb().query(`notify pgrst, 'reload schema'`)
-  const url = `${restUrl}/rest/v1/${probe}`
-  const headers = { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` }
-  const deadline = Date.now() + 15_000
-  // supabase/postgres also has a DDL event trigger that reloads the cache, so
-  // a rename queues a reload of its own alongside ours. The one from the
-  // *previous* rename can still be in flight, which is why the state has to
-  // hold for a stretch rather than merely be true once.
-  const SETTLED_FOR_MS = 1_000
-  let agreeingSince: number | null = null
-  while (Date.now() < deadline) {
-    const res = await fetch(url, { headers }).catch(() => null)
-    if (res && res.ok === shouldExist) {
-      agreeingSince ??= Date.now()
-      if (Date.now() - agreeingSince >= SETTLED_FOR_MS) return
-    } else {
-      agreeingSince = null
-    }
-    await new Promise((r) => setTimeout(r, 100))
-  }
-  throw new Error(`PostgREST never agreed that ${label} ${shouldExist ? 'exists' : 'is missing'}`)
-}
+/** The shared settle, with this worker's runner and REST origin filled in. */
+const settle = (probe: string, shouldExist: boolean, label: string) =>
+  settleSchemaCache({ runner: testDb(), restUrl, probe, shouldExist, label, timeoutMs: 15_000 })

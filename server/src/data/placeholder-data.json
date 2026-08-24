@@ -56,7 +56,10 @@
         }
       },
       "local_currency": "JPY",
-      "home_currencies": ["USD", "ILS"]
+      "home_currencies": [
+        "USD",
+        "ILS"
+      ]
     }
   ],
   "steps": [
@@ -144,6 +147,7 @@
   "zones": [
     {
       "id": "zone-hakone",
+      "trip_id": "trip-japan",
       "name": "Hakone",
       "name_ja": "箱根",
       "summary": "Onsen town in the mountains — hot springs, the Hakone loop and (weather permitting) Mt. Fuji views over Lake Ashi.",
@@ -153,6 +157,7 @@
     },
     {
       "id": "zone-fuji",
+      "trip_id": "trip-japan",
       "name": "Fujikawaguchiko",
       "name_ja": "富士河口湖",
       "summary": "Lake Kawaguchi at the foot of Mt. Fuji — the classic postcard views.",
@@ -162,6 +167,7 @@
     },
     {
       "id": "zone-matsumoto",
+      "trip_id": "trip-japan",
       "name": "Matsumoto",
       "name_ja": "松本",
       "summary": "Castle town in the Japanese Alps — one-night stop between Fuji and Takayama.",
@@ -171,6 +177,7 @@
     },
     {
       "id": "zone-takayama",
+      "trip_id": "trip-japan",
       "name": "Takayama",
       "name_ja": "高山",
       "summary": "Beautifully preserved old town in the Hida mountains — morning markets and Hida beef.",
@@ -180,6 +187,7 @@
     },
     {
       "id": "zone-kanazawa",
+      "trip_id": "trip-japan",
       "name": "Kanazawa",
       "name_ja": "金沢",
       "summary": "Edo-period districts, one of Japan's top three gardens, and a great food market.",
@@ -189,6 +197,7 @@
     },
     {
       "id": "zone-kyoto",
+      "trip_id": "trip-japan",
       "name": "Kyoto",
       "name_ja": "京都",
       "summary": "Temples, gardens, geisha districts and old streets — four full days.",
@@ -198,6 +207,7 @@
     },
     {
       "id": "zone-osaka",
+      "trip_id": "trip-japan",
       "name": "Osaka",
       "name_ja": "大阪",
       "summary": "Japan's kitchen — neon, street food and day-trip base (Nara, Kobe, Himeji).",
@@ -207,6 +217,7 @@
     },
     {
       "id": "zone-tokyo",
+      "trip_id": "trip-japan",
       "name": "Tokyo",
       "name_ja": "東京",
       "summary": "Arrival city and grand finale — Shinjuku, Shibuya, Asakusa and everything in between.",
@@ -216,6 +227,7 @@
     },
     {
       "id": "zone-atami",
+      "trip_id": "trip-japan",
       "name": "Atami",
       "name_ja": "熱海",
       "summary": "Seaside onsen town on the Izu peninsula — ocean-view hot springs, kaiseki dinners and a slow wind-down before the Tokyo finale.",

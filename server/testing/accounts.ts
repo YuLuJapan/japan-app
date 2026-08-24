@@ -5,8 +5,7 @@
 // Yuval" without a Supabase project to say it to, which meant the one thing it
 // could never check was whether `resolveAuthUser` reads a real token
 // correctly. With Auth in the stack there is nothing left to stand in for.
-import type { Pool } from 'pg'
-import { unconfirmEmail } from './schema.js'
+import { unconfirmEmail, type SqlRunner } from './schema.js'
 import { SERVICE_KEY, TEST_PASSWORD } from './stack-config.js'
 
 /**
@@ -129,7 +128,10 @@ async function signIn(url: string, user: TestAccount): Promise<string> {
  * which `resetData` deliberately leaves alone, and signing in five times per
  * test would dominate the run.
  */
-export async function provisionAccounts(url: string, pool: Pool): Promise<Record<string, string>> {
+export async function provisionAccounts(
+  url: string,
+  pool: SqlRunner
+): Promise<Record<string, string>> {
   const tokens: Record<string, string> = {}
   for (const user of TEST_ACCOUNTS) {
     await createUser(url, user)
