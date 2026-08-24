@@ -69,7 +69,7 @@ describe('toDraft', () => {
   it('round-trips a booking back out unchanged', () => {
     const flight = {
       airline: 'Ethiopian Airlines',
-      booking_ref: 'AOXIUF',
+      booking_ref: 'ABC123',
       outbound: {
         depart_at: '2026-09-18T12:35:00.000Z',
         depart_tz: 'Asia/Jerusalem',

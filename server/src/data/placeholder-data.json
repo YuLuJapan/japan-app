@@ -17,7 +17,7 @@
       "country": "Japan",
       "flight": {
         "airline": "Ethiopian Airlines",
-        "booking_ref": "AOXIUF",
+        "booking_ref": "ABC123",
         "outbound": {
           "depart_at": "2026-09-18T15:35:00+03:00",
           "depart_tz": "Asia/Jerusalem",
@@ -3112,8 +3112,8 @@
       "trip_id": "trip-japan",
       "zone_id": null,
       "place_id": null,
-      "display_name": "Flight booking — Ethiopian Airlines (AOXIUF)",
-      "storage_path": "trip-files/flight-booking-aoxiuf.pdf",
+      "display_name": "Flight booking — Ethiopian Airlines",
+      "storage_path": "trip-files/flight-booking.pdf",
       "mime_type": "application/pdf",
       "size_bytes": 181966
     },

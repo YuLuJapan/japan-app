@@ -223,7 +223,7 @@ describe('viewer — stays and flight', () => {
 
   const flight = {
     airline: 'Ethiopian Airlines',
-    booking_ref: 'AOXIUF',
+    booking_ref: 'ABC123',
     outbound: {
       depart_at: '2026-09-18T15:35:00+03:00',
       depart_tz: 'Asia/Jerusalem',
@@ -249,7 +249,7 @@ describe('viewer — stays and flight', () => {
     renderAt('/trips/trip-1', journeyRoute, viewer)
 
     expect(await screen.findByText(/keep the flight details private/)).toBeInTheDocument()
-    expect(screen.queryByText('AOXIUF')).not.toBeInTheDocument()
+    expect(screen.queryByText('ABC123')).not.toBeInTheDocument()
     expect(screen.queryByText('ET 419')).not.toBeInTheDocument()
     // and it isn't told to go looking in a Documents tab it doesn't have
     expect(screen.queryByText(/attach a booking in Documents/)).not.toBeInTheDocument()
@@ -261,7 +261,7 @@ describe('viewer — stays and flight', () => {
     )
     renderAt('/trips/trip-1', journeyRoute)
 
-    expect(await screen.findByText('AOXIUF')).toBeInTheDocument()
+    expect(await screen.findByText('ABC123')).toBeInTheDocument()
     expect(screen.getByText('ET 419')).toBeInTheDocument()
   })
 

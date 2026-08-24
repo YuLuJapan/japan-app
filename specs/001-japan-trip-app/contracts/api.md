@@ -215,7 +215,7 @@ The whole journey skeleton for one trip — powers the Journey (home) view and o
   "trip_files_count": 4,
   "flight": {
     "airline": "Ethiopian Airlines",
-    "booking_ref": "AOXIUF",
+    "booking_ref": "ABC123",
     "outbound": {
       "depart_at": "2026-09-18T15:35:00+03:00",
       "depart_tz": "Asia/Jerusalem",
