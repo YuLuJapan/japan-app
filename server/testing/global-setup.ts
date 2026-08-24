@@ -8,6 +8,7 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { TestProject } from 'vitest/node'
 import { provisionAccounts } from './accounts.js'
+import { startOutsideWorld } from './outside-world.js'
 import { startSupabaseStack } from './stack.js'
 import { DB, stackEnv } from './stack-config.js'
 
@@ -35,8 +36,11 @@ declare module 'vitest' {
  * an app assembled there would be the app as a bundler sees it, not as Node
  * runs it. Over a socket it is the same server the browser talks to.
  */
-async function startApi(supabaseUrl: string): Promise<{ url: string; server: Server }> {
-  Object.assign(process.env, stackEnv(supabaseUrl))
+async function startApi(
+  supabaseUrl: string,
+  outsideWorldEnv: Record<string, string>
+): Promise<{ url: string; server: Server }> {
+  Object.assign(process.env, stackEnv(supabaseUrl), outsideWorldEnv)
   // Imported after the env is set: lib/supabase.ts caches its client on first
   // use, and one built from a half-set environment stays wrong all run.
   const { createApp } = await import('../src/app.js')
@@ -49,7 +53,10 @@ async function startApi(supabaseUrl: string): Promise<{ url: string; server: Ser
 export default async function setup(project: TestProject) {
   const stack = await startSupabaseStack()
   const tokens = await provisionAccounts(stack.url, stack.pool)
-  const api = await startApi(stack.url)
+  // Exchange rates, photo search and translation, served locally — the API
+  // would otherwise reach for the real internet mid-test.
+  const outside = await startOutsideWorld()
+  const api = await startApi(stack.url, outside.env)
 
   const { host, port } = stack.pool.options as { host: string; port: number }
   project.provide('supabaseUrl', stack.url)
@@ -60,6 +67,7 @@ export default async function setup(project: TestProject) {
 
   return async () => {
     await new Promise<void>((resolve) => api.server.close(() => resolve()))
+    await outside.close()
     await stack.stop()
   }
 }

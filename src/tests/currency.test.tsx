@@ -1,33 +1,21 @@
 // The trip's own currencies: chosen on the trip sheet, spent by the calculator.
+//
+// The rates come from the API, which quotes them from the local stand-in for
+// the provider (server/testing/outside-world.ts) — so €2.60 below is the
+// figure the server really computed, not one a stub was handed.
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { CurrencyCalculator } from '../components/CurrencyCalculator'
 import { TripSheet } from '../components/TripSheet'
 import type { Trip } from '../api/types'
+import { patchTrip, remove, rows } from './data'
 
-const mocks = vi.hoisted(() => ({
-  get: vi.fn(),
-  post: vi.fn(),
-  patch: vi.fn(),
-  delete: vi.fn(),
-}))
-
-vi.mock('../api/client', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../api/client')>()),
-  api: mocks,
-}))
-
-const CATALOGUE = {
-  currencies: [
-    { code: 'USD', name: 'US Dollar' },
-    { code: 'EUR', name: 'Euro' },
-    { code: 'ILS', name: 'Israeli Shekel' },
-    { code: 'JPY', name: 'Japanese Yen' },
-    { code: 'THB', name: 'Thai Baht' },
-  ],
-  by_country: { thailand: 'THB', japan: 'JPY' },
+interface TripRow {
+  id: string
+  local_currency: string
+  home_currencies: string[]
 }
 
 function renderWithClient(ui: React.ReactNode) {
@@ -38,67 +26,25 @@ function renderWithClient(ui: React.ReactNode) {
 }
 
 describe('CurrencyCalculator', () => {
-  beforeEach(() => {
-    mocks.get.mockReset()
-  })
-
   it('asks for the trip’s own currencies and shows a card for each', async () => {
-    mocks.get.mockResolvedValue({
-      base: 'THB',
-      date: '2026-08-01',
-      rates: { EUR: 0.026, ILS: 0.1 },
-      missing: [],
-    })
     renderWithClient(<CurrencyCalculator local="THB" home={['EUR', 'ILS']} />)
-
-    await waitFor(() => expect(mocks.get).toHaveBeenCalled())
-    expect(mocks.get.mock.calls[0][0]).toBe('/rates?base=THB&symbols=EUR%2CILS')
 
     expect(screen.getByLabelText('Amount in THB')).toBeInTheDocument()
     expect(await screen.findByText('EUR')).toBeInTheDocument()
     expect(screen.getByText('ILS')).toBeInTheDocument()
-    // 100 THB (the quick amount for a currency of this size) in euros
+    // 100 THB (the quick amount for a currency of this size) at 0.026 EUR each
     expect(await screen.findByText('€2.60')).toBeInTheDocument()
   })
 
   it('says so when the provider has no rate for one of them', async () => {
-    mocks.get.mockResolvedValue({
-      base: 'JPY',
-      date: '2026-08-01',
-      rates: { USD: 0.0067 },
-      missing: ['ILS'],
-    })
-    renderWithClient(<CurrencyCalculator local="JPY" home={['USD', 'ILS']} />)
+    // The provider quotes JPY in USD, ILS and EUR — and not in THB.
+    renderWithClient(<CurrencyCalculator local="JPY" home={['USD', 'THB']} />)
 
-    expect(await screen.findByText('No rate for ILS today.')).toBeInTheDocument()
+    expect(await screen.findByText('No rate for THB today.')).toBeInTheDocument()
   })
 })
 
-const TRIP: Trip = {
-  id: 'trip-1',
-  name: 'Lisbon',
-  country: 'Portugal',
-  display_title: 'Lisbon',
-  start_date: '2027-03-01',
-  end_date: '2027-03-08',
-  description: null,
-  people: [],
-  local_currency: 'EUR',
-  home_currencies: ['USD'],
-  start_time: null,
-  start_tz: null,
-}
-
 describe('TripSheet currency pickers', () => {
-  beforeEach(() => {
-    mocks.get.mockReset()
-    mocks.post.mockReset()
-    mocks.get.mockImplementation((path: string) =>
-      path === '/currencies' ? Promise.resolve(CATALOGUE) : Promise.resolve({})
-    )
-    mocks.post.mockResolvedValue({ trip: TRIP })
-  })
-
   it('guesses the currency from the country, and sends both sides on create', async () => {
     const user = userEvent.setup()
     renderWithClient(<TripSheet mode="add" onClose={() => {}} />)
@@ -120,17 +66,54 @@ describe('TripSheet currency pickers', () => {
     await user.selectOptions(screen.getByLabelText('End year'), '2027')
     await user.click(screen.getByRole('button', { name: 'Create trip' }))
 
-    await waitFor(() => expect(mocks.post).toHaveBeenCalled())
-    expect(mocks.post.mock.calls[0][1]).toMatchObject({
-      local_currency: 'THB',
-      home_currencies: ['USD', 'ILS', 'EUR'],
-    })
+    // Both sides landed on the row the server created.
+    await waitFor(
+      async () => {
+        const created = (await rows<TripRow>('trips', 'name', 'Bangkok'))[0]
+        expect(created).toMatchObject({
+          local_currency: 'THB',
+          home_currencies: ['USD', 'ILS', 'EUR'],
+        })
+      },
+      { timeout: 5000 }
+    )
   })
 
   it('opens an existing trip on its own currencies and leaves them alone', async () => {
     const user = userEvent.setup()
-    mocks.patch.mockResolvedValue({ trip: TRIP })
-    renderWithClient(<TripSheet mode="edit" trip={TRIP} onClose={() => {}} />)
+    // Portugal on euros — a trip whose country would guess something else.
+    //
+    // Its stops and activities go first. The dates below move the trip to
+    // 2027, and the API refuses a move that strands them unless it is told
+    // what to do with them — a rule the stubbed client used to hide, so this
+    // case was asserting a request the server would have rejected.
+    await remove('journey_steps', 'trip_id', 'trip-1')
+    await remove('itinerary_items', 'trip_id', 'trip-1')
+    await patchTrip('trip-1', {
+      name: 'Lisbon',
+      country: 'Portugal',
+      local_currency: 'EUR',
+      home_currencies: ['USD'],
+      start_date: '2027-03-01',
+      end_date: '2027-03-08',
+    })
+    // The trip as the API hands it to the sheet — a raw row would carry
+    // created_at/updated_at, which the form would echo back into the patch.
+    const trip: Trip = {
+      id: 'trip-1',
+      name: 'Lisbon',
+      country: 'Portugal',
+      display_title: 'Lisbon',
+      start_date: '2027-03-01',
+      end_date: '2027-03-08',
+      description: null,
+      people: [],
+      local_currency: 'EUR',
+      home_currencies: ['USD'],
+      start_time: null,
+      start_tz: null,
+    }
+    renderWithClient(<TripSheet mode="edit" trip={trip} onClose={() => {}} />)
 
     const currency = (await screen.findByLabelText('Money spent there')) as HTMLSelectElement
     expect(currency.value).toBe('EUR')
@@ -144,10 +127,14 @@ describe('TripSheet currency pickers', () => {
     await user.click(screen.getByLabelText('Remove USD'))
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
-    await waitFor(() => expect(mocks.patch).toHaveBeenCalled())
-    expect(mocks.patch.mock.calls[0][1]).toMatchObject({
-      local_currency: 'EUR',
-      home_currencies: ['ILS'],
-    })
+    // A longer window than the default second: each poll is a round trip to
+    // the database, and the save it is waiting on is one too.
+    await waitFor(
+      async () => {
+        const saved = (await rows<TripRow>('trips', 'id', 'trip-1'))[0]
+        expect(saved).toMatchObject({ local_currency: 'EUR', home_currencies: ['ILS'] })
+      },
+      { timeout: 5000 }
+    )
   })
 })
