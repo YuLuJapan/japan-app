@@ -9,15 +9,31 @@
 // Written to describe what this app actually does, which is the only kind of
 // privacy policy worth having. If the app starts doing something else, this
 // page changes and CURRENT_TERMS_VERSION is bumped so everyone is asked again.
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { CONTACT_EMAIL, LAST_UPDATED, PUBLISHER } from '../lib/legal'
 
 function Page({ title, children }: { title: string; children: React.ReactNode }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  // Back means *back*, not "/gate". Sent to the gate, a signed-in reader got a
+  // flash of the sign-in screen before its session check bounced them onward —
+  // gate → completeSignIn → /trips → "Before you start" — which is a long way
+  // round to return to the screen they left one tap earlier.
+  //
+  // `key === 'default'` is React Router's marker for the first entry in this
+  // history stack: someone who opened /terms cold, from a link in an email,
+  // has nothing to go back to and is sent to the gate instead.
+  const canGoBack = location.key !== 'default'
+
   return (
     <div className="mx-auto min-h-screen max-w-app px-5 py-8">
-      <Link to="/gate" className="text-sm font-bold text-brand">
+      <button
+        type="button"
+        className="text-sm font-bold text-brand"
+        onClick={() => (canGoBack ? navigate(-1) : navigate('/gate', { replace: true }))}
+      >
         ← Back
-      </Link>
+      </button>
       <h1 className="mt-4 font-display text-3xl font-bold text-ink">{title}</h1>
       <p className="mt-1 text-xs text-muted">Last updated {LAST_UPDATED}</p>
       <div className="mt-6 space-y-5 text-sm leading-relaxed text-ink">{children}</div>
