@@ -10,6 +10,13 @@ import '@testing-library/jest-dom/vitest'
 import { afterAll, afterEach, beforeEach, inject } from 'vitest'
 import { closeTestDb, testDb } from '../../server/testing/db'
 import { OWNER_USER, seedFixture } from '../../server/testing/fixture'
+import {
+  assertNoOutboundAttempts,
+  blockOutboundFetch,
+  blockOutboundNodeHttp,
+  blockOutboundXhr,
+  OUTBOUND_REPORT,
+} from '../../server/testing/no-outbound'
 import { resetData } from '../../server/testing/schema'
 import { assertLocalTarget } from '../../server/testing/stack-config'
 import { db, signInAs } from './data'
@@ -34,6 +41,14 @@ window.matchMedia ??= (query: string) =>
   }) as MediaQueryList
 
 const apiUrl = inject('apiUrl')
+const outsideWorldUrl = inject('outsideWorldUrl')
+
+// Nothing in a web test leaves the machine either: the API is local, the
+// database is a container, and the one third party the browser half talks to
+// (PostHog) is pointed at the fixture server.
+blockOutboundFetch('web test')
+blockOutboundNodeHttp('web test')
+blockOutboundXhr('web test')
 
 // Vite loads `.env` / `.env.local` into `import.meta.env` in test mode too, so
 // a developer with the real project's keys in one would have these tests
@@ -56,8 +71,13 @@ beforeEach(async () => {
   signInAs(OWNER_USER)
 })
 
-afterEach(() => {
+afterEach(async () => {
   localStorage.clear()
+  assertNoOutboundAttempts()
+  // The API runs in the globalSetup process, so its own attempts are reported
+  // over a socket rather than shared in memory.
+  const res = await fetch(`${outsideWorldUrl}${OUTBOUND_REPORT}`)
+  assertNoOutboundAttempts((await res.json()) as string[])
 })
 
 afterAll(async () => {

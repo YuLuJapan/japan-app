@@ -89,7 +89,7 @@ export function stackEnv(url: string): Record<string, string> {
  * docker host on the LAN. Anything else — a public address, and
  * `*.supabase.co` above all — is somebody's real project.
  */
-function isLocalHost(hostname: string): boolean {
+export function isLocalHost(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, '')
   if (host === 'localhost' || host === '::1' || host.endsWith('.localhost')) return true
   if (host === 'host.docker.internal' || host.endsWith('.internal') || host.endsWith('.local'))

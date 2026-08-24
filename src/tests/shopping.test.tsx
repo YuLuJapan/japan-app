@@ -404,18 +404,17 @@ describe('ShoppingForm', () => {
   })
 
   it('says so when the page cannot be read, and keeps the link', async () => {
+    // A shop whose server drops the connection. The API answers — it just has
+    // nothing to report — so the form says the page was unreadable and keeps
+    // the link.
+    const url = await outside.deadPage('/p/dead')
     renderNewForm()
 
-    // A host that does not resolve. The API answers — it just has nothing to
-    // report — so the form says the page was unreadable and keeps the link.
-    await userEvent.type(
-      screen.getByLabelText('Have a link? Paste it'),
-      'https://nothing-here.invalid/p/1'
-    )
+    await userEvent.type(screen.getByLabelText('Have a link? Paste it'), url)
     await userEvent.click(screen.getByRole('button', { name: 'Read link' }))
 
     expect(await screen.findByText(/Could not read that page/)).toBeInTheDocument()
-    expect(screen.getByLabelText('Product link')).toHaveValue('https://nothing-here.invalid/p/1')
+    expect(screen.getByLabelText('Product link')).toHaveValue(url)
   })
 
   it('says so when the link itself is refused', async () => {

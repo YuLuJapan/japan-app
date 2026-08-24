@@ -34,6 +34,15 @@ const NOTHING_FOUND = { query: { pages: {} } }
 export const outside = {
   /** Serve a shop's product page, and return the URL to paste at the app. */
   page: (path: string, html: string) => serve(path, { html }),
+  /**
+   * A link that cannot be read: the connection dies mid-request.
+   *
+   * A hostname that does not resolve would do the same job, and used to — but
+   * it leaves the machine to ask a DNS server, which makes the test slower
+   * offline and dependent on the resolver. A dropped socket here is the same
+   * failure, produced locally.
+   */
+  deadPage: (path: string) => serve(path, { hangUp: true }),
   /** Answer Wikipedia's image search. */
   wikipedia: (payload: unknown) => serve('/wikipedia', { json: payload }),
   /** Answer Wikimedia Commons' image search. */

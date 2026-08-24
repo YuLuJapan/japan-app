@@ -16,7 +16,8 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { OWNER_USER } from '../../server/testing/fixture'
-import { ANON_KEY, SERVICE_KEY, TEST_PASSWORD } from '../../server/testing/stack-config'
+import { ANON_KEY, TEST_PASSWORD } from '../../server/testing/stack-config'
+import { createAccount } from './data'
 import { renderAt } from './helpers'
 
 const supabaseUrl = inject('supabaseUrl')
@@ -53,25 +54,6 @@ async function renderGate({ configured }: { configured: boolean }) {
   const gate = await configureAuth({ configured })
   gate.mount()
   return gate.supabase
-}
-
-/** An account created for one case and deleted inside it. */
-async function createThrowawayAccount(email: string) {
-  const headers = {
-    apikey: SERVICE_KEY,
-    Authorization: `Bearer ${SERVICE_KEY}`,
-    'Content-Type': 'application/json',
-  }
-  const res = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ email, password: TEST_PASSWORD, email_confirm: true }),
-  })
-  const { id } = (await res.json()) as { id: string }
-  return {
-    id,
-    remove: () => fetch(`${supabaseUrl}/auth/v1/admin/users/${id}`, { method: 'DELETE', headers }),
-  }
 }
 
 afterEach(() => {
@@ -177,7 +159,7 @@ describe('AccessGate — Supabase Auth configured', () => {
   it('signs back out when the API refuses a session Supabase accepted', async () => {
     // A session for an account that no longer exists: Supabase still holds it,
     // and the API refuses the token because Auth no longer knows the user.
-    const stranger = await createThrowawayAccount('stranger@example.com')
+    const stranger = await createAccount('stranger@example.com')
     const { mount, supabase } = await configureAuth({ configured: true })
     await supabase!.auth.signInWithPassword({
       email: 'stranger@example.com',

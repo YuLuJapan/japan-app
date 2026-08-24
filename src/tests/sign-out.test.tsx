@@ -17,9 +17,9 @@ import type { AddressInfo } from 'node:net'
 import { afterAll, afterEach, beforeAll, describe, expect, it, inject, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { OWNER_USER } from '../../server/testing/fixture'
-import { ANON_KEY, TEST_PASSWORD } from '../../server/testing/stack-config'
+import { ANON_KEY } from '../../server/testing/stack-config'
 import { ACCESS_CODE_KEY } from '../api/client'
+import { createAccount } from './data'
 import { renderAt } from './helpers'
 
 /** The one request this file cares about; everything else is passed straight on. */
@@ -108,6 +108,10 @@ async function networkTo(target: string): Promise<Network> {
 }
 
 let net: Network
+// This file's own account. Signing out revokes every session the account has,
+// and the run's five provisioned accounts are shared — signing the owner out
+// here would 401 every later test holding the owner's token.
+let account: Awaited<ReturnType<typeof createAccount>>
 
 /**
  * Builds the button against a configured or unconfigured Supabase.
@@ -129,8 +133,8 @@ async function loadSignOut({ auth }: { auth: string | null }) {
 async function signedIn() {
   const { SignOutButton, supabase } = await loadSignOut({ auth: net.url })
   const { error } = await supabase!.auth.signInWithPassword({
-    email: OWNER_USER.email,
-    password: TEST_PASSWORD,
+    email: account.email,
+    password: account.password,
   })
   if (error) throw new Error(`signing in for the test failed: ${error.message}`)
   return { SignOutButton, supabase: supabase! }
@@ -151,6 +155,7 @@ async function confirmSignOut(SignOutButton: () => JSX.Element) {
 
 beforeAll(async () => {
   net = await networkTo(inject('supabaseUrl'))
+  account = await createAccount('signing-out@example.com')
 })
 
 afterEach(() => {
@@ -158,6 +163,7 @@ afterEach(() => {
 })
 
 afterAll(async () => {
+  await account.remove()
   await net.close()
 })
 

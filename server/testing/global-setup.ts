@@ -8,6 +8,7 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { TestProject } from 'vitest/node'
 import { provisionAccounts } from './accounts.js'
+import { blockOutboundFetch } from './no-outbound.js'
 import { startOutsideWorld } from './outside-world.js'
 import { startSupabaseStack } from './stack.js'
 import { assertLocalTarget, DB, stackEnv } from './stack-config.js'
@@ -71,6 +72,9 @@ export default async function setup(project: TestProject) {
   // Exchange rates, photo search and translation, served locally — the API
   // would otherwise reach for the real internet mid-test.
   const outside = await startOutsideWorld()
+  // After the containers are up (pulling images is the one thing here that
+  // legitimately leaves the machine) and before the API serves a request.
+  blockOutboundFetch('the API')
   const api = await startApi(stack.url, outside.env)
 
   const { host, port } = stack.pool.options as { host: string; port: number }

@@ -9,6 +9,7 @@
 //
 // Fixed, and exported: a test asserting "€2.60" is reading the same table the
 // server answered from.
+import { OUTBOUND_REPORT, takeOutboundAttempts } from './no-outbound.js'
 import { startFixtureServer, type FixtureServer } from './fixture-server.js'
 
 /**
@@ -56,6 +57,9 @@ export async function startOutsideWorld(): Promise<OutsideWorld & { env: Record<
     // as it was rather than inventing an English one.
     world.json('/translate', { responseStatus: 403, responseData: { translatedText: '' } })
     world.json('/geocode', [])
+    // Not a fixture: what the API tried to send to the real internet, for the
+    // web suite to read. Registered as a default so a reset keeps it.
+    world.on(OUTBOUND_REPORT, () => ({ json: takeOutboundAttempts() }))
   })
 
   return {

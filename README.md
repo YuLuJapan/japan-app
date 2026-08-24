@@ -92,6 +92,12 @@ what a stubbed client should return. What jsdom is given is the browser it
 doesn't implement (`matchMedia`, service workers, `Notification`, layout
 rects), which is what lets the real push and reminder code run.
 
+It cannot reach the internet either. `fetch` and `http(s).request` are wrapped
+in every process: loopback goes through untouched, anything else is refused and
+reported, and the test that caused it fails. Substituting a third party is
+fine — that is what the fixture server is for — but no request becomes a real
+one by accident.
+
 The suite cannot touch the hosted project. It overwrites the Supabase env vars
 with the container's before the app builds a client, loads no `.env` file, and
 refuses outright to start against a stack URL or database host that is not

@@ -7,7 +7,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { inject } from 'vitest'
 import type { TestAccount } from '../../server/testing/accounts'
-import { SERVICE_KEY } from '../../server/testing/stack-config'
+import { SERVICE_KEY, TEST_PASSWORD } from '../../server/testing/stack-config'
 import { ACCESS_CODE_KEY } from '../api/client'
 
 /** The service-key client — bypasses RLS, as the API's own store does. */
@@ -63,4 +63,34 @@ export function signInAs(user: TestAccount): void {
   const token = inject('authTokens')[user.email]
   if (!token) throw new Error(`no token was provisioned for ${user.email}`)
   localStorage.setItem(ACCESS_CODE_KEY, token)
+}
+
+/**
+ * An account created for one test file and deleted with it.
+ *
+ * A file that signs in and out for real needs its own: `signOut()` revokes
+ * every session the account has, and the five provisioned accounts are shared
+ * by the whole run — signing the owner out here would 401 every test that ran
+ * afterwards holding the owner's token.
+ */
+export async function createAccount(email: string) {
+  const headers = {
+    apikey: SERVICE_KEY,
+    Authorization: `Bearer ${SERVICE_KEY}`,
+    'Content-Type': 'application/json',
+  }
+  const admin = `${inject('supabaseUrl')}/auth/v1/admin/users`
+  const res = await fetch(admin, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ email, password: TEST_PASSWORD, email_confirm: true }),
+  })
+  if (!res.ok) throw new Error(`creating ${email} failed: HTTP ${res.status}`)
+  const { id } = (await res.json()) as { id: string }
+  return {
+    id,
+    email,
+    password: TEST_PASSWORD,
+    remove: async () => void (await fetch(`${admin}/${id}`, { method: 'DELETE', headers })),
+  }
 }

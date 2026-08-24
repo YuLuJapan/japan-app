@@ -7,15 +7,26 @@
 // the Supabase env vars — so nothing in a test stands between a route and the
 // database it is supposed to be talking to.
 import { createClient } from '@supabase/supabase-js'
-import { afterAll, beforeEach, inject } from 'vitest'
+import { afterAll, afterEach, beforeEach, inject } from 'vitest'
 import { setDataStore } from '../src/lib/datastore.js'
 import { clearTokenCache } from '../src/lib/identity.js'
 import { closeTestDb, testDb } from './db.js'
+import {
+  assertNoOutboundAttempts,
+  blockOutboundFetch,
+  blockOutboundNodeHttp,
+} from './no-outbound.js'
 import { seedFixture } from './fixture.js'
 import { resetData } from './schema.js'
 import { SERVICE_KEY, stackEnv } from './stack-config.js'
 
 const url = inject('supabaseUrl')
+
+// The stack is local and the third parties are answered locally, so nothing
+// here has any business leaving the machine. Anything that tries is refused
+// and reported rather than silently becoming a real request.
+blockOutboundFetch('server test')
+blockOutboundNodeHttp('server test')
 
 // Set before anything imports lib/supabase.ts: it caches its client on first
 // use, and a client built from a half-set environment stays wrong all run.
@@ -36,6 +47,13 @@ beforeEach(async () => {
   clearTokenCache()
   await resetData(testDb())
   await seedFixture(admin)
+})
+
+// Reported per test rather than only at the end: several services treat a
+// failed fetch as "nothing found", so the request that leaked and the
+// assertion that passed anyway are otherwise never connected.
+afterEach(() => {
+  assertNoOutboundAttempts()
 })
 
 afterAll(async () => {
