@@ -49,6 +49,14 @@ async function startApi(
   // Imported after the env is set: lib/supabase.ts caches its client on first
   // use, and one built from a half-set environment stays wrong all run.
   const { createApp } = await import('../src/app.js')
+  // Resolved now, not on the first request. `getDataStore()` reaches the
+  // Supabase backend through a dynamic import, and by the time a web test
+  // makes a request the run has already finished the server project — at
+  // which point that import comes back empty and every request 500s with
+  // "createSupabaseStore is not a function". Doing it here also means a
+  // misconfigured stack fails the run rather than the first test.
+  const { getDataStore } = await import('../src/lib/datastore.js')
+  await getDataStore()
   const server = createServer(createApp())
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as AddressInfo

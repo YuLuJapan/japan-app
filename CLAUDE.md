@@ -14,7 +14,7 @@ npm run dev          # frontend on :3000 (Vite), API on :3001 (Express), run con
 npm run dev:web       # frontend only
 npm run dev:api       # API only (tsx watch server/dev.ts)
 
-npm test              # vitest run — both projects (web + server), 169 tests
+npm test              # vitest run — both projects (web + server), 742 tests. Needs Docker: the run boots a real Supabase stack in containers (see Testing)
 npm run test:watch    # vitest watch mode
 npx vitest run server/tests/browse.test.ts        # single server test file
 npx vitest run src/tests/browse.test.tsx          # single web test file
@@ -29,6 +29,11 @@ npm run push:keys     # generate the VAPID key pair for web push (run once, see 
 npm run seed          # seed Supabase rows (only relevant once DATA_BACKEND=supabase)
 npm run seed:files     # seed Supabase Storage blobs
 npm run check:db        # sanity-check the Supabase connection
+
+npm run dev:local     # the whole app against a local Supabase stack, seeded (see Local environment)
+npm run local:up       # just the stack: containers + migrations + seed data
+npm run local:reset     # truncate and re-seed it
+npm run local:down       # stop it (volumes survive)
 ```
 
 Signing in locally needs Supabase Auth configured (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `VITE_*` — see `.env.example`). There is no shared access code any more; without those vars the gate has no working button.
@@ -46,12 +51,12 @@ There is no separate typecheck script; `tsc` runs implicitly via Vite/vitest. Ru
 
 **Swappable datastore, selected by `DATA_BACKEND` env var:**
 
-- `memory` (the code default, and what local dev + tests use unless you set the env var) — in-memory store seeded from `server/src/data/placeholder-data.json`; edits persist only until the process restarts. This JSON is real content, not throwaway fixture data — it's the seed the deployed database was built from, so edit it directly when updating trip info (or edit through the running app).
+- `memory` (the code default — what a bare `npm run dev:api` uses; tests and `npm run dev:local` both run against real Postgres now) — in-memory store seeded from `server/src/data/placeholder-data.json`; edits persist only until the process restarts. This JSON is real content, not throwaway fixture data — it's the seed the deployed database was built from, so edit it directly when updating trip info (or edit through the running app).
 - `supabase` — Postgres + Storage. **This is what production runs on** (`DATA_BACKEND=supabase` is set in the Vercel project), so edits made in the deployed app persist. Schema lives in `supabase/migrations/*.sql` (numbered, sequential — add a new file rather than editing old ones).
 
-> **Adding an entity? Committing the migration is not deploying it.** The Supabase project is live and has no migration runner — a new `supabase/migrations/*.sql` file does nothing until someone runs it against the project (Supabase SQL editor, or the Supabase MCP `apply_migration`). Ship a new table without that step and the deployed feature 500s on its very first request while every test still passes, because tests use the memory store. Seed rows for the new table too (`npm run seed` covers the tables listed in `scripts/seed.ts`). Also check the highest migration number **on `main`** before naming yours — parallel branches otherwise both claim the same number.
+> **Adding an entity? Committing the migration is not deploying it.** The Supabase project is live and has no migration runner — a new `supabase/migrations/*.sql` file does nothing until someone runs it against the project (Supabase SQL editor, or the Supabase MCP `apply_migration`). Ship a new table without that step and the deployed feature 500s on its very first request while the suite stays green — the tests apply the migrations _folder_ to their own container, which proves the SQL runs but says nothing about the live project. Seed rows for the new table too (`npm run seed` covers the tables listed in `scripts/seed.ts`). Also check the highest migration number **on `main`** before naming yours — parallel branches otherwise both claim the same number.
 
-Tests override the store via `setDataStore()` (see `server/tests/fixture.ts` and the `beforeEach` in any `server/tests/*.test.ts`) rather than touching env vars.
+Tests run against `supabase` too, pointed at a container (see **Testing**) — the env var is set for them like it is in production, and `setDataStore(null)` in the setup file only clears the process-wide cache between cases. Nothing hands the services a hand-written store any more.
 
 **Reminders & web push:** `Reminder` rows carry an absolute `remind_at` instant; nothing in the app polls them. An _external_ scheduler (cron-job.org or Supabase pg_cron — Vercel Hobby cron only fires daily) calls `POST /api/reminders/dispatch`, which claims due reminders (stamping `sent_at` in the same store operation, so overlapping runs can't double-send) and pushes them to the devices of that reminder's **own trip's members** (`push_subscriptions.user_id` → `listPushSubscriptionsForUsers`; there is deliberately no unscoped list). That dispatch route is the only one exempt from `authMiddleware` besides `/api/health` — it has no signed-in caller, so it checks `CRON_SECRET` itself and refuses everything when none is configured. Push is entirely optional at runtime: with no `VAPID_*` env vars the API reports `public_key: null` and the UI explains that reminders won't be delivered, rather than failing. The browser half lives in `src/lib/push.ts` + `public/push-sw.js` (folded into the generated service worker via `workbox.importScripts`). Setup steps are in README "Reminders & notifications".
 
@@ -61,7 +66,7 @@ Tests override the store via `setDataStore()` (see `server/tests/fixture.ts` and
 
 **Auth:** per-user accounts (Supabase Auth JWTs), then per-trip membership. The two are deliberately separate modules:
 
-- `lib/identity.ts` — _who_. Verifies the bearer token into an `AuthUser`, caches the result 60s (failures 10s), and says nothing about permissions. `setTokenVerifier` is the test seam, the same idiom as `setDataStore`.
+- `lib/identity.ts` — _who_. Verifies the bearer token into an `AuthUser`, caches the result 60s (failures 10s), and says nothing about permissions. There is no verifier seam any more: tests hold real GoTrue tokens, so `resolveAuthUser` runs for real. The cache is process-wide, which is why `clearTokenCache()` exists and why the test setup calls it between cases.
 - `lib/auth.ts` — the door. `authMiddleware` sets `req.user` and `req.access` (the caller's memberships) and makes no content decisions. Exempt: `/api/health` and `/api/reminders/dispatch`.
 - `lib/trip-context.ts` — the choke point. Every content route is mounted under `/api/trips/:tripId` behind `requireTripAccess`, which resolves the `trip_members` row into a `TripContext` (`trip`, `role`, `view`). **A route added to that router is access-checked by construction**, reads included — this is the property to preserve.
 
@@ -81,6 +86,32 @@ The frontend mirrors both — `useCanEdit()` / `useTripShows()` (`src/lib/sessio
 
 **API contract source of truth:** `specs/001-japan-trip-app/contracts/api.md`. When adding/changing an endpoint, update this file too — it's not just historical documentation, it's referenced by both frontend and backend code comments.
 
+## Testing
+
+**Everything runs against real infrastructure; nothing in the app is replaced by a stand-in.** `npm test` boots a Supabase stack in containers once per run (testcontainers: `supabase/postgres`, PostgREST, GoTrue, Storage, and an nginx gateway reproducing Kong's `/rest/v1` · `/auth/v1` · `/storage/v1` routing, because supabase-js hard-codes those prefixes), applies every file in `supabase/migrations/`, creates the storage bucket and provisions real accounts. Docker has to be running; the first run pulls five images.
+
+The harness is `server/testing/`:
+
+- `stack-config.ts` — the one definition of the stack: pinned image tags, the local-only JWT secret and the anon/service keys signed from it, bucket name, compose ports. `local/docker-compose.yml` holds the same literals, which is why those keys are fixed rather than generated. They are local-only by construction — none of them reaches a real project.
+- `stack.ts` — `startSupabaseStack()`. Honours `TEST_SUPABASE_URL` to attach to a stack somebody already started (`npm run local:up`) instead of booting one.
+- `global-setup.ts` — one stack, one set of accounts, one outside world, and **the real Express app on a real port**, for the whole run. Workers reach them through `inject('supabaseUrl' | 'apiUrl' | 'authTokens' | 'outsideWorldUrl' | 'dbHost' | 'dbPort')`.
+- `accounts.ts` — five real Auth accounts on fixed UUIDs (owner, partner, viewer, outsider, unconfirmed). Tokens come from GoTrue's password grant and are verified by the real `lib/identity.ts`.
+- `fixture.ts` — the dataset, written through PostgREST and re-seeded before each test after `resetData()` truncates. That reset is global, hence `fileParallelism: false`: the isolation _is_ the truncate, so two files must not overlap.
+- `fixture-server.ts` + `external-web.ts` (server suite) and `outside-world.ts` + `src/tests/outside.ts` (web suite) — the internet. Rates, photo search, translation, geocoding and shop product pages are answered by a real HTTP server on a real port, and the services read their endpoints from env vars per call so a test can point them at it. **Never stub global `fetch`**: supabase-js reaches for the same global, so a stubbed one silently unplugs the datastore. The web suite's API lives in the globalSetup process, so a web test steers that server over its `CONTROL` endpoints rather than in-process.
+- `schema.ts` — migrations, truncation, and `settleSchemaCache()`. PostgREST reloads its cache asynchronously and supabase/postgres queues further reloads behind a DDL event trigger, so readiness has to _hold_ for a second rather than merely be true once. Anything doing DDL mid-test (`withTableMissing`, `withColumnsMissing`, both in `db.ts`) goes through it and restores in a `finally`.
+
+Web tests get the same treatment: components fetch from that real API (`src/tests/setup.ts` points `VITE_API_BASE` at its port), a case arranges what it needs by writing rows (`src/tests/data.ts`) and signs in with a real token. What jsdom is given is the _browser_ it doesn't implement — `matchMedia`, `serviceWorker`, `Notification`, `PushManager`, `URL.createObjectURL`, layout rects, canvas (`src/tests/browser.ts`). Those are platform gaps, not stand-ins for app code: supplying them is what lets the real `push.ts` run. A few `vi.spyOn`s survive where the environment genuinely cannot go — a full-page OAuth redirect, mail with no SMTP, a promise held open to stand inside a race — and each carries a comment saying why.
+
+Consequences worth knowing: a test that changes the schema must put it back; a fixture change is a database change, so it lands for every test in the run; and a failing suite can now mean the stack didn't come up (`docker ps`), not that the code broke.
+
+## Local environment
+
+`npm run dev:local` is the whole app on a real Supabase: `local/docker-compose.yml` (the same five services as the test stack, on fixed ports — gateway 54321, Postgres 54322), migrations applied, bucket created, `server/src/data/placeholder-data.json` seeded through `scripts/seed-lib.ts` (shared with `npm run seed`, so the two cannot drift), and a `dev@example.com` / `devpassword` account made owner of every seeded trip — the placeholder data predates accounts, so without that step you sign in to an empty list.
+
+`npm run local:up` does the stack and the seed without starting the app; export `TEST_SUPABASE_URL=http://127.0.0.1:54321` and `npm test` attaches to it instead of booting its own. `local:reset` re-seeds, `local:down` stops the containers and leaves the volumes.
+
+`local/init/` is copied into the containers verbatim and is in `.prettierignore` (formatting nginx config as markdown produced a dead gateway once). `zz-roles.sql`'s prefix is load-bearing: init scripts run in filename order and the image's own `migrate.sh` has to create the roles first.
+
 ## Conventions worth knowing
 
 - No semicolons, single quotes, 100-char print width (`.prettierrc`); run `npm run format` rather than hand-wrapping lines.
@@ -88,6 +119,6 @@ The frontend mirrors both — `useCanEdit()` / `useTripShows()` (`src/lib/sessio
 - Services validate input and collect _all_ validation errors into one array (see `collectPlaceErrors` pattern in `server/src/services/places.ts`) rather than throwing on the first bad field — mirror this pattern for new entities.
 - `Partial<...>Input` + a `partial: boolean` flag is the standard shape for validating both POST (full) and PATCH (partial) bodies with one function.
 - Deleting a place reparents its files to the trip first (`reparentFilesToTrip`) — "no silent file loss" is a deliberate product rule, not an oversight; keep that in mind for any other delete-cascade logic.
-- Vitest is configured as two projects in one run (`vitest.config.ts`): `web` (jsdom, `src/tests/**/*.test.tsx`) and `server` (node, `server/tests/**/*.test.ts`). Server tests use `supertest` against `createApp()` with a fixture datastore; web tests use React Testing Library with helpers in `src/tests/helpers.tsx`.
+- Vitest is configured as two projects in one run (`vitest.config.ts`): `web` (jsdom, `src/tests/**/*.test.tsx`) and `server` (node, `server/tests/**/*.test.ts`). Server tests use `supertest` against `createApp()`; web tests use React Testing Library with helpers in `src/tests/helpers.tsx`. Both talk to one containerised Supabase — see **Testing**.
 - Design system: Tailwind tokens in `tailwind.config.ts` (`canvas`/`ink`/`muted`/`line`/`brand`/`sun`/`ocean`, `Plus Jakarta Sans` font, capped `max-w-app` mobile-first container) — reuse these tokens rather than introducing new ad-hoc colors.
 - Budget/infra constraint baked into product decisions: everything must fit free tiers (Vercel Hobby + Supabase Free, $0 target, $5 hard ceiling) — don't suggest paid services or infra.

@@ -66,9 +66,6 @@ export async function startFixtureServer(): Promise<FixtureServer> {
   const requests: FixtureRequest[] = []
 
   let applyDefaults: (server: FixtureServer) => void = () => {}
-  // Assigned below; the control routes need to hand the server to the caller's
-  // default-applying callback.
-  let self: FixtureServer
 
   const readJson = async (req: IncomingMessage): Promise<Record<string, unknown>> => {
     const chunks: Buffer[] = []
@@ -155,7 +152,10 @@ export async function startFixtureServer(): Promise<FixtureServer> {
     return `${url}${path}`
   }
 
-  self = {
+  // Declared after the handler that closes over it: the control routes hand
+  // the server to the caller's default-applying callback, and by the time a
+  // request arrives this is assigned.
+  const self: FixtureServer = {
     url,
     requests,
     urlFor: (path) => `${url}${path}`,

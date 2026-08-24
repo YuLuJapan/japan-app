@@ -95,7 +95,7 @@ describe('AccessGate — Supabase Auth configured', () => {
     // OAuth ends in a full-page redirect, which jsdom cannot perform — so the
     // handoff is observed on the real client rather than followed.
     const handoff = vi.spyOn(supabase.auth, 'signInWithOAuth').mockResolvedValue({
-      data: { provider: 'google', url: null },
+      data: { provider: 'google', url: 'https://accounts.google.com/o/oauth2/auth' },
       error: null,
     })
 

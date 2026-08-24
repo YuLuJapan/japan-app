@@ -85,6 +85,13 @@ server (`server/testing/external-web.ts`) rather than by replacing `fetch`.
 Replacing it was never only a stand-in for the web: supabase-js reaches for the
 same global.
 
+The browser half is the same story. Components render in jsdom against that
+same running API — a test says what it needs by writing rows to the database
+(`src/tests/data.ts`) and signs in with a real token, rather than by deciding
+what a stubbed client should return. What jsdom is given is the browser it
+doesn't implement (`matchMedia`, service workers, `Notification`, layout
+rects), which is what lets the real push and reminder code run.
+
 Iterating is faster against a stack you already have up:
 
 ```

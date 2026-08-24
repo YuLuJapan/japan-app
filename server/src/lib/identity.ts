@@ -63,17 +63,6 @@ export function clearTokenCache(): void {
   tokenCache.clear()
   syncedProfiles.clear()
 }
-// The verifier `resolvePrincipal` reaches for when a caller doesn't name one —
-// which is every caller in production, since authMiddleware has no opinion
-// about how a token is checked. Overridable for the same reason `setDataStore`
-// is: a test signs in as somebody without a Supabase project to sign in to.
-let defaultVerifier: TokenVerifier = resolveAuthUser
-
-/** Test hook. Pass null to restore the real Supabase Auth verifier. */
-export function setTokenVerifier(verify: TokenVerifier | null): void {
-  defaultVerifier = verify ?? resolveAuthUser
-  tokenCache.clear()
-}
 
 // --- resolution --------------------------------------------------------------
 
@@ -85,7 +74,7 @@ export function setTokenVerifier(verify: TokenVerifier | null): void {
  */
 export async function resolveUser(
   token: string,
-  verify: TokenVerifier = defaultVerifier
+  verify: TokenVerifier = resolveAuthUser
 ): Promise<AuthUser | null> {
   if (!token) return null
   const cached = cacheGet(token)
