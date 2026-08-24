@@ -119,9 +119,9 @@ export function InstallHelpSheet({ open, onClose }: { open: boolean; onClose: ()
 }
 
 /**
- * The nudge itself. Hidden for good once installed, and for a fortnight after
- * a "not now" — an install prompt that reappears on every visit is the reason
- * people learn to swat them without reading.
+ * The nudge itself. Hidden for good once installed, and until tomorrow after a
+ * "not now" — an install prompt that reappears within the same evening is the
+ * reason people learn to swat them without reading.
  */
 export function InstallBanner() {
   const canPrompt = useCanPromptInstall()

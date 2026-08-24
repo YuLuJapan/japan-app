@@ -70,7 +70,7 @@ describe('InstallBanner', () => {
     expect(screen.queryByText(/Tap the Share button/)).not.toBeInTheDocument()
   })
 
-  it('stays away for a fortnight after "Not now"', async () => {
+  it('stays away for the rest of the day after "Not now"', async () => {
     const { unmount } = render(<InstallBanner />)
     await userEvent.click(screen.getByRole('button', { name: 'Not now' }))
     expect(screen.queryByText('Keep Onward one tap away')).not.toBeInTheDocument()
@@ -102,10 +102,13 @@ describe('InstallBanner', () => {
 describe('the snooze', () => {
   it('expires, rather than hiding the hint forever', () => {
     const now = Date.UTC(2026, 7, 24)
+    const hours = (n: number) => now + n * 60 * 60 * 1000
     snoozeInstallHint(now)
 
-    expect(installHintHidden(now + 13 * 24 * 60 * 60 * 1000)).toBe(true)
-    expect(installHintHidden(now + 15 * 24 * 60 * 60 * 1000)).toBe(false)
+    // Not twice in one evening…
+    expect(installHintHidden(hours(6))).toBe(true)
+    // …but back tomorrow, while there is still a trip to install it for.
+    expect(installHintHidden(hours(25))).toBe(false)
   })
 
   it('survives storage being unavailable (private browsing)', () => {

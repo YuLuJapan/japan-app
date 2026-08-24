@@ -160,7 +160,7 @@ response, so an offline phone still opens on the trip rather than on a dinosaur.
 Browsers won't offer that on their own, so the app asks:
 
 - **[InstallBanner](src/components/InstallPrompt.tsx)** on the trip home — one
-  "not now" snoozes it for a fortnight, and installing hides it for good
+  "not now" snoozes it until tomorrow, and installing hides it for good
   (`onward:install-hint` in localStorage).
 - **Add Onward to your phone** in Essentials, which is where whoever dismissed
   the banner can still find the steps.

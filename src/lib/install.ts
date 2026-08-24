@@ -52,9 +52,11 @@ export function installPlatform(): InstallPlatform {
   return /Android/i.test(navigator.userAgent) ? 'android' : 'desktop'
 }
 
-// How long "not now" lasts. Long enough not to nag, short enough that someone
-// who dismissed it on the way out the door is offered it again before the trip.
-const SNOOZE_DAYS = 14
+// How long "not now" lasts. A day: short, because the ask is small and the
+// people it matters to are days from a flight — someone who swats it on the
+// train sees it again tomorrow, while it still can't reappear twice in an
+// evening.
+const SNOOZE_DAYS = 1
 const HINT_KEY = 'onward:install-hint'
 
 // Private-mode Safari throws on localStorage rather than returning null, and a
