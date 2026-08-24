@@ -3,7 +3,7 @@
 // derived from start_date server-side — there is no manual reordering.
 // Destinations are free text, validated against real places via the geocode
 // autocomplete (Nominatim) rather than picked from a fixed zone list.
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { geocode, useTrip } from '../api/hooks'
 import { useCreateStep, useDeleteStep, useUpdateStep } from '../api/mutations'
 import type { GeocodeResult, JourneyStepInput, TripStep } from '../api/types'
@@ -156,6 +156,7 @@ function DestinationForm({
   const [selected, setSelected] = useState<GeocodeResult | null>(null)
   const [results, setResults] = useState<GeocodeResult[]>([])
   const [searching, setSearching] = useState(false)
+  const fieldId = useId()
   const [startDate, setStartDate] = useState(initial?.start_date ?? '')
   const [endDate, setEndDate] = useState(initial?.end_date ?? '')
 
@@ -205,7 +206,11 @@ function DestinationForm({
   return (
     <div className="space-y-2">
       <div>
+        <label className="label" htmlFor={`${fieldId}-destination`}>
+          Destination
+        </label>
         <input
+          id={`${fieldId}-destination`}
           className="field"
           placeholder="Search a city or place…"
           value={query}
@@ -213,7 +218,6 @@ function DestinationForm({
             setQuery(e.target.value)
             setSelected(null)
           }}
-          aria-label="Destination"
         />
         {destinationTouched && !selected && query.trim().length >= 2 && (
           <div className="mt-1 overflow-hidden rounded-2xl ring-1 ring-line">
@@ -235,25 +239,40 @@ function DestinationForm({
           </div>
         )}
       </div>
+      {/* An empty date input shows the browser's own `dd/mm/yyyy` and nothing
+          else, so two of them side by side are indistinguishable — hence a
+          visible label each rather than the aria-label they used to carry
+          alone. The ids are scoped per form: several of these are on screen at
+          once when a stop is being edited above the add form. */}
       <div className="flex gap-2">
-        <input
-          type="date"
-          className="field flex-1"
-          value={startDate}
-          min={tripRange.start}
-          max={tripRange.end}
-          onChange={(e) => setStartDate(e.target.value)}
-          aria-label="Start date"
-        />
-        <input
-          type="date"
-          className="field flex-1"
-          value={endDate}
-          min={tripRange.start}
-          max={tripRange.end}
-          onChange={(e) => setEndDate(e.target.value)}
-          aria-label="End date"
-        />
+        <div className="flex-1">
+          <label className="label" htmlFor={`${fieldId}-start`}>
+            Start date
+          </label>
+          <input
+            id={`${fieldId}-start`}
+            type="date"
+            className="field"
+            value={startDate}
+            min={tripRange.start}
+            max={tripRange.end}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+        </div>
+        <div className="flex-1">
+          <label className="label" htmlFor={`${fieldId}-end`}>
+            End date
+          </label>
+          <input
+            id={`${fieldId}-end`}
+            type="date"
+            className="field"
+            value={endDate}
+            min={tripRange.start}
+            max={tripRange.end}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+        </div>
       </div>
       <p className="text-xs text-muted">
         Stops must fall within the trip's dates ({fmt(tripRange.start)} – {fmt(tripRange.end)}).
