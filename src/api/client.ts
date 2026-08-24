@@ -26,11 +26,21 @@ export const clearAccessCode = () => {
   localStorage.removeItem('trip_role')
 }
 
+/**
+ * Where the API lives. Empty in the browser, where the client is served from
+ * the same origin and `/api/...` is exactly right.
+ *
+ * Set (to an absolute origin) only by the test harness, which runs the real
+ * API on a port of its own — a relative URL has nothing to be relative to
+ * outside a browser.
+ */
+const apiBase = () => import.meta.env?.VITE_API_BASE ?? ''
+
 async function send(path: string, init: RequestInit = {}): Promise<Response> {
   const code = getAccessCode()
   let res: Response
   try {
-    res = await fetch(`/api${path}`, {
+    res = await fetch(`${apiBase()}/api${path}`, {
       ...init,
       headers: {
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
