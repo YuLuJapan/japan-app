@@ -12,8 +12,11 @@
 // rather than throwing: a missing photo must never break saving an item.
 import { validation } from '../lib/errors.js'
 
-const WIKIPEDIA = 'https://en.wikipedia.org/w/api.php'
-const COMMONS = 'https://commons.wikimedia.org/w/api.php'
+// Read per call rather than captured at import, so a test can point these at a
+// local server it started after this module was loaded. Unset everywhere else,
+// which is every deployment.
+const wikipedia = () => process.env.WIKIPEDIA_API_URL ?? 'https://en.wikipedia.org/w/api.php'
+const commons = () => process.env.COMMONS_API_URL ?? 'https://commons.wikimedia.org/w/api.php'
 // Wikimedia's policy expects a descriptive UA with contact info (same as the
 // Nominatim call in geocode.ts).
 const USER_AGENT = 'yuvaluz-in-japan/0.1 (personal trip planner; https://github.com/lkirsman)'
@@ -52,12 +55,14 @@ async function getJson(endpoint: string, params: URLSearchParams): Promise<unkno
 function pagesOf(payload: unknown): Record<string, unknown>[] {
   const pages = (payload as { query?: { pages?: Record<string, unknown> } } | null)?.query?.pages
   if (!pages || typeof pages !== 'object') return []
-  return Object.values(pages).filter((p): p is Record<string, unknown> => !!p && typeof p === 'object')
+  return Object.values(pages).filter(
+    (p): p is Record<string, unknown> => !!p && typeof p === 'object'
+  )
 }
 
 async function searchWikipedia(query: string, limit: number): Promise<ImageResult[]> {
   const payload = await getJson(
-    WIKIPEDIA,
+    wikipedia(),
     new URLSearchParams({
       action: 'query',
       format: 'json',
@@ -90,7 +95,7 @@ async function searchWikipedia(query: string, limit: number): Promise<ImageResul
 
 async function searchCommons(query: string, limit: number): Promise<ImageResult[]> {
   const payload = await getJson(
-    COMMONS,
+    commons(),
     new URLSearchParams({
       action: 'query',
       format: 'json',

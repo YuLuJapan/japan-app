@@ -1,20 +1,18 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
+import { useExternalWeb } from '../testing/external-web.js'
 import { asOwner as auth } from './auth.js'
 
 const app = createApp()
+const web = useExternalWeb()
 
 beforeEach(() => {
   // Creating an item without a photo triggers a web lookup (services/images.ts).
-  // Stub it to "found nothing" so these tests never touch the network — the
-  // lookup itself is covered in images.test.ts.
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ query: { pages: {} } }) }))
-  )
+  // Have both photo sources answer "found nothing", so these cases stay about
+  // the shopping list — the lookup itself is covered in images.test.ts.
+  web.noPhotos()
 })
-afterEach(() => vi.unstubAllGlobals())
 
 describe('GET /api/trips/trip-1/shopping', () => {
   it('returns the trip shopping list with unbought items first', async () => {

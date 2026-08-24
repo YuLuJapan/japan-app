@@ -1,11 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
 import { getDataStore } from '../src/lib/datastore.js'
 import { __resetRatesCache, getRates, getRatesFor } from '../src/services/rates.js'
+import { useExternalWeb } from '../testing/external-web.js'
 import { asOwner as auth } from './auth.js'
 
 const app = createApp()
+const web = useExternalWeb()
 
 const payload = {
   result: 'success',
@@ -13,25 +15,24 @@ const payload = {
   rates: { USD: 0.0067, ILS: 0.025, EUR: 0.0058 },
 }
 
-/** The provider answers for whichever base the URL asks for. */
-function mockProvider(byBase: Record<string, object> = { JPY: payload }) {
-  return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-    const base = String(input).split('/').pop() ?? ''
-    const body = byBase[base]
-    if (!body) throw new Error(`no mock for base ${base}`)
-    return new Response(JSON.stringify(body), { status: 200 })
-  })
+/** The provider answers for whichever base the URL asks for, and only those. */
+function provider(byBase: Record<string, object> = { JPY: payload }) {
+  for (const [base, body] of Object.entries(byBase)) web.rates(base, body)
+}
+
+/** The provider is unreachable: the connection drops, as it would offline. */
+function providerDown(base: string) {
+  web.rates(base, () => ({ hangUp: true }))
 }
 
 beforeEach(() => {
   __resetRatesCache()
 })
-afterEach(() => vi.restoreAllMocks())
 
 describe('exchange rates', () => {
   it('getRates parses the quoted rates and the source date, and persists them', async () => {
     const store = await getDataStore()
-    mockProvider()
+    provider()
     const r = await getRates(store, 'JPY')
     expect(r).toMatchObject({ base: 'JPY', date: '2026-07-11' })
     expect(r.rates).toMatchObject({ USD: 0.0067, ILS: 0.025, EUR: 0.0058 })
@@ -41,7 +42,7 @@ describe('exchange rates', () => {
 
   it('fetches per base, and one base never answers for another', async () => {
     const store = await getDataStore()
-    mockProvider({
+    provider({
       JPY: payload,
       EUR: { ...payload, rates: { USD: 1.16, ILS: 4.3 } },
     })
@@ -57,7 +58,7 @@ describe('exchange rates', () => {
     await store.saveRates({ base: 'JPY', date: '2026-07-10', rates: { USD: 0.0065, ILS: 0.024 } })
 
     __resetRatesCache()
-    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network down'))
+    providerDown('JPY')
 
     const r = await getRates(store, 'JPY')
     expect(r).toMatchObject({ base: 'JPY', date: '2026-07-10' })
@@ -67,13 +68,13 @@ describe('exchange rates', () => {
   it('throws only when the fetch fails AND there is no stored rate', async () => {
     const store = await getDataStore() // no saved rate
     __resetRatesCache()
-    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network down'))
+    providerDown('JPY')
     await expect(getRates(store, 'JPY')).rejects.toThrow()
   })
 
   it('getRatesFor keeps the symbols asked for and names the ones with no rate', async () => {
     const store = await getDataStore()
-    mockProvider()
+    provider()
     const r = await getRatesFor(store, { base: 'JPY', symbols: 'USD,THB,usd' })
     expect(r.rates).toEqual({ USD: 0.0067 })
     expect(r.missing).toEqual(['THB'])
@@ -86,7 +87,7 @@ describe('exchange rates', () => {
   })
 
   it('GET /api/rates requires auth and answers for the base asked for', async () => {
-    mockProvider({ JPY: payload, EUR: { ...payload, rates: { ILS: 3.9 } } })
+    provider({ JPY: payload, EUR: { ...payload, rates: { ILS: 3.9 } } })
     expect((await request(app).get('/api/rates')).status).toBe(401)
 
     const res = await auth(request(app).get('/api/rates?symbols=USD,ILS'))

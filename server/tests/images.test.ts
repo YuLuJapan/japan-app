@@ -1,9 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
+import { useExternalWeb } from '../testing/external-web.js'
 import { asOwner as auth } from './auth.js'
 
 const app = createApp()
+const web = useExternalWeb()
 
 // Wikimedia payloads, trimmed to the fields the service reads.
 const wikipediaPayload = (title: string) => ({
@@ -44,26 +46,19 @@ const commonsPayload = {
   },
 }
 
-/** Route fetch by endpoint so each source can be stubbed independently. */
-function mockFetch(handler: (url: string) => unknown | null) {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (input: string | URL) => {
-      const url = String(input)
-      const body = handler(url)
-      if (body === null) return { ok: false, status: 500, json: async () => ({}) } as Response
-      return { ok: true, status: 200, json: async () => body } as Response
-    })
-  )
-}
+const NOTHING_FOUND = { query: { pages: {} } }
 
-afterEach(() => vi.unstubAllGlobals())
+/** Both photo sources answering 500 — the API having a bad day, for real. */
+function photoApiDown() {
+  const fail = () => ({ status: 500 })
+  web.wikipedia(fail)
+  web.commons(fail)
+}
 
 describe('GET /api/images', () => {
   it('returns photos from both Wikipedia and Commons, with credit', async () => {
-    mockFetch((url) =>
-      url.includes('en.wikipedia.org') ? wikipediaPayload('Onitsuka Tiger') : commonsPayload
-    )
+    web.wikipedia(wikipediaPayload('Onitsuka Tiger'))
+    web.commons(commonsPayload)
 
     const res = await auth(request(app).get('/api/images?q=Onitsuka Tiger'))
     expect(res.status).toBe(200)
@@ -84,7 +79,8 @@ describe('GET /api/images', () => {
   })
 
   it('skips files a browser cannot render as an image', async () => {
-    mockFetch((url) => (url.includes('commons') ? commonsPayload : { query: { pages: {} } }))
+    web.wikipedia(NOTHING_FOUND)
+    web.commons(commonsPayload)
 
     const res = await auth(request(app).get('/api/images?q=diagram thing'))
     expect(res.body.results.every((r: { url: string }) => !r.url.endsWith('.svg'))).toBe(true)
@@ -92,12 +88,14 @@ describe('GET /api/images', () => {
 
   it('falls back to the brand words when the full name finds nothing', async () => {
     const seen: string[] = []
-    mockFetch((url) => {
-      const q = new URL(url).searchParams.get('gsrsearch') ?? ''
+    const bySearchTerm = (req: { query: URLSearchParams }) => {
+      const q = req.query.get('gsrsearch') ?? ''
       seen.push(q)
       // only the shortened query matches
-      return q === 'Ichikami Tsubaki' ? wikipediaPayload('Ichikami') : { query: { pages: {} } }
-    })
+      return { json: q === 'Ichikami Tsubaki' ? wikipediaPayload('Ichikami') : NOTHING_FOUND }
+    }
+    web.wikipedia(bySearchTerm)
+    web.commons(() => ({ json: NOTHING_FOUND }))
 
     const res = await auth(request(app).get('/api/images?q=Ichikami Tsubaki shampoo conditioner'))
     expect(res.status).toBe(200)
@@ -107,7 +105,7 @@ describe('GET /api/images', () => {
   })
 
   it('returns an empty list rather than failing when the photo API is down', async () => {
-    mockFetch(() => null)
+    photoApiDown()
 
     const res = await auth(request(app).get('/api/images?q=anything at all'))
     expect(res.status).toBe(200)
@@ -115,7 +113,8 @@ describe('GET /api/images', () => {
   })
 
   it('400 VALIDATION for a too-short query', async () => {
-    mockFetch(() => ({ query: { pages: {} } }))
+    web.wikipedia(NOTHING_FOUND)
+    web.commons(NOTHING_FOUND)
     const res = await auth(request(app).get('/api/images?q=a'))
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('VALIDATION')
@@ -129,9 +128,8 @@ describe('GET /api/images', () => {
 
 describe('POST /api/shopping photo fallback', () => {
   it('looks a photo up when the item is saved without one', async () => {
-    mockFetch((url) =>
-      url.includes('en.wikipedia.org') ? wikipediaPayload('Uniqlo') : { query: { pages: {} } }
-    )
+    web.wikipedia(wikipediaPayload('Uniqlo'))
+    web.commons(NOTHING_FOUND)
 
     const res = await auth(
       request(app)
@@ -143,9 +141,9 @@ describe('POST /api/shopping photo fallback', () => {
   })
 
   it('keeps the photo the user gave and does not search', async () => {
-    const fetchSpy = vi.fn()
-    vi.stubGlobal('fetch', fetchSpy)
-
+    // No routes registered at all: if a lookup happened it would show up in
+    // the server's request log, which is a stronger claim than a spy on fetch
+    // — that spy also caught the datastore's own traffic.
     const res = await auth(
       request(app)
         .post('/api/trips/trip-1/shopping')
@@ -153,11 +151,11 @@ describe('POST /api/shopping photo fallback', () => {
     )
     expect(res.status).toBe(201)
     expect(res.body.item.image_url).toBe('https://example.com/mine.jpg')
-    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(web.requests).toEqual([])
   })
 
   it('still saves the item when the photo lookup fails', async () => {
-    mockFetch(() => null)
+    photoApiDown()
 
     const res = await auth(
       request(app).post('/api/trips/trip-1/shopping').send({ name: 'Something obscure' })

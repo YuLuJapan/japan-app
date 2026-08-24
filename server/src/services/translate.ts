@@ -6,7 +6,8 @@
 // failure returns null so the caller keeps the original text rather than
 // blowing up.
 
-const ENDPOINT = 'https://api.mymemory.translated.net/get'
+// Read per call rather than captured at import — see services/rates.ts.
+const endpoint = () => process.env.TRANSLATE_API_URL ?? 'https://api.mymemory.translated.net/get'
 const TIMEOUT_MS = 4000
 const MAX_CHARS = 300 // product names; keeps us well inside the free daily quota
 
@@ -26,7 +27,7 @@ export async function translateJaToEn(text: string): Promise<string | null> {
   let translated: string | null = null
   try {
     const params = new URLSearchParams({ q, langpair: 'ja|en' })
-    const res = await fetch(`${ENDPOINT}?${params}`, { signal: AbortSignal.timeout(TIMEOUT_MS) })
+    const res = await fetch(`${endpoint()}?${params}`, { signal: AbortSignal.timeout(TIMEOUT_MS) })
     if (res.ok) {
       const payload = (await res.json()) as {
         responseStatus?: number | string

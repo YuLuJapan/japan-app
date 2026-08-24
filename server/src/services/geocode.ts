@@ -5,7 +5,8 @@
 // briefly to stay well under the 1 req/sec policy.
 import { validation } from '../lib/errors.js'
 
-const ENDPOINT = 'https://nominatim.openstreetmap.org/search'
+// Read per call rather than captured at import — see services/rates.ts.
+const endpoint = () => process.env.GEOCODE_API_URL ?? 'https://nominatim.openstreetmap.org/search'
 // Identifies the app per the Nominatim usage policy (a contact/URL is expected).
 const USER_AGENT = 'yuvaluz-in-japan/0.1 (personal trip planner; https://github.com/lkirsman)'
 
@@ -56,7 +57,7 @@ export async function geocodeSearch(
 
   let res: Response
   try {
-    res = await fetch(`${ENDPOINT}?${params}`, {
+    res = await fetch(`${endpoint()}?${params}`, {
       headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'en' },
     })
   } catch {

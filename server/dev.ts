@@ -15,5 +15,7 @@ try {
 
 const port = Number(process.env.API_PORT ?? 3001)
 createApp().listen(port, () => {
-  console.log(`[api] listening on http://localhost:${port} (DATA_BACKEND=${process.env.DATA_BACKEND ?? 'memory'})`)
+  console.log(
+    `[api] listening on http://localhost:${port} (DATA_BACKEND=${process.env.DATA_BACKEND ?? 'memory'})`
+  )
 })

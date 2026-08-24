@@ -47,14 +47,47 @@ export async function withTableMissing<T>(table: string, fn: () => Promise<T>): 
   // break every later test in the file with an error about the fixture rather
   // than about this one, which is a miserable trail to follow back.
   try {
-    await reloadSchemaCache(table, false)
+    await settleSchemaCache(`${table}?select=*&limit=1`, false, table)
     return await fn()
   } finally {
     await db.query(`alter table public."${hidden}" rename to "${table}"`)
     // Waiting for the reload matters more on the way back: PostgREST picks it
     // up asynchronously, and the next test seeds the fixture immediately.
     // Without this the table is there and PostgREST still says it is not.
-    await reloadSchemaCache(table, true)
+    await settleSchemaCache(`${table}?select=*&limit=1`, true, table)
+  }
+}
+
+/**
+ * Runs `fn` with columns genuinely absent, then puts them back.
+ *
+ * The Supabase store tolerates a deploy that reaches production before its
+ * migration does: the query comes back 42703 undefined_column and it retries
+ * without the new fields. Renaming the columns away produces that error from
+ * Postgres itself, so the fallback is driven by the thing it was written for
+ * rather than by a hand-built query builder agreeing to say 42703.
+ */
+export async function withColumnsMissing<T>(
+  table: string,
+  columns: string[],
+  fn: () => Promise<T>
+): Promise<T> {
+  const db = testDb()
+  const hidden = (column: string) => `${column}__hidden_for_test`
+  for (const column of columns) {
+    await db.query(`alter table public."${table}" rename column "${column}" to "${hidden(column)}"`)
+  }
+  const probe = `${table}?select=${columns.join(',')}&limit=1`
+  try {
+    await settleSchemaCache(probe, false, `${table}.${columns.join('/')}`)
+    return await fn()
+  } finally {
+    for (const column of columns) {
+      await db.query(
+        `alter table public."${table}" rename column "${hidden(column)}" to "${column}"`
+      )
+    }
+    await settleSchemaCache(probe, true, `${table}.${columns.join('/')}`)
   }
 }
 
@@ -68,9 +101,13 @@ export async function withTableMissing<T>(table: string, fn: () => Promise<T>): 
  * proves nothing; reading it several times in a row does, because a reload
  * still in flight would land in the middle.
  */
-async function reloadSchemaCache(table: string, shouldExist: boolean): Promise<void> {
+async function settleSchemaCache(
+  probe: string,
+  shouldExist: boolean,
+  label: string
+): Promise<void> {
   await testDb().query(`notify pgrst, 'reload schema'`)
-  const url = `${restUrl}/rest/v1/${table}?select=*&limit=1`
+  const url = `${restUrl}/rest/v1/${probe}`
   const headers = { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` }
   const deadline = Date.now() + 15_000
   // supabase/postgres also has a DDL event trigger that reloads the cache, so
@@ -89,5 +126,5 @@ async function reloadSchemaCache(table: string, shouldExist: boolean): Promise<v
     }
     await new Promise((r) => setTimeout(r, 100))
   }
-  throw new Error(`PostgREST never agreed that ${table} ${shouldExist ? 'exists' : 'is missing'}`)
+  throw new Error(`PostgREST never agreed that ${label} ${shouldExist ? 'exists' : 'is missing'}`)
 }

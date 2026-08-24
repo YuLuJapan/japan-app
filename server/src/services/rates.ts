@@ -18,12 +18,15 @@ import { validation } from '../lib/errors.js'
 export type Rates = ExchangeRates
 
 const TTL_MS = 6 * 60 * 60 * 1000
-const SOURCE = 'https://open.er-api.com/v6/latest'
+// Read per call rather than captured at import, so a test can point this at a
+// local server it started after this module was loaded. Unset everywhere else,
+// which is every deployment.
+const source = () => process.env.EXCHANGE_RATES_URL ?? 'https://open.er-api.com/v6/latest'
 
 const cache = new Map<string, { at: number; data: Rates }>()
 
 async function fetchLive(base: string, nowMs: number): Promise<Rates> {
-  const res = await fetch(`${SOURCE}/${base}`)
+  const res = await fetch(`${source()}/${base}`)
   const json = (await res.json()) as {
     result?: string
     time_last_update_utc?: string

@@ -12,8 +12,7 @@ geocodeRouter.get(
     const q = String(req.query.q ?? '')
     const lat = Number(req.query.lat)
     const lng = Number(req.query.lng)
-    const bias =
-      Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : undefined
+    const bias = Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : undefined
     res.json({ results: await geocodeSearch(q, bias) })
   })
 )
