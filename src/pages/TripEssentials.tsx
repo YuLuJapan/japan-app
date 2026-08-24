@@ -3,10 +3,29 @@ import { Link, useParams } from 'react-router-dom'
 import { useTrip } from '../api/hooks'
 import { CurrencyCalculator } from '../components/CurrencyCalculator'
 import { InstallHelpRow } from '../components/InstallPrompt'
+import { isJapanTrip } from '../lib/destination'
 
 // Curated static reference for the trip. Phrases are romaji (Latin script) +
 // English meaning — a travel phrasebook, no Japanese characters in the UI.
+//
+// Most of what follows was written for a Japan trip and is nonsense anywhere
+// else (Suica, Takkyubin, the 110/119 numbers), so every piece of content here
+// declares whether it travels. `isJapanTrip(trip.country)` decides, which means
+// a trip created to somewhere else simply never sees the Japan half.
 
+/**
+ * A line of content. A plain string shows on every trip; `{ japan }` shows only
+ * on a Japan trip; `{ text, japan }` swaps the wording between the two.
+ */
+type Line = string | { text?: string; japan: string }
+
+/** The wording this trip gets, or null when the line doesn't apply at all. */
+function lineFor(line: Line, japan: boolean): string | null {
+  if (typeof line === 'string') return line
+  return japan ? line.japan : (line.text ?? null)
+}
+
+// Japan-only by nature: these are the Japanese emergency numbers.
 const EMERGENCY = [
   { label: 'Police', value: '110' },
   { label: 'Fire / Ambulance', value: '119' },
@@ -17,10 +36,14 @@ const EMERGENCY = [
 // one-line summary shown collapsed; tapping a card expands it (accordion, one
 // open at a time — matches the design prototype's essentials cards, which
 // show no icon, just a bold title + muted meta line + chevron).
-const SECTIONS: { title: string; meta: string; items: string[] }[] = [
+//
+// `japanOnly` drops the whole card off a non-Japan trip; a card without it is
+// filtered line by line, and disappears too if nothing in it survives.
+const SECTIONS: { title: string; meta: Line; japanOnly?: true; items: Line[] }[] = [
   {
     title: 'Visit Japan Web (do before you fly)',
     meta: 'Register online before you fly',
+    japanOnly: true,
     items: [
       'Register both travellers at vjw.digital.go.jp — fill in passport details plus the immigration and customs declarations online ahead of time.',
       'Do this a few days before departure, not at the airport. It only unlocks 6 hours before arrival, but registering the passport/personal info early means there’s just the short declaration left to finish then.',
@@ -31,6 +54,7 @@ const SECTIONS: { title: string; meta: string; items: string[] }[] = [
   {
     title: 'Money',
     meta: 'Cash, ATMs, cards',
+    japanOnly: true,
     items: [
       'Cash: hotels are prepaid, so you need less than you’d think — but keep some for small shops, shrines, markets and some restaurants.',
       'Withdraw at 7-Eleven ATMs — they accept foreign cards and are everywhere. Rough rate when the group travelled: ~¥53 ≈ ₪1 (moves — check before you go).',
@@ -41,6 +65,7 @@ const SECTIONS: { title: string; meta: string; items: string[] }[] = [
   {
     title: 'Trains & tickets',
     meta: 'JR Pass, IC cards, seat rules',
+    japanOnly: true,
     items: [
       'Skip the JR Pass — after the price hike it no longer pays off for most routes. Ours has a handful of long rides (Tokyo→Odawara, Kanazawa→Tsuruga→Kyoto, Shin-Osaka→Atami, Atami→Tokyo); buy those per-journey (run it through a JR fare calculator if unsure). Kyoto→Nara→Osaka is Kintetsu, not JR.',
       'Load a Suica / PASMO into Apple or Google Wallet — tap for every train, metro, bus and konbini. On iPhone no app is needed; top up with your card. You can add both our cards to one phone.',
@@ -54,6 +79,7 @@ const SECTIONS: { title: string; meta: string; items: string[] }[] = [
   {
     title: 'Taxis',
     meta: 'GO app, Apple Pay set up',
+    japanOnly: true,
     items: [
       'Download the GO taxi app. Add a card to Apple Pay in advance — some found in-app card entry finicky, so set it up before you need it.',
     ],
@@ -61,6 +87,7 @@ const SECTIONS: { title: string; meta: string; items: string[] }[] = [
   {
     title: 'Luggage between cities',
     meta: 'Forward it, or roll it yourself',
+    japanOnly: true,
     items: [
       'With many one-night stops, consider Takkyubin forwarding (Yamato “Black Cat”) — send big cases hotel-to-hotel and travel light on the alpine legs. Counters at airports (Narita basement) and konbini.',
       'Rolling them works too, but the group warned repeatedly: rush-hour trains and elevator-less stations are brutal with big cases. Forwarding a case ahead to Kyoto or the return-Tokyo hotel is worth it for the Tokyo→Hakone→Fuji→Alps stretch.',
@@ -69,6 +96,7 @@ const SECTIONS: { title: string; meta: string; items: string[] }[] = [
   {
     title: 'Weather (late Sept–mid Oct)',
     meta: 'Late Sept – mid Oct',
+    japanOnly: true,
     items: [
       'A lovely window: warm-not-scorching, far drier than summer, thinner crowds. T-shirt days, cooler evenings — pack a light layer.',
       'Some rain is possible — bring a compact umbrella and it won’t cancel anything.',
@@ -79,14 +107,22 @@ const SECTIONS: { title: string; meta: string; items: string[] }[] = [
     title: 'Connectivity',
     meta: 'eSIM, Wi-Fi, offline maps',
     items: [
-      'Get an eSIM before you fly (Airalo, Ubigi, Sakura Mobile…) and activate on landing.',
+      {
+        text: 'Get an eSIM before you fly (Airalo, Ubigi…) and activate on landing.',
+        japan:
+          'Get an eSIM before you fly (Airalo, Ubigi, Sakura Mobile…) and activate on landing.',
+      },
       'Google Maps is your transit brain — trains, platforms and exit numbers. Download offline maps per city.',
-      'Free Wi-Fi at most stations, convenience stores and cafés.',
+      {
+        text: 'Check where the free Wi-Fi is — stations, cafés and most hotels.',
+        japan: 'Free Wi-Fi at most stations, convenience stores and cafés.',
+      },
     ],
   },
   {
     title: 'Food notes',
     meta: 'Konbini, ramen, regional picks',
+    japanOnly: true,
     items: [
       'Konbini (7-Eleven, Lawson, FamilyMart) are genuinely great for cheap, good meals and snacks — don’t skip them.',
       'Ramen: “Tokyo Engine Ramen” got a rave; look for local ticket-machine shops everywhere.',
@@ -99,6 +135,7 @@ const SECTIONS: { title: string; meta: string; items: string[] }[] = [
   {
     title: 'Shopping',
     meta: 'Donki, Uniqlo, tax-free',
+    japanOnly: true,
     items: [
       'Don Quijote (“Donki”) for cheap souvenirs and everything under one roof.',
       'Uniqlo / GU for clothes — sizes run small, so size up (an L at home may be XL/2XL here).',
@@ -108,6 +145,7 @@ const SECTIONS: { title: string; meta: string; items: string[] }[] = [
   {
     title: 'Little things',
     meta: 'Trash, onsen tattoos, train manners',
+    japanOnly: true,
     items: [
       'Carry a small bag/pouch — street bins are rare; you’ll hold your own trash.',
       'Tattoos: several onsen restrict them. A private in-room bath sidesteps it — worth confirming which of our rooms actually have one.',
@@ -118,6 +156,7 @@ const SECTIONS: { title: string; meta: string; items: string[] }[] = [
   {
     title: 'Apps to download before flying',
     meta: 'Suica, Maps, Tabelog, GO',
+    japanOnly: true,
     items: [
       'Suica in Apple Wallet — one each, Express Transit switched on.',
       'Google Maps, with the offline map of each city downloaded.',
@@ -129,30 +168,32 @@ const SECTIONS: { title: string; meta: string; items: string[] }[] = [
   },
   {
     title: 'Things not to forget',
-    meta: 'Passport, Takkyubin, no tipping',
+    meta: {
+      text: 'Passport, tickets, the small stuff',
+      japan: 'Visit Japan Web, passport, no tipping',
+    },
     items: [
-      'Passport on you, always. No passport, no tax-free and no Donki coupon.',
-      'Takkyubin at every city change where we don’t have the car: ~¥1,500–2,000 per suitcase, arrives next day. Arrange it at reception the night before.',
-      'There are no rubbish bins. Carry a small bag in the daypack.',
-      'No tipping. Ever. Anywhere.',
-      'Don’t eat while walking — stand next to the stall.',
-      '7-Eleven for cash withdrawals, not the airport exchange counters.',
-    ],
-  },
-  {
-    title: 'Open items — still to sort',
-    meta: 'Still needs deciding',
-    items: [
-      'Cancel one of the two Atami hotels. Both are booked for the same nights, both with free cancellation.',
-      'Hakone Yutowa: is there a private bath? Booking is offering an upgrade to a superior room with one, which suggests the current room doesn’t have it — and that was the point of Hakone.',
-      'Confirm parking at Mizno (Kawaguchiko), Onyado Nono (Matsumoto) and Hotel Wood (Takayama).',
-      'Verify the out-of-prefecture drop-off fee on the car rental.',
-      'International Driving Permit: 1949 Geneva Convention booklet format, issued by MEMSI. Valid 1 year from issue — check the date.',
-      'Visit Japan Web: register 2 weeks ahead, complete everything at least 6 hours before landing. One QR per person.',
+      {
+        text: 'Passport on you, always.',
+        japan: 'Passport on you, always. No passport, no tax-free and no Donki coupon.',
+      },
+      {
+        japan:
+          'Visit Japan Web: register both of us ahead of time and finish the declarations at least 6 hours before landing. One QR code per person — have it saved offline.',
+      },
+      {
+        japan:
+          'Takkyubin at every city change where we don’t have the car: ~¥1,500–2,000 per suitcase, arrives next day. Arrange it at reception the night before.',
+      },
+      { japan: 'There are no rubbish bins. Carry a small bag in the daypack.' },
+      { japan: 'No tipping. Ever. Anywhere.' },
+      { japan: 'Don’t eat while walking — stand next to the stall.' },
+      { japan: '7-Eleven for cash withdrawals, not the airport exchange counters.' },
     ],
   },
 ]
 
+// Japan-only by nature: a romaji phrasebook is no use anywhere else.
 const PHRASES: { romaji: string; meaning: string }[] = [
   { romaji: 'Konnichiwa', meaning: 'Hello' },
   { romaji: 'Arigatou gozaimasu', meaning: 'Thank you' },
@@ -164,15 +205,16 @@ const PHRASES: { romaji: string; meaning: string }[] = [
   { romaji: 'Kanpai!', meaning: 'Cheers!' },
 ]
 
-// Matches the prototype's packSeed exactly (4 groups, 15 items).
-const PACKING_GROUPS: { name: string; items: string[] }[] = [
+// The pre-trip list. Same `Line` rules as the tips: the papers everyone needs
+// travel, the Visit Japan Web QR and the Suica don't.
+const PACKING_GROUPS: { name: string; items: Line[] }[] = [
   {
     name: 'Papers & money',
     items: [
       'Passports + travel insurance',
-      'Visit Japan Web QR (both of us)',
-      'IC card set up in the phone wallet',
-      'Cash in yen for day one',
+      { japan: 'Visit Japan Web QR (both of us)' },
+      { japan: 'IC card set up in the phone wallet' },
+      { japan: 'Cash in yen for day one' },
     ],
   },
   {
@@ -181,13 +223,13 @@ const PACKING_GROUPS: { name: string; items: string[] }[] = [
       'Comfortable walking shoes',
       'Light layer for the evenings',
       'Packable rain shell',
-      'Socks worth taking shoes off for',
+      { text: 'Spare socks', japan: 'Socks worth taking shoes off for' },
     ],
   },
   {
     name: 'Tech',
     items: [
-      'Power adapter (Type A, 100V)',
+      { text: 'Power adapter for the local sockets', japan: 'Power adapter (Type A, 100V)' },
       'Portable charger + cables',
       'Headphones for the long leg',
     ],
@@ -211,6 +253,9 @@ export default function TripEssentials() {
   // The calculator's two sides, chosen on the trip sheet. Until the bundle
   // lands, the pair every trip had before it was a choice.
   const trip = useTrip(tripId).data?.trip
+  // What half of this page applies. False while the bundle is in flight, so a
+  // trip to Portugal never flashes the Suica advice on its way in.
+  const japan = isJapanTrip(trip?.country)
   const [checked, setChecked] = useState<Record<string, boolean>>({})
   const [extra, setExtra] = useState<string[]>([])
   const [packInput, setPackInput] = useState('')
@@ -256,8 +301,21 @@ export default function TripEssentials() {
     })
   }
 
-  const groups =
-    extra.length > 0 ? [...PACKING_GROUPS, { name: 'Yours', items: extra }] : PACKING_GROUPS
+  // Both lists are resolved against the destination before anything renders:
+  // a card with nothing left to say is dropped rather than shown empty.
+  const sections = SECTIONS.flatMap((s) => {
+    if (s.japanOnly && !japan) return []
+    const items = s.items.map((line) => lineFor(line, japan)).filter((l): l is string => l !== null)
+    if (items.length === 0) return []
+    const meta = lineFor(s.meta, japan)
+    return [{ title: s.title, meta: meta ?? '', items }]
+  })
+
+  const packing = PACKING_GROUPS.flatMap((g) => {
+    const items = g.items.map((line) => lineFor(line, japan)).filter((l): l is string => l !== null)
+    return items.length === 0 ? [] : [{ name: g.name, items }]
+  })
+  const groups = extra.length > 0 ? [...packing, { name: 'Yours', items: extra }] : packing
   const allItems = groups.flatMap((g) => g.items)
   const packedCount = allItems.filter((i) => checked[i]).length
   const packPct = allItems.length ? Math.round((packedCount / allItems.length) * 100) : 0
@@ -304,65 +362,67 @@ export default function TripEssentials() {
 
       <InstallHelpRow />
 
-      <section>
-        <p className="section-title">Trip notes</p>
-        <div className="mt-3 space-y-3">
-          {SECTIONS.map((s, i) => {
-            const open = openIdx === i
-            const panelId = `essentials-panel-${i}`
-            return (
-              <div key={s.title} className="rounded-2xl border border-line bg-white shadow-card">
-                {/* The whole header row is the button — title, meta line and the
+      {sections.length > 0 && (
+        <section>
+          <p className="section-title">Trip notes</p>
+          <div className="mt-3 space-y-3">
+            {sections.map((s, i) => {
+              const open = openIdx === i
+              const panelId = `essentials-panel-${i}`
+              return (
+                <div key={s.title} className="rounded-2xl border border-line bg-white shadow-card">
+                  {/* The whole header row is the button — title, meta line and the
                     card padding all tap — and the meta sits inside it so the
                     chevron centres against both lines instead of just the title. */}
-                <button
-                  type="button"
-                  onClick={() => setOpenIdx(open ? null : i)}
-                  className="flex w-full items-center gap-3 px-4.5 py-4 text-left"
-                  aria-expanded={open}
-                  aria-controls={panelId}
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-bold leading-snug text-ink">{s.title}</span>
-                    <span className="mt-1 block text-xs leading-snug text-muted">{s.meta}</span>
-                  </span>
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                    className={`shrink-0 text-muted transition-transform duration-200 ${
-                      open ? '-rotate-180' : ''
-                    }`}
+                  <button
+                    type="button"
+                    onClick={() => setOpenIdx(open ? null : i)}
+                    className="flex w-full items-center gap-3 px-4.5 py-4 text-left"
+                    aria-expanded={open}
+                    aria-controls={panelId}
                   >
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </button>
-                {open && (
-                  <div id={panelId} className="border-t border-line px-4.5 pb-4 pt-3.5">
-                    <ul className="space-y-2.5">
-                      {s.items.map((item, j) => (
-                        <li key={j} className="flex gap-2.5 text-sm leading-relaxed">
-                          <span
-                            className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand"
-                            aria-hidden
-                          />
-                          <span className="min-w-0 flex-1">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </section>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-bold leading-snug text-ink">{s.title}</span>
+                      <span className="mt-1 block text-xs leading-snug text-muted">{s.meta}</span>
+                    </span>
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                      className={`shrink-0 text-muted transition-transform duration-200 ${
+                        open ? '-rotate-180' : ''
+                      }`}
+                    >
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+                  {open && (
+                    <div id={panelId} className="border-t border-line px-4.5 pb-4 pt-3.5">
+                      <ul className="space-y-2.5">
+                        {s.items.map((item, j) => (
+                          <li key={j} className="flex gap-2.5 text-sm leading-relaxed">
+                            <span
+                              className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand"
+                              aria-hidden
+                            />
+                            <span className="min-w-0 flex-1">{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       <section>
         <div className="mb-2 flex items-baseline justify-between">
@@ -458,42 +518,46 @@ export default function TripEssentials() {
         </div>
       </section>
 
-      <section>
-        <p className="section-title">Handy phrases</p>
-        <ul className="mt-3 divide-y divide-line rounded-2xl border border-line bg-white">
-          {PHRASES.map((p) => (
-            // flex-wrap, not shrink: a long pair like "Eigo ga hanasemasu ka?"
-            // / "Do you speak English?" drops the meaning onto its own line
-            // instead of squeezing the phrase into a three-line stack.
-            <li
-              key={p.romaji}
-              className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-4.5 py-3 leading-snug"
-            >
-              <span className="font-semibold">{p.romaji}</span>
-              <span className="text-sm text-muted">{p.meaning}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section>
-        <p className="section-title">Emergency</p>
-        <ul className="mt-3 space-y-2">
-          {EMERGENCY.map((e) => (
-            <li key={e.value}>
-              <a
-                href={`tel:${e.value.replace(/[^0-9+]/g, '')}`}
-                className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-white px-4.5 py-3.5"
+      {japan && (
+        <section>
+          <p className="section-title">Handy phrases</p>
+          <ul className="mt-3 divide-y divide-line rounded-2xl border border-line bg-white">
+            {PHRASES.map((p) => (
+              // flex-wrap, not shrink: a long pair like "Eigo ga hanasemasu ka?"
+              // / "Do you speak English?" drops the meaning onto its own line
+              // instead of squeezing the phrase into a three-line stack.
+              <li
+                key={p.romaji}
+                className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-4.5 py-3 leading-snug"
               >
-                <span className="min-w-0 text-sm font-semibold leading-snug">{e.label}</span>
-                <span className="shrink-0 font-display text-lg font-semibold text-brand">
-                  {e.value}
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      </section>
+                <span className="font-semibold">{p.romaji}</span>
+                <span className="text-sm text-muted">{p.meaning}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {japan && (
+        <section>
+          <p className="section-title">Emergency</p>
+          <ul className="mt-3 space-y-2">
+            {EMERGENCY.map((e) => (
+              <li key={e.value}>
+                <a
+                  href={`tel:${e.value.replace(/[^0-9+]/g, '')}`}
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-white px-4.5 py-3.5"
+                >
+                  <span className="min-w-0 text-sm font-semibold leading-snug">{e.label}</span>
+                  <span className="shrink-0 font-display text-lg font-semibold text-brand">
+                    {e.value}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   )
 }
