@@ -2,16 +2,19 @@
 // and none of the bookings their membership withholds.
 //
 // The server enforces all of this independently — see server/tests/visibility.
-// These check that a viewer is never *offered* an action that would just fail,
-// and that a withheld category reads as "not shared" rather than as "empty".
+// Here the viewer is a real member with the flags off, signed in for real, so
+// the screens are reading what the API actually sends them: these cases check
+// that a viewer is never *offered* an action that would just fail, and that a
+// withheld category reads as "not shared" rather than as "empty".
 //
 // This replaces the guest-code view. The narrow set of flags below is exactly
 // what that fixed view granted; the difference is that it is now per member,
 // so an owner can widen any of it.
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { ApiError } from '../api/client'
+import { OWNER_USER, VIEWER_USER } from '../../server/testing/fixture'
+import { ACCESS_CODE_KEY } from '../api/client'
 import { Layout } from '../components/Layout'
 import CategoryList from '../pages/CategoryList'
 import Journey from '../pages/Journey'
@@ -19,104 +22,44 @@ import PlaceDetail from '../pages/PlaceDetail'
 import ShoppingItemDetail from '../pages/ShoppingItem'
 import ShoppingList from '../pages/ShoppingList'
 import Zone from '../pages/Zone'
+import { insert, signInAs } from './data'
 import { renderAt } from './helpers'
 
-const mocks = vi.hoisted(() => ({
-  get: vi.fn(),
-  post: vi.fn(),
-  patch: vi.fn(),
-  delete: vi.fn(),
-}))
-
-vi.mock('../api/client', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../api/client')>()),
-  api: mocks,
-}))
-
+/** What the router feeds the contexts, from `my_role` and `shows` on the bundle. */
 const viewer = {
   tripRole: 'viewer' as const,
   shows: { stays: false, flight: false, documents: false, shopping: false },
 }
 
-const place = {
-  place: {
-    id: 'p1',
-    zone_id: 'zone-1',
-    category: 'attraction',
-    name: 'Fushimi Inari',
-    name_ja: '伏見稲荷大社',
-    description: 'The thousand torii gates.',
-    address: 'Fushimi-ku, Kyoto',
-    links: [],
-  },
-  tips: [{ id: 't1', body: 'Sunrise visit — no crowds' }],
-  files: [],
-}
-
-const zone = {
-  zone: { id: 'zone-1', name: 'Tokyo', name_ja: '東京', summary: 'Big city' },
-  tips: [{ id: 't1', body: 'Get a Suica card' }],
-  files: [],
-  place_counts: { hotel: 0, attraction: 2, food: 1, shopping: 0, other: 0 },
-}
-
-const shoppingItem = {
-  id: 'buy-1',
-  trip_id: 'trip-1',
-  name: 'Onitsuka Tiger Mexico 66',
-  category: 'clothes',
-  price_yen: 12000,
-  shop: 'Onitsuka Ginza',
-  zone_id: null,
-  url: null,
-  note: null,
-  image_url: null,
-  bought: false,
-  position: 0,
-}
-
-/** One mock for every query the shopping screens make. */
-function mockShoppingApi() {
-  mocks.get.mockImplementation((path: string) => {
-    if (path === '/trips/trip-1/shopping') return Promise.resolve({ items: [shoppingItem] })
-    if (path.startsWith('/rates'))
-      return Promise.resolve({
-        base: 'JPY',
-        date: '2026-08-01',
-        rates: { USD: 0.0067, ILS: 0.025 },
-        missing: [],
-      })
-    if (path === '/trips/trip-1')
-      return Promise.resolve({
-        trip: {
-          id: 'trip-1',
-          name: 'Japan',
-          country: 'Japan',
-          display_title: 'Japan',
-          start_date: '2026-09-19',
-          end_date: '2026-10-16',
-          description: null,
-          people: [],
-        },
-        steps: [],
-      })
-    return Promise.resolve({})
-  })
+/** The friend, on trip-1, shown none of the bookings. */
+async function asNarrowViewer() {
+  await insert('trip_members', [
+    {
+      trip_id: 'trip-1',
+      user_id: VIEWER_USER.id,
+      role: 'viewer',
+      can_see_stays: false,
+      can_see_flight: false,
+      can_see_documents: false,
+      can_see_shopping: false,
+    },
+  ])
+  signInAs(VIEWER_USER)
 }
 
 describe('viewer — places', () => {
   it('shows a place and its tips without edit, delete or files', async () => {
-    mocks.get.mockResolvedValue(place)
+    await asNarrowViewer()
     renderAt(
-      '/trips/trip-1/places/p1',
+      '/trips/trip-1/places/place-ramen',
       [{ path: '/trips/:tripId/places/:placeId', element: <PlaceDetail /> }],
       viewer
     )
 
     // everything worth reading is still there
-    expect(await screen.findByText('Fushimi Inari')).toBeInTheDocument()
-    expect(screen.getByText('The thousand torii gates.')).toBeInTheDocument()
-    expect(screen.getByText('Sunrise visit — no crowds')).toBeInTheDocument()
+    expect(await screen.findByText('Ramen Bar')).toBeInTheDocument()
+    expect(screen.getByText(/A very long description/)).toBeInTheDocument()
+    expect(screen.getByText('Cash only')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Directions/ })).toBeInTheDocument()
 
     expect(screen.queryByRole('link', { name: 'Edit' })).not.toBeInTheDocument()
@@ -128,8 +71,7 @@ describe('viewer — places', () => {
   })
 
   it('still offers edit and files to the travelers', async () => {
-    mocks.get.mockResolvedValue(place)
-    renderAt('/trips/trip-1/places/p1', [
+    renderAt('/trips/trip-1/places/place-ramen', [
       { path: '/trips/:tripId/places/:placeId', element: <PlaceDetail /> },
     ])
 
@@ -142,25 +84,27 @@ describe('viewer — places', () => {
 
 describe('viewer — zones', () => {
   it('browses a zone without the add-place or files sections', async () => {
-    mocks.get.mockResolvedValue(zone)
+    await asNarrowViewer()
     renderAt(
-      '/trips/trip-1/zones/zone-1',
+      '/trips/trip-1/zones/zone-tokyo',
       [{ path: '/trips/:tripId/zones/:zoneId', element: <Zone /> }],
       viewer
     )
 
     expect(await screen.findByText('Tokyo')).toBeInTheDocument()
-    expect(screen.getByTestId('category-attraction')).toBeInTheDocument()
+    expect(screen.getByTestId('category-food')).toBeInTheDocument()
     expect(screen.getByText('Get a Suica card')).toBeInTheDocument()
+    // The stay in this zone is withheld, so its category is not offered at all.
+    expect(screen.queryByTestId('category-hotel')).not.toBeInTheDocument()
 
     expect(screen.queryByRole('link', { name: '+ Add place' })).not.toBeInTheDocument()
     expect(screen.queryByText('Files')).not.toBeInTheDocument()
   })
 
   it('drops the "+ Add" link on a category list', async () => {
-    mocks.get.mockResolvedValue({ places: [], zone: zone.zone })
+    await asNarrowViewer()
     renderAt(
-      '/trips/trip-1/zones/zone-1/c/food',
+      '/trips/trip-1/zones/zone-tokyo/c/food',
       [{ path: '/trips/:tripId/zones/:zoneId/c/:category', element: <CategoryList /> }],
       viewer
     )
@@ -171,12 +115,30 @@ describe('viewer — zones', () => {
 })
 
 describe('viewer — shopping', () => {
+  /** The list is shared with this one; the rest still is not. */
+  const shopper = { ...viewer, shows: { ...viewer.shows, shopping: true } }
+
+  async function asShoppingViewer() {
+    await insert('trip_members', [
+      {
+        trip_id: 'trip-1',
+        user_id: VIEWER_USER.id,
+        role: 'viewer',
+        can_see_stays: false,
+        can_see_flight: false,
+        can_see_documents: false,
+        can_see_shopping: true,
+      },
+    ])
+    signInAs(VIEWER_USER)
+  }
+
   it('reads the list without adding or ticking items off', async () => {
-    mockShoppingApi()
+    await asShoppingViewer()
     renderAt(
       '/trips/trip-1/shopping',
       [{ path: '/trips/:tripId/shopping', element: <ShoppingList /> }],
-      viewer
+      shopper
     )
 
     expect(await screen.findByText('Onitsuka Tiger Mexico 66')).toBeInTheDocument()
@@ -187,11 +149,11 @@ describe('viewer — shopping', () => {
   })
 
   it('reads an item without the bought / edit / delete actions', async () => {
-    mockShoppingApi()
+    await asShoppingViewer()
     renderAt(
-      '/trips/trip-1/shopping/buy-1',
+      '/trips/trip-1/shopping/shop-shoes',
       [{ path: '/trips/:tripId/shopping/:itemId', element: <ShoppingItemDetail /> }],
-      viewer
+      shopper
     )
 
     expect(await screen.findByText('Onitsuka Tiger Mexico 66')).toBeInTheDocument()
@@ -205,70 +167,31 @@ describe('viewer — shopping', () => {
 // The API sends such a viewer no stays and no flight at all; these check the
 // screens say so instead of looking broken or empty.
 describe('viewer — stays and flight', () => {
-  const tripBundle = (flight?: unknown) => ({
-    trip: {
-      id: 'trip-1',
-      name: 'Japan',
-      country: 'Japan',
-      display_title: 'Japan',
-      start_date: '2026-09-19',
-      end_date: '2026-10-16',
-      description: null,
-      people: [{ name: 'Yuval' }, { name: 'Luciana' }],
-    },
-    steps: [],
-    trip_files_count: 0,
-    ...(flight ? { flight } : {}),
-  })
-
-  const flight = {
-    airline: 'Ethiopian Airlines',
-    booking_ref: 'AOXIUF',
-    outbound: {
-      depart_at: '2026-09-18T15:35:00+03:00',
-      depart_tz: 'Asia/Jerusalem',
-      arrive_at: '2026-09-19T19:40:00+09:00',
-      arrive_tz: 'Asia/Tokyo',
-      legs: [{ flight_no: 'ET 419', from: 'Tel Aviv (TLV)', to: 'Narita (NRT)' }],
-    },
-    return_flight: {
-      depart_at: '2026-10-16T20:40:00+09:00',
-      depart_tz: 'Asia/Tokyo',
-      arrive_at: '2026-10-17T14:35:00+03:00',
-      arrive_tz: 'Asia/Jerusalem',
-      legs: [{ flight_no: 'ET 418', from: 'Narita (NRT)', to: 'Tel Aviv (TLV)' }],
-    },
-  }
-
   const journeyRoute = [{ path: '/trips/:tripId', element: <Journey /> }]
 
   it('counts down without the booking reference or the legs', async () => {
-    mocks.get.mockImplementation((path: string) =>
-      Promise.resolve(path === '/trips/trip-1' ? tripBundle() : { items: [] })
-    )
+    await asNarrowViewer()
     renderAt('/trips/trip-1', journeyRoute, viewer)
 
     expect(await screen.findByText(/keep the flight details private/)).toBeInTheDocument()
-    expect(screen.queryByText('AOXIUF')).not.toBeInTheDocument()
-    expect(screen.queryByText('ET 419')).not.toBeInTheDocument()
+    // The fixture trip really does carry these; the API withheld them.
+    expect(screen.queryByText('TESTREF')).not.toBeInTheDocument()
+    expect(screen.queryByText('TA 1')).not.toBeInTheDocument()
     // and it isn't told to go looking in a Documents tab it doesn't have
     expect(screen.queryByText(/attach a booking in Documents/)).not.toBeInTheDocument()
   })
 
   it('still shows the travelers the whole ticket', async () => {
-    mocks.get.mockImplementation((path: string) =>
-      Promise.resolve(path === '/trips/trip-1' ? tripBundle(flight) : { items: [] })
-    )
     renderAt('/trips/trip-1', journeyRoute)
 
-    expect(await screen.findByText('AOXIUF')).toBeInTheDocument()
-    expect(screen.getByText('ET 419')).toBeInTheDocument()
+    expect(await screen.findByText('TESTREF')).toBeInTheDocument()
+    expect(screen.getByText('TA 1')).toBeInTheDocument()
   })
 
   it('explains the empty stays list instead of calling it unsaved', async () => {
-    mocks.get.mockResolvedValue({ places: [], zone: zone.zone })
+    await asNarrowViewer()
     renderAt(
-      '/trips/trip-1/zones/zone-1/c/hotel',
+      '/trips/trip-1/zones/zone-tokyo/c/hotel',
       [{ path: '/trips/:tripId/zones/:zoneId/c/:category', element: <CategoryList /> }],
       viewer
     )
@@ -277,11 +200,11 @@ describe('viewer — stays and flight', () => {
   })
 
   it('explains a refused stay page rather than offering a retry', async () => {
-    mocks.get.mockRejectedValue(
-      new ApiError(403, 'FORBIDDEN', 'Where this trip is staying is not shared with you')
-    )
+    await asNarrowViewer()
+    // place-hotel is a stay, and this viewer is not shown stays — the 403 is
+    // the API's, not one arranged here.
     renderAt(
-      '/trips/trip-1/places/hotel-1',
+      '/trips/trip-1/places/place-hotel',
       [{ path: '/trips/:tripId/places/:placeId', element: <PlaceDetail /> }],
       viewer
     )
@@ -331,13 +254,14 @@ describe('signing out', () => {
     { path: '/gate', element: <p>gate screen</p> },
   ]
 
-  beforeEach(() => localStorage.clear())
-
-  it('drops the session and goes back to the gate', async () => {
-    localStorage.setItem('trip_access_code', 'a.jwt')
+  beforeEach(() => {
     // A browser that signed in before accounts still holds this key; signing
     // out is where it finally goes.
     localStorage.setItem('trip_role', 'guest')
+  })
+
+  it('drops the session and goes back to the gate', async () => {
+    signInAs(VIEWER_USER)
     renderAt('/trips/trip-1', routes, viewer)
 
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
@@ -349,23 +273,24 @@ describe('signing out', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Sign out' }))
 
     expect(await screen.findByText('gate screen')).toBeInTheDocument()
-    expect(localStorage.getItem('trip_access_code')).toBeNull()
+    expect(localStorage.getItem(ACCESS_CODE_KEY)).toBeNull()
     expect(localStorage.getItem('trip_role')).toBeNull()
   })
 
   it('keeps the session when the confirmation is cancelled', async () => {
-    localStorage.setItem('trip_access_code', 'a.jwt')
+    signInAs(VIEWER_USER)
+    const token = localStorage.getItem(ACCESS_CODE_KEY)
     renderAt('/trips/trip-1', routes, viewer)
 
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
     expect(screen.queryByText('gate screen')).not.toBeInTheDocument()
-    expect(localStorage.getItem('trip_access_code')).toBe('a.jwt')
+    expect(localStorage.getItem(ACCESS_CODE_KEY)).toBe(token)
   })
 
   it('is offered to the travelers too', async () => {
-    localStorage.setItem('trip_access_code', 'owner-code')
+    signInAs(OWNER_USER)
     renderAt('/trips/trip-1', routes)
 
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
