@@ -83,6 +83,8 @@ The frontend mirrors both — `useCanEdit()` / `useTripShows()` (`src/lib/sessio
 
 **Frontend data flow:** `src/api/client.ts` (typed fetch wrapper, adds bearer header, normalizes the error envelope into `ApiError`, handles 401) → `src/api/hooks.ts` (one `useQuery`/mutation hook per API call, TanStack Query) → pages/components. Routing is a flat `createBrowserRouter` table in `src/router.tsx` gated by a `RequireAccess` wrapper that redirects to `/gate` when no session token is stored.
 
+**Write feedback is central, not per form.** Every mutation goes through the shared `queryClient`, so the spinner and the toast are read off it rather than wired into each form: `useIsMutating` drives the "Working…" pill and the `MutationCache` callbacks (`src/api/queryClient.ts`) turn the outcome into a toast (`src/lib/toast.ts`, rendered by `src/components/Feedback.tsx`). A new mutation is therefore covered the moment it exists — **it only needs `meta`**: `meta: { success: 'Reminder set' }` for the line to confirm it with (omit it and nothing is said, which is right when the result is already on screen), or `meta: { toast: false }` for a mutation that reports itself, like the push plumbing next to its own switch. Failures always speak, deliberately: a delete's confirm dialog has closed over the tap by the time the request fails, so there is no form left to hold the error.
+
 **API contract source of truth:** `specs/001-japan-trip-app/contracts/api.md`. When adding/changing an endpoint, update this file too — it's not just historical documentation, it's referenced by both frontend and backend code comments.
 
 ## Conventions worth knowing
