@@ -11,6 +11,8 @@ import {
 } from './lib/session'
 import AcceptInvite from './pages/AcceptInvite'
 import AccessGate from './pages/AccessGate'
+import { Privacy, Terms } from './pages/Legal'
+import { TermsGate } from './components/TermsGate'
 import CategoryList from './pages/CategoryList'
 import DocumentPreview from './pages/DocumentPreview'
 import Journey from './pages/Journey'
@@ -35,7 +37,9 @@ function RequireAccess() {
   if (!getAccessCode()) return <Navigate to="/gate" replace />
   return (
     <SessionProvider>
-      <Outlet />
+      <TermsGate>
+        <Outlet />
+      </TermsGate>
     </SessionProvider>
   )
 }
@@ -84,6 +88,11 @@ function RequireShopping() {
 
 export const router = createBrowserRouter([
   { path: '/gate', element: <AccessGate /> },
+  // Outside RequireAccess on purpose: someone deciding whether to sign up has
+  // to be able to read these first, and the acceptance screen links to them
+  // while the account has not yet agreed.
+  { path: '/terms', element: <Terms /> },
+  { path: '/privacy', element: <Privacy /> },
   // The token is the authorization, so this sits outside RequireAccess — the
   // screen itself sends a signed-out visitor to the gate and back.
   { path: '/invite/:token', element: <AcceptInvite /> },

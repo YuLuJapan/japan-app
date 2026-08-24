@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api, clearAccessCode, setAccessCode } from '../api/client'
 import { RingMark } from '../components/RingMark'
 import { capture } from '../lib/posthog'
@@ -277,8 +277,19 @@ export default function AccessGate() {
           </div>
         )}
 
+        {/* This used to make the same promise with nothing behind it — no
+            terms existed and nothing recorded an agreement. The documents are
+            real now, and agreeing is an explicit step after sign-in
+            (components/TermsGate.tsx), so this is a signpost rather than a
+            claim that continuing binds you to something unread. */}
         <p className="mt-6 text-center text-[11px] leading-relaxed text-white/70">
-          By continuing you agree to the terms and privacy policy.
+          <Link className="underline" to="/terms">
+            Terms of use
+          </Link>{' '}
+          ·{' '}
+          <Link className="underline" to="/privacy">
+            Privacy
+          </Link>
         </p>
       </div>
     </div>

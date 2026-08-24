@@ -25,6 +25,20 @@ import type {
   ZoneDetail,
 } from './types'
 
+/** The signed-in account, and whether it has accepted the current terms. */
+export const useMe = () =>
+  useQuery({
+    queryKey: ['me'],
+    queryFn: () =>
+      api.get<{
+        user: { id: string; email: string; display_name: string | null }
+        terms: { accepted: boolean; version: string }
+      }>('/me'),
+    // The answer changes only when the terms change or the account accepts,
+    // and both of those invalidate this explicitly.
+    staleTime: Infinity,
+  })
+
 export const useTrips = () =>
   useQuery({ queryKey: ['trips'], queryFn: () => api.get<{ trips: Trip[] }>('/trips') })
 
