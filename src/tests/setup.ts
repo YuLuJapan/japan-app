@@ -8,13 +8,12 @@
 // browser.
 import '@testing-library/jest-dom/vitest'
 import { afterAll, afterEach, beforeEach, inject } from 'vitest'
-import { createClient } from '@supabase/supabase-js'
 import { ACCESS_CODE_KEY } from '../api/client'
 import { closeTestDb, testDb } from '../../server/testing/db'
 import { type TestAccount } from '../../server/testing/accounts'
 import { OWNER_USER, seedFixture } from '../../server/testing/fixture'
 import { resetData } from '../../server/testing/schema'
-import { SERVICE_KEY } from '../../server/testing/stack-config'
+import { db } from './data'
 
 // jsdom has no layout engine and leaves Element.scrollTo undefined; the day strip
 // calls it on mount to keep the selected chip in view.
@@ -27,10 +26,6 @@ const tokens = inject('authTokens')
 // app is served from the same origin; here it has to name the API's port,
 // because a relative URL outside a browser is relative to nothing.
 import.meta.env.VITE_API_BASE = apiUrl
-
-const admin = createClient(inject('supabaseUrl'), SERVICE_KEY, {
-  auth: { persistSession: false, autoRefreshToken: false },
-})
 
 /**
  * Puts a real, signed-in token where the client looks for one.
@@ -47,7 +42,7 @@ export function signInAs(user: TestAccount): void {
 beforeEach(async () => {
   localStorage.clear()
   await resetData(testDb())
-  await seedFixture(admin)
+  await seedFixture(db)
   signInAs(OWNER_USER)
 })
 

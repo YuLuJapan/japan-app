@@ -1,87 +1,52 @@
 // Documents open in an in-app preview instead of downloading (FR-008).
+//
+// The bytes come out of real Storage, so the FILE_MISSING case is a row whose
+// blob genuinely is not there rather than a rejection a stub was handed.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
-import { ApiError } from '../api/client'
 import DocumentPreview from '../pages/DocumentPreview'
 import TripFiles from '../pages/TripFiles'
 import { renderAt } from './helpers'
 
-const mocks = vi.hoisted(() => ({
-  get: vi.fn(),
-  blob: vi.fn(),
-  post: vi.fn(),
-  patch: vi.fn(),
-  delete: vi.fn(),
-}))
-
-vi.mock('../api/client', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../api/client')>()),
-  api: mocks,
-}))
-
-const doc = (over: Partial<Record<string, unknown>> = {}) => ({
-  id: 'file-1',
-  display_name: 'Flight ticket',
-  mime_type: 'application/pdf',
-  size_bytes: 2048,
-  attached_to: { kind: 'trip', id: 'trip-1', name: 'Trip' },
-  ...over,
-})
-
-const renderPreview = () =>
-  renderAt('/trips/trip-1/files/file-1', [
+const renderPreview = (fileId: string) =>
+  renderAt(`/trips/trip-1/files/${fileId}`, [
     { path: '/trips/:tripId/files/:fileId', element: <DocumentPreview /> },
   ])
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  // jsdom implements neither, and they are browser plumbing rather than
+  // anything this app owns — the blob they wrap is real.
   URL.createObjectURL = vi.fn(() => 'blob:preview')
   URL.revokeObjectURL = vi.fn()
 })
 
 describe('DocumentPreview page', () => {
   it('renders a PDF inline with save/full-screen actions instead of downloading it', async () => {
-    mocks.get.mockResolvedValue({ files: [doc()] })
-    mocks.blob.mockResolvedValue(new Blob(['%PDF-1.4'], { type: 'application/pdf' }))
-    renderPreview()
+    renderPreview('file-trip')
 
-    expect(await screen.findByTitle('Flight ticket')).toHaveAttribute('src', 'blob:preview')
-    // Trip-scoped, like every other content route. This assertion used to
-    // name the flat path, which is how the 404 survived: phase 3a-ii deleted
-    // /api/files/:id/content and the test went on asserting the call it had
-    // made impossible.
-    expect(mocks.blob).toHaveBeenCalledWith('/trips/trip-1/files/file-1/content')
+    // The src is the object URL for bytes the API really streamed back from
+    // Storage — over the trip-scoped path, which is the only one that exists.
+    expect(await screen.findByTitle('Flight booking')).toHaveAttribute('src', 'blob:preview')
     expect(screen.getByRole('link', { name: 'Download' })).toHaveAttribute(
       'download',
-      'Flight ticket.pdf'
+      'Flight booking.pdf'
     )
     expect(screen.getByRole('link', { name: 'Open full screen' })).toBeInTheDocument()
   })
 
   it('renders an image attached to a place, with a link back to it', async () => {
-    mocks.get.mockResolvedValue({
-      files: [
-        doc({
-          display_name: 'Entrance ticket',
-          mime_type: 'image/png',
-          attached_to: { kind: 'place', id: 'place-1', name: 'teamLab' },
-        }),
-      ],
-    })
-    mocks.blob.mockResolvedValue(new Blob(['png'], { type: 'image/png' }))
-    renderPreview()
+    renderPreview('file-place')
 
-    expect(await screen.findByAltText('Entrance ticket')).toHaveAttribute('src', 'blob:preview')
-    expect(screen.getByRole('link', { name: 'teamLab' })).toHaveAttribute(
+    expect(await screen.findByAltText('Menu photo')).toHaveAttribute('src', 'blob:preview')
+    expect(screen.getByRole('link', { name: 'Ramen Bar' })).toHaveAttribute(
       'href',
-      '/trips/trip-1/places/place-1'
+      '/trips/trip-1/places/place-ramen'
     )
   })
 
   it('explains a missing blob rather than showing a blank screen (FR-013)', async () => {
-    mocks.get.mockResolvedValue({ files: [doc()] })
-    mocks.blob.mockRejectedValue(new ApiError(404, 'FILE_MISSING', 'gone'))
-    renderPreview()
+    // file-gone is a row the fixture deliberately leaves without a blob.
+    renderPreview('file-gone')
 
     expect(await screen.findByText(/missing from storage/)).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Download' })).not.toBeInTheDocument()
@@ -90,12 +55,11 @@ describe('DocumentPreview page', () => {
 
 describe('Documents list', () => {
   it('links each document to its preview screen', async () => {
-    mocks.get.mockResolvedValue({ files: [doc()] })
     renderAt('/trips/trip-1/files', [{ path: '/trips/:tripId/files', element: <TripFiles /> }])
 
-    expect(await screen.findByRole('link', { name: /Flight ticket/ })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: /Flight booking/ })).toHaveAttribute(
       'href',
-      '/trips/trip-1/files/file-1'
+      '/trips/trip-1/files/file-trip'
     )
   })
 })
