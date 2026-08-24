@@ -17,6 +17,21 @@ import { db, signInAs } from './data'
 // calls it on mount to keep the selected chip in view.
 Element.prototype.scrollTo ??= () => {}
 
+// jsdom implements no media queries either. Answering "no" to all of them is
+// what a browser tab reports — `(display-mode: standalone)` is false unless
+// the app was launched from the Home Screen, which is the case push.ts reads.
+window.matchMedia ??= (query: string) =>
+  ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  }) as MediaQueryList
+
 const apiUrl = inject('apiUrl')
 
 // The client builds `${VITE_API_BASE}/api/...`. Empty in a browser, where the
