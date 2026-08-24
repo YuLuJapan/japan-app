@@ -12,6 +12,7 @@ import type { TripDocument } from '../api/types'
 import { Breadcrumbs } from '../components/Breadcrumbs'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
+import { useTripPath } from '../api/tripPath'
 import { useTripId } from '../lib/trip'
 
 const EXT_BY_MIME: Record<string, string> = {
@@ -51,6 +52,14 @@ type ContentState =
 /** Fetch the blob once and expose it as an object URL, revoked on unmount. */
 function useFileContent(fileId: string): ContentState {
   const [state, setState] = useState<ContentState>({ status: 'loading' })
+  // Trip-scoped, like every other content route. This was written flat, back
+  // when /api/files/:id/content existed; phase 3a-ii removed the flat routes
+  // and missed this one call site, so previewing any document 404'd.
+  //
+  // Resolved to a string out here rather than inside the effect: useTripPath
+  // returns a fresh function every render, so depending on it would refetch
+  // the blob on every render. The url is stable, and is the real dependency.
+  const url = useTripPath()(`/files/${fileId}/content`)
 
   useEffect(() => {
     let objectUrl: string | null = null
@@ -58,7 +67,7 @@ function useFileContent(fileId: string): ContentState {
     setState({ status: 'loading' })
 
     api
-      .blob(`/files/${fileId}/content`)
+      .blob(url)
       .then((blob) => {
         if (cancelled) return
         objectUrl = URL.createObjectURL(blob)
@@ -79,7 +88,7 @@ function useFileContent(fileId: string): ContentState {
       cancelled = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [fileId])
+  }, [url])
 
   return state
 }

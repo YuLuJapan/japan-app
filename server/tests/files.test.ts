@@ -223,3 +223,24 @@ describe('trip-scoped file routes', () => {
     expect(res.status).toBe(404)
   })
 })
+
+// The flat routes went in phase 3a-ii. This one is worth stating out loud
+// because its absence was invisible from both sides for a while: the API
+// stopped serving /api/files/:id/content, the document preview screen went on
+// asking for it, and the web test asserted that exact flat call — so a suite
+// that was green described a page that 404'd on every document.
+describe('the flat file routes are gone', () => {
+  it.each([
+    ['/api/files'],
+    ['/api/files/file-trip/content'],
+    ['/api/files/file-trip/url'],
+  ])('%s answers 404 — content is only reachable through its trip', async (path) => {
+    const res = await auth(request(app).get(path))
+    expect(res.status).toBe(404)
+  })
+
+  it('still serves the same file under its trip', async () => {
+    const res = await auth(request(app).get('/api/trips/trip-1/files/file-trip/content'))
+    expect(res.status).toBe(200)
+  })
+})

@@ -46,7 +46,11 @@ describe('DocumentPreview page', () => {
     renderPreview()
 
     expect(await screen.findByTitle('Flight ticket')).toHaveAttribute('src', 'blob:preview')
-    expect(mocks.blob).toHaveBeenCalledWith('/files/file-1/content')
+    // Trip-scoped, like every other content route. This assertion used to
+    // name the flat path, which is how the 404 survived: phase 3a-ii deleted
+    // /api/files/:id/content and the test went on asserting the call it had
+    // made impossible.
+    expect(mocks.blob).toHaveBeenCalledWith('/trips/trip-1/files/file-1/content')
     expect(screen.getByRole('link', { name: 'Download' })).toHaveAttribute(
       'download',
       'Flight ticket.pdf'
