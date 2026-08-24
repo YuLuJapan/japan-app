@@ -6,7 +6,9 @@
 // re-seeded.
 import { createClient } from '@supabase/supabase-js'
 import { inject } from 'vitest'
+import type { TestAccount } from '../../server/testing/accounts'
 import { SERVICE_KEY } from '../../server/testing/stack-config'
+import { ACCESS_CODE_KEY } from '../api/client'
 
 /** The service-key client — bypasses RLS, as the API's own store does. */
 export const db = createClient(inject('supabaseUrl'), SERVICE_KEY, {
@@ -48,4 +50,17 @@ export async function rows<T>(table: string, column: string, value: string): Pro
   const { data, error } = await db.from(table).select('*').eq(column, value)
   if (error) fail(`reading ${table}`, error.message)
   return (data ?? []) as T[]
+}
+
+/**
+ * Puts a real, signed-in token where the client looks for one.
+ *
+ * The setup file signs in as the owner of trip-1 before each test, which is
+ * who almost every screen is rendered as; a case that cares calls this again
+ * with somebody else.
+ */
+export function signInAs(user: TestAccount): void {
+  const token = inject('authTokens')[user.email]
+  if (!token) throw new Error(`no token was provisioned for ${user.email}`)
+  localStorage.setItem(ACCESS_CODE_KEY, token)
 }

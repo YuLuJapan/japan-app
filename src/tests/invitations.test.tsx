@@ -1,94 +1,107 @@
 // The invitation inbox on the trips list — an invitation that arrives without
 // anyone having sent the link.
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+//
+// The invitations are real rows addressed to the signed-in account, so what
+// the screen says about who invited you, to what, and what you would see is
+// the API's reading of those rows rather than a shape a stub returned.
+import { beforeEach, describe, expect, it } from 'vitest'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { OWNER_USER, PARTNER_USER, UNCONFIRMED_USER } from '../../server/testing/fixture'
 import TripsList from '../pages/TripsList'
+import { insert, remove, rows, signInAs } from './data'
 import { renderAt } from './helpers'
 
-const mocks = vi.hoisted(() => ({
-  get: vi.fn(),
-  post: vi.fn(),
-  patch: vi.fn(),
-  delete: vi.fn(),
-}))
-
-vi.mock('../api/client', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../api/client')>()),
-  api: mocks,
-}))
-
-const invitation = (overrides: Record<string, unknown> = {}) => ({
-  id: 'inv-1',
-  trip_name: 'Yuval and Luciana in Japan',
-  role: 'viewer',
-  invited_by: 'Luciana',
-  email: 'friend@example.com',
-  expires_at: '2027-01-01T00:00:00.000Z',
-  shows: { stays: true, flight: false, documents: false },
-  ...overrides,
-})
-
-/** `/trips` and `/invitations` are the two calls this screen makes. */
-function mockApi(body: Record<string, unknown>) {
-  mocks.get.mockImplementation((path: string) => {
-    if (path === '/trips') return Promise.resolve({ trips: [] })
-    if (path === '/invitations') return Promise.resolve(body)
-    return Promise.reject(new Error(`unexpected GET ${path}`))
-  })
+interface MemberRow {
+  trip_id: string
+  user_id: string
+  role: string
 }
+interface InviteRow {
+  id: string
+  declined_at: string | null
+  accepted_at: string | null
+}
+
+/**
+ * An invitation to trip-2, from its owner, addressed to whoever is asked for.
+ *
+ * `token_hash` is a hash and never a token: the plaintext exists only in the
+ * response that mints one, so a row can carry anything here.
+ */
+const invite = (to: string, shows: Record<string, boolean> = {}) =>
+  insert('trip_invites', [
+    {
+      id: 'inv-1',
+      trip_id: 'trip-2',
+      email: to,
+      role: 'viewer',
+      can_see_stays: true,
+      can_see_flight: false,
+      can_see_documents: false,
+      can_see_shopping: false,
+      token_hash: 'not-a-real-hash',
+      invited_by: PARTNER_USER.id,
+      expires_at: '2027-01-01T00:00:00.000Z',
+      ...shows,
+    },
+  ])
 
 const routes = [{ path: '/trips', element: <TripsList /> }]
 
-beforeEach(() => {
-  Object.values(mocks).forEach((m) => m.mockReset())
-  localStorage.clear()
+beforeEach(async () => {
+  // The owner's own trip would otherwise crowd the screen this is about.
+  await remove('trip_members', 'user_id', OWNER_USER.id)
 })
 
 describe('the invitation inbox', () => {
   it('names who invited you, to what, and what you would see', async () => {
-    mockApi({ invitations: [invitation()] })
+    await invite(OWNER_USER.email)
     renderAt('/trips', routes)
 
     expect(
-      await screen.findByText('Luciana invited you to Yuval and Luciana in Japan')
+      await screen.findByText(`${PARTNER_USER.display_name} invited you to Someone Else’s Trip`)
     ).toBeInTheDocument()
-    // The flags in the invitation, said in the trip's own words.
+    // The flags on the row, said in the trip's own words.
     expect(screen.getByText(/You’ll also see where they’re staying\./)).toBeInTheDocument()
     expect(screen.getByText(/look, not change/)).toBeInTheDocument()
   })
 
   it('says so plainly when a viewer would see none of the bookings', async () => {
-    mockApi({
-      invitations: [invitation({ shows: { stays: false, flight: false, documents: false } })],
-    })
+    await invite(OWNER_USER.email, { can_see_stays: false })
     renderAt('/trips', routes)
 
     expect(await screen.findByText(/The bookings and documents stay private\./)).toBeInTheDocument()
   })
 
   it('accepts, and refreshes the trips list rather than navigating', async () => {
-    mockApi({ invitations: [invitation()] })
-    mocks.post.mockResolvedValue({ trip_id: 'trip-1', role: 'viewer', already_member: false })
+    await invite(OWNER_USER.email)
     renderAt('/trips', routes)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Accept' }))
 
-    expect(mocks.post).toHaveBeenCalledWith('/invitations/inv-1/accept', {})
+    // Joining is what accepting means — the membership row is the proof.
+    await waitFor(async () => {
+      const members = await rows<MemberRow>('trip_members', 'user_id', OWNER_USER.id)
+      expect(members).toEqual([expect.objectContaining({ trip_id: 'trip-2', role: 'viewer' })])
+    })
   })
 
   it('declines without joining anything', async () => {
-    mockApi({ invitations: [invitation()] })
-    mocks.post.mockResolvedValue(undefined)
+    await invite(OWNER_USER.email)
     renderAt('/trips', routes)
 
     await userEvent.click(await screen.findByRole('button', { name: 'No thanks' }))
 
-    expect(mocks.post).toHaveBeenCalledWith('/invitations/inv-1/decline', {})
+    await waitFor(async () => {
+      const [row] = await rows<InviteRow>('trip_invites', 'id', 'inv-1')
+      expect(row.declined_at).not.toBeNull()
+      expect(row.accepted_at).toBeNull()
+    })
+    expect(await rows<MemberRow>('trip_members', 'user_id', OWNER_USER.id)).toEqual([])
   })
 
   it('renders nothing at all when nothing is waiting', async () => {
-    mockApi({ invitations: [] })
     renderAt('/trips', routes)
 
     expect(await screen.findByText('Your trips')).toBeInTheDocument()
@@ -96,7 +109,10 @@ describe('the invitation inbox', () => {
   })
 
   it('points an unconfirmed address at its inbox instead of showing nothing', async () => {
-    mockApi({ invitations: [], email_unconfirmed: true })
+    // Anyone can type someone else's address at sign-up, so an unconfirmed one
+    // is shown nothing until it is confirmed — and told why.
+    await invite(UNCONFIRMED_USER.email)
+    signInAs(UNCONFIRMED_USER)
     renderAt('/trips', routes)
 
     expect(await screen.findByText('Confirm your email address')).toBeInTheDocument()
