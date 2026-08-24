@@ -1,70 +1,47 @@
 // The two sharing screens: the roster (which adapts to your role) and the
 // link you land on when someone shares a trip with you.
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+//
+// The roster is real membership rows read back through the API, and the invite
+// link is a token the server really minted — so "only shown once" is tested
+// against the one response that carries it.
+import { beforeEach, describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
-import { ApiError } from '../api/client'
 import userEvent from '@testing-library/user-event'
+import { OWNER_USER, PARTNER_USER, VIEWER_USER } from '../../server/testing/fixture'
+import { api } from '../api/client'
 import AcceptInvite from '../pages/AcceptInvite'
 import TripMembers from '../pages/TripMembers'
+import { insert, rows, signInAs } from './data'
 import { renderAt } from './helpers'
 
-const mocks = vi.hoisted(() => ({
-  get: vi.fn(),
-  post: vi.fn(),
-  patch: vi.fn(),
-  delete: vi.fn(),
-}))
-
-vi.mock('../api/client', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../api/client')>()),
-  api: mocks,
-}))
-
-const MEMBERS = {
-  members: [
-    {
-      user_id: 'u-owner',
-      role: 'owner',
-      email: 'yuval@example.com',
-      display_name: 'Yuval',
-      avatar_url: null,
-      can_see_stays: true,
-      can_see_flight: true,
-      can_see_documents: true,
-    },
-    {
-      user_id: 'u-friend',
-      role: 'viewer',
-      email: 'friend@example.com',
-      display_name: 'Friend',
-      avatar_url: null,
-      can_see_stays: true,
-      can_see_flight: false,
-      can_see_documents: false,
-    },
-  ],
-}
-
-function mockApi(myRole: string) {
-  mocks.get.mockImplementation((path: string) => {
-    if (path === '/trips/trip-1') return Promise.resolve({ trip: {}, steps: [], my_role: myRole })
-    if (path === '/trips/trip-1/members') return Promise.resolve(MEMBERS)
-    if (path === '/trips/trip-1/invites') return Promise.resolve({ invites: [] })
-    return Promise.reject(new Error(`unexpected GET ${path}`))
-  })
+interface MemberRow {
+  user_id: string
+  role: string
+  can_see_flight: boolean
 }
 
 const membersRoutes = [{ path: '/trips/:tripId/members', element: <TripMembers /> }]
 
-beforeEach(() => {
-  Object.values(mocks).forEach((m) => m.mockReset())
-  localStorage.clear()
-  sessionStorage.clear()
+/** The friend the trip is shared with — a viewer who sees the stays and no more. */
+const shareWithFriend = () =>
+  insert('trip_members', [
+    {
+      trip_id: 'trip-1',
+      user_id: VIEWER_USER.id,
+      role: 'viewer',
+      can_see_stays: true,
+      can_see_flight: false,
+      can_see_documents: false,
+      can_see_shopping: false,
+    },
+  ])
+
+beforeEach(async () => {
+  await shareWithFriend()
 })
 
 describe('the roster adapts to your role', () => {
   it('lets an owner change a role and a viewer’s visibility', async () => {
-    mockApi('owner')
     renderAt('/trips/trip-1/members', membersRoutes)
 
     expect(await screen.findByText('Friend')).toBeInTheDocument()
@@ -76,8 +53,6 @@ describe('the roster adapts to your role', () => {
   })
 
   it('saves a member’s access on a button, not on every click', async () => {
-    mockApi('owner')
-    mocks.patch.mockResolvedValue({ member: {} })
     renderAt('/trips/trip-1/members', membersRoutes)
 
     expect(await screen.findByText('Friend')).toBeInTheDocument()
@@ -87,28 +62,24 @@ describe('the roster adapts to your role', () => {
     // The viewer's own row is the first of the two 'Flights' toggles; the
     // second belongs to the invite form below it.
     await userEvent.click(screen.getAllByLabelText(/Flights/)[0])
-    expect(mocks.patch).not.toHaveBeenCalled()
+    // Still nothing written — the toggle only stages the change.
+    const before = await rows<MemberRow>('trip_members', 'user_id', VIEWER_USER.id)
+    expect(before[0].can_see_flight).toBe(false)
 
     await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
-    // Role and all three flags travel together in one patch.
-    expect(mocks.patch).toHaveBeenCalledWith('/trips/trip-1/members/u-friend', {
-      role: 'viewer',
-      can_see_stays: true,
-      can_see_flight: true,
-      can_see_documents: false,
-    })
     expect(await screen.findByText('Saved.')).toBeInTheDocument()
+    // Role and all the flags travel together in one patch.
+    const after = await rows<MemberRow>('trip_members', 'user_id', VIEWER_USER.id)
+    expect(after[0]).toMatchObject({ role: 'viewer', can_see_flight: true })
   })
 
   it('keeps the edit and says why when the server refuses it', async () => {
-    mockApi('owner')
-    mocks.patch.mockRejectedValue(
-      new ApiError(400, 'VALIDATION', 'Invalid', ['This trip would be left with no owner.'])
-    )
     renderAt('/trips/trip-1/members', membersRoutes)
 
     expect(await screen.findByText('Yuval')).toBeInTheDocument()
+    // Demoting the only owner. The server's refusal is the real rule, and the
+    // wording below is the server's own.
     await userEvent.selectOptions(screen.getByLabelText('Access for Yuval'), 'viewer')
     await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
@@ -120,7 +91,7 @@ describe('the roster adapts to your role', () => {
   })
 
   it('offers a way back to Essentials, the only screen that leads here', async () => {
-    mockApi('viewer')
+    signInAs(VIEWER_USER)
     renderAt('/trips/trip-1/members', membersRoutes)
 
     expect(await screen.findByRole('link', { name: 'Essentials' })).toHaveAttribute(
@@ -130,7 +101,18 @@ describe('the roster adapts to your role', () => {
   })
 
   it('shows a partner the roster read-only, with a viewer-only invite', async () => {
-    mockApi('partner')
+    await insert('trip_members', [
+      {
+        trip_id: 'trip-1',
+        user_id: PARTNER_USER.id,
+        role: 'partner',
+        can_see_stays: true,
+        can_see_flight: true,
+        can_see_documents: true,
+        can_see_shopping: true,
+      },
+    ])
+    signInAs(PARTNER_USER)
     renderAt('/trips/trip-1/members', membersRoutes)
 
     expect(await screen.findByText('Friend')).toBeInTheDocument()
@@ -145,7 +127,7 @@ describe('the roster adapts to your role', () => {
   })
 
   it('shows a viewer the roster and no way to change it', async () => {
-    mockApi('viewer')
+    signInAs(VIEWER_USER)
     renderAt('/trips/trip-1/members', membersRoutes)
 
     expect(await screen.findByText('Friend')).toBeInTheDocument()
@@ -154,21 +136,20 @@ describe('the roster adapts to your role', () => {
   })
 
   it('surfaces the minted link once, with the copy-it-now warning', async () => {
-    mockApi('owner')
-    mocks.post.mockResolvedValue({ invite: { id: 'inv-1' }, token: 'tok-abc' })
     renderAt('/trips/trip-1/members', membersRoutes)
 
     await userEvent.click(await screen.findByRole('button', { name: /Create invite link/ }))
 
     expect(await screen.findByText(/only shown once/)).toBeInTheDocument()
-    expect(screen.getByText(/\/invite\/tok-abc/)).toBeInTheDocument()
-    expect(mocks.post).toHaveBeenCalledWith('/trips/trip-1/invites', {
-      role: 'viewer',
-      can_see_stays: true,
-      can_see_flight: true,
-      can_see_shopping: true,
-      can_see_documents: false,
-    })
+    // The token is the server's, and it is nowhere in the stored row: what is
+    // kept is a hash, which is why this is the only chance to read it.
+    expect(screen.getByText(/\/invite\/\w+/)).toBeInTheDocument()
+    const [minted] = await rows<{ role: string; can_see_flight: boolean }>(
+      'trip_invites',
+      'trip_id',
+      'trip-1'
+    )
+    expect(minted).toMatchObject({ role: 'viewer', can_see_flight: true })
   })
 })
 
@@ -178,45 +159,52 @@ const inviteRoutes = [
   { path: '/trips/:tripId', element: <p>the trip</p> },
 ]
 
+/** Mints a real invite to trip-2 through the API, and returns its token. */
+async function mintInvite(): Promise<string> {
+  signInAs(PARTNER_USER) // trip-2's owner
+  const { token } = await api.post<{ token: string }>('/trips/trip-2/invites', {
+    role: 'viewer',
+    can_see_stays: true,
+    can_see_flight: false,
+    can_see_documents: false,
+    can_see_shopping: false,
+  })
+  return token
+}
+
 describe('opening an invite link', () => {
   it('sends a signed-out visitor to sign in, remembering the link', async () => {
-    renderAt('/invite/tok-abc', inviteRoutes)
+    const token = await mintInvite()
+    localStorage.clear()
+    sessionStorage.clear()
+    renderAt(`/invite/${token}`, inviteRoutes)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Sign in' }))
     expect(await screen.findByText('sign in page')).toBeInTheDocument()
-    expect(sessionStorage.getItem('pending_invite')).toBe('tok-abc')
+    expect(sessionStorage.getItem('pending_invite')).toBe(token)
   })
 
   it('says what the link grants, then joins', async () => {
-    localStorage.setItem('trip_access_code', 'a.jwt')
-    mocks.get.mockResolvedValue({
-      invite: {
-        trip_name: 'Japan',
-        role: 'viewer',
-        invited_by: 'Yuval',
-        email: null,
-        expires_at: '2026-09-01T00:00:00Z',
-        shows: { stays: true, flight: false, documents: false },
-      },
-    })
-    mocks.post.mockResolvedValue({ trip_id: 'trip-1', role: 'viewer', already_member: false })
-    renderAt('/invite/tok-abc', inviteRoutes)
+    const token = await mintInvite()
+    signInAs(OWNER_USER) // somebody who is not on trip-2 yet
+    renderAt(`/invite/${token}`, inviteRoutes)
 
-    expect(await screen.findByText('Japan')).toBeInTheDocument()
-    expect(screen.getByText(/Yuval invited you to/)).toBeInTheDocument()
+    expect(await screen.findByText('Someone Else’s Trip')).toBeInTheDocument()
+    expect(
+      screen.getByText(new RegExp(`${PARTNER_USER.display_name} invited you to`))
+    ).toBeInTheDocument()
     // Only the things the invite actually turns on are listed.
     expect(screen.getByText(/where you’re staying/)).toBeInTheDocument()
     expect(screen.queryByText(/the flights/)).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Join this trip' }))
     expect(await screen.findByText('the trip')).toBeInTheDocument()
-    expect(mocks.post).toHaveBeenCalledWith('/invites/tok-abc/accept', {})
+    const joined = await rows<MemberRow>('trip_members', 'user_id', OWNER_USER.id)
+    expect(joined.map((m) => m.role)).toContain('viewer')
   })
 
   it('explains a dead link instead of failing silently', async () => {
-    localStorage.setItem('trip_access_code', 'a.jwt')
-    mocks.get.mockRejectedValue(new Error('not found'))
-    renderAt('/invite/tok-abc', inviteRoutes)
+    renderAt('/invite/no-such-token', inviteRoutes)
 
     expect(await screen.findByText(/no longer valid/)).toBeInTheDocument()
   })
