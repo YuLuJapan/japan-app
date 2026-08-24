@@ -4,6 +4,7 @@ import { CountdownWidget } from '../components/CountdownWidget'
 import { ErrorState } from '../components/ErrorState'
 import { GenericCountdown } from '../components/GenericCountdown'
 import { HeroTitle } from '../components/HeroTitle'
+import { InstallBanner } from '../components/InstallPrompt'
 import { JourneyStepsSlider } from '../components/JourneyStepsSlider'
 import { Loading } from '../components/Loading'
 import { Schedule } from '../components/Schedule'
@@ -80,6 +81,8 @@ export default function Journey() {
           note={shows.flight ? undefined : 'The travellers keep the flight details private.'}
         />
       )}
+
+      <InstallBanner />
 
       {hasSteps ? (
         <>

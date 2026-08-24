@@ -1,6 +1,6 @@
-# Yuval & Luciana in Japan 日本の旅
+# Onward
 
-A private, mobile-first trip companion for our Japan trip: browse hotels, attractions, food & cafes, shopping and other places by zone; see the journey as a timeline with today's stop highlighted; open collected documents; and add/edit/delete places and tips on the fly.
+A private, mobile-first trip companion — first built for our own Japan trip: browse hotels, attractions, food & cafes, shopping and other places by zone; see the journey as a timeline with today's stop highlighted; open collected documents; and add/edit/delete places and tips on the fly.
 
 Built from the spec in [specs/001-japan-trip-app/](specs/001-japan-trip-app/) (spec → plan → tasks → implementation).
 
@@ -149,6 +149,30 @@ pretending.
 
 Still $0: web push goes through Apple/Google/Mozilla's own push services, and
 cron-job.org's free tier covers this comfortably.
+
+## Installing it on a phone (PWA)
+
+It's a proper installable app: [vite-plugin-pwa](vite.config.ts) generates the
+manifest (**Onward**, standalone display, the icons in `public/`) and a Workbox
+service worker that precaches the shell and keeps the last successful `/api`
+response, so an offline phone still opens on the trip rather than on a dinosaur.
+
+Browsers won't offer that on their own, so the app asks:
+
+- **[InstallBanner](src/components/InstallPrompt.tsx)** on the trip home — one
+  "not now" snoozes it for a fortnight, and installing hides it for good
+  (`onward:install-hint` in localStorage).
+- **Add Onward to your phone** in Essentials, which is where whoever dismissed
+  the banner can still find the steps.
+- The **Reminders** card links to the same steps when it has to say that
+  notifications need the installed app.
+
+Two worlds sit behind that, in [src/lib/install.ts](src/lib/install.ts):
+Chromium fires `beforeinstallprompt`, which is captured at module load (it
+fires once, early, and is lost if nobody keeps it) and replayed from our own
+button; Safari fires nothing and exposes no API at all, so on iOS the only
+honest thing to do is name the Share menu. That's why the instructions are
+per-platform — "use your browser menu" would help nobody.
 
 ## Analytics (PostHog — optional)
 

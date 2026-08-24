@@ -9,10 +9,10 @@ self.addEventListener('push', (event) => {
   try {
     data = event.data ? event.data.json() : {}
   } catch {
-    data = { title: 'Japan 旅', body: event.data ? event.data.text() : '' }
+    data = { title: 'Onward', body: event.data ? event.data.text() : '' }
   }
 
-  const title = data.title || 'Japan 旅'
+  const title = data.title || 'Onward'
   event.waitUntil(
     (async () => {
       await self.registration.showNotification(title, {

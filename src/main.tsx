@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client'
 import { PostHogErrorBoundary, PostHogProvider } from '@posthog/react'
 import App from './App'
 import { AppCrash } from './components/AppCrash'
+// Imported for its side effect: lib/install registers the beforeinstallprompt
+// listener at module load. The event fires once and is dropped if nobody is
+// listening, which is earlier than any component of ours mounts.
+import './lib/install'
 import { posthogKey, posthogOptions } from './lib/posthog'
 import './styles/index.css'
 
