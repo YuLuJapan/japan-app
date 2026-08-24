@@ -21,6 +21,11 @@ declare module 'vitest' {
      * instead of against a stubbed client.
      */
     apiUrl: string
+    /**
+     * The local stand-in for the internet the API fetches from. Web tests
+     * steer it over its control endpoint (see src/tests/outside.ts).
+     */
+    outsideWorldUrl: string
     /** email → a real, signed-in JWT. */
     authTokens: Record<string, string>
     /** Where workers reach Postgres directly, to reset between tests. */
@@ -61,6 +66,7 @@ export default async function setup(project: TestProject) {
   const { host, port } = stack.pool.options as { host: string; port: number }
   project.provide('supabaseUrl', stack.url)
   project.provide('apiUrl', api.url)
+  project.provide('outsideWorldUrl', outside.url)
   project.provide('authTokens', tokens)
   project.provide('dbHost', host ?? '127.0.0.1')
   project.provide('dbPort', port ?? DB.port)

@@ -30,6 +30,9 @@ export type FixtureReply =
 
 export type FixtureHandler = (req: FixtureRequest) => FixtureReply | Promise<FixtureReply>
 
+/** Paths the server answers itself, for steering it from another process. */
+export const CONTROL = { routes: '/__fixture__/routes', reset: '/__fixture__/reset' } as const
+
 export interface FixtureServer {
   /** Origin, e.g. http://127.0.0.1:41235. */
   readonly url: string
@@ -45,8 +48,16 @@ export interface FixtureServer {
   redirect(path: string, location: string, status?: number): string
   /** Every request that arrived, in order — for "was this even called?". */
   readonly requests: FixtureRequest[]
-  /** Forget all routes and recorded requests. */
+  /** Forget all routes and recorded requests, then re-apply the defaults. */
   reset(): void
+  /**
+   * Routes to re-apply on every reset.
+   *
+   * The web suite steers this server from a worker over `CONTROL.routes`,
+   * because the API it answers runs in the globalSetup process — so the
+   * baseline it returns to has to live here rather than in the caller.
+   */
+  setDefaults(apply: (server: FixtureServer) => void): void
   close(): Promise<void>
 }
 
@@ -54,8 +65,35 @@ export async function startFixtureServer(): Promise<FixtureServer> {
   const routes = new Map<string, FixtureHandler>()
   const requests: FixtureRequest[] = []
 
+  let applyDefaults: (server: FixtureServer) => void = () => {}
+  // Assigned below; the control routes need to hand the server to the caller's
+  // default-applying callback.
+  let self: FixtureServer
+
+  const readJson = async (req: IncomingMessage): Promise<Record<string, unknown>> => {
+    const chunks: Buffer[] = []
+    for await (const chunk of req) chunks.push(chunk as Buffer)
+    return JSON.parse(Buffer.concat(chunks).toString() || '{}')
+  }
+
   const server: Server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://fixture.invalid')
+
+    // Control plane: not part of the world being served, so it is handled
+    // before anything is recorded as a request.
+    if (req.method === 'POST' && url.pathname === CONTROL.routes) {
+      const { path, reply } = (await readJson(req)) as { path: string; reply: FixtureReply }
+      routes.set(path, () => reply)
+      res.writeHead(204).end()
+      return
+    }
+    if (req.method === 'POST' && url.pathname === CONTROL.reset) {
+      routes.clear()
+      requests.length = 0
+      applyDefaults(self)
+      res.writeHead(204).end()
+      return
+    }
     const record: FixtureRequest = {
       path: url.pathname,
       query: url.searchParams,
@@ -117,7 +155,7 @@ export async function startFixtureServer(): Promise<FixtureServer> {
     return `${url}${path}`
   }
 
-  return {
+  self = {
     url,
     requests,
     urlFor: (path) => `${url}${path}`,
@@ -129,10 +167,16 @@ export async function startFixtureServer(): Promise<FixtureServer> {
     reset: () => {
       routes.clear()
       requests.length = 0
+      applyDefaults(self)
+    },
+    setDefaults: (apply) => {
+      applyDefaults = apply
+      apply(self)
     },
     close: () =>
       new Promise<void>((resolve, reject) =>
         server.close((err) => (err ? reject(err) : resolve()))
       ),
   }
+  return self
 }

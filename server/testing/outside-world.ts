@@ -40,19 +40,23 @@ export interface OutsideWorld {
 export async function startOutsideWorld(): Promise<OutsideWorld & { env: Record<string, string> }> {
   const server: FixtureServer = await startFixtureServer()
 
-  for (const [base, rates] of Object.entries(RATES)) {
-    server.json(`/rates/${base}`, {
-      result: 'success',
-      time_last_update_utc: RATES_DATE,
-      rates,
-    })
-  }
-  server.json('/wikipedia', NOTHING_FOUND)
-  server.json('/commons', NOTHING_FOUND)
-  // No translation available, which is the state that keeps a Japanese name as
-  // it was rather than inventing an English one.
-  server.json('/translate', { responseStatus: 403, responseData: { translatedText: '' } })
-  server.json('/geocode', [])
+  // Registered as defaults rather than once, so a worker that steered this
+  // server for one case gets the baseline back on the next reset.
+  server.setDefaults((world) => {
+    for (const [base, rates] of Object.entries(RATES)) {
+      world.json(`/rates/${base}`, {
+        result: 'success',
+        time_last_update_utc: RATES_DATE,
+        rates,
+      })
+    }
+    world.json('/wikipedia', NOTHING_FOUND)
+    world.json('/commons', NOTHING_FOUND)
+    // No translation available, which is the state that keeps a Japanese name
+    // as it was rather than inventing an English one.
+    world.json('/translate', { responseStatus: 403, responseData: { translatedText: '' } })
+    world.json('/geocode', [])
+  })
 
   return {
     url: server.url,
@@ -63,6 +67,9 @@ export async function startOutsideWorld(): Promise<OutsideWorld & { env: Record<
       COMMONS_API_URL: server.urlFor('/commons'),
       TRANSLATE_API_URL: server.urlFor('/translate'),
       GEOCODE_API_URL: server.urlFor('/geocode'),
+      // Product pages are served from here too, and services/producturl.ts
+      // refuses loopback — this one host:port is allowed, and nothing else.
+      PRODUCT_PREVIEW_ALLOWED_HOSTS: new URL(server.url).host,
     },
   }
 }

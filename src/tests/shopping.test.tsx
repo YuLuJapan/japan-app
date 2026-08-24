@@ -1,105 +1,45 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { withTableMissing } from '../../server/testing/db'
 import ShoppingCategoryPage from '../pages/ShoppingCategory'
 import ShoppingForm from '../pages/ShoppingForm'
 import ShoppingItemDetail from '../pages/ShoppingItem'
 import ShoppingList from '../pages/ShoppingList'
-import type { ShoppingItem } from '../api/types'
+import { insert, patchRow, remove, rows } from './data'
+import { outside } from './outside'
 import { renderAt } from './helpers'
 
-const mocks = vi.hoisted(() => ({
-  get: vi.fn(),
-  post: vi.fn(),
-  patch: vi.fn(),
-  delete: vi.fn(),
-}))
+// The list is real rows, the money is converted at the rate the API quoted,
+// and the product link and photo search really go out over HTTP — to the local
+// stand-in for the web, which each case steers (src/tests/outside.ts).
 
-vi.mock('../api/client', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../api/client')>()),
-  api: mocks,
-}))
-
-// The api mock is module-level, so call history would otherwise carry across
-// tests — which matters for the "nothing is searched until asked" assertion.
-beforeEach(() => vi.clearAllMocks())
-
-const item = (over: Partial<ShoppingItem> = {}): ShoppingItem => ({
-  id: 'buy-1',
-  trip_id: 'trip-1',
-  name: 'Onitsuka Tiger Mexico 66',
-  category: 'clothes',
-  note: 'Size 42',
-  shop: 'ABC Mart',
-  zone_id: 'zone-tokyo',
-  price_yen: 12000,
-  url: null,
-  image_url: null,
-  bought: false,
-  position: 0,
-  ...over,
-})
-
-const shampoo = item({
-  id: 'buy-2',
-  name: 'Ichikami shampoo',
-  category: 'haircare',
-  note: null,
-  shop: 'Don Quijote',
-  zone_id: null,
-  price_yen: 900,
-})
-
-/** One fetch mock for every query the shopping pages make. */
-function mockApi(items: ShoppingItem[]) {
-  mocks.get.mockImplementation((path: string) => {
-    if (path === '/trips/trip-1/shopping') return Promise.resolve({ items })
-    if (path.startsWith('/rates'))
-      return Promise.resolve({
-        base: 'JPY',
-        date: '2026-08-01',
-        rates: { USD: 0.0067, ILS: 0.025 },
-        missing: [],
-      })
-    if (path === '/trips/trip-1')
-      return Promise.resolve({
-        trip: {
-          id: 'trip-1',
-          name: 'Japan',
-          country: 'Japan',
-          display_title: 'Japan',
-          start_date: '2026-09-19',
-          end_date: '2026-10-16',
-          description: null,
-          people: [],
-        },
-        steps: [
-          {
-            id: 'step-1',
-            position: 1,
-            start_date: '2026-09-19',
-            end_date: '2026-09-23',
-            zone: {
-              id: 'zone-tokyo',
-              name: 'Tokyo',
-              name_ja: null,
-              summary: null,
-              place_counts: {},
-            },
-          },
-        ],
-        trip_files_count: 0,
-      })
-    return Promise.resolve({})
-  })
+interface ItemRow {
+  id: string
+  name: string
+  bought: boolean
+  image_url: string | null
+  price_yen: number | null
+  shop: string | null
 }
+
+/** The fixture's own two items, by the names they carry. */
+const SHOES = 'Onitsuka Tiger Mexico 66'
+const SHAMPOO = 'Ichikami shampoo'
+
+const savedItem = async (name: string) => (await rows<ItemRow>('shopping_items', 'name', name))[0]
+
+beforeEach(async () => {
+  // The fixture marks the shampoo bought; most of these cases want a list
+  // where nothing is, and say so when they don't.
+  await patchRow('shopping_items', 'shop-shampoo', { bought: false })
+})
 
 const shoppingListRoute = { path: '/trips/:tripId/shopping', element: <ShoppingList /> }
 const renderShoppingList = () => renderAt('/trips/trip-1/shopping', [shoppingListRoute])
 
 describe('Shopping home (category carousels)', () => {
   it('groups items into one section per category, each linking to its own page', async () => {
-    mockApi([item(), shampoo])
     renderShoppingList()
 
     const clothes = (await screen.findByRole('heading', { name: /Clothes & shoes/ })).closest(
@@ -108,9 +48,9 @@ describe('Shopping home (category carousels)', () => {
     const hair = screen.getByRole('heading', { name: /Hair care/ }).closest('section')!
 
     // each item sits under its own category, not in one flat list
-    expect(within(clothes).getByText('Onitsuka Tiger Mexico 66')).toBeInTheDocument()
-    expect(within(clothes).queryByText('Ichikami shampoo')).not.toBeInTheDocument()
-    expect(within(hair).getByText('Ichikami shampoo')).toBeInTheDocument()
+    expect(within(clothes).getByText(SHOES)).toBeInTheDocument()
+    expect(within(clothes).queryByText(SHAMPOO)).not.toBeInTheDocument()
+    expect(within(hair).getByText(SHAMPOO)).toBeInTheDocument()
 
     expect(within(clothes).getByRole('link', { name: /See all 1/ })).toHaveAttribute(
       'href',
@@ -123,39 +63,37 @@ describe('Shopping home (category carousels)', () => {
   })
 
   it('opens the item detail page — not the edit form — when a tile is tapped', async () => {
-    mockApi([item()])
     renderShoppingList()
 
     expect(await screen.findByRole('link', { name: /Onitsuka Tiger/ })).toHaveAttribute(
       'href',
-      '/trips/trip-1/shopping/buy-1'
+      '/trips/trip-1/shopping/shop-shoes'
     )
   })
 
   it('shows progress and what is left to spend', async () => {
-    mockApi([item(), item({ id: 'buy-3', name: 'Kit Kats', price_yen: 600, bought: true })])
+    await remove('shopping_items', 'id', 'shop-shampoo')
+    await insert('shopping_items', [
+      { id: 'shop-kitkat', trip_id: 'trip-1', name: 'Kit Kats', price_yen: 600, bought: true },
+    ])
     renderShoppingList()
 
     expect(await screen.findByText('1 of 2 bought')).toBeInTheDocument()
     expect(screen.getByText('¥12,600')).toBeInTheDocument() // total value of everything on the list
+    // ¥12,000 still to buy, at the 0.025 ILS the provider quoted.
     expect(screen.getByText(/₪300.*still to spend/)).toBeInTheDocument()
   })
 
   it('ticks an item off straight from the carousel', async () => {
-    mockApi([item()])
-    mocks.patch.mockResolvedValue({ item: item({ bought: true }) })
     renderShoppingList()
 
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Mark Onitsuka Tiger Mexico 66 as bought' })
-    )
-    await waitFor(() =>
-      expect(mocks.patch).toHaveBeenCalledWith('/trips/trip-1/shopping/buy-1', { bought: true })
-    )
+    await userEvent.click(await screen.findByRole('button', { name: `Mark ${SHOES} as bought` }))
+
+    await waitFor(async () => expect((await savedItem(SHOES)).bought).toBe(true))
   })
 
   it('renders an empty state with nothing on the list', async () => {
-    mockApi([])
+    await remove('shopping_items', 'trip_id', 'trip-1')
     renderShoppingList()
 
     expect(await screen.findByText(/Nothing on the list yet/)).toBeInTheDocument()
@@ -187,17 +125,22 @@ const renderCategory = (category: string) =>
 
 describe('Shopping category page', () => {
   it('lists every item in the category and nothing else, bought ones separated', async () => {
-    mockApi([
-      item(),
-      item({ id: 'buy-3', name: 'Uniqlo HEATTECH', price_yen: 1500, bought: true }),
-      shampoo,
+    await insert('shopping_items', [
+      {
+        id: 'shop-heattech',
+        trip_id: 'trip-1',
+        name: 'Uniqlo HEATTECH',
+        category: 'clothes',
+        price_yen: 1500,
+        bought: true,
+      },
     ])
     renderCategory('clothes')
 
     expect(await screen.findByRole('heading', { name: /Clothes & shoes/ })).toBeInTheDocument()
-    expect(screen.getByText('Onitsuka Tiger Mexico 66')).toBeInTheDocument()
+    expect(screen.getByText(SHOES)).toBeInTheDocument()
     expect(screen.getByText('Uniqlo HEATTECH')).toBeInTheDocument()
-    expect(screen.queryByText('Ichikami shampoo')).not.toBeInTheDocument() // other category
+    expect(screen.queryByText(SHAMPOO)).not.toBeInTheDocument() // other category
 
     expect(screen.getByText('To buy · 1')).toBeInTheDocument()
     expect(screen.getByText('Bought · 1')).toBeInTheDocument()
@@ -205,50 +148,44 @@ describe('Shopping category page', () => {
   })
 
   it('ticks an item off when the row is swiped right', async () => {
-    mockApi([item()])
-    mocks.patch.mockResolvedValue({ item: item({ bought: true }) })
     renderCategory('clothes')
 
-    swipe(await rowFor('Onitsuka Tiger Mexico 66'), 120)
+    swipe(await rowFor(SHOES), 120)
 
-    await waitFor(() =>
-      expect(mocks.patch).toHaveBeenCalledWith('/trips/trip-1/shopping/buy-1', { bought: true })
-    )
+    await waitFor(async () => expect((await savedItem(SHOES)).bought).toBe(true))
   })
 
   it('asks before deleting when the row is swiped left', async () => {
-    mockApi([item()])
-    mocks.delete.mockResolvedValue(undefined)
     renderCategory('clothes')
 
-    swipe(await rowFor('Onitsuka Tiger Mexico 66'), -120)
+    swipe(await rowFor(SHOES), -120)
 
     // the swipe alone must not delete anything
-    expect(mocks.delete).not.toHaveBeenCalled()
+    expect(await rows<ItemRow>('shopping_items', 'id', 'shop-shoes')).toHaveLength(1)
     const dialog = await screen.findByRole('dialog')
-    expect(dialog).toHaveAccessibleName(/Delete Onitsuka Tiger Mexico 66/)
+    expect(dialog).toHaveAccessibleName(new RegExp(`Delete ${SHOES}`))
 
     await userEvent.click(
       Array.from(dialog.querySelectorAll('button')).find((b) => b.textContent === 'Delete')!
     )
-    await waitFor(() => expect(mocks.delete).toHaveBeenCalledWith('/trips/trip-1/shopping/buy-1'))
+    await waitFor(async () =>
+      expect(await rows<ItemRow>('shopping_items', 'id', 'shop-shoes')).toHaveLength(0)
+    )
   })
 
   it('ignores a short sideways nudge and a vertical scroll', async () => {
-    mockApi([item()])
     renderCategory('clothes')
-    const row = await rowFor('Onitsuka Tiger Mexico 66')
+    const row = await rowFor(SHOES)
 
     swipe(row, 40) // too short to count
     swipe(row, 0, 150) // scrolling down the page
 
-    expect(mocks.patch).not.toHaveBeenCalled()
-    expect(mocks.delete).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    const [item] = await rows<ItemRow>('shopping_items', 'id', 'shop-shoes')
+    expect(item.bought).toBe(false)
   })
 
   it('adds into the category you are looking at', async () => {
-    mockApi([shampoo])
     renderCategory('haircare')
 
     expect(await screen.findByRole('link', { name: '+ Add' })).toHaveAttribute(
@@ -264,96 +201,84 @@ const renderItemDetail = (
   extraRoutes: { path: string; element: JSX.Element }[] = []
 ) => renderAt(`/trips/trip-1/shopping/${itemId}`, [itemRoute, ...extraRoutes])
 
+/** A Wikipedia image-search answer with one usable photo in it. */
+const photoNamed = (title: string, file: string) => ({
+  query: {
+    pages: {
+      '1': {
+        title,
+        thumbnail: { source: `https://upload.wikimedia.org/${file}-thumb.jpg` },
+        original: { source: `https://upload.wikimedia.org/${file}.jpg` },
+      },
+    },
+  },
+})
+
 describe('Shopping item detail', () => {
   it('shows the price, where to buy it and the notes', async () => {
-    mockApi([item()])
-    renderItemDetail('buy-1')
+    renderItemDetail('shop-shoes')
 
-    expect(
-      await screen.findByRole('heading', { name: 'Onitsuka Tiger Mexico 66' })
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: SHOES })).toBeInTheDocument()
     expect(screen.getByText('¥12,000')).toBeInTheDocument()
+    // Converted at the rates the API quoted: 0.025 ILS and 0.0067 USD to the yen.
     expect(screen.getByText(/≈ ₪300.00 ≈ \$80.40/)).toBeInTheDocument()
-    expect(screen.getByText(/ABC Mart/)).toBeInTheDocument()
-    expect(screen.getByText(/Tokyo/)).toBeInTheDocument()
+    expect(screen.getByText(/Onitsuka Tiger Ginza/)).toBeInTheDocument()
+    // The city comes from the trip bundle, which is a second request — hence
+    // the await rather than a synchronous get.
+    expect(await screen.findByText(/Tokyo/)).toBeInTheDocument()
     expect(screen.getByText('Size 42')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Edit' })).toHaveAttribute(
       'href',
-      '/trips/trip-1/shopping/buy-1/edit'
+      '/trips/trip-1/shopping/shop-shoes/edit'
     )
   })
 
   it('marks the item bought from the detail page', async () => {
-    mockApi([item()])
-    mocks.patch.mockResolvedValue({ item: item({ bought: true }) })
-    renderItemDetail('buy-1')
+    renderItemDetail('shop-shoes')
 
     await userEvent.click(await screen.findByRole('button', { name: 'Mark as bought' }))
-    await waitFor(() =>
-      expect(mocks.patch).toHaveBeenCalledWith('/trips/trip-1/shopping/buy-1', { bought: true })
-    )
+
+    await waitFor(async () => expect((await savedItem(SHOES)).bought).toBe(true))
   })
 
   it('offers to put a bought item back on the list', async () => {
-    mockApi([item({ bought: true })])
-    renderItemDetail('buy-1')
+    await patchRow('shopping_items', 'shop-shoes', { bought: true })
+    renderItemDetail('shop-shoes')
 
     expect(await screen.findByRole('button', { name: 'Put back on the list' })).toBeInTheDocument()
     expect(screen.getByText('✓ Already bought')).toBeInTheDocument()
   })
 
   it('asks for confirmation before deleting', async () => {
-    mockApi([item()])
-    mocks.delete.mockResolvedValue(undefined)
-    renderItemDetail('buy-1', [{ path: '/trips/:tripId/shopping', element: <p>list</p> }])
+    renderItemDetail('shop-shoes', [{ path: '/trips/:tripId/shopping', element: <p>list</p> }])
 
     await userEvent.click(await screen.findByRole('button', { name: 'Delete' }))
-    expect(mocks.delete).not.toHaveBeenCalled() // dialog first
+    expect(await rows<ItemRow>('shopping_items', 'id', 'shop-shoes')).toHaveLength(1) // dialog first
 
     const dialog = screen.getByRole('dialog')
     const confirm = Array.from(dialog.querySelectorAll('button')).find(
       (b) => b.textContent === 'Delete'
     )!
     await userEvent.click(confirm)
-    await waitFor(() => expect(mocks.delete).toHaveBeenCalledWith('/trips/trip-1/shopping/buy-1'))
+    await waitFor(async () =>
+      expect(await rows<ItemRow>('shopping_items', 'id', 'shop-shoes')).toHaveLength(0)
+    )
   })
 
   it('offers a web photo search for an item that has none, and saves the pick', async () => {
-    mocks.get.mockImplementation((path: string) => {
-      if (path.startsWith('/images'))
-        return Promise.resolve({
-          results: [
-            {
-              url: 'https://upload.wikimedia.org/found.jpg',
-              thumb_url: 'https://upload.wikimedia.org/found-thumb.jpg',
-              title: 'Kit Kat',
-              source: 'commons',
-              source_url: null,
-              credit: 'CC BY 2.0',
-            },
-          ],
-        })
-      if (path === '/trips/trip-1/shopping')
-        return Promise.resolve({ items: [item({ name: 'Kit Kat', image_url: null })] })
-      return Promise.resolve({ items: [], steps: [] })
-    })
-    mocks.patch.mockResolvedValue({
-      item: item({ image_url: 'https://upload.wikimedia.org/found.jpg' }),
-    })
-    renderItemDetail('buy-1')
+    await patchRow('shopping_items', 'shop-shoes', { name: 'Kit Kat', image_url: null })
+    await outside.wikipedia(photoNamed('Kit Kat', 'found'))
+    renderItemDetail('shop-shoes')
 
     await userEvent.click(await screen.findByRole('button', { name: /Find a photo on the web/ }))
     await userEvent.click(await screen.findByRole('img', { name: 'Kit Kat' }))
 
-    await waitFor(() =>
-      expect(mocks.patch).toHaveBeenCalledWith('/trips/trip-1/shopping/buy-1', {
-        image_url: 'https://upload.wikimedia.org/found.jpg',
-      })
+    await waitFor(async () =>
+      expect((await savedItem('Kit Kat')).image_url).toBe('https://upload.wikimedia.org/found.jpg')
     )
   })
 
   it('explains itself when the item is gone', async () => {
-    mockApi([])
     renderItemDetail('buy-gone')
 
     expect(await screen.findByText(/no longer on the list/)).toBeInTheDocument()
@@ -364,10 +289,18 @@ const newFormRoute = { path: '/trips/:tripId/shopping/new', element: <ShoppingFo
 const renderNewForm = (query = '', extraRoutes: { path: string; element: JSX.Element }[] = []) =>
   renderAt(`/trips/trip-1/shopping/new${query}`, [newFormRoute, ...extraRoutes])
 
+/** A shop's product page, as Open Graph tags. */
+const productPage = (over: { title: string; shop: string; price: number; image?: string }) => `
+<!doctype html><html><head>
+<meta property="og:title" content="${over.title}">
+<meta property="og:site_name" content="${over.shop}">
+${over.image ? `<meta property="og:image" content="${over.image}">` : ''}
+<meta property="product:price:amount" content="${over.price}">
+<meta property="product:price:currency" content="JPY">
+</head><body></body></html>`
+
 describe('ShoppingForm', () => {
   it('creates an item with shop, price and photo, then opens its page', async () => {
-    mockApi([])
-    mocks.post.mockResolvedValue({ item: item({ id: 'buy-new' }) })
     renderNewForm('', [{ path: '/trips/:tripId/shopping/:itemId', element: <p>detail page</p> }])
 
     await userEvent.type(screen.getByLabelText('What is it? *'), 'Uniqlo HEATTECH')
@@ -376,48 +309,36 @@ describe('ShoppingForm', () => {
     await userEvent.type(screen.getByLabelText('Photo URL'), 'https://example.com/heattech.jpg')
     await userEvent.click(screen.getByRole('button', { name: 'Add to list' }))
 
-    await waitFor(() =>
-      expect(mocks.post).toHaveBeenCalledWith(
-        '/trips/trip-1/shopping',
-        expect.objectContaining({
-          name: 'Uniqlo HEATTECH',
-          shop: 'Uniqlo Ginza',
-          price_yen: 1500,
-          image_url: 'https://example.com/heattech.jpg',
-          bought: false,
-        })
-      )
-    )
+    await waitFor(async () => {
+      expect(await savedItem('Uniqlo HEATTECH')).toMatchObject({
+        shop: 'Uniqlo Ginza',
+        price_yen: 1500,
+        image_url: 'https://example.com/heattech.jpg',
+        bought: false,
+      })
+    })
     expect(await screen.findByText('detail page')).toBeInTheDocument()
   })
 
   it('starts in the category you added from', async () => {
-    mockApi([])
     renderNewForm('?category=skincare')
 
     expect(screen.getByLabelText('Category')).toHaveValue('skincare')
   })
 
   it('fills the form from a pasted product link', async () => {
-    mockApi([])
-    mocks.get.mockImplementation((path: string) => {
-      if (path.startsWith('/product-preview'))
-        return Promise.resolve({
-          url: 'https://www.uniqlo.com/jp/en/products/E123',
-          name: 'HEATTECH Crew Neck T-Shirt',
-          image_url: 'https://www.uniqlo.com/img/heattech.jpg',
-          shop: 'UNIQLO',
-          price_yen: 1500,
-          price_note: null,
-        })
-      return Promise.resolve({ items: [], steps: [] })
-    })
+    const url = await outside.page(
+      '/jp/en/products/E123',
+      productPage({
+        title: 'HEATTECH Crew Neck T-Shirt',
+        shop: 'UNIQLO',
+        price: 1500,
+        image: '/img/heattech.jpg',
+      })
+    )
     renderNewForm()
 
-    await userEvent.type(
-      screen.getByLabelText('Have a link? Paste it'),
-      'https://www.uniqlo.com/jp/en/products/E123'
-    )
+    await userEvent.type(screen.getByLabelText('Have a link? Paste it'), url)
     await userEvent.click(screen.getByRole('button', { name: 'Read link' }))
 
     await waitFor(() =>
@@ -425,35 +346,25 @@ describe('ShoppingForm', () => {
     )
     expect(screen.getByLabelText('Where to buy it')).toHaveValue('UNIQLO')
     expect(screen.getByLabelText('Expected price (yen)')).toHaveValue('1500')
-    expect(screen.getByLabelText('Photo URL')).toHaveValue(
-      'https://www.uniqlo.com/img/heattech.jpg'
-    )
-    expect(screen.getByLabelText('Product link')).toHaveValue(
-      'https://www.uniqlo.com/jp/en/products/E123'
-    )
+    // The relative og:image, resolved against the page it came from.
+    expect(screen.getByLabelText('Photo URL')).toHaveValue(outside.urlFor('/img/heattech.jpg'))
+    expect(screen.getByLabelText('Product link')).toHaveValue(url)
   })
 
   it('shows the English name from a Japanese page and keeps the Japanese in the details', async () => {
-    mockApi([])
-    mocks.get.mockImplementation((path: string) =>
-      path.startsWith('/product-preview')
-        ? Promise.resolve({
-            url: 'https://www.uniqlo.com/jp/ja/products/E1',
-            name: 'Crew Neck T-Shirt',
-            name_ja: 'クルーネックT（半袖）',
-            image_url: null,
-            shop: 'UNIQLO',
-            price_yen: 1500,
-            price_note: null,
-          })
-        : Promise.resolve({ items: [], steps: [] })
+    // A /jp/ja/ page with a Japanese title, and the shop's own English page at
+    // the matching /jp/en/ path — which the API prefers over translating.
+    const url = await outside.page(
+      '/jp/ja/products/E1',
+      productPage({ title: 'クルーネックT（半袖）', shop: 'ユニクロ公式', price: 1500 })
+    )
+    await outside.page(
+      '/jp/en/products/E1',
+      productPage({ title: 'Crew Neck T-Shirt', shop: 'UNIQLO', price: 1500 })
     )
     renderNewForm()
 
-    await userEvent.type(
-      screen.getByLabelText('Have a link? Paste it'),
-      'https://www.uniqlo.com/jp/ja/products/E1'
-    )
+    await userEvent.type(screen.getByLabelText('Have a link? Paste it'), url)
     await userEvent.click(screen.getByRole('button', { name: 'Read link' }))
 
     await waitFor(() =>
@@ -464,12 +375,7 @@ describe('ShoppingForm', () => {
   })
 
   it('offers to translate a name typed in Japanese', async () => {
-    mockApi([])
-    mocks.get.mockImplementation((path: string) =>
-      path.startsWith('/translate')
-        ? Promise.resolve({ text: 'ヘアマスク', is_japanese: true, translated: 'Hair mask' })
-        : Promise.resolve({ items: [], steps: [] })
-    )
+    await outside.translation('Hair mask')
     renderNewForm()
 
     const name = screen.getByLabelText('What is it? *')
@@ -483,69 +389,52 @@ describe('ShoppingForm', () => {
   })
 
   it('does not overwrite what you already typed when reading a link', async () => {
-    mockApi([])
-    mocks.get.mockImplementation((path: string) =>
-      path.startsWith('/product-preview')
-        ? Promise.resolve({
-            url: 'https://shop.example.jp/p/1',
-            name: 'Shop name for it',
-            image_url: null,
-            shop: 'Example',
-            price_yen: 900,
-            price_note: null,
-          })
-        : Promise.resolve({ items: [], steps: [] })
+    const url = await outside.page(
+      '/p/1',
+      productPage({ title: 'Shop name for it', shop: 'Example', price: 900 })
     )
     renderNewForm()
 
     await userEvent.type(screen.getByLabelText('What is it? *'), 'My own name')
-    await userEvent.type(
-      screen.getByLabelText('Have a link? Paste it'),
-      'https://shop.example.jp/p/1'
-    )
+    await userEvent.type(screen.getByLabelText('Have a link? Paste it'), url)
     await userEvent.click(screen.getByRole('button', { name: 'Read link' }))
 
     await waitFor(() => expect(screen.getByLabelText('Where to buy it')).toHaveValue('Example'))
     expect(screen.getByLabelText('What is it? *')).toHaveValue('My own name') // kept
   })
 
-  it('says so when the link cannot be read', async () => {
-    mockApi([])
-    mocks.get.mockImplementation((path: string) =>
-      path.startsWith('/product-preview')
-        ? Promise.reject(new Error('offline'))
-        : Promise.resolve({ items: [], steps: [] })
-    )
+  it('says so when the page cannot be read, and keeps the link', async () => {
     renderNewForm()
 
-    await userEvent.type(screen.getByLabelText('Have a link? Paste it'), 'https://nope.example')
+    // A host that does not resolve. The API answers — it just has nothing to
+    // report — so the form says the page was unreadable and keeps the link.
+    await userEvent.type(
+      screen.getByLabelText('Have a link? Paste it'),
+      'https://nothing-here.invalid/p/1'
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Read link' }))
+
+    expect(await screen.findByText(/Could not read that page/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Product link')).toHaveValue('https://nothing-here.invalid/p/1')
+  })
+
+  it('says so when the link itself is refused', async () => {
+    renderNewForm()
+
+    // The API will not fetch its own network, so this is a 400 rather than an
+    // empty answer — a different message, because it is a different problem.
+    await userEvent.type(screen.getByLabelText('Have a link? Paste it'), 'http://127.0.0.1/admin')
     await userEvent.click(screen.getByRole('button', { name: 'Read link' }))
 
     expect(await screen.findByText(/Could not read that link/)).toBeInTheDocument()
   })
 
   it('finds a photo on the web and fills the field with the one you tap', async () => {
-    mockApi([])
-    mocks.get.mockImplementation((path: string) => {
-      if (path.startsWith('/images'))
-        return Promise.resolve({
-          results: [
-            {
-              url: 'https://upload.wikimedia.org/full.jpg',
-              thumb_url: 'https://upload.wikimedia.org/thumb.jpg',
-              title: 'Onitsuka Tiger',
-              source: 'wikipedia',
-              source_url: null,
-              credit: 'Wikipedia',
-            },
-          ],
-        })
-      return Promise.resolve({ items: [] })
-    })
+    await outside.wikipedia(photoNamed('Onitsuka Tiger', 'full'))
     renderNewForm()
 
     // nothing is searched until asked
-    expect(mocks.get).not.toHaveBeenCalledWith(expect.stringContaining('/images'))
+    expect(screen.queryByRole('img', { name: 'Onitsuka Tiger' })).not.toBeInTheDocument()
 
     await userEvent.type(screen.getByLabelText('What is it? *'), 'Onitsuka Tiger')
     await userEvent.click(screen.getByRole('button', { name: /Find a photo on the web/ }))
@@ -557,10 +446,7 @@ describe('ShoppingForm', () => {
   })
 
   it('says so when the web search comes back empty', async () => {
-    mockApi([])
-    mocks.get.mockImplementation((path: string) =>
-      path.startsWith('/images') ? Promise.resolve({ results: [] }) : Promise.resolve({ items: [] })
-    )
+    await outside.noPhotos()
     renderNewForm()
 
     await userEvent.type(screen.getByLabelText('What is it? *'), 'Very obscure thing')
@@ -570,28 +456,26 @@ describe('ShoppingForm', () => {
   })
 
   it('keeps the entered text and offers retry when the save fails (FR-019)', async () => {
-    mockApi([])
-    mocks.post.mockRejectedValue(new Error('offline'))
     renderNewForm()
 
     const name = screen.getByLabelText('What is it? *')
     await userEvent.type(name, 'Fino hair mask')
-    await userEvent.click(screen.getByRole('button', { name: 'Add to list' }))
 
-    expect(await screen.findByText(/Save failed — your text is safe/)).toBeInTheDocument()
-    expect(name).toHaveValue('Fino hair mask')
-    expect(screen.getByRole('button', { name: 'Retry save' })).toBeInTheDocument()
+    // A save that really cannot land.
+    await withTableMissing('shopping_items', async () => {
+      await userEvent.click(screen.getByRole('button', { name: 'Add to list' }))
+      expect(await screen.findByText(/Save failed — your text is safe/)).toBeInTheDocument()
+      expect(name).toHaveValue('Fino hair mask')
+      expect(screen.getByRole('button', { name: 'Retry save' })).toBeInTheDocument()
+    })
   })
 
   it('prefills when editing', async () => {
-    mockApi([item()])
-    renderAt('/trips/trip-1/shopping/buy-1/edit', [
+    renderAt('/trips/trip-1/shopping/shop-shoes/edit', [
       { path: '/trips/:tripId/shopping/:itemId/edit', element: <ShoppingForm /> },
     ])
 
-    await waitFor(() =>
-      expect(screen.getByLabelText('What is it? *')).toHaveValue('Onitsuka Tiger Mexico 66')
-    )
+    await waitFor(() => expect(screen.getByLabelText('What is it? *')).toHaveValue(SHOES))
     expect(screen.getByLabelText('Expected price (yen)')).toHaveValue('12000')
     expect(screen.getByLabelText('Category')).toHaveValue('clothes')
   })
