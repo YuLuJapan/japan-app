@@ -7,9 +7,9 @@
 // rather than implying a button exists.
 export const PUBLISHER = 'Yuval Ofek and Luciana Kirsman'
 
-// TODO(before release): a real, monitored address. This is the only value in
-// the repo that must change before anyone outside the two of you signs up.
-export const CONTACT_EMAIL = 'CONTACT-EMAIL-NOT-SET@example.com'
+// A real, monitored address: it is published on both documents and is the only
+// route to account deletion, so it has to be one somebody reads.
+export const CONTACT_EMAIL = 'yuvalofek97@gmail.com'
 
 /** Shown on both documents so a reader can tell what they are looking at. */
 export const LAST_UPDATED = '24 August 2026'
