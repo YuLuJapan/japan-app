@@ -52,6 +52,10 @@ export default function Journey() {
 
   return (
     <div className="space-y-6">
+      {/* Above the hero on purpose: below it, on a phone, it sat under the
+          fold behind a full-bleed image and a countdown. */}
+      <InstallBanner />
+
       {japan ? (
         <SushiSequence
           title={heroTitle}
@@ -81,8 +85,6 @@ export default function Journey() {
           note={shows.flight ? undefined : 'The travellers keep the flight details private.'}
         />
       )}
-
-      <InstallBanner />
 
       {hasSteps ? (
         <>

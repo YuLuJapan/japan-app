@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTrips } from '../api/hooks'
 import type { Trip } from '../api/types'
 import { EmptyState } from '../components/EmptyState'
+import { InstallBanner } from '../components/InstallPrompt'
 import { InvitationInbox } from '../components/InvitationInbox'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
@@ -137,6 +138,13 @@ export default function TripsList() {
         {/* Above the trips: an invitation is the one thing here that someone
             else is waiting on an answer to. */}
         <InvitationInbox />
+
+        {/* Under the invitations — those are somebody waiting on an answer —
+            but above the trips, because this is the screen everyone lands on
+            after signing in and the one they'd want the icon for. */}
+        <div className="mt-6">
+          <InstallBanner />
+        </div>
 
         <p className="section-title mt-7">Your trips</p>
         <div className="mt-3 flex flex-col gap-3.5">

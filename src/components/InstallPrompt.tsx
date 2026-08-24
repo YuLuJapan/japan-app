@@ -160,26 +160,44 @@ export function InstallBanner() {
   return (
     <>
       {!dismissed && (
-        <div className="flex items-start gap-3 rounded-3xl border border-line bg-white px-4.5 py-4 shadow-card">
-          <span className="text-xl leading-none" aria-hidden>
-            📲
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="font-bold leading-snug text-ink">Keep Onward one tap away</p>
-            <p className="mt-1 text-xs leading-snug text-muted">
-              Add it to your Home Screen. {REASONS}
-            </p>
-            <div className="mt-3 flex items-center gap-2">
-              <button type="button" className="btn-primary px-4 text-xs" onClick={add}>
-                {canPrompt ? 'Add to Home Screen' : 'Show me how'}
-              </button>
-              <button
-                type="button"
-                className="px-2 py-1 text-xs font-semibold text-muted"
-                onClick={notNow}
-              >
-                Not now
-              </button>
+        // Coral, not another white card. Every other surface on these screens
+        // is white-on-canvas, so a fifth white card reads as more trip content
+        // and gets scrolled past — which is exactly what happened to the first
+        // version of this. The gate's gradient is the app's one "this is us"
+        // surface, and borrowing it makes the banner the only thing on the
+        // page that isn't a place, a day or a document.
+        <div
+          className="relative overflow-hidden rounded-3xl px-5 py-4.5 text-white shadow-pop"
+          style={{ background: 'linear-gradient(135deg,#F9873F 0%,#F1543F 58%,#E3402F 100%)' }}
+        >
+          <div className="absolute -right-6 -top-8 h-24 w-24 rounded-full bg-white/15 blur-xl" />
+          <div className="relative flex items-start gap-3">
+            <span className="text-2xl leading-none" aria-hidden>
+              📲
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-lg font-bold leading-tight">
+                Keep Onward one tap away
+              </p>
+              <p className="mt-1 text-sm leading-snug text-white/85">
+                Add it to your Home Screen. {REASONS}
+              </p>
+              <div className="mt-3.5 flex items-center gap-2">
+                <button
+                  type="button"
+                  className="btn min-h-11 bg-white px-5 text-sm font-bold text-brand shadow-card hover:bg-white/90"
+                  onClick={add}
+                >
+                  {canPrompt ? 'Add to Home Screen' : 'Show me how'}
+                </button>
+                <button
+                  type="button"
+                  className="min-h-11 px-3 text-sm font-semibold text-white/80"
+                  onClick={notNow}
+                >
+                  Not now
+                </button>
+              </div>
             </div>
           </div>
         </div>
