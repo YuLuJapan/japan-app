@@ -10,7 +10,7 @@ import type { TestProject } from 'vitest/node'
 import { provisionAccounts } from './accounts.js'
 import { startOutsideWorld } from './outside-world.js'
 import { startSupabaseStack } from './stack.js'
-import { DB, stackEnv } from './stack-config.js'
+import { assertLocalTarget, DB, stackEnv } from './stack-config.js'
 
 declare module 'vitest' {
   export interface ProvidedContext {
@@ -65,6 +65,8 @@ async function startApi(
 
 export default async function setup(project: TestProject) {
   const stack = await startSupabaseStack()
+  // The app, the fixtures and every truncate are about to be pointed here.
+  assertLocalTarget(stack.url, 'the test stack URL')
   const tokens = await provisionAccounts(stack.url, stack.pool)
   // Exchange rates, photo search and translation, served locally — the API
   // would otherwise reach for the real internet mid-test.

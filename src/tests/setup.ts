@@ -11,6 +11,7 @@ import { afterAll, afterEach, beforeEach, inject } from 'vitest'
 import { closeTestDb, testDb } from '../../server/testing/db'
 import { OWNER_USER, seedFixture } from '../../server/testing/fixture'
 import { resetData } from '../../server/testing/schema'
+import { assertLocalTarget } from '../../server/testing/stack-config'
 import { db, signInAs } from './data'
 
 // jsdom has no layout engine and leaves Element.scrollTo undefined; the day strip
@@ -34,10 +35,19 @@ window.matchMedia ??= (query: string) =>
 
 const apiUrl = inject('apiUrl')
 
+// Vite loads `.env` / `.env.local` into `import.meta.env` in test mode too, so
+// a developer with the real project's keys in one would have these tests
+// signing in to it. Cleared here; the two files that need a browser-side
+// client (the gate, sign-out) stub them at the stack's Auth service instead.
+import.meta.env.VITE_SUPABASE_URL = ''
+import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY = ''
+
 // The client builds `${VITE_API_BASE}/api/...`. Empty in a browser, where the
 // app is served from the same origin; here it has to name the API's port,
 // because a relative URL outside a browser is relative to nothing.
 import.meta.env.VITE_API_BASE = apiUrl
+assertLocalTarget(apiUrl, 'the test API URL')
+assertLocalTarget(inject('supabaseUrl'), 'the test stack URL')
 
 beforeEach(async () => {
   localStorage.clear()

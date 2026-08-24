@@ -81,3 +81,45 @@ export function stackEnv(url: string): Record<string, string> {
     SUPABASE_PUBLISHABLE_KEY: ANON_KEY,
   }
 }
+
+/**
+ * Hostnames a throwaway stack can legitimately live on.
+ *
+ * Loopback covers testcontainers and compose; the private ranges cover a
+ * docker host on the LAN. Anything else — a public address, and
+ * `*.supabase.co` above all — is somebody's real project.
+ */
+function isLocalHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  if (host === 'localhost' || host === '::1' || host.endsWith('.localhost')) return true
+  if (host === 'host.docker.internal' || host.endsWith('.internal') || host.endsWith('.local'))
+    return true
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host)
+  if (!ipv4) return false
+  const [a, b] = ipv4.slice(1).map(Number)
+  return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31)
+}
+
+/**
+ * Refuses a target that is not a local throwaway stack.
+ *
+ * Every test starts by truncating every table. Pointed at a hosted project —
+ * by `TEST_SUPABASE_URL`, by a `SUPABASE_URL` already exported in the shell,
+ * by an `.env` that leaked into the run — that is not a failing test, it is a
+ * deleted database. So the address is checked before anything connects to it,
+ * and only a loopback or private-network host gets through.
+ */
+export function assertLocalTarget(target: string, what: string): void {
+  let hostname: string
+  try {
+    hostname = target.includes('://') ? new URL(target).hostname : target
+  } catch {
+    throw new Error(`${what} is not a usable address: ${target}`)
+  }
+  if (isLocalHost(hostname)) return
+  throw new Error(
+    `${what} points at ${hostname}, which is not a local test stack. The suite truncates ` +
+      `every table before each test, so it refuses to run against anything but a throwaway ` +
+      `container (loopback or a private network address).`
+  )
+}

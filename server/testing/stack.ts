@@ -16,6 +16,7 @@ import { GenericContainer, Network, Wait, type StartedTestContainer } from 'test
 import { applyMigrations } from './schema.js'
 import {
   ANON_KEY,
+  assertLocalTarget,
   DB,
   FILES_BUCKET,
   GATEWAY_PORT,
@@ -227,8 +228,14 @@ export async function startSupabaseStack(): Promise<SupabaseStack> {
 
 /** Reuses a stack somebody else started (`TEST_SUPABASE_URL`), migrations included. */
 async function attachToStack(url: string): Promise<SupabaseStack> {
+  const dbHost = process.env.TEST_SUPABASE_DB_HOST ?? '127.0.0.1'
+  // Before the first connection, let alone the first truncate: this is the one
+  // path where the address comes from outside rather than from a container we
+  // just started.
+  assertLocalTarget(url, 'TEST_SUPABASE_URL')
+  assertLocalTarget(dbHost, 'TEST_SUPABASE_DB_HOST')
   const pool = new Pool({
-    host: process.env.TEST_SUPABASE_DB_HOST ?? '127.0.0.1',
+    host: dbHost,
     port: Number(process.env.TEST_SUPABASE_DB_PORT ?? 54322),
     user: DB.user,
     password: DB.password,

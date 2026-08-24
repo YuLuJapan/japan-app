@@ -14,7 +14,7 @@ npm run dev          # frontend on :3000 (Vite), API on :3001 (Express), run con
 npm run dev:web       # frontend only
 npm run dev:api       # API only (tsx watch server/dev.ts)
 
-npm test              # vitest run — both projects (web + server), 742 tests. Needs Docker: the run boots a real Supabase stack in containers (see Testing)
+npm test              # vitest run — both projects (web + server), 748 tests. Needs Docker: the run boots a real Supabase stack in containers (see Testing)
 npm run test:watch    # vitest watch mode
 npx vitest run server/tests/browse.test.ts        # single server test file
 npx vitest run src/tests/browse.test.tsx          # single web test file
@@ -101,6 +101,8 @@ The harness is `server/testing/`:
 - `schema.ts` — migrations, truncation, and `settleSchemaCache()`. PostgREST reloads its cache asynchronously and supabase/postgres queues further reloads behind a DDL event trigger, so readiness has to _hold_ for a second rather than merely be true once. Anything doing DDL mid-test (`withTableMissing`, `withColumnsMissing`, both in `db.ts`) goes through it and restores in a `finally`.
 
 Web tests get the same treatment: components fetch from that real API (`src/tests/setup.ts` points `VITE_API_BASE` at its port), a case arranges what it needs by writing rows (`src/tests/data.ts`) and signs in with a real token. What jsdom is given is the _browser_ it doesn't implement — `matchMedia`, `serviceWorker`, `Notification`, `PushManager`, `URL.createObjectURL`, layout rects, canvas (`src/tests/browser.ts`). Those are platform gaps, not stand-ins for app code: supplying them is what lets the real `push.ts` run. A few `vi.spyOn`s survive where the environment genuinely cannot go — a full-page OAuth redirect, mail with no SMTP, a promise held open to stand inside a race — and each carries a comment saying why.
+
+**Nothing in a test run can reach the live project.** The app's `SUPABASE_URL`/`SUPABASE_SECRET_KEY` are overwritten with the container's before `lib/supabase.ts` is ever imported (`global-setup.ts`, `server/testing/setup.ts`), no `.env` is loaded into the run, and the web setup file blanks `VITE_SUPABASE_*` in case Vite picked one up from a developer's `.env.local`. On top of that `assertLocalTarget()` (`stack-config.ts`) refuses any stack URL or database host that isn't loopback or a private address, checked before the first connection — because the truncate that gives each test a clean database would, pointed at a hosted project, simply delete it. The realistic accident is `TEST_SUPABASE_URL` copied from the dashboard, and that is exactly what it stops.
 
 Consequences worth knowing: a test that changes the schema must put it back; a fixture change is a database change, so it lands for every test in the run; and a failing suite can now mean the stack didn't come up (`docker ps`), not that the code broke.
 

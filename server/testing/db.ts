@@ -4,18 +4,24 @@
 import { Pool } from 'pg'
 import { inject } from 'vitest'
 import { settleSchemaCache } from './schema.js'
-import { DB } from './stack-config.js'
+import { assertLocalTarget, DB } from './stack-config.js'
 
 // Read once, at import: `inject` is only meaningful in a worker, and reaching
 // for it deep inside a helper makes a failure there look like a fixture bug.
 const restUrl = inject('supabaseUrl')
 
+// This pool is what `resetData` truncates through. Checked here, where the
+// address is still a value rather than an open connection.
+assertLocalTarget(restUrl, 'the test stack URL')
+
 let pool: Pool | null = null
 
 /** One pool per worker, opened on first use and closed by the setup file. */
 export function testDb(): Pool {
+  const host = inject('dbHost')
+  assertLocalTarget(host, 'the test database host')
   pool ??= new Pool({
-    host: inject('dbHost'),
+    host,
     port: inject('dbPort'),
     user: DB.user,
     password: DB.password,

@@ -92,6 +92,12 @@ what a stubbed client should return. What jsdom is given is the browser it
 doesn't implement (`matchMedia`, service workers, `Notification`, layout
 rects), which is what lets the real push and reminder code run.
 
+The suite cannot touch the hosted project. It overwrites the Supabase env vars
+with the container's before the app builds a client, loads no `.env` file, and
+refuses outright to start against a stack URL or database host that is not
+loopback or a private address — the truncate between tests would otherwise
+empty whatever it was pointed at.
+
 Iterating is faster against a stack you already have up:
 
 ```
