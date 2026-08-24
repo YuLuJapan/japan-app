@@ -5,7 +5,7 @@ import type { FlightInfo } from '../api/types'
 
 const flight: FlightInfo = {
   airline: 'Ethiopian Airlines',
-  booking_ref: 'AOXIUF',
+  booking_ref: 'ABC123',
   outbound: {
     depart_at: '2026-09-18T15:35:00+03:00',
     depart_tz: 'Asia/Jerusalem',
@@ -34,7 +34,7 @@ describe('CountdownWidget', () => {
 
     const timer = screen.getByRole('timer')
     expect(timer.textContent).toContain('02') // days
-    expect(screen.getByText('AOXIUF')).toBeTruthy()
+    expect(screen.getByText('ABC123')).toBeTruthy()
 
     for (const no of ['ET 419', 'ET 672', 'ET 673', 'ET 418']) {
       expect(screen.getByText(no)).toBeTruthy()

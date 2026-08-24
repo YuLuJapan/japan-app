@@ -17,7 +17,7 @@ const legless = { ...itinerary, legs: [] }
 
 const flight = {
   airline: 'Ethiopian Airlines',
-  booking_ref: 'AOXIUF',
+  booking_ref: 'ABC123',
   outbound: itinerary,
   return_flight: itinerary,
 }
@@ -34,7 +34,7 @@ describe('normalizeFlight', () => {
 
   it.each([
     ['a direction with no legs at all', { ...flight, outbound: legless, return_flight: legless }],
-    ['a string where an object belongs', 'AOXIUF'],
+    ['a string where an object belongs', 'ABC123'],
     ['an array', [flight]],
   ])('refuses %s rather than passing it on', (_case, value) => {
     expect(normalizeFlight(value)).toBeNull()
