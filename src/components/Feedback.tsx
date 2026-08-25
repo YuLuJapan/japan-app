@@ -89,9 +89,9 @@ function ToastCard({ toast }: { toast: Toast }) {
   return (
     <div
       role={tone.role}
-      className={`pointer-events-auto relative w-full animate-toast-in overflow-hidden rounded-[20px] bg-gradient-to-br ${tone.surface} pl-3 pr-2 py-3 text-white shadow-pop ring-1 ring-inset ring-white/20`}
+      className={`pointer-events-auto relative w-full animate-toast-in overflow-hidden rounded-[22px] bg-gradient-to-br ${tone.surface} ${tone.glow} py-3.5 pl-4 pr-3 text-white ring-1 ring-inset ring-white/20`}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3.5">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/20 text-white ring-1 ring-inset ring-white/25">
           <ToneIcon tone={toast.tone} />
         </span>
