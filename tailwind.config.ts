@@ -20,9 +20,21 @@ export default {
           400: '#F9873F',
           600: '#E3402F',
           700: '#C0392B',
+          // The deep end of the coral family, dark enough to carry white text
+          // at 14px — the failure toast is the only thing that needs it.
+          800: '#9E2B1E',
         },
         sun: '#F9873F',
         ocean: '#2bb6c4',
+        // The one colour the prototype never needed: "this worked". Coral
+        // already carries every warning in the app, so a confirmation cannot
+        // borrow it. Kept herbal and slightly warm (matcha rather than mint)
+        // so it sits on the rice-paper canvas next to the coral instead of
+        // arguing with it.
+        leaf: {
+          DEFAULT: '#157A57',
+          600: '#0C5B41',
+        },
       },
       fontFamily: {
         display: ['Outfit', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
@@ -46,9 +58,22 @@ export default {
           '0%': { transform: 'translateY(-120%)' },
           '100%': { transform: 'translateY(320%)' },
         },
+        // A toast arrives from the direction of the thumb that caused it.
+        'toast-in': {
+          '0%': { opacity: '0', transform: 'translateY(14px) scale(0.96)' },
+          '100%': { opacity: '1', transform: 'none' },
+        },
+        // The bar under a toast is its remaining life, drawn rather than
+        // guessed at — the duration is set per toast from lib/toast.
+        'toast-timer': {
+          '0%': { transform: 'scaleX(1)' },
+          '100%': { transform: 'scaleX(0)' },
+        },
       },
       animation: {
         trace: 'trace 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite',
+        'toast-in': 'toast-in 280ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'toast-timer': 'toast-timer linear forwards',
       },
       // Tailwind v3's default scale stops offering halves after 3.5, so the
       // `px-4.5` the card padding wants silently generates nothing (v4 has it

@@ -14,8 +14,12 @@ export interface Toast {
   message: string
 }
 
-/** How long a toast stays up. An error gets longer: it may need re-reading. */
-const LIFETIME: Record<ToastTone, number> = { success: 3200, error: 6000 }
+/**
+ * How long a toast stays up. An error gets longer: it may need re-reading.
+ * Exported because the toast draws the time it has left as a bar, and the bar
+ * has to run for exactly as long as the timer that will dismiss it.
+ */
+export const TOAST_LIFETIME: Record<ToastTone, number> = { success: 3200, error: 6000 }
 
 let toasts: Toast[] = []
 let nextId = 1
@@ -55,7 +59,7 @@ export function showToast(tone: ToastTone, message: string): number {
   toasts = [...toasts, { id, tone, message }]
   timers.set(
     id,
-    setTimeout(() => dismissToast(id), LIFETIME[tone])
+    setTimeout(() => dismissToast(id), TOAST_LIFETIME[tone])
   )
   emit()
   return id
