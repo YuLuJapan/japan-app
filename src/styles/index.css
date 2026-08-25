@@ -90,3 +90,15 @@
     animation: page-fade-in 220ms ease-out backwards;
   }
 }
+
+/* A toast is feedback, not decoration: with motion turned down it still has to
+   appear and still has to show how long it has left — it just does both
+   without travelling. The timer bar stops animating and stays drawn full. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-toast-in {
+    animation: none;
+  }
+  .animate-toast-timer {
+    animation: none;
+  }
+}
