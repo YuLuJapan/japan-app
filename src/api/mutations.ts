@@ -78,7 +78,11 @@ function refreshed(...work: Promise<unknown>[]): Promise<void> {
  * server renders — but nothing waits on it.
  */
 function reconcile(...work: Promise<unknown>[]): void {
-  void Promise.all(work)
+  // Caught rather than trusted: `invalidateQueries` does not reject today, but
+  // an unhandled rejection here would be captured and reported as an app error
+  // (posthog.ts `capture_unhandled_rejections`) — a background refresh is not
+  // worth a crash report.
+  void Promise.all(work).catch(() => undefined)
 }
 
 /**

@@ -167,3 +167,26 @@ describe('what is deliberately left to the refetch', () => {
     })
   })
 })
+
+describe('the patch does not replace the refresh', () => {
+  it('still refetches on the next visit, despite the fresh cache entry', async () => {
+    // Writing to the cache refreshes `dataUpdatedAt`, which could plausibly
+    // make a stale query look fresh and skip the reconciling refetch — the
+    // thing that catches whatever the response could not tell us. The
+    // invalidation that follows the patch is what makes sure it doesn't.
+    client.setQueryData(['zone', 'z1'], { zone: { id: 'z1' }, tips: [], files: [file] })
+    mocks.patch.mockResolvedValue({ file: { ...file, display_name: 'New name' } })
+
+    const { result } = renderHook(() => useRenameFile({ kind: 'zone', id: 'z1' }), { wrapper })
+    result.current.mutate({ fileId: 'f1', display_name: 'New name' })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    await waitFor(() => expect(client.getQueryState(['zone', 'z1'])?.isInvalidated).toBe(true))
+    const fetched = await client.fetchQuery({
+      queryKey: ['zone', 'z1'],
+      queryFn: () => Promise.resolve({ zone: { id: 'z1' }, tips: [], files: [] }),
+      staleTime: 60_000,
+    })
+    expect(fetched).toEqual({ zone: { id: 'z1' }, tips: [], files: [] })
+  })
+})
