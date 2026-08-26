@@ -15,6 +15,7 @@ import type {
   JourneyStep,
   JourneyStepInput,
   Place,
+  PlaceDetail,
   PlaceInput,
   Reminder,
   ReminderInput,
@@ -30,6 +31,10 @@ import type {
   ZoneDetail,
 } from './types'
 import type { SubscriptionPayload } from '../lib/push'
+
+/** The cached shapes the writes above reach into. */
+type ShoppingList = { items: ShoppingItem[] }
+type ItineraryList = { items: ItineraryItem[] }
 
 /**
  * How long a write waits for its own refetch before it stops holding the UI.
@@ -60,6 +65,59 @@ function refreshed(...work: Promise<unknown>[]): Promise<void> {
     Promise.all(work).then(() => undefined),
     new Promise<void>((resolve) => setTimeout(resolve, REFRESH_GRACE_MS)),
   ])
+}
+
+/**
+ * The invalidation a write triggers when the screen is *already* right.
+ *
+ * Where a response tells us exactly what changed, the cache is written from it
+ * (below) and there is nothing left to wait for: the row has already repainted
+ * and the confirmation should not be held for a round trip that only confirms
+ * what is on screen. The invalidation still goes out — to reconcile whatever
+ * could not be computed here, like a list whose rows carry a summary the
+ * server renders — but nothing waits on it.
+ */
+function reconcile(...work: Promise<unknown>[]): void {
+  void Promise.all(work)
+}
+
+/**
+ * Cache writes: put the server's own answer where the screen reads it, so the
+ * change is on screen before the refetch that would have brought it.
+ *
+ * The line these stop at: a row is patched when what is rendered follows from
+ * the row's own fields — a name, a category, whether something is bought (the
+ * shopping list *filters* on that, so a tick moves it between sections on the
+ * spot). It is left to the refetch when the **server owns the order**, as with
+ * the day plan, where an edit can move an item and a patched-in-place copy
+ * would show the right words in the wrong sequence for a moment. Correcting
+ * itself a beat later is the failure we are trying to stop, not a lesser one.
+ */
+const replaceById = <T extends { id: string }>(rows: T[], next: { id: string }): T[] =>
+  rows.map((row) => (row.id === next.id ? { ...row, ...next } : row))
+
+const removeById = <T extends { id: string }>(rows: T[], id: string): T[] =>
+  rows.filter((row) => row.id !== id)
+
+/** Anything the API hands back with a `files` array: the trip's, a zone's, a place's. */
+const holdsFiles = (data: unknown): data is { files: FileMeta[] } =>
+  !!data && typeof data === 'object' && Array.isArray((data as { files?: unknown }).files)
+
+/**
+ * A file is listed in three places — the trip's documents, its zone, its place
+ * — and which of them hold a copy is not knowable from here. So all three are
+ * walked, including the ones sitting inactive in the cache: the zone page
+ * opened later is then already right rather than right after a refetch.
+ */
+function patchCachedFiles(
+  qc: ReturnType<typeof useQueryClient>,
+  apply: (files: FileMeta[]) => FileMeta[]
+) {
+  for (const queryKey of [['trip-files'], ['zone'], ['place']]) {
+    qc.setQueriesData({ queryKey }, (data: unknown) =>
+      holdsFiles(data) ? { ...data, files: apply(data.files) } : data
+    )
+  }
 }
 
 function usePlaceInvalidation() {
@@ -130,6 +188,7 @@ export function useCreatePlace() {
 
 export function useUpdatePlace(placeId: string) {
   const path = useTripPath()
+  const qc = useQueryClient()
   const invalidate = usePlaceInvalidation()
   return useMutation({
     meta: { success: 'Place saved' },
@@ -137,7 +196,12 @@ export function useUpdatePlace(placeId: string) {
       api.patch<{ place: Place }>(path(`/places/${placeId}`), patch),
     onSuccess: (data, patch) => {
       capture('place_updated', { category: data.place.category, fields: changedFields(patch) })
-      return invalidate(data.place.zone_id, placeId)
+      qc.setQueryData(['place', placeId], (cached: PlaceDetail | undefined) =>
+        cached ? { ...cached, place: data.place } : cached
+      )
+      // The zone's category lists carry a `summary_line` the server renders,
+      // which cannot be derived from the place — that one is a real refetch.
+      reconcile(invalidate(data.place.zone_id, placeId))
     },
   })
 }
@@ -210,28 +274,39 @@ export function useCreateShoppingItem(tripId: string) {
 
 export function useUpdateShoppingItem() {
   const path = useTripPath()
+  const qc = useQueryClient()
   const invalidate = useShoppingInvalidation()
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<ShoppingItemInput> }) =>
       api.patch<{ item: ShoppingItem }>(path(`/shopping/${id}`), patch),
-    onSuccess: (_data, { patch }) => {
+    onSuccess: (data, { patch }) => {
       // Ticking something off is the list's main verb and worth telling apart
       // from editing it, so the flag rides along with the field names.
       capture('shopping_item_updated', { fields: changedFields(patch), bought: patch.bought })
-      return invalidate()
+      // The list filters on `bought`, so writing the row back moves it between
+      // "to buy" and "bought" on the spot — the one write here done constantly,
+      // often mid-shop on a bad connection.
+      qc.setQueriesData({ queryKey: ['shopping'] }, (cached: ShoppingList | undefined) =>
+        cached ? { ...cached, items: replaceById(cached.items, data.item) } : cached
+      )
+      reconcile(invalidate())
     },
   })
 }
 
 export function useDeleteShoppingItem() {
   const path = useTripPath()
+  const qc = useQueryClient()
   const invalidate = useShoppingInvalidation()
   return useMutation({
     meta: { success: 'Removed from the list' },
     mutationFn: (id: string) => api.delete<void>(path(`/shopping/${id}`)),
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
       capture('shopping_item_deleted')
-      return invalidate()
+      qc.setQueriesData({ queryKey: ['shopping'] }, (cached: ShoppingList | undefined) =>
+        cached ? { ...cached, items: removeById(cached.items, id) } : cached
+      )
+      reconcile(invalidate())
     },
   })
 }
@@ -292,9 +367,10 @@ export function useRenameFile(parent?: FileParent) {
     meta: { success: 'Name updated' },
     mutationFn: ({ fileId, display_name }: { fileId: string; display_name: string }) =>
       api.patch<{ file: FileMeta }>(path(`/files/${fileId}`), { display_name }),
-    onSuccess: (_data, _input) => {
+    onSuccess: (data) => {
       capture('file_renamed', { parent_type: parent?.kind ?? 'trip' })
-      return invalidateFileCaches(qc)
+      patchCachedFiles(qc, (files) => replaceById(files, data.file))
+      reconcile(invalidateFileCaches(qc))
     },
   })
 }
@@ -305,7 +381,10 @@ export function useDeleteFile() {
   return useMutation({
     meta: { success: 'Document deleted' },
     mutationFn: (fileId: string) => api.delete<void>(path(`/files/${fileId}`)),
-    onSuccess: () => invalidateFileCaches(qc),
+    onSuccess: (_data, fileId) => {
+      patchCachedFiles(qc, (files) => removeById(files, fileId))
+      reconcile(invalidateFileCaches(qc))
+    },
   })
 }
 
@@ -347,13 +426,19 @@ export function useUpdateItineraryItem() {
 
 export function useDeleteItineraryItem() {
   const path = useTripPath()
+  const qc = useQueryClient()
   const invalidate = useItineraryInvalidation()
   return useMutation({
     meta: { success: 'Activity removed' },
     mutationFn: (id: string) => api.delete<void>(path(`/itinerary/${id}`)),
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
       capture('itinerary_item_deleted')
-      return invalidate()
+      // Safe where an edit would not be: taking a row out cannot disturb the
+      // order of the rows that remain.
+      qc.setQueriesData({ queryKey: ['itinerary'] }, (cached: ItineraryList | undefined) =>
+        cached ? { ...cached, items: removeById(cached.items, id) } : cached
+      )
+      reconcile(invalidate())
     },
   })
 }
