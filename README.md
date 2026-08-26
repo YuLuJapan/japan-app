@@ -203,13 +203,29 @@ app captures on its own actions (`place_created`, `trip_member_invited`,
 `notifications_enabled`, …). Signed-in people are identified by their Supabase
 user id, with email and name as person properties.
 
+Events carry properties describing the _shape_ of what happened — a category,
+a count, a flag, the _names_ of the fields an edit touched — and, while a trip
+is open, that trip's country, destination (Japan or not), length, number of
+travellers, currency, phase (upcoming/active/past), id and your role on it.
+Those ride along as PostHog super properties, so any event or pageview can be
+grouped by them: trips per country, how much editing happens mid-trip, which
+categories fill up first. Every event this app can send is declared in
+`src/lib/analytics-events.ts`.
+
+Failures are reported too: an API call that comes back 4xx/5xx, or never
+leaves the phone, is sent as an exception with its status, error code, HTTP
+method and route — the route with its ids stripped, so `/trips/:id/places`
+groups. The error _message_ is deliberately not sent.
+
 What deliberately does _not_ get collected: **autocapture and session
 recording are both off.** Autocapture sends the text of whatever was clicked,
 and in this app that text is the trip's private content — a hotel's
 reservation details, or the shopping list, where an item _is_ the present. The
 same reasoning that lets a viewer be cut off from a whole category applies to
-what leaves the device. If you add an event, keep trip content out of its
-properties.
+what leaves the device. If you add an event, declare it in
+`src/lib/analytics-events.ts` and keep trip content out of its properties —
+the guard there drops a property that names free text, but it is a backstop,
+not a licence.
 
 Free tier covers this: PostHog's is 1M events/month, far beyond two phones.
 

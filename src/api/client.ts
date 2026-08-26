@@ -11,7 +11,14 @@ export class ApiError extends Error {
     public status: number,
     public code: string,
     message: string,
-    public details?: string[]
+    public details?: string[],
+    /**
+     * Which call failed. Not shown to anyone — it is what makes a production
+     * error report actionable (lib/posthog.ts `errorProperties`), since a
+     * status and a code alone never say which route produced them.
+     */
+    public method?: string,
+    public path?: string
   ) {
     super(message)
   }
@@ -28,6 +35,7 @@ export const clearAccessCode = () => {
 
 async function send(path: string, init: RequestInit = {}): Promise<Response> {
   const code = getAccessCode()
+  const method = init.method ?? 'GET'
   let res: Response
   try {
     res = await fetch(`/api${path}`, {
@@ -39,7 +47,14 @@ async function send(path: string, init: RequestInit = {}): Promise<Response> {
       },
     })
   } catch {
-    throw new ApiError(0, 'NETWORK', 'No connection — check your internet and retry')
+    throw new ApiError(
+      0,
+      'NETWORK',
+      'No connection — check your internet and retry',
+      undefined,
+      method,
+      path
+    )
   }
   if (!res.ok) {
     const err = (await res.json().catch(() => null))?.error ?? {}
@@ -54,7 +69,9 @@ async function send(path: string, init: RequestInit = {}): Promise<Response> {
       res.status,
       err.code ?? 'INTERNAL',
       err.message ?? 'Request failed',
-      err.details
+      err.details,
+      method,
+      path
     )
   }
   return res

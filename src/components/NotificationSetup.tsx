@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react'
 import { usePushKey } from '../api/hooks'
 import { InstallHelpSheet } from './InstallPrompt'
 import { capture } from '../lib/posthog'
+import { installPlatform } from '../lib/install'
 import {
   syncPushSubscription,
   useRegisterPush,
@@ -69,7 +70,9 @@ export function NotificationSetup() {
     try {
       const payload = await enablePush(publicKey, deviceLabel())
       await register.mutateAsync(payload)
-      capture('notifications_enabled')
+      // iOS only reaches this line from the installed app, so the platform is
+      // what tells "nobody wants notifications" apart from "nobody could".
+      capture('notifications_enabled', { platform: installPlatform() })
       setEnabled(true)
       setMessage('Notifications are on for this phone.')
     } catch (err) {
@@ -86,7 +89,7 @@ export function NotificationSetup() {
       const endpoint = await disablePush()
       // 404 just means the server row was already gone — nothing to recover from
       if (endpoint) await unregister.mutateAsync(endpoint).catch(() => undefined)
-      capture('notifications_disabled')
+      capture('notifications_disabled', { platform: installPlatform() })
       setEnabled(false)
       setMessage('Notifications are off on this phone.')
     } finally {
@@ -101,7 +104,7 @@ export function NotificationSetup() {
     else if (result.sent === 0)
       setMessage('No device is subscribed yet — turn notifications on first.')
     else {
-      capture('test_notification_sent')
+      capture('test_notification_sent', { devices: result.sent })
       setMessage(`Test sent to ${result.sent} device${result.sent === 1 ? '' : 's'}.`)
     }
   }

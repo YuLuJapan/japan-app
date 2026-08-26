@@ -25,7 +25,7 @@ export default function PlaceDetail() {
   const { data, error, isPending, isError, refetch } = usePlace(placeId)
   const trip = useTrip(tripId)
   const [confirming, setConfirming] = useState(false)
-  const deletePlace = useDeletePlace(data?.place.zone_id)
+  const deletePlace = useDeletePlace(data?.place.zone_id, data?.place.category)
 
   if (isPending) return <Loading />
   // A stay is refused outright for a guest code (the booking lives in it), so

@@ -163,7 +163,13 @@ export function Privacy() {
       <p>
         We use PostHog to see which screens are used and whether things are breaking. It records
         events like &ldquo;a place was added&rdquo; and which screen was opened, tied to your
-        account id.
+        account id, along with a description of the trip you were on at the time &mdash; its
+        country, how long it is, how many people are on it, its currency, and whether it has started
+        &mdash; so we can tell, say, a two-week trip from a weekend one.
+      </p>
+      <p>
+        When a request to our server fails, we also record that it failed: what went wrong, and
+        which part of the app asked. Never what you had typed.
       </p>
       <p>
         <strong>It does not record your trip content.</strong> Automatic click-capture and session
