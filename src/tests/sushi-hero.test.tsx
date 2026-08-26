@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { SushiSequence, pinLengthFor, skipLegs } from '../components/SushiSequence'
+import {
+  SushiSequence,
+  computeView,
+  pinLengthFor,
+  safeCentre,
+  skipLegs,
+} from '../components/SushiSequence'
 
 // jsdom has no 2D context, so the canvas half of the hero bails out early and
 // what is left is exactly what these tests care about: the escape hatch out of
@@ -78,6 +84,53 @@ describe('pinLengthFor', () => {
 
   it('leaves an end it cannot do the arithmetic on alone', () => {
     expect(pinLengthFor('+=800px')).toBe('+=800px')
+  })
+})
+
+describe('computeView', () => {
+  // The nigiri's own centre in the source frames, measured over the whole
+  // sequence (see SAFE): x 436–841 of a 1280-wide frame. The cast shadow sits
+  // well to the right of it, and framing on food-plus-shadow is exactly what
+  // used to drag the food off-centre.
+  const FOOD = { cx: 638.5, cy: 352 }
+  const foodCentreX = (cssW: number, cssH: number) => {
+    const view = computeView(cssW, cssH)
+    return view.dx + FOOD.cx * (view.dw / 1280)
+  }
+
+  it('puts the nigiri in the middle of a phone-shaped stage', () => {
+    // 390×844 minus the sticky header: width is what constrains here, so the
+    // frame is far wider than the stage and nothing clamps the horizontal fit.
+    expect(Math.abs(foodCentreX(390, 772) - 195)).toBeLessThan(1)
+  })
+
+  it('keeps it there on a wide desktop stage, where height constrains instead', () => {
+    expect(Math.abs(foodCentreX(1440, 728) - 720)).toBeLessThan(1)
+  })
+
+  it('centres the safe box on the stage when nothing has to be clamped', () => {
+    expect(safeCentre(computeView(390, 772)).x).toBeCloseTo(195, 5)
+  })
+
+  it('never leaves a gap at the edge of the stage', () => {
+    // The clamp: whenever the drawn frame covers the stage it must keep
+    // covering it, even if that means giving up on centring SAFE exactly.
+    for (const [w, h] of [
+      [390, 772],
+      [1440, 728],
+      [820, 400],
+      [300, 1200],
+    ]) {
+      const { dx, dy, dw, dh } = computeView(w, h)
+      if (dw >= w) {
+        expect(dx).toBeLessThanOrEqual(0)
+        expect(dx + dw).toBeGreaterThanOrEqual(w)
+      }
+      if (dh >= h) {
+        expect(dy).toBeLessThanOrEqual(0)
+        expect(dy + dh).toBeGreaterThanOrEqual(h)
+      }
+    }
   })
 })
 

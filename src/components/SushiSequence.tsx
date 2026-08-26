@@ -62,12 +62,19 @@ const IH = FRAME_HEIGHT
 // whole image, so the food stays large on a phone instead of sitting small in
 // the middle of a mostly empty frame.
 //
-// Measured, not estimated: across the sequence the opaque pixels span x 435–882
-// and y 98–629 (the piece rises and spreads as it comes apart), so the box is
-// 447 × 531 around (658, 364), plus ~4% air. The earlier hand-set box was a
-// fifth wider than the artwork ever gets, which drew everything ~15% smaller
-// than it needed to be and left the hero looking empty.
-const SAFE = { cx: 658, cy: 364, w: 465, h: 552 }
+// Measured, not estimated — and measured on the *food*, not on every pixel
+// that isn't transparent. The frames carry a cast shadow as well (see
+// extract_shadow in scripts/remove-sushi-background.py), and the studio light
+// throws it sideways: across the sequence the food spans x 436–841 while the
+// food-plus-shadow span is x 433–892, an overhang of 51px on the right against
+// 3px on the left. Centring on that wider span put cx at 658, which drew the
+// nigiri itself ~20 source px left of the stage's middle — visibly off-centre
+// on a phone, where the artwork is scaled ~2×. The food's own centre is 638.
+//
+// Vertically the food spans y 99–605 (the piece rises and spreads as it comes
+// apart) and its shadow reaches 632, so the box is grown downwards to keep the
+// shadow from being cropped on a wide, short stage.
+const SAFE = { cx: 638, cy: 364, w: 465, h: 552 }
 
 const MAX_DPR = 2
 
@@ -171,13 +178,19 @@ function pickStep() {
   return window.innerWidth < 768 ? 2 : 1
 }
 
-type View = { dx: number; dy: number; dw: number; dh: number; cssW: number; cssH: number }
+export type View = { dx: number; dy: number; dw: number; dh: number; cssW: number; cssH: number }
+
+/** Where SAFE's centre lands on the stage, in CSS pixels. Exported for tests. */
+export function safeCentre(view: View) {
+  const scale = view.dw / IW
+  return { x: view.dx + SAFE.cx * scale, y: view.dy + SAFE.cy * scale }
+}
 
 /**
  * Fit a frame to the stage: never smaller than "contain", but zoomed in far
  * enough that SAFE fills the box. Returns the destination rect.
  */
-function computeView(cssW: number, cssH: number): View {
+export function computeView(cssW: number, cssH: number): View {
   const contain = Math.min(cssW / IW, cssH / IH)
   const fillSafe = Math.min(cssW / SAFE.w, cssH / SAFE.h)
   const scale = Math.max(contain, fillSafe)
