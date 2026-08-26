@@ -105,7 +105,13 @@ export function Layout({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true
     if (remindersActive) {
-      clearReminderBadge().then(() => active && setUnseenReminder(false))
+      // Caught for the same reason as the read below: this is a red dot, and
+      // nothing about it is worth surfacing as an app error. An unhandled
+      // rejection here was reported as a crash from every iOS Safari tab that
+      // opened this screen, long before anyone noticed the dot stayed lit.
+      clearReminderBadge()
+        .then(() => active && setUnseenReminder(false))
+        .catch(() => active && setUnseenReminder(false))
     } else {
       hasUnseenReminder()
         .then((unseen) => active && setUnseenReminder(unseen))

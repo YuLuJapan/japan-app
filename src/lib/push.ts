@@ -120,13 +120,26 @@ export async function hasUnseenReminder(): Promise<boolean> {
   return notifications.length > 0
 }
 
-/** Dismisses the tray notification(s) and the Home Screen icon badge alike. */
+/**
+ * Dismisses the tray notification(s) and the Home Screen icon badge alike.
+ *
+ * Two independent APIs, so neither waits on the other: the icon badge is
+ * `navigator.clearAppBadge`, while the tray is reached through the service
+ * worker registration — and `getNotifications` is not a service worker method
+ * at all. It belongs to the *Notifications* API, which extends the
+ * registration only where notifications exist. A browser can perfectly well
+ * have one and not the other, and this app already has a name for that state:
+ * iOS Safari in a tab is `needs-install`, with a registration and no
+ * `Notification`. Guarding the tray on `pushSupport` rather than on the
+ * registration being non-null is what tells those apart — `registration?.`
+ * only ever asked whether the *object* was there, and the object is.
+ */
 export async function clearReminderBadge(): Promise<void> {
-  const registration =
-    'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined
+  if ('clearAppBadge' in navigator) await navigator.clearAppBadge().catch(() => undefined)
+  if (pushSupport() !== 'ready') return
+  const registration = await navigator.serviceWorker.getRegistration()
   const notifications = (await registration?.getNotifications()) ?? []
   notifications.forEach((notification) => notification.close())
-  if ('clearAppBadge' in navigator) await navigator.clearAppBadge().catch(() => undefined)
 }
 
 /** A human name for this device, so the subscription list is readable. */

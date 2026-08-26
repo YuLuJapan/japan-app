@@ -7,7 +7,23 @@ afterEach(() => {
   delete navigator.serviceWorker
   // @ts-expect-error test-only cleanup of stubbed navigator properties
   delete navigator.clearAppBadge
+  // Left behind, this makes the *next* test's browser look push-capable —
+  // which is exactly the support state these tests turn on.
+  // @ts-expect-error test-only cleanup of a stubbed global
+  delete window.PushManager
 })
+
+/**
+ * A browser with service workers and no notifications: iOS Safari in a tab,
+ * which this app calls `needs-install`. The registration is real; the
+ * Notifications API's extension to it — `getNotifications` — is not there.
+ */
+function stubWithoutNotifications() {
+  Object.defineProperty(navigator, 'serviceWorker', {
+    configurable: true,
+    value: { getRegistration: () => Promise.resolve({}) },
+  })
+}
 
 function stubReady(notifications: { close: () => void }[]) {
   Object.defineProperty(window, 'PushManager', { configurable: true, value: function () {} })
@@ -33,15 +49,16 @@ describe('hasUnseenReminder', () => {
   it('is true when a notification is still in the tray', async () => {
     stubReady([{ close: vi.fn() }])
     expect(await hasUnseenReminder()).toBe(true)
-    // @ts-expect-error test-only cleanup
-    delete window.PushManager
   })
 
   it('is false once the tray is empty', async () => {
     stubReady([])
     expect(await hasUnseenReminder()).toBe(false)
-    // @ts-expect-error test-only cleanup
-    delete window.PushManager
+  })
+
+  it('never asks a browser that has no notifications at all', async () => {
+    stubWithoutNotifications()
+    await expect(hasUnseenReminder()).resolves.toBe(false)
   })
 })
 
@@ -60,7 +77,21 @@ describe('clearReminderBadge', () => {
 
     expect(close).toHaveBeenCalledTimes(2)
     expect(clearAppBadge).toHaveBeenCalledTimes(1)
-    // @ts-expect-error test-only cleanup
-    delete window.PushManager
+  })
+
+  it('leaves the tray alone where getNotifications does not exist', async () => {
+    // iOS Safari in a tab: a registration, and no Notifications API on it.
+    // `registration?.getNotifications()` only ever checked that the *object*
+    // was there — and it is — so this threw a TypeError, which reached the
+    // Reminders tab as an unhandled rejection and was reported as an app
+    // error on every visit.
+    const clearAppBadge = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clearAppBadge', { configurable: true, value: clearAppBadge })
+    stubWithoutNotifications()
+
+    await expect(clearReminderBadge()).resolves.toBeUndefined()
+    // The icon badge is a separate API and is cleared regardless — a missing
+    // tray is no reason to leave a dot on the Home Screen icon.
+    expect(clearAppBadge).toHaveBeenCalledTimes(1)
   })
 })
