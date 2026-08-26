@@ -1,7 +1,7 @@
 // Feedback for writes: something moves while the request is out, and something
 // is said when it lands. Both are read off the mutation cache rather than
 // wired into each form, so this exercises the cache, not any one screen.
-import { QueryClientProvider, useMutation } from '@tanstack/react-query'
+import { QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -120,5 +120,70 @@ describe('feedback for a write', () => {
 
     await waitFor(() => expect(queryClient.isMutating()).toBe(0))
     expect(screen.getAllByText("That didn't save — try again.")).toHaveLength(1)
+  })
+})
+
+describe('when the toast is allowed to speak', () => {
+  /**
+   * The bug this pins: "Saved" appearing a beat before the saved thing does.
+   * A mutation returns its invalidations, query-core awaits them, and only
+   * then does the MutationCache's `onSettled` say anything — so the
+   * confirmation and the new value land together, however slow the refetch.
+   */
+  function Screen({ fetchMs }: { fetchMs: number }) {
+    const { data } = useQuery({
+      queryKey: ['thing'],
+      queryFn: () => later(state.value, fetchMs),
+      staleTime: 60_000,
+    })
+    const save = useMutation({
+      meta: { success: 'Place saved' },
+      mutationFn: async () => {
+        state.value = 'new' // the server now holds the new value
+        return 'ok'
+      },
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: ['thing'] }),
+    })
+    return (
+      <>
+        <p data-testid="value">{data ?? '—'}</p>
+        <button type="button" onClick={() => save.mutate()}>
+          Save
+        </button>
+      </>
+    )
+  }
+
+  const state = { value: 'old' }
+
+  afterEach(() => {
+    state.value = 'old'
+    queryClient.clear()
+  })
+
+  it('waits for the refetched value to be on screen', async () => {
+    const user = userEvent.setup()
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Screen fetchMs={300} />
+        <Feedback />
+      </QueryClientProvider>
+    )
+    await waitFor(() => expect(screen.getByTestId('value')).toHaveTextContent('old'))
+
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    // The moment the toast appears, the screen must already agree with it.
+    await screen.findByText('Place saved', {}, { timeout: 2000 })
+    expect(screen.getByTestId('value')).toHaveTextContent('new')
+  })
+
+  it('still says so when there is nothing to refetch', async () => {
+    // A mutation with no invalidations resolves immediately — the toast must
+    // not wait for something that will never happen.
+    const user = userEvent.setup()
+    renderHarness({ run: () => later('ok', 10), meta: { success: 'Reminder set' } })
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText('Reminder set')).toBeInTheDocument()
   })
 })
