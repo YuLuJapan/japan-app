@@ -2,8 +2,9 @@
 // which renders the document in the app rather than downloading it (FR-008).
 // Load failures, incl. FILE_MISSING, are explained there (FR-013).
 // When `deletable` is set, each file gets a confirmed delete, and — behind the
-// `files-rename` flag — an inline rename (the parent is passed for cache
-// invalidation, which both writes need).
+// `files-rename` flag — an inline rename. `deletable` says whether to offer
+// them and, for the rename, which parent to report to analytics; the cache
+// refresh deliberately does not depend on it (see `invalidateFileCaches`).
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDeleteFile, useRenameFile } from '../api/mutations'
@@ -35,7 +36,7 @@ export function FileList({ files, deletable }: { files: FileMeta[]; deletable?: 
   const [deleting, setDeleting] = useState<FileMeta | null>(null)
   const [renaming, setRenaming] = useState<FileMeta | null>(null)
   const [draft, setDraft] = useState('')
-  const remove = useDeleteFile(deletable)
+  const remove = useDeleteFile()
   const rename = useRenameFile(deletable)
 
   const startRename = (file: FileMeta) => {

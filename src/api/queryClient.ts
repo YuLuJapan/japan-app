@@ -28,11 +28,24 @@ export const queryClient = new QueryClient({
   // form was left on screen to hold the error. Reading the outcome off the
   // cache means every mutation is covered, including the ones added next.
   mutationCache: new MutationCache({
-    onSuccess: (_data, _variables, _context, mutation) => {
+    // `onSettled`, not `onSuccess`, and the difference is the whole point.
+    //
+    // The order query-core runs these in is: cache `onSuccess`, then the
+    // mutation's own `onSuccess` — *awaited* — then this. A mutation that
+    // returns its invalidations from `onSuccess` (they all do) therefore has
+    // its refetches finished by the time this runs, so "Place saved" lands
+    // with the saved place on screen rather than a second before it. The old
+    // order was only invisible on a fast connection: on a slow one the toast
+    // confirmed a change that was still not there, which is the one moment
+    // someone looks up to check.
+    onSettled: (_data, error, _variables, _context, mutation) => {
+      if (error) return // the failure already spoke, below
       const { success, toast } = feedbackOf(mutation.meta)
       if (toast === false || !success) return
       showToast('success', success)
     },
+    // Failures speak immediately — there is nothing to wait for, and a
+    // refetch after a failed write would only confirm the old state.
     onError: (error, _variables, _context, mutation) => {
       // Reported before the toast, and regardless of whether there is one: a
       // mutation that reports itself still failed, and `toast: false` only
