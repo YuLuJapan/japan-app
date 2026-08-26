@@ -197,10 +197,26 @@ export function useDeleteShoppingItem() {
   })
 }
 
-function invalidateForFileParent(qc: ReturnType<typeof useQueryClient>, parent?: FileParent) {
+/**
+ * Every cache that can hold a file's name or count, after any write to one.
+ *
+ * Deliberately blunt. This used to invalidate only the parent it was handed —
+ * `['zone', thatZone]` and nothing else — which is correct exactly as long as
+ * every call site passes the file's true parent, and silently wrong the moment
+ * one doesn't: the document list refreshes, the zone page keeps the old name,
+ * and the only way back is a manual reload. That failure is invisible in
+ * review and days late in use, which is a bad trade for a saved refetch.
+ *
+ * The cost is small and deferred: these are inactive queries, so nothing is
+ * fetched now — each screen refetches once, the next time it is opened.
+ * `['trip']` is in the list because the trip home shows `trip_files_count`,
+ * which an upload or a delete moves.
+ */
+function invalidateFileCaches(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ['trip-files'] })
-  if (parent?.kind === 'zone') qc.invalidateQueries({ queryKey: ['zone', parent.id] })
-  if (parent?.kind === 'place') qc.invalidateQueries({ queryKey: ['place', parent.id] })
+  qc.invalidateQueries({ queryKey: ['zone'] })
+  qc.invalidateQueries({ queryKey: ['place'] })
+  qc.invalidateQueries({ queryKey: ['trip'] })
 }
 
 export function useUploadFile(tripId: string) {
@@ -216,7 +232,7 @@ export function useUploadFile(tripId: string) {
         // base64 runs about 4 characters to every 3 bytes.
         size_kb: Math.round((input.data_base64.length * 3) / 4 / 1024),
       })
-      invalidateForFileParent(qc, input.parent)
+      invalidateFileCaches(qc)
     },
   })
 }
@@ -224,9 +240,9 @@ export function useUploadFile(tripId: string) {
 /**
  * Rename a file. The blob is untouched — only what it is called.
  *
- * `parent` is the same argument the delete takes, and for the same reason:
- * a file shows up in the trip's document list *and* under its zone or place,
- * so all three caches have to hear about it.
+ * `parent` is here for the event, not the cache: where the file hangs is worth
+ * knowing about ("does anyone rename the ones attached to places?"), while the
+ * refresh deliberately does not depend on it — see `invalidateFileCaches`.
  */
 export function useRenameFile(parent?: FileParent) {
   const path = useTripPath()
@@ -237,18 +253,18 @@ export function useRenameFile(parent?: FileParent) {
       api.patch<{ file: FileMeta }>(path(`/files/${fileId}`), { display_name }),
     onSuccess: (_data, _input) => {
       capture('file_renamed', { parent_type: parent?.kind ?? 'trip' })
-      invalidateForFileParent(qc, parent)
+      invalidateFileCaches(qc)
     },
   })
 }
 
-export function useDeleteFile(parent?: FileParent) {
+export function useDeleteFile() {
   const path = useTripPath()
   const qc = useQueryClient()
   return useMutation({
     meta: { success: 'Document deleted' },
     mutationFn: (fileId: string) => api.delete<void>(path(`/files/${fileId}`)),
-    onSuccess: () => invalidateForFileParent(qc, parent),
+    onSuccess: () => invalidateFileCaches(qc),
   })
 }
 
