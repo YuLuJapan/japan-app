@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { Navigate, Outlet, createBrowserRouter, useParams } from 'react-router-dom'
 import { getAccessCode } from './api/client'
+import { setTripContext, tripContext } from './lib/posthog'
 import { Layout } from './components/Layout'
 import { useTrip } from './api/hooks'
 import {
@@ -52,6 +54,17 @@ function RequireAccess() {
 function TripLayout() {
   const { tripId = '' } = useParams<{ tripId: string }>()
   const trip = useTrip(tripId)
+  const bundle = trip.data
+
+  // What kind of trip this is, on every event sent from inside it — including
+  // the $pageviews PostHog sends itself, which no call site of ours could
+  // annotate. Cleared on the way out, because a country left registered would
+  // label the trips list, and the next trip, with the last one's.
+  useEffect(() => {
+    if (bundle) setTripContext(tripContext(bundle.trip, bundle.my_role))
+    return () => setTripContext(null)
+  }, [bundle])
+
   return (
     <TripRoleContext.Provider value={trip.data?.my_role ?? null}>
       <TripShowsContext.Provider

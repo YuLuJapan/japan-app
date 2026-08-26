@@ -2,9 +2,11 @@
 // the other traveler's phone via refetch-on-focus (FR-018).
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
-import { capture } from '../lib/posthog'
+import { capture, tripFacts } from '../lib/posthog'
+import type { PlaceFacts } from '../lib/analytics-events'
 import { useTripPath } from './tripPath'
 import type {
+  Category,
   FileMeta,
   FileParent,
   FileUploadInput,
@@ -41,14 +43,52 @@ function usePlaceInvalidation() {
   }
 }
 
+/**
+ * What a place is, with nothing it says. `name`, `description` and the link
+ * URLs are the reservation on a `hotel` — see lib/trip-view.ts — so only their
+ * presence travels.
+ */
+const placeFacts = (input: PlaceInput): PlaceFacts => ({
+  category: input.category,
+  has_address: Boolean(input.address),
+  has_coords: input.lat != null && input.lng != null,
+  has_photo: Boolean(input.image_url),
+  links: input.links?.length ?? 0,
+})
+
+/**
+ * Which fields an edit touched, by name.
+ *
+ * A PATCH body is entirely content, but its *keys* are the API's own field
+ * names — that is what answers "is anyone using the map, or just the notes?"
+ * without carrying a single word anybody typed.
+ */
+const changedFields = (patch: object): string[] => Object.keys(patch).sort()
+
+const MS_PER_HOUR = 60 * 60 * 1000
+
+/** Nights a stop covers — the gap between its two dates, 0 if either is junk. */
+const nightsBetween = (start: string, end: string): number => {
+  const from = Date.parse(`${start}T00:00:00Z`)
+  const to = Date.parse(`${end}T00:00:00Z`)
+  if (Number.isNaN(from) || Number.isNaN(to)) return 0
+  return Math.max(0, Math.round((to - from) / (24 * MS_PER_HOUR)))
+}
+
+/** How far ahead a reminder was set, to the hour. Negative means in the past. */
+const hoursFromNow = (instant: string): number => {
+  const at = Date.parse(instant)
+  return Number.isNaN(at) ? 0 : Math.round((at - Date.now()) / MS_PER_HOUR)
+}
+
 export function useCreatePlace() {
   const path = useTripPath()
   const invalidate = usePlaceInvalidation()
   return useMutation({
     meta: { success: 'Place added' },
     mutationFn: (input: PlaceInput) => api.post<{ place: Place }>(path('/places'), input),
-    onSuccess: (data) => {
-      capture('place_created')
+    onSuccess: (data, input) => {
+      capture('place_created', placeFacts(input))
       invalidate(data.place.zone_id, data.place.id)
     },
   })
@@ -61,14 +101,15 @@ export function useUpdatePlace(placeId: string) {
     meta: { success: 'Place saved' },
     mutationFn: (patch: Partial<PlaceInput>) =>
       api.patch<{ place: Place }>(path(`/places/${placeId}`), patch),
-    onSuccess: (data) => {
-      capture('place_updated')
+    onSuccess: (data, patch) => {
+      capture('place_updated', { category: data.place.category, fields: changedFields(patch) })
       invalidate(data.place.zone_id, placeId)
     },
   })
 }
 
-export function useDeletePlace(zoneId: string | undefined) {
+/** `category` is only for the event — the request needs the id alone. */
+export function useDeletePlace(zoneId: string | undefined, category?: Category) {
   const path = useTripPath()
   const invalidate = usePlaceInvalidation()
   const qc = useQueryClient()
@@ -76,7 +117,7 @@ export function useDeletePlace(zoneId: string | undefined) {
     meta: { success: 'Place deleted' },
     mutationFn: (placeId: string) => api.delete<void>(path(`/places/${placeId}`)),
     onSuccess: (_data, placeId) => {
-      capture('place_deleted')
+      capture('place_deleted', { category })
       qc.removeQueries({ queryKey: ['place', placeId] })
       invalidate(zoneId)
       qc.invalidateQueries({ queryKey: ['trip-files'] }) // deleted place's files re-parent to trip
@@ -100,8 +141,8 @@ export function useUpdateZone(zoneId: string) {
     meta: { success: 'Photo updated' },
     mutationFn: (patch: { image_url: string | null }) =>
       api.patch<{ zone: ZoneDetail['zone'] }>(path(`/zones/${zoneId}`), patch),
-    onSuccess: () => {
-      capture('zone_image_updated')
+    onSuccess: (_data, patch) => {
+      capture('zone_image_updated', { cleared: patch.image_url === null })
       qc.invalidateQueries({ queryKey: ['zone', zoneId] })
       // The photo is on the journey cards too, so the bundle is now stale.
       qc.invalidateQueries({ queryKey: ['trip'] })
@@ -115,8 +156,14 @@ export function useCreateShoppingItem(tripId: string) {
     meta: { success: 'Added to the list' },
     mutationFn: (input: ShoppingItemInput) =>
       api.post<{ item: ShoppingItem }>(`/trips/${tripId}/shopping`, input),
-    onSuccess: () => {
-      capture('shopping_item_created')
+    onSuccess: (_data, input) => {
+      capture('shopping_item_created', {
+        category: input.category ?? 'unset',
+        has_price: input.price_yen != null,
+        has_link: Boolean(input.url),
+        has_photo: Boolean(input.image_url),
+        has_shop: Boolean(input.shop),
+      })
       invalidate()
     },
   })
@@ -128,8 +175,10 @@ export function useUpdateShoppingItem() {
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<ShoppingItemInput> }) =>
       api.patch<{ item: ShoppingItem }>(path(`/shopping/${id}`), patch),
-    onSuccess: () => {
-      capture('shopping_item_updated')
+    onSuccess: (_data, { patch }) => {
+      // Ticking something off is the list's main verb and worth telling apart
+      // from editing it, so the flag rides along with the field names.
+      capture('shopping_item_updated', { fields: changedFields(patch), bought: patch.bought })
       invalidate()
     },
   })
@@ -161,7 +210,12 @@ export function useUploadFile(tripId: string) {
     mutationFn: (input: FileUploadInput) =>
       api.post<{ file: FileMeta }>(`/trips/${tripId}/files`, input),
     onSuccess: (_data, input) => {
-      capture('file_uploaded', { parent_type: input.parent.kind })
+      capture('file_uploaded', {
+        parent_type: input.parent.kind,
+        mime_type: input.mime_type,
+        // base64 runs about 4 characters to every 3 bytes.
+        size_kb: Math.round((input.data_base64.length * 3) / 4 / 1024),
+      })
       invalidateForFileParent(qc, input.parent)
     },
   })
@@ -188,8 +242,12 @@ export function useCreateItineraryItem(tripId: string) {
     meta: { success: 'Added to the day' },
     mutationFn: (input: ItineraryItemInput) =>
       api.post<{ item: ItineraryItem }>(`/trips/${tripId}/itinerary`, input),
-    onSuccess: () => {
-      capture('itinerary_item_created')
+    onSuccess: (_data, input) => {
+      capture('itinerary_item_created', {
+        has_place: Boolean(input.place_id),
+        has_time: Boolean(input.start_time),
+        highlight: Boolean(input.highlight),
+      })
       invalidate()
     },
   })
@@ -202,8 +260,8 @@ export function useUpdateItineraryItem() {
     meta: { success: 'Activity saved' },
     mutationFn: ({ id, patch }: { id: string; patch: Partial<ItineraryItemInput> }) =>
       api.patch<{ item: ItineraryItem }>(path(`/itinerary/${id}`), patch),
-    onSuccess: () => {
-      capture('itinerary_item_updated')
+    onSuccess: (_data, { patch }) => {
+      capture('itinerary_item_updated', { fields: changedFields(patch) })
       invalidate()
     },
   })
@@ -233,8 +291,12 @@ export function useCreateStep(tripId: string) {
     meta: { success: 'Destination added' },
     mutationFn: (input: JourneyStepInput) =>
       api.post<{ step: JourneyStep }>(`/trips/${tripId}/steps`, input),
-    onSuccess: () => {
-      capture('journey_step_created')
+    onSuccess: (_data, input) => {
+      capture('journey_step_created', {
+        nights: nightsBetween(input.start_date, input.end_date),
+        // A step is either an existing zone or somewhere just searched for.
+        from_search: !input.zone_id,
+      })
       invalidate()
     },
   })
@@ -316,8 +378,11 @@ export function useCreateReminder(tripId: string) {
     meta: { success: 'Reminder set' },
     mutationFn: (input: ReminderInput) =>
       api.post<{ reminder: Reminder }>(`/trips/${tripId}/reminders`, input),
-    onSuccess: () => {
-      capture('reminder_created')
+    onSuccess: (_data, input) => {
+      capture('reminder_created', {
+        hours_ahead: hoursFromNow(input.remind_at),
+        has_url: Boolean(input.url),
+      })
       invalidate()
     },
   })
@@ -416,8 +481,12 @@ export function useCreateTrip() {
   return useMutation({
     meta: { success: 'Trip created' },
     mutationFn: (input: TripInput) => api.post<{ trip: Trip }>('/trips', input),
-    onSuccess: () => {
-      capture('trip_created')
+    onSuccess: (data, input) => {
+      capture('trip_created', {
+        ...tripFacts(data.trip),
+        has_flight: Boolean(input.flight),
+        has_description: Boolean(input.description),
+      })
       invalidate()
     },
   })
@@ -440,8 +509,8 @@ export function useUpdateTrip(tripId: string) {
         `/trips/${tripId}`,
         patch
       ),
-    onSuccess: () => {
-      capture('trip_updated')
+    onSuccess: (data, patch) => {
+      capture('trip_updated', { ...tripFacts(data.trip), fields: changedFields(patch) })
       invalidate()
       qc.invalidateQueries({ queryKey: ['trip', tripId] })
       // A move/delete rewrote the day plan under the trip.
@@ -475,8 +544,15 @@ export function useCreateInvite(tripId: string) {
       can_see_documents: boolean
       can_see_shopping: boolean
     }) => api.post<{ invite: TripInvite; token: string }>(`/trips/${tripId}/invites`, input),
-    onSuccess: () => {
-      capture('trip_member_invited')
+    onSuccess: (_data, input) => {
+      capture('trip_member_invited', {
+        role: input.role,
+        has_email: Boolean(input.email),
+        shares_stays: input.can_see_stays,
+        shares_flight: input.can_see_flight,
+        shares_documents: input.can_see_documents,
+        shares_shopping: input.can_see_shopping,
+      })
       qc.invalidateQueries({ queryKey: ['invites', tripId] })
     },
   })
