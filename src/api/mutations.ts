@@ -32,16 +32,40 @@ import type {
 import type { SubscriptionPayload } from '../lib/push'
 
 /**
- * Every invalidation helper here returns its promise, and every `onSuccess`
- * below returns that in turn. It is what holds the success toast until the
- * refetch has landed — see the MutationCache in api/queryClient.ts. Dropping
- * a `return` costs nothing visible except the toast arriving a beat early,
- * which is exactly the bug it was added to fix.
+ * How long a write waits for its own refetch before it stops holding the UI.
+ *
+ * Long enough that a warm request lands inside it, short enough that nothing
+ * reads as stuck: past roughly this, a person stops believing the tap worked.
  */
+const REFRESH_GRACE_MS = 500
+
+/**
+ * The refetch a write triggers — awaited, but not indefinitely.
+ *
+ * Every invalidation helper below returns this, and every `onSuccess` returns
+ * that in turn, which is what holds the write "open" until the screen agrees
+ * with it: the success toast fires from the MutationCache's `onSettled`, and
+ * `isPending` — the disabled button, the "Saving…" label — stays true for as
+ * long as this promise does. That ordering is worth having and worth *not*
+ * paying an unbounded price for: on a cold serverless function or a train, a
+ * refetch can take seconds, and a form that sits in "Saving…" for two of them
+ * after the save has already succeeded is a worse lie than an early toast.
+ *
+ * So the two failure modes are traded off rather than one of them chosen. The
+ * refetch is not cancelled when the grace runs out — it lands when it lands,
+ * and the screen catches up then. What ends is the *waiting*.
+ */
+function refreshed(...work: Promise<unknown>[]): Promise<void> {
+  return Promise.race([
+    Promise.all(work).then(() => undefined),
+    new Promise<void>((resolve) => setTimeout(resolve, REFRESH_GRACE_MS)),
+  ])
+}
+
 function usePlaceInvalidation() {
   const qc = useQueryClient()
   return (zoneId?: string, placeId?: string) =>
-    Promise.all([
+    refreshed(
       qc.invalidateQueries({ queryKey: ['trip'] }),
       ...(zoneId
         ? [
@@ -49,8 +73,8 @@ function usePlaceInvalidation() {
             qc.invalidateQueries({ queryKey: ['zone-places', zoneId] }),
           ]
         : []),
-      ...(placeId ? [qc.invalidateQueries({ queryKey: ['place', placeId] })] : []),
-    ])
+      ...(placeId ? [qc.invalidateQueries({ queryKey: ['place', placeId] })] : [])
+    )
 }
 
 /**
@@ -129,18 +153,18 @@ export function useDeletePlace(zoneId: string | undefined, category?: Category) 
     onSuccess: (_data, placeId) => {
       capture('place_deleted', { category })
       qc.removeQueries({ queryKey: ['place', placeId] })
-      return Promise.all([
+      return refreshed(
         invalidate(zoneId),
         // the deleted place's files re-parent to the trip
-        qc.invalidateQueries({ queryKey: ['trip-files'] }),
-      ])
+        qc.invalidateQueries({ queryKey: ['trip-files'] })
+      )
     },
   })
 }
 
 function useShoppingInvalidation() {
   const qc = useQueryClient()
-  return () => qc.invalidateQueries({ queryKey: ['shopping'] })
+  return () => refreshed(qc.invalidateQueries({ queryKey: ['shopping'] }))
 }
 
 /**
@@ -156,11 +180,11 @@ export function useUpdateZone(zoneId: string) {
       api.patch<{ zone: ZoneDetail['zone'] }>(path(`/zones/${zoneId}`), patch),
     onSuccess: (_data, patch) => {
       capture('zone_image_updated', { cleared: patch.image_url === null })
-      return Promise.all([
+      return refreshed(
         qc.invalidateQueries({ queryKey: ['zone', zoneId] }),
         // The photo is on the journey cards too, so the bundle is now stale.
-        qc.invalidateQueries({ queryKey: ['trip'] }),
-      ])
+        qc.invalidateQueries({ queryKey: ['trip'] })
+      )
     },
   })
 }
@@ -228,12 +252,12 @@ export function useDeleteShoppingItem() {
  * which an upload or a delete moves.
  */
 function invalidateFileCaches(qc: ReturnType<typeof useQueryClient>) {
-  return Promise.all([
+  return refreshed(
     qc.invalidateQueries({ queryKey: ['trip-files'] }),
     qc.invalidateQueries({ queryKey: ['zone'] }),
     qc.invalidateQueries({ queryKey: ['place'] }),
-    qc.invalidateQueries({ queryKey: ['trip'] }),
-  ])
+    qc.invalidateQueries({ queryKey: ['trip'] })
+  )
 }
 
 export function useUploadFile(tripId: string) {
@@ -287,7 +311,7 @@ export function useDeleteFile() {
 
 function useItineraryInvalidation() {
   const qc = useQueryClient()
-  return () => qc.invalidateQueries({ queryKey: ['itinerary'] })
+  return () => refreshed(qc.invalidateQueries({ queryKey: ['itinerary'] }))
 }
 
 export function useCreateItineraryItem(tripId: string) {
@@ -336,7 +360,7 @@ export function useDeleteItineraryItem() {
 
 function useStepInvalidation() {
   const qc = useQueryClient()
-  return () => qc.invalidateQueries({ queryKey: ['trip'] })
+  return () => refreshed(qc.invalidateQueries({ queryKey: ['trip'] }))
 }
 
 export function useCreateStep(tripId: string) {
@@ -385,10 +409,10 @@ interface TipParent {
 function useTipInvalidation(parent: TipParent) {
   const qc = useQueryClient()
   return () =>
-    Promise.all([
+    refreshed(
       ...(parent.zone_id ? [qc.invalidateQueries({ queryKey: ['zone', parent.zone_id] })] : []),
-      ...(parent.place_id ? [qc.invalidateQueries({ queryKey: ['place', parent.place_id] })] : []),
-    ])
+      ...(parent.place_id ? [qc.invalidateQueries({ queryKey: ['place', parent.place_id] })] : [])
+    )
 }
 
 export function useCreateTip(parent: TipParent) {
@@ -424,7 +448,7 @@ export function useDeleteTip(parent: TipParent) {
 
 function useReminderInvalidation() {
   const qc = useQueryClient()
-  return () => qc.invalidateQueries({ queryKey: ['reminders'] })
+  return () => refreshed(qc.invalidateQueries({ queryKey: ['reminders'] }))
 }
 
 export function useCreateReminder(tripId: string) {
@@ -511,7 +535,7 @@ export function useSendTestPush() {
 
 function useTripsInvalidation() {
   const qc = useQueryClient()
-  return () => qc.invalidateQueries({ queryKey: ['trips'] })
+  return () => refreshed(qc.invalidateQueries({ queryKey: ['trips'] }))
 }
 
 /**
@@ -526,7 +550,7 @@ export function useAcceptTerms() {
     mutationFn: () => api.post<{ terms: { accepted: boolean } }>('/me/terms', {}),
     onSuccess: () => {
       capture('terms_accepted')
-      return qc.invalidateQueries({ queryKey: ['me'] })
+      return refreshed(qc.invalidateQueries({ queryKey: ['me'] }))
     },
   })
 }
@@ -566,12 +590,12 @@ export function useUpdateTrip(tripId: string) {
       ),
     onSuccess: (data, patch) => {
       capture('trip_updated', { ...tripFacts(data.trip), fields: changedFields(patch) })
-      return Promise.all([
+      return refreshed(
         invalidate(),
         qc.invalidateQueries({ queryKey: ['trip', tripId] }),
         // A move/delete rewrote the day plan under the trip.
-        qc.invalidateQueries({ queryKey: ['itinerary', tripId] }),
-      ])
+        qc.invalidateQueries({ queryKey: ['itinerary', tripId] })
+      )
     },
   })
 }
@@ -610,7 +634,7 @@ export function useCreateInvite(tripId: string) {
         shares_documents: input.can_see_documents,
         shares_shopping: input.can_see_shopping,
       })
-      return qc.invalidateQueries({ queryKey: ['invites', tripId] })
+      return refreshed(qc.invalidateQueries({ queryKey: ['invites', tripId] }))
     },
   })
 }
@@ -622,7 +646,7 @@ export function useRevokeInvite(tripId: string) {
     mutationFn: (inviteId: string) => api.delete<void>(`/trips/${tripId}/invites/${inviteId}`),
     onSuccess: () => {
       capture('trip_invitation_revoked')
-      return qc.invalidateQueries({ queryKey: ['invites', tripId] })
+      return refreshed(qc.invalidateQueries({ queryKey: ['invites', tripId] }))
     },
   })
 }
@@ -633,7 +657,7 @@ export function useUpdateMember(tripId: string) {
     meta: { success: 'Sharing updated' },
     mutationFn: ({ userId, ...patch }: { userId: string } & Record<string, unknown>) =>
       api.patch<{ member: TripMember }>(`/trips/${tripId}/members/${userId}`, patch),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['members', tripId] }),
+    onSuccess: () => refreshed(qc.invalidateQueries({ queryKey: ['members', tripId] })),
   })
 }
 
@@ -644,11 +668,11 @@ export function useRemoveMember(tripId: string) {
     mutationFn: (userId: string) => api.delete<void>(`/trips/${tripId}/members/${userId}`),
     onSuccess: () => {
       capture('trip_member_removed')
-      return Promise.all([
+      return refreshed(
         qc.invalidateQueries({ queryKey: ['members', tripId] }),
         // Leaving a trip removes it from your list, so that has to refetch too.
-        qc.invalidateQueries({ queryKey: ['trips'] }),
-      ])
+        qc.invalidateQueries({ queryKey: ['trips'] })
+      )
     },
   })
 }
@@ -662,10 +686,10 @@ function useInvitationAction(action: 'accept' | 'decline') {
       api.post<{ trip_id?: string }>(`/invitations/${inviteId}/${action}`, {}),
     onSuccess: () => {
       capture(action === 'accept' ? 'invitation_accepted' : 'invitation_declined')
-      return Promise.all([
+      return refreshed(
         qc.invalidateQueries({ queryKey: ['invitations'] }),
-        qc.invalidateQueries({ queryKey: ['trips'] }),
-      ])
+        qc.invalidateQueries({ queryKey: ['trips'] })
+      )
     },
   })
 }
@@ -681,6 +705,6 @@ export function useAcceptInvite() {
         `/invites/${token}/accept`,
         {}
       ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['trips'] }),
+    onSuccess: () => refreshed(qc.invalidateQueries({ queryKey: ['trips'] })),
   })
 }

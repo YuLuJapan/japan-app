@@ -4,7 +4,7 @@
 import { QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ApiError } from '../api/client'
 import { queryClient } from '../api/queryClient'
 import { Feedback } from '../components/Feedback'
@@ -130,19 +130,25 @@ describe('when the toast is allowed to speak', () => {
    * then does the MutationCache's `onSettled` say anything — so the
    * confirmation and the new value land together, however slow the refetch.
    */
-  function Screen({ fetchMs }: { fetchMs: number }) {
+  function Screen() {
     const { data } = useQuery({
       queryKey: ['thing'],
-      queryFn: () => later(state.value, fetchMs),
+      queryFn: () => later(state.value, state.fetchMs),
       staleTime: 60_000,
     })
     const save = useMutation({
       meta: { success: 'Place saved' },
       mutationFn: async () => {
         state.value = 'new' // the server now holds the new value
+        state.fetchMs = state.refetchMs // …and the read back is however slow
         return 'ok'
       },
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: ['thing'] }),
+      // What every mutation in api/mutations.ts does, via `refreshed`.
+      onSuccess: () =>
+        Promise.race([
+          queryClient.invalidateQueries({ queryKey: ['thing'] }),
+          later(undefined, 500),
+        ]),
     })
     return (
       <>
@@ -154,18 +160,24 @@ describe('when the toast is allowed to speak', () => {
     )
   }
 
-  const state = { value: 'old' }
+  const state = { value: 'old', fetchMs: 0, refetchMs: 0 }
+
+  beforeEach(() => {
+    state.value = 'old'
+    state.fetchMs = 0
+    state.refetchMs = 0
+  })
 
   afterEach(() => {
-    state.value = 'old'
     queryClient.clear()
   })
 
   it('waits for the refetched value to be on screen', async () => {
+    state.refetchMs = 300 // comfortably inside the grace period
     const user = userEvent.setup()
     render(
       <QueryClientProvider client={queryClient}>
-        <Screen fetchMs={300} />
+        <Screen />
         <Feedback />
       </QueryClientProvider>
     )
@@ -176,6 +188,28 @@ describe('when the toast is allowed to speak', () => {
     // The moment the toast appears, the screen must already agree with it.
     await screen.findByText('Place saved', {}, { timeout: 2000 })
     expect(screen.getByTestId('value')).toHaveTextContent('new')
+  })
+
+  it('does not hold the confirmation hostage to a slow refetch', async () => {
+    // The other half of the trade. Waiting is right when the refetch is cheap
+    // and wrong when it isn't: a cold serverless function or a train can make
+    // it seconds, and a form sitting in "Saving…" long after the save landed
+    // is a worse lie than an early toast. Past the grace period the write
+    // stops waiting — the refetch still lands, the screen still catches up.
+    state.refetchMs = 4000 // a cold function, or a tunnel
+    const user = userEvent.setup()
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Screen />
+        <Feedback />
+      </QueryClientProvider>
+    )
+    await waitFor(() => expect(screen.getByTestId('value')).toHaveTextContent('old'))
+
+    const startedAt = Date.now()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByText('Place saved', {}, { timeout: 3000 })
+    expect(Date.now() - startedAt).toBeLessThan(3000)
   })
 
   it('still says so when there is nothing to refetch', async () => {
