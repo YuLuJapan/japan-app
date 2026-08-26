@@ -1089,6 +1089,19 @@ export function createSupabaseStore(): DataStore {
       return data as FileAttachment
     },
 
+    async updateFile(tripId, fileId, patch) {
+      // The trip check first, and by the same route as every other file read:
+      // an id alone is not evidence the file is this trip's.
+      if (!(await fileInTrip(tripId, fileId))) return null
+      const { data } = await db
+        .from('files')
+        .update({ display_name: patch.display_name })
+        .eq('id', fileId)
+        .select('id,trip_id,zone_id,place_id,display_name,storage_path,mime_type,size_bytes')
+        .maybeSingle()
+      return (data as FileAttachment) ?? null
+    },
+
     async deleteFile(tripId, fileId) {
       if (!(await fileInTrip(tripId, fileId))) return false
       const { data: file } = await db

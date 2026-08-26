@@ -1,15 +1,18 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
-import { setDataStore } from '../src/lib/datastore.js'
+import { setDataStore, type DataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { fixture } from './fixture.js'
-import { asOwner as auth, asPartner, useTestTokens } from './auth.js'
+import { VIEWER_USER, fixture } from './fixture.js'
+import { asOwner as auth, asPartner, asViewer, useTestTokens } from './auth.js'
 
 const app = createApp()
 
+let store: DataStore
+
 beforeEach(() => {
-  setDataStore(createMemoryStore(fixture()))
+  store = createMemoryStore(fixture())
+  setDataStore(store)
   useTestTokens()
 })
 
@@ -101,6 +104,86 @@ describe('files', () => {
 
   it('requires auth', async () => {
     expect((await request(app).get('/api/trips/trip-1/files')).status).toBe(401)
+  })
+
+  describe('rename', () => {
+    it('PATCH /files/:id changes the display name and nothing else', async () => {
+      const res = await auth(request(app).patch('/api/trips/trip-1/files/file-trip')).send({
+        display_name: 'Flights — Tokyo',
+      })
+      expect(res.status).toBe(200)
+      expect(res.body.file).toEqual(
+        expect.objectContaining({
+          id: 'file-trip',
+          display_name: 'Flights — Tokyo',
+          mime_type: 'application/pdf',
+          size_bytes: 1000,
+        })
+      )
+
+      const list = await auth(request(app).get('/api/trips/trip-1/files'))
+      const doc = list.body.files.find((f: { id: string }) => f.id === 'file-trip')
+      expect(doc.display_name).toBe('Flights — Tokyo')
+      // still attached where it was, and still openable: the blob is keyed by
+      // storage_path, which a rename never touches.
+      expect(doc.attached_to).toEqual(expect.objectContaining({ kind: 'trip' }))
+      expect((await auth(request(app).get('/api/trips/trip-1/files/file-trip/url'))).status).toBe(
+        200
+      )
+    })
+
+    it('renames the download too — the extension comes from the mime type', async () => {
+      await auth(request(app).patch('/api/trips/trip-1/files/file-trip'))
+        .send({ display_name: 'Tickets' })
+        .expect(200)
+      const res = await auth(request(app).get('/api/trips/trip-1/files/file-trip/content'))
+      expect(res.headers['content-disposition']).toMatch(/filename\*=UTF-8''Tickets\.pdf/)
+    })
+
+    it('trims, and refuses an empty or over-long name', async () => {
+      const trimmed = await auth(request(app).patch('/api/trips/trip-1/files/file-trip')).send({
+        display_name: '  Tickets  ',
+      })
+      expect(trimmed.body.file.display_name).toBe('Tickets')
+
+      const empty = await auth(request(app).patch('/api/trips/trip-1/files/file-trip')).send({
+        display_name: '   ',
+      })
+      expect(empty.status).toBe(400)
+      expect(empty.body.error.details).toContain('display_name is required')
+
+      // 120 is the column's own check constraint, so this would 500 in Postgres.
+      const long = await auth(request(app).patch('/api/trips/trip-1/files/file-trip')).send({
+        display_name: 'x'.repeat(121),
+      })
+      expect(long.status).toBe(400)
+      expect(long.body.error.details).toContain('display_name must be at most 120 characters')
+    })
+
+    it('404s for a file that belongs to another trip', async () => {
+      const res = await auth(request(app).patch('/api/trips/trip-2/files/file-trip')).send({
+        display_name: 'Not mine',
+      })
+      expect(res.status).toBe(404)
+    })
+
+    it('refuses a viewer, who may read documents but not write', async () => {
+      await store.upsertTripMember({ trip_id: 'trip-1', user_id: VIEWER_USER.id, role: 'viewer' })
+      const res = await asViewer(request(app).patch('/api/trips/trip-1/files/file-trip')).send({
+        display_name: 'Nope',
+      })
+      expect(res.status).toBe(403)
+      const list = await auth(request(app).get('/api/trips/trip-1/files'))
+      const doc = list.body.files.find((f: { id: string }) => f.id === 'file-trip')
+      expect(doc.display_name).toBe('Flight booking')
+    })
+
+    it('requires auth', async () => {
+      const res = await request(app).patch('/api/trips/trip-1/files/file-trip').send({
+        display_name: 'Nope',
+      })
+      expect(res.status).toBe(401)
+    })
   })
 
   it('deleting a place re-parents its files to the trip (no silent loss)', async () => {
@@ -230,14 +313,13 @@ describe('trip-scoped file routes', () => {
 // asking for it, and the web test asserted that exact flat call — so a suite
 // that was green described a page that 404'd on every document.
 describe('the flat file routes are gone', () => {
-  it.each([
-    ['/api/files'],
-    ['/api/files/file-trip/content'],
-    ['/api/files/file-trip/url'],
-  ])('%s answers 404 — content is only reachable through its trip', async (path) => {
-    const res = await auth(request(app).get(path))
-    expect(res.status).toBe(404)
-  })
+  it.each([['/api/files'], ['/api/files/file-trip/content'], ['/api/files/file-trip/url']])(
+    '%s answers 404 — content is only reachable through its trip',
+    async (path) => {
+      const res = await auth(request(app).get(path))
+      expect(res.status).toBe(404)
+    }
+  )
 
   it('still serves the same file under its trip', async () => {
     const res = await auth(request(app).get('/api/trips/trip-1/files/file-trip/content'))

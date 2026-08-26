@@ -107,11 +107,21 @@ interface UploadBody {
   data_base64?: string
 }
 
-export async function createFile(store: DataStore, tripId: string, body: UploadBody) {
-  const errors: string[] = []
-  const display_name = (body.display_name ?? '').trim()
+/**
+ * One rule for what a file may be called, shared by the upload and the rename
+ * — 120 is the column's own check constraint (migration 0001), so a name that
+ * passes here is a name the database will take.
+ */
+function collectNameErrors(value: unknown, errors: string[]): string {
+  const display_name = (typeof value === 'string' ? value : '').trim()
   if (!display_name) errors.push('display_name is required')
   else if (display_name.length > 120) errors.push('display_name must be at most 120 characters')
+  return display_name
+}
+
+export async function createFile(store: DataStore, tripId: string, body: UploadBody) {
+  const errors: string[] = []
+  const display_name = collectNameErrors(body.display_name, errors)
 
   const mime = (body.mime_type ?? '').toLowerCase()
   if (!EXT_BY_MIME[mime]) errors.push('file must be a PDF or an image (jpg, png, webp, gif, heic)')
@@ -149,6 +159,28 @@ export async function createFile(store: DataStore, tripId: string, body: UploadB
   if (kind === 'place' && !(await store.getPlace(trip.id, input.place_id!))) throw notFound('Place')
 
   const file = await store.createFile(input, bytes)
+  return { file: meta(file) }
+}
+
+/**
+ * Rename a file — the display name only.
+ *
+ * The blob is untouched: it is keyed by `storage_path`, a uuid, and the
+ * extension a download gets is derived from the mime type rather than from
+ * the name (see `downloadName`), so no rename can leave a file unopenable.
+ */
+export async function renameFile(
+  store: DataStore,
+  tripId: string,
+  fileId: string,
+  body: { display_name?: unknown }
+) {
+  const errors: string[] = []
+  const display_name = collectNameErrors(body.display_name, errors)
+  if (errors.length) throw validation(errors)
+
+  const file = await store.updateFile(tripId, fileId, { display_name })
+  if (!file) throw notFound('File')
   return { file: meta(file) }
 }
 
