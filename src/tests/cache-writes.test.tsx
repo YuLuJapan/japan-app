@@ -11,17 +11,30 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import {
+  useCreateReminder,
+  useCreateTip,
+  useCreateTrip,
+  useDeleteReminder,
   useDeleteFile,
   useDeleteShoppingItem,
+  useDeleteStep,
+  useDeleteTrip,
+  useUpdateStep,
   useRenameFile,
+  useRemoveMember,
+  useRevokeInvite,
+  useUpdateMember,
+  useUpdateReminder,
+  useUpdateZone,
   useUpdateShoppingItem,
+  useUpdateTrip,
 } from '../api/mutations'
-import type { FileMeta, ShoppingItem } from '../api/types'
+import type { FileMeta, Reminder, ShoppingItem, Trip } from '../api/types'
 
-const mocks = vi.hoisted(() => ({ get: vi.fn(), patch: vi.fn(), delete: vi.fn() }))
+const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() }))
 vi.mock('../api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/client')>()),
-  api: { get: mocks.get, patch: mocks.patch, delete: mocks.delete },
+  api: { get: mocks.get, post: mocks.post, patch: mocks.patch, delete: mocks.delete },
 }))
 
 const file: FileMeta = {
@@ -46,6 +59,21 @@ const item: ShoppingItem = {
   position: 0,
 }
 
+const trip: Trip = {
+  id: 't1',
+  name: 'Japan',
+  country: 'Japan',
+  display_title: 'Japan',
+  start_date: '2026-10-01',
+  end_date: '2026-10-14',
+  description: null,
+  people: [],
+  local_currency: 'JPY',
+  home_currencies: ['USD'],
+  start_time: null,
+  start_tz: null,
+}
+
 let client: QueryClient
 
 const wrapper = ({ children }: { children: ReactNode }) => (
@@ -65,6 +93,7 @@ beforeEach(() => {
   // Any refetch hangs for the whole test: nothing here may depend on one.
   mocks.get.mockImplementation(() => new Promise(() => {}))
   mocks.patch.mockReset()
+  mocks.post.mockReset()
   mocks.delete.mockReset()
   mocks.delete.mockResolvedValue(undefined)
 })
@@ -188,5 +217,275 @@ describe('the patch does not replace the refresh', () => {
       staleTime: 60_000,
     })
     expect(fetched).toEqual({ zone: { id: 'z1' }, tips: [], files: [] })
+  })
+})
+
+describe('the trips list', () => {
+  it('shows a new trip at once, at the end where created_at puts it', async () => {
+    const existing = { ...trip, id: 't0', display_title: 'Lisbon' }
+    client.setQueryData(['trips'], { trips: [existing] })
+    mocks.post.mockResolvedValue({ trip })
+
+    const { result } = renderHook(() => useCreateTrip(), { wrapper })
+    result.current.mutate({ name: 'Japan', start_date: '2026-10-01', end_date: '2026-10-14' })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const cached = client.getQueryData<{ trips: Trip[] }>(['trips'])
+    expect(cached?.trips.map((t) => t.id)).toEqual(['t0', 't1'])
+    expect(mocks.get).not.toHaveBeenCalled()
+  })
+
+  it('shows an edited trip at once, server-computed title and all', async () => {
+    client.setQueryData(['trips'], { trips: [trip] })
+    client.setQueryData(['trip', 't1'], { trip, steps: [], trip_files_count: 0 })
+    // `display_title` is the server's to compute, and it hands it back.
+    mocks.patch.mockResolvedValue({
+      trip: { ...trip, name: 'Honeymoon', display_title: 'Honeymoon' },
+    })
+
+    const { result } = renderHook(() => useUpdateTrip('t1'), { wrapper })
+    result.current.mutate({ name: 'Honeymoon' })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(client.getQueryData<{ trips: Trip[] }>(['trips'])?.trips[0].display_title).toBe(
+      'Honeymoon'
+    )
+    expect(client.getQueryData<{ trip: Trip }>(['trip', 't1'])?.trip.display_title).toBe(
+      'Honeymoon'
+    )
+  })
+
+  it('leaves the bundle to the refetch when the server moved more than the trip', async () => {
+    // New dates can move journey steps and rewrite the day plan. Patching the
+    // trip alone would show a range its own stops fall outside of: stale but
+    // self-consistent beats half-new.
+    const steps = [{ id: 'step-1', start_date: '2026-10-01', end_date: '2026-10-03' }]
+    client.setQueryData(['trips'], { trips: [trip] })
+    client.setQueryData(['trip', 't1'], { trip, steps, trip_files_count: 0 })
+    mocks.patch.mockResolvedValue({
+      trip: { ...trip, start_date: '2026-11-01', end_date: '2026-11-14' },
+      moved_stops: ['step-1'],
+    })
+
+    const { result } = renderHook(() => useUpdateTrip('t1'), { wrapper })
+    result.current.mutate({ start_date: '2026-11-01', end_date: '2026-11-14' })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const bundle = client.getQueryData<{ trip: Trip }>(['trip', 't1'])
+    expect(bundle?.trip.start_date).toBe('2026-10-01') // untouched, awaiting the refetch
+    // …while the list row, which is only ever the trip's own fields, is current
+    expect(client.getQueryData<{ trips: Trip[] }>(['trips'])?.trips[0].start_date).toBe(
+      '2026-11-01'
+    )
+  })
+
+  it('takes a deleted trip straight off the list', async () => {
+    client.setQueryData(['trips'], { trips: [trip, { ...trip, id: 't2' }] })
+
+    const { result } = renderHook(() => useDeleteTrip(), { wrapper })
+    result.current.mutate('t1')
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(client.getQueryData<{ trips: Trip[] }>(['trips'])?.trips.map((t) => t.id)).toEqual([
+      't2',
+    ])
+  })
+})
+
+describe('tips', () => {
+  it('appears under its zone the moment it is added', async () => {
+    client.setQueryData(['zone', 'z1'], { zone: { id: 'z1' }, tips: [], files: [] })
+    mocks.post.mockResolvedValue({ tip: { id: 'tip-1', zone_id: 'z1', body: 'Book ahead' } })
+
+    const { result } = renderHook(() => useCreateTip({ zone_id: 'z1' }), { wrapper })
+    result.current.mutate('Book ahead')
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const zone = client.getQueryData<{ tips: { body: string }[] }>(['zone', 'z1'])
+    expect(zone?.tips.map((t) => t.body)).toEqual(['Book ahead'])
+    expect(mocks.get).not.toHaveBeenCalled()
+  })
+})
+
+describe('reminders', () => {
+  const reminder = (over: Partial<Reminder>): Reminder => ({
+    id: 'r1',
+    trip_id: 't1',
+    title: 'Book the ryokan',
+    body: null,
+    url: null,
+    remind_at: '2026-09-12T00:00:00.000Z',
+    time_zone: 'Asia/Tokyo',
+    sent_at: null,
+    created_at: '2026-08-01T00:00:00.000Z',
+    ...over,
+  })
+
+  it('re-times one into its new place in the list, not just in place', async () => {
+    // The list is soonest first, so moving a reminder later has to move the row.
+    const early = reminder({ id: 'r1', remind_at: '2026-09-01T00:00:00.000Z' })
+    const late = reminder({ id: 'r2', remind_at: '2026-09-20T00:00:00.000Z' })
+    client.setQueryData(['reminders', 't1'], { reminders: [early, late] })
+    mocks.patch.mockResolvedValue({
+      reminder: { ...early, remind_at: '2026-09-30T00:00:00.000Z' },
+    })
+
+    const { result } = renderHook(() => useUpdateReminder(), { wrapper })
+    result.current.mutate({ id: 'r1', patch: { remind_at: '2026-09-30T00:00:00.000Z' } })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const cached = client.getQueryData<{ reminders: Reminder[] }>(['reminders', 't1'])
+    expect(cached?.reminders.map((r) => r.id)).toEqual(['r2', 'r1'])
+  })
+
+  it('drops a deleted one at once', async () => {
+    client.setQueryData(['reminders', 't1'], { reminders: [reminder({ id: 'r1' })] })
+    const { result } = renderHook(() => useDeleteReminder(), { wrapper })
+    result.current.mutate('r1')
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(client.getQueryData<{ reminders: Reminder[] }>(['reminders', 't1'])?.reminders).toEqual(
+      []
+    )
+  })
+
+  it('sorts a new one in rather than tacking it on the end', async () => {
+    const late = reminder({ id: 'r2', remind_at: '2026-09-20T00:00:00.000Z' })
+    client.setQueryData(['reminders', 't1'], { reminders: [late] })
+    mocks.post.mockResolvedValue({
+      reminder: reminder({ id: 'r3', remind_at: '2026-09-05T00:00:00.000Z' }),
+    })
+
+    const { result } = renderHook(() => useCreateReminder('t1'), { wrapper })
+    result.current.mutate({ title: 'Pack', remind_at: '2026-09-05T00:00:00.000Z' })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const cached = client.getQueryData<{ reminders: Reminder[] }>(['reminders', 't1'])
+    expect(cached?.reminders.map((r) => r.id)).toEqual(['r3', 'r2'])
+  })
+})
+
+describe('the journey', () => {
+  it("keeps a step's zone when the step itself changes", async () => {
+    // The bundle's step carries the zone — name and photo for the card — and
+    // the step response has no idea about it. Merging is what keeps it.
+    const step = {
+      id: 'step-1',
+      position: 0,
+      start_date: '2026-10-01',
+      end_date: '2026-10-03',
+      zone: { id: 'z1', name: 'Kyoto', image_url: 'photo.jpg' },
+    }
+    client.setQueryData(['trip', 't1'], { trip, steps: [step], trip_files_count: 0 })
+    mocks.patch.mockResolvedValue({
+      step: {
+        id: 'step-1',
+        trip_id: 't1',
+        zone_id: 'z1',
+        position: 0,
+        start_date: '2026-10-02',
+        end_date: '2026-10-05',
+      },
+    })
+
+    const { result } = renderHook(() => useUpdateStep(), { wrapper })
+    result.current.mutate({ id: 'step-1', patch: { start_date: '2026-10-02' } })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const steps = client.getQueryData<{ steps: (typeof step)[] }>(['trip', 't1'])?.steps
+    expect(steps?.[0].start_date).toBe('2026-10-02')
+    expect(steps?.[0].zone).toEqual({ id: 'z1', name: 'Kyoto', image_url: 'photo.jpg' })
+  })
+
+  it('takes a removed step out of the journey at once', async () => {
+    const step = {
+      id: 'step-1',
+      position: 0,
+      start_date: '2026-10-01',
+      end_date: '2026-10-03',
+      zone: null,
+    }
+    client.setQueryData(['trip', 't1'], { trip, steps: [step], trip_files_count: 0 })
+
+    const { result } = renderHook(() => useDeleteStep(), { wrapper })
+    result.current.mutate('step-1')
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(client.getQueryData<{ steps: unknown[] }>(['trip', 't1'])?.steps).toEqual([])
+  })
+})
+
+describe('a zone photo', () => {
+  it('changes on the zone and on its journey card together', async () => {
+    client.setQueryData(['zone', 'z1'], {
+      zone: { id: 'z1', image_url: 'old.jpg' },
+      tips: [],
+      files: [],
+    })
+    client.setQueryData(['trip', 't1'], {
+      trip,
+      steps: [
+        { id: 'step-1', position: 0, zone: { id: 'z1', name: 'Kyoto', image_url: 'old.jpg' } },
+      ],
+      trip_files_count: 0,
+    })
+    mocks.patch.mockResolvedValue({ zone: { id: 'z1', image_url: 'new.jpg' } })
+
+    const { result } = renderHook(() => useUpdateZone('z1'), { wrapper })
+    result.current.mutate({ image_url: 'new.jpg' })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(
+      client.getQueryData<{ zone: { image_url: string } }>(['zone', 'z1'])?.zone.image_url
+    ).toBe('new.jpg')
+    const steps = client.getQueryData<{ steps: { zone: { image_url: string } }[] }>([
+      'trip',
+      't1',
+    ])?.steps
+    expect(steps?.[0].zone.image_url).toBe('new.jpg')
+  })
+})
+
+describe('sharing', () => {
+  it('flips a sharing switch on the row you flipped it on', async () => {
+    const member = {
+      user_id: 'u1',
+      role: 'viewer' as const,
+      email: 'friend@example.com',
+      display_name: 'Friend',
+      avatar_url: null,
+      can_see_stays: false,
+      can_see_flight: false,
+      can_see_documents: false,
+      can_see_shopping: false,
+    }
+    client.setQueryData(['members', 't1'], { members: [member] })
+    mocks.patch.mockResolvedValue({ member: { ...member, can_see_stays: true } })
+
+    const { result } = renderHook(() => useUpdateMember('t1'), { wrapper })
+    result.current.mutate({ userId: 'u1', can_see_stays: true })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const cached = client.getQueryData<{ members: (typeof member)[] }>(['members', 't1'])
+    expect(cached?.members[0].can_see_stays).toBe(true)
+    expect(mocks.get).not.toHaveBeenCalled()
+  })
+
+  it('drops a removed member and a revoked invitation at once', async () => {
+    client.setQueryData(['members', 't1'], { members: [{ user_id: 'u1' }, { user_id: 'u2' }] })
+    client.setQueryData(['invites', 't1'], { invites: [{ id: 'i1' }, { id: 'i2' }] })
+
+    const member = renderHook(() => useRemoveMember('t1'), { wrapper })
+    member.result.current.mutate('u1')
+    await waitFor(() => expect(member.result.current.isSuccess).toBe(true))
+    expect(
+      client.getQueryData<{ members: { user_id: string }[] }>(['members', 't1'])?.members
+    ).toEqual([{ user_id: 'u2' }])
+
+    const invite = renderHook(() => useRevokeInvite('t1'), { wrapper })
+    invite.result.current.mutate('i1')
+    await waitFor(() => expect(invite.result.current.isSuccess).toBe(true))
+    expect(client.getQueryData<{ invites: { id: string }[] }>(['invites', 't1'])?.invites).toEqual([
+      { id: 'i2' },
+    ])
   })
 })
