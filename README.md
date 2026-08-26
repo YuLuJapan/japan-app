@@ -229,6 +229,37 @@ not a licence.
 
 Free tier covers this: PostHog's is 1M events/month, far beyond two phones.
 
+### Feature flags
+
+Create the flag in PostHog (**Feature flags → New**), then read it with the
+helpers in `src/lib/flags.ts` — each takes the flag key and the value to use
+when PostHog has no answer:
+
+```ts
+import { getBoolean, useBooleanFlag, useStringFlag, useJsonFlag } from '../lib/flags'
+
+// in a component — re-renders when the flags arrive
+const showTimeline = useBooleanFlag('trip-timeline', false)
+const layout = useStringFlag('timeline-layout', 'classic') // multivariate: the variant name
+const config = useJsonFlag('timeline-config', { rows: 3 }) // the flag's JSON payload
+
+// anywhere else
+if (getBoolean('trip-timeline', false)) {
+  /* … */
+}
+```
+
+Inside a component, use the hooks. PostHog fetches flags _after_ the first
+paint, so a plain read shows the default for the whole session and the flag
+looks like it isn't working; the hooks re-render when the flags land.
+
+The default applies whenever PostHog has nothing to say — analytics switched
+off, flags not arrived, no signal, or a key that doesn't exist — so a flag can
+go into the code before it exists in PostHog, and deleting it there breaks
+nothing. It does **not** override an actual answer: a flag you have turned off
+reads as off even where the default is `true`, which is what makes a remote
+kill switch work.
+
 ## Notes
 
 - Authorization is the app's job, not the database's: the API holds Supabase's secret key, and RLS stays deny-all. Every read and write goes through `requireTripAccess`, which resolves the caller's membership on the trip named in the path.
