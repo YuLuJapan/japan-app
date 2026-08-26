@@ -221,6 +221,27 @@ export function useUploadFile(tripId: string) {
   })
 }
 
+/**
+ * Rename a file. The blob is untouched — only what it is called.
+ *
+ * `parent` is the same argument the delete takes, and for the same reason:
+ * a file shows up in the trip's document list *and* under its zone or place,
+ * so all three caches have to hear about it.
+ */
+export function useRenameFile(parent?: FileParent) {
+  const path = useTripPath()
+  const qc = useQueryClient()
+  return useMutation({
+    meta: { success: 'Name updated' },
+    mutationFn: ({ fileId, display_name }: { fileId: string; display_name: string }) =>
+      api.patch<{ file: FileMeta }>(path(`/files/${fileId}`), { display_name }),
+    onSuccess: (_data, _input) => {
+      capture('file_renamed', { parent_type: parent?.kind ?? 'trip' })
+      invalidateForFileParent(qc, parent)
+    },
+  })
+}
+
 export function useDeleteFile(parent?: FileParent) {
   const path = useTripPath()
   const qc = useQueryClient()

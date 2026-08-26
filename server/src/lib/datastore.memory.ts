@@ -692,6 +692,13 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return structuredClone(file)
     },
 
+    async updateFile(tripId, fileId, patch) {
+      const file = db.files.find((f) => f.id === fileId && fileIn(tripId, f))
+      if (!file) return null
+      file.display_name = patch.display_name
+      return structuredClone(file)
+    },
+
     async deleteFile(tripId, fileId) {
       const idx = db.files.findIndex((f) => f.id === fileId && fileIn(tripId, f))
       if (idx === -1) return false

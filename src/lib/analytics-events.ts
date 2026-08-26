@@ -90,6 +90,7 @@ export interface AnalyticsEventProperties {
 
   // Documents
   file_uploaded: { parent_type: 'trip' | 'zone' | 'place'; mime_type: string; size_kb: number }
+  file_renamed: { parent_type: 'trip' | 'zone' | 'place' }
 
   // The day plan and the journey
   itinerary_item_created: { has_place: boolean; has_time: boolean; highlight: boolean }

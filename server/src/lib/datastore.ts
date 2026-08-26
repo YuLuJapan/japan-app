@@ -558,6 +558,16 @@ export interface DataStore {
   getFile(tripId: string, fileId: string): Promise<FileAttachment | null>
   /** Store an uploaded blob and its metadata row. */
   createFile(input: FileInput, bytes: Buffer): Promise<FileAttachment>
+  /**
+   * Rename a file. Only the display name is changeable — `storage_path` is a
+   * uuid the blob is keyed by, so a rename never touches what was uploaded.
+   * Null when the row is missing or belongs to another trip.
+   */
+  updateFile(
+    tripId: string,
+    fileId: string,
+    patch: { display_name: string }
+  ): Promise<FileAttachment | null>
   /** Delete the metadata row and its blob. Returns false if the row is missing. */
   deleteFile(tripId: string, fileId: string): Promise<boolean>
   /** Move a place's files to the trip (used before place deletion — no silent file loss). */

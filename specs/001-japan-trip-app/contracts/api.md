@@ -571,6 +571,17 @@ response for both datastore backends, unlike `/url`.
 - Query: `?download=1` switches the disposition to `attachment`.
 - 404 `NOT_FOUND` / 404 `FILE_MISSING` — same two variants as `/url`.
 
+### PATCH /api/trips/:tripId/files/:fileId
+
+Rename a document. The display name is the only field there is to change: the blob is keyed by `storage_path` (a uuid assigned at upload) and is never touched, and the extension a download gets is derived from the stored mime type, so no rename can leave a file unopenable.
+
+- Request: `{"display_name":"Flights — Tokyo"}` — trimmed, 1–120 characters, the same rule the upload applies (and the same check constraint the column carries).
+- 200: `{"file":{"id":"…","display_name":"…","mime_type":"…","size_bytes":123}}`
+- 400 `VALIDATION` (empty or over-long name) · 404 `NOT_FOUND` (no such file, or it belongs to another trip) · 403 for any role that cannot write.
+- No `can_see_documents` check of its own: this is a write, so a viewer never reaches it, and a role that can write is given the full view — there is no caller who may rename a file they cannot see.
+
+**Client-side rollout:** the UI for this sits behind the `files-rename` PostHog flag (`src/lib/flags.ts`), defaulting to off. The endpoint itself is always live — a flag is a rollout control, not an access control, and gating the route would only add a way for a correctly-authorised request to fail.
+
 ## Reminders & notifications
 
 Scheduled nudges ("book the ryokan") delivered as web push notifications. `remind_at` is always an absolute instant (ISO 8601, returned in UTC) so both phones fire together regardless of which zone they're set to; `time_zone` is the IANA zone the wall clock was typed in, kept for display only.

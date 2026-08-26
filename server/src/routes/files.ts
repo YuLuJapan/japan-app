@@ -9,6 +9,7 @@ import {
   getFileContent,
   getFileUrl,
   listTripDocuments,
+  renameFile,
 } from '../services/files.js'
 import { STAY_CATEGORY } from '../lib/trip-view.js'
 
@@ -66,6 +67,20 @@ const fileContent = asyncHandler(async (req, res) => {
   res.send(bytes)
 })
 
+/**
+ * Rename — the display name and nothing else.
+ *
+ * No `assertMayRead`: this is a write, so requireTripAccess has already
+ * refused every role that cannot write, and a role that can write is given
+ * the full view (lib/trip-view.ts) — there is no such caller as one who may
+ * rename a file they are not allowed to see.
+ */
+const rename = asyncHandler(async (req, res) => {
+  res.json(
+    await renameFile(await getDataStore(), req.params.tripId, req.params.fileId, req.body ?? {})
+  )
+})
+
 const remove = asyncHandler(async (req, res) => {
   await deleteFile(await getDataStore(), req.params.tripId, req.params.fileId)
   res.status(204).end()
@@ -77,4 +92,5 @@ filesTripRouter.get('/files', list)
 filesTripRouter.post('/files', create)
 filesTripRouter.get('/files/:fileId/url', fileUrl)
 filesTripRouter.get('/files/:fileId/content', fileContent)
+filesTripRouter.patch('/files/:fileId', rename)
 filesTripRouter.delete('/files/:fileId', remove)
