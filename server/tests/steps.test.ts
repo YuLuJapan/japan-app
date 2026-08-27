@@ -23,11 +23,14 @@ describe('POST /api/trips/trip-1/steps', () => {
       })
     )
     expect(res.status).toBe(201)
+    // The journey-card shape, the same one the trip bundle lists: the zone
+    // itself rather than its id, so the client can render what it just saved.
     expect(res.body.step).toMatchObject({
-      zone_id: 'zone-kyoto',
       start_date: '2026-10-12',
       end_date: '2026-10-14',
+      zone: expect.objectContaining({ id: 'zone-kyoto', name: 'Kyoto' }),
     })
+    expect(res.body.step.zone.place_counts).toBeDefined()
   })
 
   it('400 VALIDATION for missing zone_id/destination or bad dates', async () => {
@@ -90,7 +93,7 @@ describe('POST /api/steps with a free-text destination', () => {
         })
     )
     expect(res.status).toBe(201)
-    expect(res.body.step.zone_id).toBe('zone-kyoto')
+    expect(res.body.step.zone.id).toBe('zone-kyoto')
   })
 
   it('creates a new zone for a destination that matches nothing in the catalog', async () => {
@@ -104,7 +107,7 @@ describe('POST /api/steps with a free-text destination', () => {
         })
     )
     expect(res.status).toBe(201)
-    expect(['zone-tokyo', 'zone-kyoto']).not.toContain(res.body.step.zone_id)
+    expect(['zone-tokyo', 'zone-kyoto']).not.toContain(res.body.step.zone.id)
 
     const trip = await auth(request(app).get('/api/trips/trip-1'))
     const created = trip.body.steps.find((s: { id: string }) => s.id === res.body.step.id)
@@ -217,7 +220,7 @@ describe('PATCH /api/trips/trip-1/steps/:stepId', () => {
         .send({ destination: { name: 'Nara', lat: 34.6851, lng: 135.8048 } })
     )
     expect(res.status).toBe(200)
-    expect(res.body.step.zone_id).not.toBe('zone-tokyo')
+    expect(res.body.step.zone.id).not.toBe('zone-tokyo')
   })
 
   it('leaves the zone unchanged when only dates are patched', async () => {
@@ -225,7 +228,7 @@ describe('PATCH /api/trips/trip-1/steps/:stepId', () => {
       request(app).patch('/api/trips/trip-1/steps/step-1').send({ end_date: '2026-10-07' })
     )
     expect(res.status).toBe(200)
-    expect(res.body.step.zone_id).toBe('zone-tokyo')
+    expect(res.body.step.zone.id).toBe('zone-tokyo')
   })
 })
 
@@ -270,8 +273,12 @@ describe('POST /api/trips/:tripId/steps', () => {
       end_date: '2027-02-10',
     })
     expect(res.status).toBe(201)
-    expect(res.body.step.trip_id).toBe(tripId)
-    expect(res.body.step.zone_id).not.toBe('zone-tokyo')
+    expect(res.body.step.zone.id).not.toBe('zone-tokyo')
+    // The card shape carries no trip id — it is a row of one trip's journey by
+    // construction. That the step landed on the right trip is asserted where
+    // it matters, on that trip's own journey.
+    const own = await auth(request(app).get(`/api/trips/${tripId}`))
+    expect(own.body.steps.map((s: { id: string }) => s.id)).toEqual([res.body.step.id])
 
     // trip-1's steps are untouched
     const trip = await auth(request(app).get('/api/trips/trip-1'))

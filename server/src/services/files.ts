@@ -51,6 +51,56 @@ export function downloadName(file: FileAttachment) {
  *   than pretending otherwise — the same reasoning as withholding a whole
  *   category instead of redacting prose.
  */
+/**
+ * Where a file hangs, named — the half of a document row that is not the file.
+ *
+ * The Documents tab groups by this, and the name is the zone's or the place's,
+ * so it cannot be assembled from the file alone. `listTripDocuments` used to
+ * build it inline, which left create and rename answering with something
+ * narrower than the list they change; both go through here now.
+ */
+type NameCache = Map<string, string>
+
+async function attachedTo(
+  store: DataStore,
+  tripId: string,
+  file: FileAttachment,
+  names: NameCache = new Map()
+) {
+  // Keyed by kind as well as id, so a zone and a place can never collide.
+  const named = async (key: string, look: () => Promise<string>) => {
+    if (!names.has(key)) names.set(key, await look())
+    return names.get(key)!
+  }
+  if (file.place_id) {
+    const id = file.place_id
+    const name = await named(
+      `place:${id}`,
+      async () => (await store.getPlace(tripId, id))?.name ?? 'Place'
+    )
+    return { kind: 'place' as const, id, name }
+  }
+  if (file.zone_id) {
+    const id = file.zone_id
+    const name = await named(
+      `zone:${id}`,
+      async () => (await store.getZone(tripId, id))?.name ?? 'City'
+    )
+    return { kind: 'zone' as const, id, name }
+  }
+  return { kind: 'trip' as const, id: tripId, name: 'Trip' }
+}
+
+/** A file as the Documents tab lists it: its meta plus where it hangs. */
+export async function documentView(
+  store: DataStore,
+  tripId: string,
+  file: FileAttachment,
+  names?: NameCache
+) {
+  return { ...meta(file), attached_to: await attachedTo(store, tripId, file, names) }
+}
+
 export async function listTripDocuments(store: DataStore, tripId: string, view: TripView) {
   const trip = await requireTrip(store, tripId)
   if (!view.documents) return { files: [] }
@@ -61,25 +111,11 @@ export async function listTripDocuments(store: DataStore, tripId: string, view: 
     : new Set(await store.listPlaceIdsByCategory(trip.id, STAY_CATEGORY))
   const files = all.filter((f) => !f.place_id || !stayIds.has(f.place_id))
 
-  const zoneNames = new Map<string, string>()
-  const placeNames = new Map<string, string>()
-  const documents = await Promise.all(
-    files.map(async (f) => {
-      let attached_to: { kind: 'trip' | 'zone' | 'place'; id: string; name: string }
-      if (f.place_id) {
-        if (!placeNames.has(f.place_id))
-          placeNames.set(f.place_id, (await store.getPlace(trip.id, f.place_id))?.name ?? 'Place')
-        attached_to = { kind: 'place', id: f.place_id, name: placeNames.get(f.place_id)! }
-      } else if (f.zone_id) {
-        if (!zoneNames.has(f.zone_id))
-          zoneNames.set(f.zone_id, (await store.getZone(trip.id, f.zone_id))?.name ?? 'City')
-        attached_to = { kind: 'zone', id: f.zone_id, name: zoneNames.get(f.zone_id)! }
-      } else {
-        attached_to = { kind: 'trip', id: trip.id, name: 'Trip' }
-      }
-      return { ...meta(f), attached_to }
-    })
-  )
+  // One shared cache across the list: several documents on the same place
+  // should cost one lookup, not one each.
+  const names: NameCache = new Map()
+  const documents: Awaited<ReturnType<typeof documentView>>[] = []
+  for (const file of files) documents.push(await documentView(store, trip.id, file, names))
   return { files: documents }
 }
 
@@ -159,7 +195,7 @@ export async function createFile(store: DataStore, tripId: string, body: UploadB
   if (kind === 'place' && !(await store.getPlace(trip.id, input.place_id!))) throw notFound('Place')
 
   const file = await store.createFile(input, bytes)
-  return { file: meta(file) }
+  return { file: await documentView(store, trip.id, file) }
 }
 
 /**
@@ -181,7 +217,7 @@ export async function renameFile(
 
   const file = await store.updateFile(tripId, fileId, { display_name })
   if (!file) throw notFound('File')
-  return { file: meta(file) }
+  return { file: await documentView(store, tripId, file) }
 }
 
 export async function deleteFile(store: DataStore, tripId: string, fileId: string) {

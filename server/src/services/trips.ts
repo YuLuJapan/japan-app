@@ -14,7 +14,8 @@ import {
 } from '../lib/currencies.js'
 import { normalizeFlight, type FlightInfo, type FlightItinerary } from '../lib/flight.js'
 import { displayTitle } from '../lib/trip-title.js'
-import { FULL_VIEW, hideStayCounts, type TripView } from '../lib/trip-view.js'
+import { stepView } from '../lib/step-view.js'
+import { FULL_VIEW, type TripView } from '../lib/trip-view.js'
 import type { DateRange } from '../lib/trip-dates.js'
 import { addDays, daysBetween, rangeLabel, withinRange } from '../lib/trip-dates.js'
 
@@ -76,18 +77,7 @@ export async function getTripBundle(
   if (!trip) throw notFound('Trip')
   const steps = await store.listSteps(trip.id)
   const stepsWithZones = await Promise.all(
-    steps.map(async (step) => {
-      const zone = await store.getZone(trip.id, step.zone_id)
-      const counts = await store.countPlacesByCategory(trip.id, step.zone_id)
-      const place_counts = includeStays ? counts : hideStayCounts(counts)
-      return {
-        id: step.id,
-        position: step.position,
-        start_date: step.start_date,
-        end_date: step.end_date,
-        zone: zone ? { ...zone, place_counts } : null,
-      }
-    })
+    steps.map((step) => stepView(store, trip.id, step, { includeStays }))
   )
   const trip_files_count = await store.countTripFiles(trip.id)
   return {
