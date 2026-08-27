@@ -4,6 +4,7 @@ import { CATEGORIES } from '../lib/datastore.js'
 // see the DataStore interface. lib/access.ts's reachability helpers are gone.
 
 import { forbidden, notFound, validation } from '../lib/errors.js'
+import { placeView } from '../lib/place-view.js'
 import { isStay } from '../lib/trip-view.js'
 
 /**
@@ -32,7 +33,7 @@ export async function getPlaceDetail(
     includeFiles ? store.listFiles(tripId, { place_id: placeId }) : [],
   ])
   return {
-    place,
+    place: placeView(place),
     tips,
     files: files.map(({ id, display_name, mime_type, size_bytes }) => ({
       id,
@@ -99,7 +100,7 @@ export async function createPlace(store: DataStore, tripId: string, input: Place
   const zone = await store.getZone(tripId, input.zone_id)
   if (!zone) throw notFound('Zone')
   const place = await store.createPlace(tripId, { ...input, name: input.name.trim() })
-  return { place }
+  return { place: placeView(place) }
 }
 
 export async function updatePlace(
@@ -119,7 +120,7 @@ export async function updatePlace(
   }
   const place = await store.updatePlace(tripId, placeId, patch)
   if (!place) throw notFound('Place')
-  return { place }
+  return { place: placeView(place) }
 }
 
 export async function deletePlace(store: DataStore, tripId: string, placeId: string) {

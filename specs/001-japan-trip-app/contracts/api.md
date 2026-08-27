@@ -415,6 +415,8 @@ An item's `day` must fall within its trip's own `start_date`/`end_date` — the 
 
 Full detail incl. tips and files (US1 AC2/AC3, US4 AC1).
 
+**`place.summary_line`** rides along on every place the API returns (detail, create, update), derived from the description by `server/src/lib/place-view.ts` — the same function the zone's category lists use for their rows. It is there so a client can put an edited place straight back into the list it came from instead of recomputing a rule that lives on the server.
+
 - 200:
 
 ```json
@@ -543,6 +545,20 @@ The currencies a trip can be priced in, and the guess to make from a country. St
 
 - 200: `{"currencies":[{"code":"USD","name":"US Dollar"},…],"by_country":{"japan":"JPY","thailand":"THB",…}}`
 - `by_country` is keyed by lowercased country name and is a **hint only**: the trip sheet pre-fills the currency from the country until the traveller picks one themselves.
+
+## A write answers with the row its list renders
+
+**Every `POST` and `PATCH` returns the same shape the matching `GET` returns per item.** Not the bare database row — the row the list actually shows, assembled the same way:
+
+| write         | answers with                                                      | assembled by                                                         |
+| ------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------- |
+| places        | the place plus `summary_line`                                     | `lib/place-view.ts`, shared with the zone's category lists           |
+| journey steps | the journey card: dates, position, and the `zone` with its counts | `lib/step-view.ts`, shared with the trip bundle                      |
+| files         | the document row, `attached_to` and its parent's name included    | `documentView` in `services/files.ts`, shared with the Documents tab |
+
+This is what lets a client show a change the moment it lands instead of asking for it again: it has the row, so it puts it where the list keeps it. **Anything new returning an entity should answer with the shape its list renders** — and where a list is ordered, the order belongs to the datastore, mirrored in `src/lib/ordering.ts` and pinned by `server/tests/ordering.test.ts` so the two cannot drift apart quietly.
+
+_Shape change (2026-08-27):_ `POST|PATCH /steps` used to answer with the raw `journey_steps` row (`trip_id`, `zone_id`); it answers with the card now, so `step.zone.id` replaces `step.zone_id`.
 
 ## Files
 
