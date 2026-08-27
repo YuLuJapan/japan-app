@@ -175,6 +175,71 @@ function patchSteps(
   )
 }
 
+/**
+ * The row a zone's category list renders, out of the place a write returns.
+ *
+ * Every field comes from the response, `summary_line` included — the server
+ * derives it and hands it back for exactly this reason, so nothing here is a
+ * reconstruction of a rule that lives somewhere else.
+ */
+const placeRow = (place: Place): PlaceListItem => ({
+  id: place.id,
+  name: place.name,
+  name_ja: place.name_ja,
+  category: place.category,
+  summary_line: place.summary_line,
+  image_url: place.image_url ?? null,
+  address: place.address ?? null,
+  lat: place.lat ?? null,
+  lng: place.lng ?? null,
+})
+
+/**
+ * Put a place into the category list it now belongs to, and out of any other.
+ *
+ * A list is cached per category (`['zone-places', zoneId, category]`), so an
+ * edit that changes a place's category has to move the row between two of
+ * them — which is bookkeeping over what is already cached, not a guess. Within
+ * its own list the row keeps its position; a place it was not in appends,
+ * which is where `created_at` order puts a new one.
+ */
+function patchZoneList(qc: ReturnType<typeof useQueryClient>, place: Place) {
+  const row = placeRow(place)
+  // The cache is walked rather than swept: `setQueriesData` hands its updater
+  // the data alone, and which category a list holds is in its key.
+  for (const query of qc.getQueryCache().findAll({ queryKey: ['zone-places', place.zone_id] })) {
+    const listCategory = query.queryKey[2]
+    qc.setQueryData(query.queryKey, (cached: { places: PlaceListItem[] } | undefined) => {
+      if (!cached) return cached
+      if (listCategory !== place.category)
+        return { ...cached, places: removeById(cached.places, place.id) }
+      return cached.places.some((p) => p.id === place.id)
+        ? { ...cached, places: replaceById(cached.places, row) }
+        : { ...cached, places: [...cached.places, row] }
+    })
+  }
+}
+
+/** Move the tally on a zone as a place joins, leaves or changes category. */
+function shiftPlaceCount(
+  qc: ReturnType<typeof useQueryClient>,
+  zoneId: string,
+  category: Category,
+  by: 1 | -1
+) {
+  qc.setQueryData(['zone', zoneId], (cached: ZoneDetail | undefined) =>
+    cached
+      ? {
+          ...cached,
+          place_counts: {
+            ...cached.place_counts,
+            [category]: Math.max(0, (cached.place_counts[category] ?? 0) + by),
+          },
+        }
+      : cached
+  )
+}
+
 function usePlaceInvalidation() {
   const qc = useQueryClient()
   return (zoneId?: string, placeId?: string) =>
@@ -230,13 +295,16 @@ const hoursFromNow = (instant: string): number => {
 
 export function useCreatePlace() {
   const path = useTripPath()
+  const qc = useQueryClient()
   const invalidate = usePlaceInvalidation()
   return useMutation({
     meta: { success: 'Place added' },
     mutationFn: (input: PlaceInput) => api.post<{ place: Place }>(path('/places'), input),
     onSuccess: (data, input) => {
       capture('place_created', placeFacts(input))
-      return invalidate(data.place.zone_id, data.place.id)
+      patchZoneList(qc, data.place)
+      shiftPlaceCount(qc, data.place.zone_id, data.place.category, 1)
+      reconcile(invalidate(data.place.zone_id, data.place.id))
     },
   })
 }
@@ -251,11 +319,16 @@ export function useUpdatePlace(placeId: string) {
       api.patch<{ place: Place }>(path(`/places/${placeId}`), patch),
     onSuccess: (data, patch) => {
       capture('place_updated', { category: data.place.category, fields: changedFields(patch) })
+      const before = qc.getQueryData<PlaceDetail>(['place', placeId])?.place
       qc.setQueryData(['place', placeId], (cached: PlaceDetail | undefined) =>
         cached ? { ...cached, place: data.place } : cached
       )
-      // The zone's category lists carry a `summary_line` the server renders,
-      // which cannot be derived from the place — that one is a real refetch.
+      patchZoneList(qc, data.place)
+      // Recategorising moves it between two lists, and between two tallies.
+      if (before && before.category !== data.place.category) {
+        shiftPlaceCount(qc, data.place.zone_id, before.category, -1)
+        shiftPlaceCount(qc, data.place.zone_id, data.place.category, 1)
+      }
       reconcile(invalidate(data.place.zone_id, placeId))
     },
   })

@@ -415,6 +415,8 @@ An item's `day` must fall within its trip's own `start_date`/`end_date` — the 
 
 Full detail incl. tips and files (US1 AC2/AC3, US4 AC1).
 
+**`place.summary_line`** rides along on every place the API returns (detail, create, update), derived from the description by `server/src/lib/place-view.ts` — the same function the zone's category lists use for their rows. It is there so a client can put an edited place straight back into the list it came from instead of recomputing a rule that lives on the server.
+
 - 200:
 
 ```json

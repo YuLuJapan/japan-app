@@ -11,6 +11,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import {
+  useCreatePlace,
   useCreateReminder,
   useCreateTip,
   useCreateTrip,
@@ -24,12 +25,13 @@ import {
   useRemoveMember,
   useRevokeInvite,
   useUpdateMember,
+  useUpdatePlace,
   useUpdateReminder,
   useUpdateZone,
   useUpdateShoppingItem,
   useUpdateTrip,
 } from '../api/mutations'
-import type { FileMeta, Reminder, ShoppingItem, Trip } from '../api/types'
+import type { FileMeta, Place, PlaceListItem, Reminder, ShoppingItem, Trip } from '../api/types'
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() }))
 vi.mock('../api/client', async (importOriginal) => ({
@@ -487,5 +489,121 @@ describe('sharing', () => {
     expect(client.getQueryData<{ invites: { id: string }[] }>(['invites', 't1'])?.invites).toEqual([
       { id: 'i2' },
     ])
+  })
+})
+
+describe('activities in a zone', () => {
+  const place = (over: Partial<Place> = {}): Place => ({
+    id: 'p1',
+    zone_id: 'z1',
+    category: 'food',
+    name: 'Ramen Bar',
+    name_ja: null,
+    description: 'Tiny counter, queue early',
+    address: null,
+    links: [],
+    image_url: null,
+    lat: null,
+    lng: null,
+    summary_line: 'Tiny counter, queue early',
+    ...over,
+  })
+
+  const row = (over: Partial<PlaceListItem> = {}): PlaceListItem => ({
+    id: 'p1',
+    name: 'Ramen Bar',
+    name_ja: null,
+    category: 'food',
+    summary_line: 'Tiny counter, queue early',
+    image_url: null,
+    address: null,
+    lat: null,
+    lng: null,
+    ...over,
+  })
+
+  it('shows an edited name and summary back in the zone list, in place', async () => {
+    // The list you return to after editing — the one that used to hold the old
+    // name until a refetch caught up.
+    client.setQueryData(['place', 'p1'], { place: place(), tips: [], files: [] })
+    client.setQueryData(['zone-places', 'z1', 'food'], {
+      places: [row({ id: 'p0', name: 'First' }), row()],
+    })
+    mocks.patch.mockResolvedValue({
+      place: place({ name: 'Ichiran', description: 'Solo booths', summary_line: 'Solo booths' }),
+    })
+
+    const { result } = renderHook(() => useUpdatePlace('p1'), { wrapper })
+    result.current.mutate({ name: 'Ichiran', description: 'Solo booths' })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const list = client.getQueryData<{ places: PlaceListItem[] }>(['zone-places', 'z1', 'food'])
+    expect(list?.places.map((p) => p.name)).toEqual(['First', 'Ichiran']) // position kept
+    expect(list?.places[1].summary_line).toBe('Solo booths') // the server's own line
+    expect(mocks.get).not.toHaveBeenCalled()
+  })
+
+  it('moves it between lists, and between tallies, when the category changes', async () => {
+    client.setQueryData(['place', 'p1'], { place: place(), tips: [], files: [] })
+    client.setQueryData(['zone-places', 'z1', 'food'], { places: [row()] })
+    client.setQueryData(['zone-places', 'z1', 'attraction'], { places: [] })
+    client.setQueryData(['zone', 'z1'], {
+      zone: { id: 'z1' },
+      tips: [],
+      files: [],
+      place_counts: { hotel: 0, attraction: 2, food: 1, shopping: 0, other: 0 },
+    })
+    mocks.patch.mockResolvedValue({ place: place({ category: 'attraction' }) })
+
+    const { result } = renderHook(() => useUpdatePlace('p1'), { wrapper })
+    result.current.mutate({ category: 'attraction' })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(
+      client.getQueryData<{ places: PlaceListItem[] }>(['zone-places', 'z1', 'food'])?.places
+    ).toEqual([])
+    expect(
+      client
+        .getQueryData<{ places: PlaceListItem[] }>(['zone-places', 'z1', 'attraction'])
+        ?.places.map((p) => p.id)
+    ).toEqual(['p1'])
+    const counts = client.getQueryData<{ place_counts: Record<string, number> }>(['zone', 'z1'])
+    expect(counts?.place_counts).toMatchObject({ food: 0, attraction: 3 })
+  })
+
+  it('adds a new one to its list and its tally at once', async () => {
+    client.setQueryData(['zone-places', 'z1', 'food'], { places: [row({ id: 'p0' })] })
+    client.setQueryData(['zone', 'z1'], {
+      zone: { id: 'z1' },
+      tips: [],
+      files: [],
+      place_counts: { hotel: 0, attraction: 0, food: 1, shopping: 0, other: 0 },
+    })
+    mocks.post.mockResolvedValue({ place: place({ id: 'p2', name: 'New spot' }) })
+
+    const { result } = renderHook(() => useCreatePlace(), { wrapper })
+    result.current.mutate({ zone_id: 'z1', category: 'food', name: 'New spot' })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const list = client.getQueryData<{ places: PlaceListItem[] }>(['zone-places', 'z1', 'food'])
+    // Appended: the list is created_at ascending, so the newest belongs last.
+    expect(list?.places.map((p) => p.id)).toEqual(['p0', 'p2'])
+    const counts = client.getQueryData<{ place_counts: Record<string, number> }>(['zone', 'z1'])
+    expect(counts?.place_counts.food).toBe(2)
+  })
+
+  it('leaves a category list it has never loaded alone', async () => {
+    // Nothing is invented for a list nobody has opened: it simply fetches.
+    client.setQueryData(['zone-places', 'z1', 'food'], { places: [] })
+    mocks.post.mockResolvedValue({ place: place({ id: 'p3', category: 'shopping' }) })
+
+    const { result } = renderHook(() => useCreatePlace(), { wrapper })
+    result.current.mutate({ zone_id: 'z1', category: 'shopping', name: 'Loft' })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(client.getQueryData(['zone-places', 'z1', 'shopping'])).toBeUndefined()
+    expect(
+      client.getQueryData<{ places: PlaceListItem[] }>(['zone-places', 'z1', 'food'])?.places
+    ).toEqual([])
   })
 })

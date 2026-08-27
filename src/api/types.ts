@@ -298,6 +298,13 @@ export interface Place {
   image_url?: string | null
   lat?: number | null
   lng?: number | null
+  /**
+   * The one-line gist the zone's category lists show. Derived from the
+   * description, computed by the server (`lib/place-view.ts`) and returned on
+   * every place — so an edited place can go back into the list it came from
+   * without the client inventing the same rule. See `placeRow` in mutations.
+   */
+  summary_line: string
 }
 
 export interface PlaceDetail {

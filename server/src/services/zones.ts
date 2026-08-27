@@ -1,6 +1,7 @@
 import type { Category, DataStore, ZonePatch } from '../lib/datastore.js'
 import { CATEGORIES } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
+import { summaryLine } from '../lib/place-view.js'
 import { hideStayCounts, isStay } from '../lib/trip-view.js'
 
 /**
@@ -67,7 +68,7 @@ export async function listZonePlaces(
       name: p.name,
       name_ja: p.name_ja,
       category: p.category,
-      summary_line: p.description ? p.description.slice(0, 100) : '',
+      summary_line: summaryLine(p.description),
       image_url: p.image_url ?? null,
       address: p.address ?? null,
       lat: p.lat ?? null,
