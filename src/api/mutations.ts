@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
 import { capture, tripFacts } from '../lib/posthog'
+import { compareItinerary, compareShopping, compareSteps } from '../lib/ordering'
 import type { PlaceFacts } from '../lib/analytics-events'
 import { useTripPath } from './tripPath'
 import type {
@@ -12,7 +13,6 @@ import type {
   FileUploadInput,
   ItineraryItem,
   ItineraryItemInput,
-  JourneyStep,
   JourneyStepInput,
   Place,
   PlaceDetail,
@@ -27,6 +27,7 @@ import type {
   Tip,
   Trip,
   TripBundle,
+  TripDocument,
   TripInput,
   TripStep,
   TripInvite,
@@ -50,6 +51,12 @@ const REFRESH_GRACE_MS = 500
 
 /**
  * The refetch a write triggers — awaited, but not indefinitely.
+ *
+ * The rare case now, not the rule: almost every write puts the server's answer
+ * into the cache itself and calls `reconcile`. What is left here is the
+ * handful where the screen genuinely cannot be right without a read — accepting
+ * the terms (the gate opens on `['me']`), joining a trip (a trips row nothing
+ * here can build), and a date change the server answered by moving stops.
  *
  * Every invalidation helper below returns this, and every `onSuccess` returns
  * that in turn, which is what holds the write "open" until the screen agrees
@@ -162,6 +169,21 @@ function patchReminders(
   )
 }
 
+/**
+ * A day plan, on whichever trip's itinerary is cached. Re-sorted on the way in:
+ * giving an activity a time, or moving it to another day, moves it — and the
+ * order is `compareItinerary`, mirrored from the datastore and pinned by
+ * `server/tests/ordering.test.ts`.
+ */
+function patchItinerary(
+  qc: ReturnType<typeof useQueryClient>,
+  apply: (items: ItineraryItem[]) => ItineraryItem[]
+) {
+  qc.setQueriesData({ queryKey: ['itinerary'] }, (cached: ItineraryList | undefined) =>
+    cached ? { ...cached, items: apply(cached.items).sort(compareItinerary) } : cached
+  )
+}
+
 /** The journey's steps, on whichever trip bundle is cached. */
 const holdsSteps = (data: unknown): data is { steps: TripStep[] } =>
   !!data && typeof data === 'object' && Array.isArray((data as { steps?: unknown }).steps)
@@ -243,7 +265,7 @@ function shiftPlaceCount(
 function usePlaceInvalidation() {
   const qc = useQueryClient()
   return (zoneId?: string, placeId?: string) =>
-    refreshed(
+    Promise.all([
       qc.invalidateQueries({ queryKey: ['trip'] }),
       ...(zoneId
         ? [
@@ -251,8 +273,8 @@ function usePlaceInvalidation() {
             qc.invalidateQueries({ queryKey: ['zone-places', zoneId] }),
           ]
         : []),
-      ...(placeId ? [qc.invalidateQueries({ queryKey: ['place', placeId] })] : [])
-    )
+      ...(placeId ? [qc.invalidateQueries({ queryKey: ['place', placeId] })] : []),
+    ])
 }
 
 /**
@@ -364,18 +386,32 @@ export function useDeletePlace(zoneId: string | undefined, category?: Category) 
             : cached
         )
       }
-      return refreshed(
+      reconcile(
         invalidate(zoneId),
-        // the deleted place's files re-parent to the trip
+        // the deleted place's files re-parent to the trip — rows this cannot
+        // build, on a screen the delete did not change
         qc.invalidateQueries({ queryKey: ['trip-files'] })
       )
     },
   })
 }
 
+/**
+ * The shopping list, re-sorted on the way in: ticking something off sinks it
+ * below the still-to-buy, which is the list's whole shape (`compareShopping`).
+ */
+function patchShopping(
+  qc: ReturnType<typeof useQueryClient>,
+  apply: (items: ShoppingItem[]) => ShoppingItem[]
+) {
+  qc.setQueriesData({ queryKey: ['shopping'] }, (cached: ShoppingList | undefined) =>
+    cached ? { ...cached, items: apply(cached.items).sort(compareShopping) } : cached
+  )
+}
+
 function useShoppingInvalidation() {
   const qc = useQueryClient()
-  return () => refreshed(qc.invalidateQueries({ queryKey: ['shopping'] }))
+  return () => qc.invalidateQueries({ queryKey: ['shopping'] })
 }
 
 /**
@@ -412,12 +448,13 @@ export function useUpdateZone(zoneId: string) {
 }
 
 export function useCreateShoppingItem(tripId: string) {
+  const qc = useQueryClient()
   const invalidate = useShoppingInvalidation()
   return useMutation({
     meta: { success: 'Added to the list' },
     mutationFn: (input: ShoppingItemInput) =>
       api.post<{ item: ShoppingItem }>(`/trips/${tripId}/shopping`, input),
-    onSuccess: (_data, input) => {
+    onSuccess: (data, input) => {
       capture('shopping_item_created', {
         category: input.category ?? 'unset',
         has_price: input.price_yen != null,
@@ -425,7 +462,8 @@ export function useCreateShoppingItem(tripId: string) {
         has_photo: Boolean(input.image_url),
         has_shop: Boolean(input.shop),
       })
-      return invalidate()
+      patchShopping(qc, (items) => [...items, data.item])
+      reconcile(invalidate())
     },
   })
 }
@@ -444,9 +482,7 @@ export function useUpdateShoppingItem() {
       // The list filters on `bought`, so writing the row back moves it between
       // "to buy" and "bought" on the spot — the one write here done constantly,
       // often mid-shop on a bad connection.
-      qc.setQueriesData({ queryKey: ['shopping'] }, (cached: ShoppingList | undefined) =>
-        cached ? { ...cached, items: replaceById(cached.items, data.item) } : cached
-      )
+      patchShopping(qc, (items) => replaceById(items, data.item))
       reconcile(invalidate())
     },
   })
@@ -461,9 +497,7 @@ export function useDeleteShoppingItem() {
     mutationFn: (id: string) => api.delete<void>(path(`/shopping/${id}`)),
     onSuccess: (_data, id) => {
       capture('shopping_item_deleted')
-      qc.setQueriesData({ queryKey: ['shopping'] }, (cached: ShoppingList | undefined) =>
-        cached ? { ...cached, items: removeById(cached.items, id) } : cached
-      )
+      patchShopping(qc, (items) => removeById(items, id))
       reconcile(invalidate())
     },
   })
@@ -485,12 +519,12 @@ export function useDeleteShoppingItem() {
  * which an upload or a delete moves.
  */
 function invalidateFileCaches(qc: ReturnType<typeof useQueryClient>) {
-  return refreshed(
+  return Promise.all([
     qc.invalidateQueries({ queryKey: ['trip-files'] }),
     qc.invalidateQueries({ queryKey: ['zone'] }),
     qc.invalidateQueries({ queryKey: ['place'] }),
-    qc.invalidateQueries({ queryKey: ['trip'] })
-  )
+    qc.invalidateQueries({ queryKey: ['trip'] }),
+  ])
 }
 
 export function useUploadFile(tripId: string) {
@@ -498,15 +532,18 @@ export function useUploadFile(tripId: string) {
   return useMutation({
     meta: { success: 'Document uploaded' },
     mutationFn: (input: FileUploadInput) =>
-      api.post<{ file: FileMeta }>(`/trips/${tripId}/files`, input),
-    onSuccess: (_data, input) => {
+      api.post<{ file: TripDocument }>(`/trips/${tripId}/files`, input),
+    onSuccess: (data, input) => {
       capture('file_uploaded', {
         parent_type: input.parent.kind,
         mime_type: input.mime_type,
         // base64 runs about 4 characters to every 3 bytes.
         size_kb: Math.round((input.data_base64.length * 3) / 4 / 1024),
       })
-      return invalidateFileCaches(qc)
+      // The upload answers with the row the Documents tab renders — where it
+      // hangs, and the name of what it hangs on — so it can simply be added.
+      patchCachedFiles(qc, (files) => [...files, data.file])
+      reconcile(invalidateFileCaches(qc))
     },
   })
 }
@@ -524,7 +561,7 @@ export function useRenameFile(parent?: FileParent) {
   return useMutation({
     meta: { success: 'Name updated' },
     mutationFn: ({ fileId, display_name }: { fileId: string; display_name: string }) =>
-      api.patch<{ file: FileMeta }>(path(`/files/${fileId}`), { display_name }),
+      api.patch<{ file: TripDocument }>(path(`/files/${fileId}`), { display_name }),
     onSuccess: (data) => {
       capture('file_renamed', { parent_type: parent?.kind ?? 'trip' })
       patchCachedFiles(qc, (files) => replaceById(files, data.file))
@@ -548,36 +585,40 @@ export function useDeleteFile() {
 
 function useItineraryInvalidation() {
   const qc = useQueryClient()
-  return () => refreshed(qc.invalidateQueries({ queryKey: ['itinerary'] }))
+  return () => qc.invalidateQueries({ queryKey: ['itinerary'] })
 }
 
 export function useCreateItineraryItem(tripId: string) {
+  const qc = useQueryClient()
   const invalidate = useItineraryInvalidation()
   return useMutation({
     meta: { success: 'Added to the day' },
     mutationFn: (input: ItineraryItemInput) =>
       api.post<{ item: ItineraryItem }>(`/trips/${tripId}/itinerary`, input),
-    onSuccess: (_data, input) => {
+    onSuccess: (data, input) => {
       capture('itinerary_item_created', {
         has_place: Boolean(input.place_id),
         has_time: Boolean(input.start_time),
         highlight: Boolean(input.highlight),
       })
-      return invalidate()
+      patchItinerary(qc, (items) => [...items, data.item])
+      reconcile(invalidate())
     },
   })
 }
 
 export function useUpdateItineraryItem() {
   const path = useTripPath()
+  const qc = useQueryClient()
   const invalidate = useItineraryInvalidation()
   return useMutation({
     meta: { success: 'Activity saved' },
     mutationFn: ({ id, patch }: { id: string; patch: Partial<ItineraryItemInput> }) =>
       api.patch<{ item: ItineraryItem }>(path(`/itinerary/${id}`), patch),
-    onSuccess: (_data, { patch }) => {
+    onSuccess: (data, { patch }) => {
       capture('itinerary_item_updated', { fields: changedFields(patch) })
-      return invalidate()
+      patchItinerary(qc, (items) => replaceById(items, data.item))
+      reconcile(invalidate())
     },
   })
 }
@@ -591,11 +632,7 @@ export function useDeleteItineraryItem() {
     mutationFn: (id: string) => api.delete<void>(path(`/itinerary/${id}`)),
     onSuccess: (_data, id) => {
       capture('itinerary_item_deleted')
-      // Safe where an edit would not be: taking a row out cannot disturb the
-      // order of the rows that remain.
-      qc.setQueriesData({ queryKey: ['itinerary'] }, (cached: ItineraryList | undefined) =>
-        cached ? { ...cached, items: removeById(cached.items, id) } : cached
-      )
+      patchItinerary(qc, (items) => removeById(items, id))
       reconcile(invalidate())
     },
   })
@@ -603,22 +640,26 @@ export function useDeleteItineraryItem() {
 
 function useStepInvalidation() {
   const qc = useQueryClient()
-  return () => refreshed(qc.invalidateQueries({ queryKey: ['trip'] }))
+  return () => qc.invalidateQueries({ queryKey: ['trip'] })
 }
 
 export function useCreateStep(tripId: string) {
+  const qc = useQueryClient()
   const invalidate = useStepInvalidation()
   return useMutation({
     meta: { success: 'Destination added' },
     mutationFn: (input: JourneyStepInput) =>
-      api.post<{ step: JourneyStep }>(`/trips/${tripId}/steps`, input),
-    onSuccess: (_data, input) => {
+      api.post<{ step: TripStep }>(`/trips/${tripId}/steps`, input),
+    onSuccess: (data, input) => {
       capture('journey_step_created', {
         nights: nightsBetween(input.start_date, input.end_date),
         // A step is either an existing zone or somewhere just searched for.
         from_search: !input.zone_id,
       })
-      return invalidate()
+      // The card shape, zone and counts included, so the journey can show the
+      // stop straight away — sorted in, since the journey runs by date.
+      patchSteps(qc, (steps) => [...steps, data.step].sort(compareSteps))
+      reconcile(invalidate())
     },
   })
 }
@@ -630,11 +671,10 @@ export function useUpdateStep() {
   return useMutation({
     meta: { success: 'Journey updated' },
     mutationFn: ({ id, patch }: { id: string; patch: Partial<JourneyStepInput> }) =>
-      api.patch<{ step: JourneyStep }>(path(`/steps/${id}`), patch),
+      api.patch<{ step: TripStep }>(path(`/steps/${id}`), patch),
     onSuccess: (data) => {
-      // Merged, not replaced: a step on the bundle carries its zone — name and
-      // photo for the card — which the step response knows nothing about.
-      patchSteps(qc, (steps) => replaceById(steps, data.step))
+      // Re-dating a stop moves it: the journey runs in date order.
+      patchSteps(qc, (steps) => replaceById(steps, data.step).sort(compareSteps))
       reconcile(invalidate())
     },
   })
@@ -662,10 +702,10 @@ interface TipParent {
 function useTipInvalidation(parent: TipParent) {
   const qc = useQueryClient()
   return () =>
-    refreshed(
+    Promise.all([
       ...(parent.zone_id ? [qc.invalidateQueries({ queryKey: ['zone', parent.zone_id] })] : []),
-      ...(parent.place_id ? [qc.invalidateQueries({ queryKey: ['place', parent.place_id] })] : [])
-    )
+      ...(parent.place_id ? [qc.invalidateQueries({ queryKey: ['place', parent.place_id] })] : []),
+    ])
 }
 
 export function useCreateTip(parent: TipParent) {
@@ -714,7 +754,7 @@ export function useDeleteTip(parent: TipParent) {
 
 function useReminderInvalidation() {
   const qc = useQueryClient()
-  return () => refreshed(qc.invalidateQueries({ queryKey: ['reminders'] }))
+  return () => qc.invalidateQueries({ queryKey: ['reminders'] })
 }
 
 export function useCreateReminder(tripId: string) {
@@ -813,7 +853,7 @@ export function useSendTestPush() {
 
 function useTripsInvalidation() {
   const qc = useQueryClient()
-  return () => refreshed(qc.invalidateQueries({ queryKey: ['trips'] }))
+  return () => qc.invalidateQueries({ queryKey: ['trips'] })
 }
 
 /**

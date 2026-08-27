@@ -11,9 +11,12 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import {
+  useCreateItineraryItem,
   useCreatePlace,
   useCreateReminder,
   useCreateTip,
+  useCreateShoppingItem,
+  useCreateStep,
   useCreateTrip,
   useDeleteReminder,
   useDeleteFile,
@@ -22,6 +25,7 @@ import {
   useDeleteTrip,
   useUpdateStep,
   useRenameFile,
+  useUploadFile,
   useRemoveMember,
   useRevokeInvite,
   useUpdateMember,
@@ -605,5 +609,123 @@ describe('activities in a zone', () => {
     expect(
       client.getQueryData<{ places: PlaceListItem[] }>(['zone-places', 'z1', 'food'])?.places
     ).toEqual([])
+  })
+})
+
+describe('what the API now hands back whole', () => {
+  it('puts an uploaded document straight into the list, where it hangs and all', async () => {
+    // The upload answers with the row the Documents tab renders — `attached_to`
+    // included, which the client could never have built.
+    client.setQueryData(['trip-files', 't1'], { files: [] })
+    mocks.post.mockResolvedValue({
+      file: { ...file, attached_to: { kind: 'place', id: 'p1', name: 'Ramen Bar' } },
+    })
+
+    const { result } = renderHook(() => useUploadFile('t1'), { wrapper })
+    result.current.mutate({
+      parent: { kind: 'place', id: 'p1' },
+      display_name: 'Old name',
+      mime_type: 'application/pdf',
+      data_base64: 'AAAA',
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const docs = client.getQueryData<{ files: { attached_to: { name: string } }[] }>([
+      'trip-files',
+      't1',
+    ])
+    expect(docs?.files[0].attached_to).toEqual({ kind: 'place', id: 'p1', name: 'Ramen Bar' })
+    expect(mocks.get).not.toHaveBeenCalled()
+  })
+
+  it('sorts a new journey stop into date order, with its zone on it', async () => {
+    const later = {
+      id: 'step-2',
+      position: 1,
+      start_date: '2026-10-10',
+      end_date: '2026-10-12',
+      zone: { id: 'z2', name: 'Kyoto' },
+    }
+    client.setQueryData(['trip', 't1'], { trip, steps: [later], trip_files_count: 0 })
+    mocks.post.mockResolvedValue({
+      step: {
+        id: 'step-1',
+        position: 2,
+        start_date: '2026-10-02',
+        end_date: '2026-10-05',
+        zone: { id: 'z1', name: 'Tokyo', image_url: 'tokyo.jpg' },
+      },
+    })
+
+    const { result } = renderHook(() => useCreateStep('t1'), { wrapper })
+    result.current.mutate({ zone_id: 'z1', start_date: '2026-10-02', end_date: '2026-10-05' })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const steps = client.getQueryData<{ steps: { id: string; zone: { name: string } }[] }>([
+      'trip',
+      't1',
+    ])?.steps
+    // Earlier stop first, though it was added second — and the card has a zone.
+    expect(steps?.map((s) => s.id)).toEqual(['step-1', 'step-2'])
+    expect(steps?.[0].zone.name).toBe('Tokyo')
+  })
+
+  it('drops a new activity into the right place in its day', async () => {
+    const anytime = {
+      id: 'i1',
+      trip_id: 't1',
+      zone_id: null,
+      place_id: null,
+      day: '2026-10-02',
+      start_time: null,
+      title: 'Wander',
+      note: null,
+      position: 0,
+      highlight: false,
+      icon: null,
+    }
+    client.setQueryData(['itinerary', 't1'], { items: [anytime] })
+    mocks.post.mockResolvedValue({
+      item: { ...anytime, id: 'i2', start_time: '09:00', title: 'Museum' },
+    })
+
+    const { result } = renderHook(() => useCreateItineraryItem('t1'), { wrapper })
+    result.current.mutate({ day: '2026-10-02', title: 'Museum', start_time: '09:00' })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    // Timed items sort ahead of untimed ones — the order the API returns.
+    expect(
+      client
+        .getQueryData<{ items: { title: string }[] }>(['itinerary', 't1'])
+        ?.items.map((i) => i.title)
+    ).toEqual(['Museum', 'Wander'])
+  })
+
+  it('sinks a bought item below the ones still to buy', async () => {
+    const toBuy = { ...item, id: 's2', name: 'Socks', position: 1 }
+    client.setQueryData(['shopping', 't1'], { items: [item, toBuy] })
+    mocks.patch.mockResolvedValue({ item: { ...item, bought: true } })
+
+    const { result } = renderHook(() => useUpdateShoppingItem(), { wrapper })
+    result.current.mutate({ id: 's1', patch: { bought: true } })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(
+      client.getQueryData<{ items: ShoppingItem[] }>(['shopping', 't1'])?.items.map((i) => i.id)
+    ).toEqual(['s2', 's1'])
+  })
+
+  it('adds a new shopping item without a refetch', async () => {
+    client.setQueryData(['shopping', 't1'], { items: [item] })
+    mocks.post.mockResolvedValue({ item: { ...item, id: 's3', name: 'Matcha', position: 1 } })
+
+    const { result } = renderHook(() => useCreateShoppingItem('t1'), { wrapper })
+    result.current.mutate({ name: 'Matcha' })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(
+      client.getQueryData<{ items: ShoppingItem[] }>(['shopping', 't1'])?.items.map((i) => i.id)
+    ).toEqual(['s1', 's3'])
+    expect(mocks.get).not.toHaveBeenCalled()
   })
 })

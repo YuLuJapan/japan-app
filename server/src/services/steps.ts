@@ -7,6 +7,7 @@
 import type { DataStore } from '../lib/datastore.js'
 import { requireTrip } from '../lib/access.js'
 import { notFound, validation } from '../lib/errors.js'
+import { stepView } from '../lib/step-view.js'
 import type { DateRange } from '../lib/trip-dates.js'
 import { collectRangeErrors } from '../lib/trip-dates.js'
 import type { GeocodeResult } from './geocode.js'
@@ -97,7 +98,12 @@ async function resolveZoneId(
   return created.id
 }
 
-export async function createStep(store: DataStore, tripId: string, input: StepFields) {
+export async function createStep(
+  store: DataStore,
+  tripId: string,
+  input: StepFields,
+  { includeStays = true }: { includeStays?: boolean } = {}
+) {
   const errors = collectErrors(input, false)
   if (errors.length) throw validation(errors)
   const trip = await requireTrip(store, tripId)
@@ -113,14 +119,17 @@ export async function createStep(store: DataStore, tripId: string, input: StepFi
     end_date: input.end_date!,
     position: nextPosition,
   })
-  return { step }
+  // The journey-card shape, not the bare row: a write answers with what the
+  // list it changed actually renders (lib/step-view.ts).
+  return { step: await stepView(store, trip.id, step, { includeStays }) }
 }
 
 export async function updateStep(
   store: DataStore,
   tripId: string,
   stepId: string,
-  patch: StepFields
+  patch: StepFields,
+  { includeStays = true }: { includeStays?: boolean } = {}
 ) {
   const errors = collectErrors(patch, true)
   if (errors.length) throw validation(errors)
@@ -147,7 +156,7 @@ export async function updateStep(
     end_date: patch.end_date,
   })
   if (!step) throw notFound('Journey step')
-  return { step }
+  return { step: await stepView(store, tripId, step, { includeStays }) }
 }
 
 export async function deleteStep(store: DataStore, tripId: string, stepId: string) {
