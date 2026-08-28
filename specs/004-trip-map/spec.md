@@ -8,7 +8,7 @@
 
 **Input**: Monday board "Onward — Next Four", group `004 · Map` — feature brief and spec-input updates on item "◆ FEATURE — Map", plus the foundational item and five user-story items. Feature description: "See everything you saved in space rather than in a list, so you stop leaving the app for Google Maps. Standing in Shibuya at 6pm deciding what is near, the app answers 'what did we save' but never 'what is close'. Opens on the current journey step's zone, with a whole-trip toggle. Starts with a coordinate backfill: 0 of 39 places have coordinates, all 9 zones do. Sixth nav tab behind a flag defaulting off. One tap out to an external maps app for turn-by-turn." Clarifications settled with the user before writing: sixth bottom-nav tab with shortened labels at six; whole feature in scope (foundational slice + five stories); geocode-on-save suggests a location and the traveller confirms it; missing coordinates surface as a count that leads to a list and then the existing place edit form.
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### Foundational Work - Every place has a location (Priority: Foundational — blocks every story below)
 
@@ -120,7 +120,7 @@ A traveller wants to be told when a saved place has no location yet, so the map 
 - **A place saved with no address at all.** There is nothing to resolve; the place saves without a location and joins the missing count rather than being blocked or given a guess.
 - **The flag has no answer yet.** The map is behind a flag that defaults off, and the default is what is used when no answer has arrived. On a device's first run the tab is absent until the flag service answers, and stays absent if that request fails.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -143,7 +143,7 @@ A traveller wants to be told when a saved place has no location yet, so the map 
 - **FR-012**: The map MUST be reachable as a sixth item in the trip's main navigation. When six items are present, their labels MUST shorten so that each remains readable at 320px; no item may be truncated mid-word or overlap its neighbour.
 - **FR-013**: Map imagery MUST carry the attribution its provider's terms require, visible on the map itself.
 - **FR-014**: The system MUST NOT store map imagery ahead of time for offline use.
-- **FR-015**: The whole feature — the navigation item and its screen alike — MUST sit behind a flag that defaults off, such that turning the flag off removes the entry point *and* closes direct navigation to the screen.
+- **FR-015**: The whole feature — the navigation item and its screen alike — MUST sit behind a flag that defaults off, such that turning the flag off removes the entry point _and_ closes direct navigation to the screen.
 
 #### What the map may show
 
@@ -176,7 +176,7 @@ A traveller wants to be told when a saved place has no location yet, so the map 
 - **Journey step**: the trip's ordered stops with dates; decides which zone the map opens on.
 - **Member view**: the per-member content permissions that already govern what a member may see; decides which pins are transmitted.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 
