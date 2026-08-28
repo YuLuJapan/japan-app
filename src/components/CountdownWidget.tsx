@@ -48,11 +48,13 @@ function PlaneIcon() {
 
 function Unit({ value, label }: { value: number; label: string }) {
   return (
-    <div className="rounded-2xl bg-sand px-1 py-2.5 text-center">
-      <div className="font-display text-[28px] font-extrabold leading-none tabular-nums text-graphite">
+    <div className="rounded-2xl bg-sand px-1 py-4 text-center">
+      <div className="font-display text-[32px] font-extrabold leading-none tabular-nums text-graphite">
         {String(value).padStart(2, '0')}
       </div>
-      <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.1em] text-faint">{label}</div>
+      <div className="mt-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-faint">
+        {label}
+      </div>
     </div>
   )
 }
@@ -122,7 +124,7 @@ export function CountdownWidget({ flight, now }: { flight: FlightInfo; now?: Dat
       >
         <span className="flex items-center gap-1.5 text-brand">
           <PlaneIcon />
-          <span className="text-xs font-extrabold uppercase tracking-[0.1em]">
+          <span className="text-[13px] font-extrabold uppercase tracking-[0.1em]">
             {!departAt ? 'Your flights' : left.done ? 'Takeoff' : 'Countdown to takeoff'}
           </span>
         </span>
@@ -183,7 +185,7 @@ export function CountdownWidget({ flight, now }: { flight: FlightInfo; now?: Dat
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="mt-3.5 flex items-center gap-1.5 text-xs text-[#8A8478]"
+          className="mt-4 flex items-center gap-1.5 text-sm text-[#8A8478]"
         >
           Tap here to see the flight details
           <span aria-hidden className="text-brand">

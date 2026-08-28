@@ -80,7 +80,15 @@ export function DayPlan({ day, items, zoneId = null, tripId }: Props) {
       {items.length === 0 && !adding ? (
         <EmptyState message="Nothing planned for this day yet." />
       ) : (
-        <ol className="relative ml-[18px] border-l border-line pl-[18px]">
+        // The rail is an absolutely positioned line rather than the list's own
+        // left border, so it starts where "Plan" starts instead of 18px inside
+        // it, and so the dots can straddle it. Design 1g: line at x=3px,
+        // 1.5px wide; dots 8px at x=0, which centres them on it.
+        <ol className="relative pl-[18px]">
+          <span
+            aria-hidden
+            className="absolute bottom-[5px] left-[3px] top-[5px] w-[1.5px] rounded bg-line"
+          />
           {items.map((item, i) =>
             editingId === item.id ? (
               <li key={item.id} className="mb-2 rounded-2xl border border-line bg-white p-3">
@@ -115,25 +123,28 @@ export function DayPlan({ day, items, zoneId = null, tripId }: Props) {
                 />
                 <div className="flex items-baseline gap-3">
                   <span
-                    className={`w-14 shrink-0 text-[11px] ${
+                    className={`w-16 shrink-0 text-xs ${
                       i === 0 ? 'font-bold text-brand' : 'font-semibold text-faint'
                     }`}
                   >
                     {item.start_time ? fmtTime(item.start_time) : 'Anytime'}
                   </span>
-                  <p className="min-w-0 flex-1 text-sm font-bold leading-snug text-ink">
+                  <p className="min-w-0 flex-1 text-base font-bold leading-snug text-ink">
                     {item.title}
                   </p>
                 </div>
-                <div className="ml-[68px]">
+                <div className="ml-[76px]">
                   {item.note && (
-                    <p className="mt-1 text-[11px] leading-relaxed text-[#8A8478]">{item.note}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-[#8A8478]">{item.note}</p>
                   )}
-                  {(item.place_category || item.place_files?.length) && (
+                  {/* Boolean, not the raw length: `null || 0` is `0`, and React
+                      renders a bare 0 as text — an untagged activity printed a
+                      stray "0" under its title. */}
+                  {!!(item.place_category || item.place_files?.length) && (
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       {item.place_category && (
                         <span
-                          className={`rounded-full px-2 py-[3px] text-[10px] font-bold ${
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
                             CATEGORY_META[item.place_category].color
                           }`}
                         >
@@ -144,14 +155,14 @@ export function DayPlan({ day, items, zoneId = null, tripId }: Props) {
                       {item.place_files?.map((name) => (
                         <span
                           key={name}
-                          className="max-w-[160px] truncate rounded-full bg-sand px-2 py-[3px] text-[10px] font-semibold text-slate"
+                          className="max-w-[180px] truncate rounded-full bg-sand px-2.5 py-1 text-[11px] font-semibold text-slate"
                         >
                           📎 {name}
                         </span>
                       ))}
                     </div>
                   )}
-                  <div className="mt-1.5 flex gap-3 text-[11px] font-semibold">
+                  <div className="mt-2 flex gap-3 text-xs font-semibold">
                     {item.place_id && (
                       <Link
                         to={`/trips/${tripId}/places/${item.place_id}`}

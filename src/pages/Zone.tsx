@@ -63,8 +63,10 @@ export default function Zone() {
       <PhotoHero
         src={zone.image_url}
         alt={zone.name}
-        // Shorter than the trip's — a city screen has a schedule to get to.
-        height="h-[min(52vh,26rem)]"
+        // The same height as the trip's hero: the two screens sit one tap
+        // apart, and a banner that changed size on the way in read as the page
+        // shifting under you rather than as a deliberate second scale.
+        height="h-[min(62vh,30rem)]"
         backTo={`/trips/${tripId}`}
         backLabel="Back to the journey"
         eyebrow={

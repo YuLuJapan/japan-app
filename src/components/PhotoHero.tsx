@@ -32,9 +32,13 @@ interface Props {
   /** Sits opposite the back button — the city page hangs "Photo" here. */
   action?: ReactNode
   /**
-   * How far the card below should ride up over the photo. The countdown card
-   * on the trip screen overlaps it by 64px; a city has nothing to overlap.
+   * How far the card in `children` rides up over the photo, in px. The title
+   * block is lifted clear of it by 12px, which is the design's own spacing:
+   * it draws the card at `margin-top:-64px` and the title block at
+   * `bottom:76px`. Without this the title sits at the photo's foot and the
+   * card lands straight on top of it.
    */
+  overlap?: number
   children?: ReactNode
 }
 
@@ -48,6 +52,7 @@ export function PhotoHero({
   backTo,
   backLabel = 'Back',
   action,
+  overlap = 0,
   children,
 }: Props) {
   return (
@@ -87,21 +92,24 @@ export function PhotoHero({
         )}
         {action && <div className="absolute right-4 top-4">{action}</div>}
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 px-[18px] pb-6">
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 px-[18px]"
+          style={{ paddingBottom: Math.max(24, overlap + 12) }}
+        >
           {eyebrow && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-black/30 px-2.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.16em] text-white backdrop-blur">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-black/30 px-2.5 py-1.5 text-xs font-extrabold uppercase tracking-[0.16em] text-white backdrop-blur">
               {eyebrow}
             </span>
           )}
           <h1
-            className="mt-1 font-display text-[40px] font-extrabold leading-[1.05] tracking-[-0.03em] text-white"
+            className="mt-1.5 font-display text-[44px] font-extrabold leading-[1.05] tracking-[-0.03em] text-white"
             style={{ textShadow: '0 2px 12px rgba(0,0,0,.55)' }}
           >
             {title}
           </h1>
           {meta && (
             <p
-              className="mt-1 text-xs font-semibold text-white"
+              className="mt-1 text-sm font-semibold text-white"
               style={{ textShadow: '0 1px 6px rgba(0,0,0,.6)' }}
             >
               {meta}

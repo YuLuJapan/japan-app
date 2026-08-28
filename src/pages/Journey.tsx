@@ -114,9 +114,17 @@ export default function Journey() {
           }
           title={heroTitle}
           meta={meta}
+          // The design's own numbers: the card rides up 64px and the title
+          // clears it by 12px. PhotoHero derives the second from the first.
+          overlap={64}
         >
-          {/* Rides up over the bottom of the photo, as the design draws it. */}
-          <div className="relative z-[1] -mt-16 px-4">{countdown}</div>
+          {/* Rides up over the bottom of the photo, as the design draws it.
+              `px-5` and not `px-4`: this card is the left edge every other
+              block on the screen lines up against — the journey tiles, the day
+              rail and both section headings all sit on <main>'s gutter, so a
+              card inset 16px further than they are made them read as jammed
+              against the screen edge. One gutter, one vertical line. */}
+          <div className="relative z-[1] -mt-16 px-5">{countdown}</div>
         </PhotoHero>
       )}
 
@@ -124,7 +132,7 @@ export default function Journey() {
         <>
           <div>
             <div className="mb-3 flex items-baseline justify-between gap-3">
-              <h2 className="font-display text-xl font-bold tracking-tight">The journey</h2>
+              <h2 className="font-display text-2xl font-bold tracking-tight">The journey</h2>
               <div className="flex items-center gap-3">
                 {/* Everyone on the trip can export it, viewers included: the
                     file is a subset of what they are already looking at. */}
@@ -149,7 +157,7 @@ export default function Journey() {
           </div>
 
           <section>
-            <h2 className="mb-3 font-display text-xl font-bold tracking-tight">Day by day</h2>
+            <h2 className="mb-3 font-display text-2xl font-bold tracking-tight">Day by day</h2>
             {itinerary.isPending ? (
               <Loading label="Loading the schedule…" />
             ) : itinerary.isError ? (

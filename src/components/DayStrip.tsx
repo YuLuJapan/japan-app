@@ -1,11 +1,11 @@
 // Horizontal, snap-scrolling strip of date circles (the schedule day picker).
 //
 // The redesign (options 1e/1g) draws these as rings rather than filled tiles:
-// a 46px circle carrying the day number, the weekday beneath it in small caps,
-// and — on a day you change city — a plane above a dashed coral ring. The
-// selected day takes a thicker coral ring and a blush fill; today, when it
-// isn't the selected day, gets a coral dot so "jump to today" has something to
-// aim at.
+// a circle carrying the day number and the weekday beneath it in small caps,
+// with a dashed coral ring on a day you change city. The selected day is a
+// solid black disc with white type and no ring — a ring as well as a fill left
+// two things competing for the same edge. Today, when it isn't the selected
+// day, gets a coral dot so "jump to today" has something to aim at.
 import { Fragment, useEffect, useRef } from 'react'
 import { dayNumber, isNextDay, weekdayLetter } from '../lib/schedule'
 
@@ -14,23 +14,13 @@ interface Props {
   selected: string
   onSelect: (day: string) => void
   today?: string
-  /** Show a dot on days that have at least one planned activity. */
-  hasItems?: (day: string) => boolean
   /** Flag days you change city on, so a shared checkout/arrival day stands out. */
   isMoving?: (day: string) => boolean
-  /** 46px on the trip screen, 42px on a city's own. */
+  /** 56px on the trip screen, 50px on a city's own. */
   size?: 'md' | 'sm'
 }
 
-export function DayStrip({
-  days,
-  selected,
-  onSelect,
-  today,
-  hasItems,
-  isMoving,
-  size = 'md',
-}: Props) {
+export function DayStrip({ days, selected, onSelect, today, isMoving, size = 'md' }: Props) {
   const ref = useRef<HTMLDivElement>(null)
 
   // Keep the selected chip in view when it changes (e.g. jump to today).
@@ -57,7 +47,10 @@ export function DayStrip({
     strip.scrollTo({ left: Math.min(Math.max(0, left), max) })
   }, [selected])
 
-  const circle = size === 'md' ? 'h-[46px] w-[46px]' : 'h-[42px] w-[42px]'
+  // The design draws 46px on a 300px-wide phone frame. A real handset is
+  // 390-430px, so taken literally the rail renders proportionally smaller than
+  // the mockup reads — scaled to keep the design's ratio on a real screen.
+  const circle = size === 'md' ? 'h-[56px] w-[56px]' : 'h-[50px] w-[50px]'
 
   return (
     <div
@@ -90,36 +83,26 @@ export function DayStrip({
               onClick={() => onSelect(day)}
               className="flex shrink-0 snap-start flex-col items-center gap-1.5 active:scale-95"
             >
-              {/* Reserved whether or not the plane is there, so the circles in a
-                  row stay on one baseline. */}
               <span
-                aria-hidden="true"
                 data-testid={moving ? 'day-strip-moving' : undefined}
-                className="h-[11px] text-[11px] font-bold leading-none text-brand"
-              >
-                {moving ? '✈' : ''}
-              </span>
-              <span
-                className={`relative flex items-center justify-center rounded-full font-display text-sm font-bold transition ${circle} ${
+                className={`relative flex items-center justify-center rounded-full font-display text-[17px] font-bold transition ${circle} ${
+                  // Selected is a solid black disc with no ring of its own —
+                  // including on a moving day, where the dashed ring would
+                  // otherwise fight the fill for the same edge.
                   active
-                    ? 'border-[2.5px] border-brand bg-blush text-ink'
+                    ? 'bg-ink text-white'
                     : moving
                       ? 'border-2 border-dashed border-brand text-brand'
                       : 'border-2 border-stone text-slate'
                 }`}
               >
                 {dayNumber(day)}
-                {hasItems?.(day) && (
-                  <span
-                    className={`absolute -bottom-0.5 h-1 w-1 rounded-full ${active ? 'bg-brand' : 'bg-dust'}`}
-                  />
-                )}
                 {isToday && !active && (
                   <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-brand ring-2 ring-canvas" />
                 )}
               </span>
               <span
-                className={`text-[9px] font-bold uppercase ${moving && !active ? 'text-brand' : 'text-faint'}`}
+                className={`text-[10px] font-bold uppercase ${moving && !active ? 'text-brand' : 'text-faint'}`}
               >
                 {weekdayLetter(day)}
               </span>
