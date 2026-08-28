@@ -37,11 +37,11 @@
 
 **Iteration 1** — two issues found and fixed:
 
-1. *Scope not bounded* — the brief defines Full as "everything, including descriptions, links, tips and the
+1. _Scope not bounded_ — the brief defines Full as "everything, including descriptions, links, tips and the
    day-by-day plan" but never says whether Full also carries the flight block, shopping list, documents or member
    names. Raised with the author; decided **places, tips and day plan only**, and encoded as **FR-004a** plus
    **SC-006a** and an explicit Assumption, so the material with real blast radius never enters an exportable file.
-2. *Internal inconsistency* — FR-008 and US2 acceptance scenario 4 still spoke of documents / flight / shopping
+2. _Internal inconsistency_ — FR-008 and US2 acceptance scenario 4 still spoke of documents / flight / shopping
    being withheld by a member's view, which reads as though they would otherwise be exported. Both reworded against
    FR-004a; FR-008 keeps the composition rule stated generally so anything later admitted inherits it.
 

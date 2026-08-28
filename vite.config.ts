@@ -41,11 +41,22 @@ export default defineConfig({
         // so the unreachable ones are left out of it. They are still built and
         // still served, so a future code path that does reach them works — it
         // just fetches them.
+        //
+        // Leaflet and its stylesheet are left out for a different reason, and
+        // it is a requirement rather than an optimisation (FR-014, research
+        // R4): the OSM tile policy forbids bulk pre-fetching, so map *imagery*
+        // can never be precached — and precaching the engine that draws it
+        // buys install weight on every phone and no offline capability at all.
+        // The map screen's own chunk stays in the manifest deliberately: with
+        // no connection it still has to open and list the places it would have
+        // pinned (FR-026, SC-007), which is the whole offline story here.
         globIgnores: [
           'assets/html2canvas*.js',
           'assets/canvg*.js',
           'assets/index.es*.js',
           'assets/purify.es*.js',
+          'assets/engine.leaflet*.js',
+          'assets/engine-*.css',
         ],
         navigateFallback: '/index.html',
         // never serve the SPA shell for API calls

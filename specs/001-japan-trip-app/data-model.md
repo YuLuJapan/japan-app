@@ -19,26 +19,26 @@ zones 1 ──── * files (zone-level)          places 1 ──── * files
 
 The single overall journey (the schema supports several, the app loads one).
 
-| Field | Type | Rules |
-|---|---|---|
-| id | uuid PK | |
-| name | text | required, 1–120 chars |
-| start_date | date | required |
-| end_date | date | required, ≥ start_date |
-| description | text | optional |
+| Field       | Type    | Rules                  |
+| ----------- | ------- | ---------------------- |
+| id          | uuid PK |                        |
+| name        | text    | required, 1–120 chars  |
+| start_date  | date    | required               |
+| end_date    | date    | required, ≥ start_date |
+| description | text    | optional               |
 
 ## journey_steps
 
 Ordered stops of the trip (FR-001, FR-005).
 
-| Field | Type | Rules |
-|---|---|---|
-| id | uuid PK | |
-| trip_id | uuid FK → trips | required, on delete cascade |
-| zone_id | uuid FK → zones | required — exactly one zone per step |
-| position | int | required, unique per trip (`unique(trip_id, position)`) |
-| start_date | date | required |
-| end_date | date | required, ≥ start_date |
+| Field      | Type            | Rules                                                   |
+| ---------- | --------------- | ------------------------------------------------------- |
+| id         | uuid PK         |                                                         |
+| trip_id    | uuid FK → trips | required, on delete cascade                             |
+| zone_id    | uuid FK → zones | required — exactly one zone per step                    |
+| position   | int             | required, unique per trip (`unique(trip_id, position)`) |
+| start_date | date            | required                                                |
+| end_date   | date            | required, ≥ start_date                                  |
 
 Derived (not stored): a step is **current** when device date ∈ [start_date, end_date]; **past**/**future** otherwise. If trip dates entirely past/future, no step is current (edge case in spec).
 
@@ -46,31 +46,31 @@ Derived (not stored): a step is **current** when device date ∈ [start_date, en
 
 City or area grouping content (FR-002).
 
-| Field | Type | Rules |
-|---|---|---|
-| id | uuid PK | |
-| name | text | required, 1–80 chars (e.g., "Tokyo") |
-| name_ja | text | optional Japanese name (e.g., "東京") — decorative per design language |
-| summary | text | optional |
-| image_url | text | optional http(s) photo URL (added 2026-07-11: booking-style visual cards); UI falls back to a styled block when absent/unloadable |
-| lat | double precision | optional latitude for the trip map pin (added 2026-07-11) |
-| lng | double precision | optional longitude for the trip map pin (added 2026-07-11) |
+| Field     | Type             | Rules                                                                                                                             |
+| --------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| id        | uuid PK          |                                                                                                                                   |
+| name      | text             | required, 1–80 chars (e.g., "Tokyo")                                                                                              |
+| name_ja   | text             | optional Japanese name (e.g., "東京") — decorative per design language                                                            |
+| summary   | text             | optional                                                                                                                          |
+| image_url | text             | optional http(s) photo URL (added 2026-07-11: booking-style visual cards); UI falls back to a styled block when absent/unloadable |
+| lat       | double precision | optional latitude for the trip map pin (added 2026-07-11)                                                                         |
+| lng       | double precision | optional longitude for the trip map pin (added 2026-07-11)                                                                        |
 
 ## places
 
 Points of interest (FR-002, FR-003, FR-015).
 
-| Field | Type | Rules |
-|---|---|---|
-| id | uuid PK | |
-| zone_id | uuid FK → zones | required, on delete cascade |
-| category | text enum | required: `hotel` \| `attraction` \| `food` (restaurants & cafes) \| `shopping` \| `other` |
-| name | text | required, 1–120 chars |
-| name_ja | text | optional Japanese name |
-| description | text | optional (notes) |
-| address | text | optional address / location reference |
-| links | jsonb | optional array of `{label, url}`; urls must be http(s) |
-| image_url | text | optional http(s) photo URL (added 2026-07-11); editable in the place form |
+| Field       | Type            | Rules                                                                                      |
+| ----------- | --------------- | ------------------------------------------------------------------------------------------ |
+| id          | uuid PK         |                                                                                            |
+| zone_id     | uuid FK → zones | required, on delete cascade                                                                |
+| category    | text enum       | required: `hotel` \| `attraction` \| `food` (restaurants & cafes) \| `shopping` \| `other` |
+| name        | text            | required, 1–120 chars                                                                      |
+| name_ja     | text            | optional Japanese name                                                                     |
+| description | text            | optional (notes)                                                                           |
+| address     | text            | optional address / location reference                                                      |
+| links       | jsonb           | optional array of `{label, url}`; urls must be http(s)                                     |
+| image_url   | text            | optional http(s) photo URL (added 2026-07-11); editable in the place form                  |
 
 Index: `(zone_id, category)` — the primary browse query (FR-002, SC-001).
 
@@ -80,12 +80,12 @@ State transitions: created → edited (any field) → deleted (hard delete; requ
 
 Advice attached to a zone OR a place — exactly one parent (FR-004, FR-016).
 
-| Field | Type | Rules |
-|---|---|---|
-| id | uuid PK | |
-| zone_id | uuid FK → zones, nullable | on delete cascade |
-| place_id | uuid FK → places, nullable | on delete cascade |
-| body | text | required, 1–1000 chars |
+| Field    | Type                       | Rules                  |
+| -------- | -------------------------- | ---------------------- |
+| id       | uuid PK                    |                        |
+| zone_id  | uuid FK → zones, nullable  | on delete cascade      |
+| place_id | uuid FK → places, nullable | on delete cascade      |
+| body     | text                       | required, 1–1000 chars |
 
 Constraint: `check (num_nonnulls(zone_id, place_id) = 1)` — a tip belongs to exactly one of zone/place.
 
@@ -93,16 +93,16 @@ Constraint: `check (num_nonnulls(zone_id, place_id) = 1)` — a tip belongs to e
 
 Metadata for pre-collected files stored in the Supabase Storage bucket `trip-files` (FR-007, FR-008). Attached to trip, zone, OR place — exactly one parent.
 
-| Field | Type | Rules |
-|---|---|---|
-| id | uuid PK | |
-| trip_id | uuid FK → trips, nullable | on delete cascade |
-| zone_id | uuid FK → zones, nullable | on delete cascade |
-| place_id | uuid FK → places, nullable | on delete set null → reattached as trip-level* |
-| display_name | text | required, 1–120 chars (recognizable name per US4 AC1) |
-| storage_path | text | required, unique — object key in bucket `trip-files` |
-| mime_type | text | required (drives type icon / open behavior) |
-| size_bytes | bigint | required (shown in listing; budget awareness) |
+| Field        | Type                       | Rules                                                 |
+| ------------ | -------------------------- | ----------------------------------------------------- |
+| id           | uuid PK                    |                                                       |
+| trip_id      | uuid FK → trips, nullable  | on delete cascade                                     |
+| zone_id      | uuid FK → zones, nullable  | on delete cascade                                     |
+| place_id     | uuid FK → places, nullable | on delete set null → reattached as trip-level*        |
+| display_name | text                       | required, 1–120 chars (recognizable name per US4 AC1) |
+| storage_path | text                       | required, unique — object key in bucket `trip-files`  |
+| mime_type    | text                       | required (drives type icon / open behavior)           |
+| size_bytes   | bigint                     | required (shown in listing; budget awareness)         |
 
 Constraint: `check (num_nonnulls(trip_id, zone_id, place_id) = 1)`.
 

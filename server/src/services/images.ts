@@ -52,7 +52,9 @@ async function getJson(endpoint: string, params: URLSearchParams): Promise<unkno
 function pagesOf(payload: unknown): Record<string, unknown>[] {
   const pages = (payload as { query?: { pages?: Record<string, unknown> } } | null)?.query?.pages
   if (!pages || typeof pages !== 'object') return []
-  return Object.values(pages).filter((p): p is Record<string, unknown> => !!p && typeof p === 'object')
+  return Object.values(pages).filter(
+    (p): p is Record<string, unknown> => !!p && typeof p === 'object'
+  )
 }
 
 async function searchWikipedia(query: string, limit: number): Promise<ImageResult[]> {

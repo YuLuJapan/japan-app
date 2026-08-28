@@ -56,7 +56,9 @@ export default function ShoppingList() {
           <h1 className="mt-1 font-display text-[34px] font-bold leading-[1.05] tracking-tight">
             Things to buy
           </h1>
-          {items.length === 0 && <p className="mt-1 text-sm text-muted">Nothing on the list yet.</p>}
+          {items.length === 0 && (
+            <p className="mt-1 text-sm text-muted">Nothing on the list yet.</p>
+          )}
         </div>
         {canEdit && (
           <Link to={`/trips/${tripId}/shopping/new`} className="btn-primary shrink-0 px-4">

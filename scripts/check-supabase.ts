@@ -38,7 +38,9 @@ async function main() {
     console.log(`  ✗ could not list buckets: ${bErr.message}`)
   } else {
     const found = buckets?.some((b) => b.name === FILES_BUCKET)
-    console.log(found ? `  ✓ bucket "${FILES_BUCKET}" exists` : `  ✗ bucket "${FILES_BUCKET}" MISSING`)
+    console.log(
+      found ? `  ✓ bucket "${FILES_BUCKET}" exists` : `  ✗ bucket "${FILES_BUCKET}" MISSING`
+    )
   }
 
   console.log(

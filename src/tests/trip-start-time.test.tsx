@@ -44,9 +44,7 @@ describe('GenericCountdown', () => {
   })
 
   it('falls back to the morning of the start date when no time is set', () => {
-    render(
-      <GenericCountdown startDate="2026-09-18" now={new Date('2026-09-18T00:00:00')} />
-    )
+    render(<GenericCountdown startDate="2026-09-18" now={new Date('2026-09-18T00:00:00')} />)
     // 09:00 local, nine hours after local midnight — the old behaviour, kept
     // for every trip that has not said when it begins.
     expect(readUnits()).toBe('00:09:00:00')

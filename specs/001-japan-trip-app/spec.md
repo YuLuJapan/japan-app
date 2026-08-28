@@ -8,7 +8,7 @@
 
 **Input**: User description: "We want to create an app that will include all the data and information for our trip to Japan. The app will include a front end in react in japanese but modern style. It should contain information regarding the hotels that we will be staying in, the attractions that we will do, restaurants and coffee shops, places that we want to travel to, shopping areas and stores, tips to have in consideration in each zone and place, and so on. Additionally, it should contain some files that we created or collected in advance (via blob storage). In the other end, we will have back end in Node.js serving all of these data. The data base should be free so consider using supabase or mongodb at atlas. We can afford to spend up to 5 dollars in total for this app. It should be responsive and be mobile first. We need to see the journey steps in a simple visualization of our trip."
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Browse trip information by zone and category (Priority: P1)
 
@@ -88,7 +88,7 @@ As a traveler, I want to open the files we created or collected before the trip 
 - What happens when both travelers edit the same place at nearly the same time? The last saved change wins; the app must not corrupt data or crash, and the winning version must be what both see afterwards.
 - What happens when an edit is submitted while the connection drops? The app must indicate the save failed and allow retrying without losing the entered text.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -121,7 +121,7 @@ As a traveler, I want to open the files we created or collected before the trip 
 - **Tip**: A short piece of advice or consideration; attached to either a zone or a specific place.
 - **File Attachment**: A document, image, or other file collected in advance; has a display name and type; attached to a trip, zone, or place; stored in blob storage.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 

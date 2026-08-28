@@ -3,12 +3,14 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTrip } from '../api/hooks'
 import { clearReminderBadge, hasUnseenReminder } from '../lib/push'
+import { useBooleanFlag } from '../lib/flags'
+import { navLabels, type NavLabels } from '../lib/nav-labels'
 import { useCanEdit, useTripShows } from '../lib/session'
 import { useTripId } from '../lib/trip'
 import { RingMark } from './RingMark'
 import { SignOutButton } from './SignOutButton'
 
-type IconName = 'journey' | 'shopping' | 'reminders' | 'essentials' | 'docs'
+type IconName = 'journey' | 'shopping' | 'reminders' | 'essentials' | 'docs' | 'map'
 
 // Canvas hex, not the Tailwind token — these sit as solid "cutout" shapes on
 // top of a filled icon, so they need the literal color rather than a class.
@@ -69,6 +71,16 @@ function TabIcon({ name, active }: { name: IconName; active: boolean }) {
         <rect x="10.8" y="10.8" width="2.4" height="6" rx="1.2" fill={CANVAS} />
       </svg>
     )
+  if (name === 'map')
+    return (
+      <svg {...common}>
+        {/* A folded paper map, not a second pin: the Journey tab is already a
+            pin, and two pins in one bar say nothing about the difference. */}
+        <path d="M3 6.4 9 4v13.6L3 20V6.4Z" fill={fill} />
+        <path d="M15 4v13.6L21 20V6.4L15 4Z" fill={fill} />
+        <path d="M9 4v13.6L15 20V6.4L9 4Z" fill={fill} opacity="0.55" />
+      </svg>
+    )
   return (
     <svg {...common}>
       <path
@@ -93,6 +105,15 @@ export function Layout({ children }: { children: ReactNode }) {
   const remindersActive = pathname.includes('/reminders')
   const essentialsActive = pathname.includes('/essentials')
   const docsActive = pathname.includes('/files')
+  const mapActive = pathname.endsWith('/map')
+
+  // The map, while it is rolling out. Off is the answer when PostHog has none,
+  // so the bar is exactly what it is today until the flag is turned on.
+  const showMap = useBooleanFlag('show-map', false)
+
+  // The map is the only full-bleed route, and it is the same route the tab
+  // highlights — one fact, read twice, rather than two lists to keep in step.
+  const bleed = mapActive
 
   // Red dot on the Reminders tab for a push nobody's looked at yet. Visiting
   // the tab is what clears it (below); an open tab also lights up live via a
@@ -140,6 +161,43 @@ export function Layout({ children }: { children: ReactNode }) {
   // "Reminders"/"Essentials"/"Documents" run into each other. A restricted
   // view drops Documents, and Shopping with it when that isn't shared, and
   // gets by with three or four.
+  //
+  // **The list is built before it is labelled.** `navLabels` takes the count,
+  // so the shortening at six is a consequence of how many tabs there are
+  // rather than a second edit to remember — which is what makes turning
+  // `show-map` off a total rollback (research R8). A member whose view already
+  // drops Documents keeps the long words even with the map on: they have five.
+  const tabs: { to: string; icon: IconName; label: (l: NavLabels) => string; active: boolean }[] = [
+    { to: base, icon: 'journey', label: (l) => l.journey, active: journeyActive },
+  ]
+  if (showMap) {
+    tabs.push({ to: `${base}/map`, icon: 'map', label: (l) => l.map, active: mapActive })
+  }
+  if (shows.shopping) {
+    tabs.push({
+      to: `${base}/shopping`,
+      icon: 'shopping',
+      label: (l) => l.shopping,
+      active: shoppingActive,
+    })
+  }
+  tabs.push({
+    to: `${base}/reminders`,
+    icon: 'reminders',
+    label: (l) => l.reminders,
+    active: remindersActive,
+  })
+  tabs.push({
+    to: `${base}/essentials`,
+    icon: 'essentials',
+    label: (l) => l.essentials,
+    active: essentialsActive,
+  })
+  if (canEdit) {
+    tabs.push({ to: `${base}/files`, icon: 'docs', label: (l) => l.docs, active: docsActive })
+  }
+  const labels = navLabels(tabs.length)
+
   const tab = (
     to: string,
     name: IconName,
@@ -148,6 +206,7 @@ export function Layout({ children }: { children: ReactNode }) {
     dot: boolean = false
   ) => (
     <Link
+      key={to}
       to={to}
       className="flex min-h-14 flex-1 flex-col items-center justify-center gap-1 px-0.5"
     >
@@ -215,16 +274,27 @@ export function Layout({ children }: { children: ReactNode }) {
       {/* Keyed by pathname so switching tabs — or drilling into a zone/place —
           always remounts and replays the fade, even between two routes that'd
           otherwise reuse the same component instance. */}
-      <main key={pathname} className="page-transition flex-1 px-5 pb-28 pt-1">
+      {/* Bleed mode: one route drops the frame and reaches the screen edges.
+          2a's map is full-bleed — it touches every side and the controls float
+          over it — which a page cannot do inside `px-5 pt-1`. Cancelling the
+          padding with negative margins was the smaller diff and was rejected:
+          it hard-codes the value here *and* there, so changing the padding
+          would silently break the bleed. The header stays (it carries the way
+          back out), the nav stays fixed, and the map's sheet rests on top of
+          it. `relative` so a full-bleed child can fill this box exactly. */}
+      <main
+        key={pathname}
+        className={
+          bleed ? 'page-transition relative flex-1' : 'page-transition flex-1 px-5 pb-28 pt-1'
+        }
+      >
         {children}
       </main>
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-canvas/95 backdrop-blur">
         <div className="mx-auto flex max-w-app px-4 py-1.5">
-          {tab(base, 'journey', 'Journey', journeyActive)}
-          {shows.shopping && tab(`${base}/shopping`, 'shopping', 'Shopping', shoppingActive)}
-          {tab(`${base}/reminders`, 'reminders', 'Reminders', remindersActive, unseenReminder)}
-          {tab(`${base}/essentials`, 'essentials', 'Essentials', essentialsActive)}
-          {canEdit && tab(`${base}/files`, 'docs', 'Documents', docsActive)}
+          {tabs.map((t) =>
+            tab(t.to, t.icon, t.label(labels), t.active, t.icon === 'reminders' && unseenReminder)
+          )}
         </div>
       </nav>
     </div>

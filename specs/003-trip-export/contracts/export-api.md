@@ -20,9 +20,9 @@ role check, because the response is a strict subset of what the caller can alrea
 
 ### Query parameters
 
-| name | required | values | notes |
-| --- | --- | --- | --- |
-| `detail` | yes | `share` \| `full` | anything else → `400 VALIDATION`. Absent → `400`, not a default: which version you are exporting is never something the server should guess. |
+| name     | required | values            | notes                                                                                                                                        |
+| -------- | -------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `detail` | yes      | `share` \| `full` | anything else → `400 VALIDATION`. Absent → `400`, not a default: which version you are exporting is never something the server should guess. |
 
 ### 200 — share detail
 
@@ -31,7 +31,12 @@ role check, because the response is a strict subset of what the caller can alrea
   "export": {
     "detail": "share",
     "generated_at": "2026-08-28T12:00:00.000Z",
-    "trip": { "title": "Japan", "start_date": "2026-11-01", "end_date": "2026-11-14", "country": "Japan" },
+    "trip": {
+      "title": "Japan",
+      "start_date": "2026-11-01",
+      "end_date": "2026-11-14",
+      "country": "Japan"
+    },
     "steps": [
       {
         "start_date": "2026-11-01",
@@ -46,7 +51,12 @@ role check, because the response is a strict subset of what the caller can alrea
       }
     ],
     "days": [],
-    "stats": { "place_count": 39, "places_without_address": 2, "day_count": 0, "included_stays": true }
+    "stats": {
+      "place_count": 39,
+      "places_without_address": 2,
+      "day_count": 0,
+      "included_stays": true
+    }
   }
 }
 ```
@@ -66,7 +76,7 @@ caller — they are not part of the projection at all.
 
 ### The caller's view (FR-008)
 
-The response is filtered by the caller's `TripView` *before* the field projection. For a viewer without
+The response is filtered by the caller's `TripView` _before_ the field projection. For a viewer without
 `can_see_stays`: no `hotel` place appears in any zone, no tip hanging off one appears, no itinerary item
 links to one, and the stay does not contribute to `stats.place_count`. `included_stays` is `false`, which is
 the one place the response admits a view was applied — it is a property of the export, not a hint about any
@@ -74,11 +84,11 @@ particular place.
 
 ### Errors
 
-| status | code | when |
-| --- | --- | --- |
-| 400 | `VALIDATION` | `detail` missing or not `share`/`full`. `details: ["detail must be \"share\" or \"full\""]` |
-| 401 | `UNAUTHORIZED` | no bearer token, or it does not verify |
-| 404 | `NOT_FOUND` | the trip does not exist, **or** the caller is not a member of it |
+| status | code           | when                                                                                        |
+| ------ | -------------- | ------------------------------------------------------------------------------------------- |
+| 400    | `VALIDATION`   | `detail` missing or not `share`/`full`. `details: ["detail must be \"share\" or \"full\""]` |
+| 401    | `UNAUTHORIZED` | no bearer token, or it does not verify                                                      |
+| 404    | `NOT_FOUND`    | the trip does not exist, **or** the caller is not a member of it                            |
 
 There is no 403 on this route. A member who lacks a verb never reaches it, because there is no verb here —
 every member may read, and every member may export.

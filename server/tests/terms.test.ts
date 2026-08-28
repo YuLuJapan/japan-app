@@ -52,10 +52,7 @@ describe('accepting the terms', () => {
 
   it('ignores a version sent by the client', async () => {
     // Otherwise an account could "accept" text it was never shown.
-    await request(app)
-      .post('/api/me/terms')
-      .set(OWNER_BEARER)
-      .send({ version: 'whatever-i-like' })
+    await request(app).post('/api/me/terms').set(OWNER_BEARER).send({ version: 'whatever-i-like' })
     expect((await store.getProfile('user-yuval'))?.accepted_terms_version).toBe(
       CURRENT_TERMS_VERSION
     )

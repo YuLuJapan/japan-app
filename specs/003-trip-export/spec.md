@@ -8,7 +8,7 @@
 
 **Input**: Monday board "Onward — Next Four", group `003 · Export` — feature brief and spec-input updates on item "◆ FEATURE — Export the trip", plus the cross-cutting constraints item. Feature description: "Deterministic export (no model anywhere) of a trip into a shareable file. One projection with a detail parameter builds two versions: Share (journey steps, zones, dates; per place name, address, category only) and Full (everything including descriptions, links, tips, day-by-day plan). PDF first; DOCX, XLSX and JSON follow. Client-side generation so it works offline. Composes with the caller's TripView. Two labelled actions, never one toggle. Any member may export, viewers included."
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Share my trip with a friend, with nothing personal in it (Priority: P1)
 
@@ -88,17 +88,17 @@ As the owner, I want a structured data file of the whole trip, so a copy of ever
 - **A restricted view that empties a section**: when a member's view removes an entire category (for example, all stays), the section is absent rather than present-and-empty, and the export never states what was withheld.
 - **Two exports of the same trip at the same detail**: the same trip and the same detail level MUST always produce the same content — nothing in the export is generated, inferred, summarised or reworded.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
 **The two versions**
 
-- **FR-001**: The system MUST offer exactly two detail levels — *share* and *full* — built from a single projection of the trip, so the two can never drift apart.
+- **FR-001**: The system MUST offer exactly two detail levels — _share_ and _full_ — built from a single projection of the trip, so the two can never drift apart.
 - **FR-002**: The share version MUST contain: the trip's title and dates, its journey steps in order with each step's zone and dates, and for each place its name, its address and its category.
 - **FR-003**: The share version MUST exclude place descriptions, the derived summary line (it is the opening of the description and carries whatever the description carries), links, tips, the day plan, documents, flight details, the shopping list and the trip's members.
 - **FR-004**: The full version MUST additionally contain place descriptions, links, tips (both zone-level and place-level) and the day-by-day plan — and nothing beyond that.
-- **FR-004a**: Neither version MUST contain the trip's flight details, its shopping list, its documents or its member names. "Full" is full about *places and the plan*; the trip-level private material never enters an exportable file at all, so a full copy forwarded to the wrong person still leaks no booking reference and no present. A traveller who wants those has the app.
+- **FR-004a**: Neither version MUST contain the trip's flight details, its shopping list, its documents or its member names. "Full" is full about _places and the plan_; the trip-level private material never enters an exportable file at all, so a full copy forwarded to the wrong person still leaks no booking reference and no present. A traveller who wants those has the app.
 - **FR-005**: The share and full versions MUST be offered as two separately labelled actions. The system MUST NOT offer a single export control with a detail toggle — a toggle left unflipped is how a confirmation number reaches a group chat.
 - **FR-006**: The export MUST be deterministic: no language model, no summarisation, no rewording, no inference anywhere in producing it.
 
@@ -132,10 +132,10 @@ As the owner, I want a structured data file of the whole trip, so a copy of ever
 
 - **Trip export**: one produced file. Identified by its trip, its detail level and its format. Carries no state — it is not stored, listed or re-openable; it exists only once handed to the traveller.
 - **Export projection**: the single description of what each detail level contains, per entity and per field. The one place a field is admitted to an export.
-- **Detail level**: *share* or *full*. Determines fields only, never which format is available and never who may export.
+- **Detail level**: _share_ or _full_. Determines fields only, never which format is available and never who may export.
 - **Exported trip content**: the trip (title, dates, country), its zones, its journey steps, its places, its tips and its day plan — each reduced by the projection at the chosen level.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 

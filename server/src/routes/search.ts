@@ -7,7 +7,9 @@ import { searchAll } from '../services/search.js'
 const search = asyncHandler(async (req, res) => {
   const q = String(req.query.q ?? '')
   res.json(
-    await searchAll(await getDataStore(), req.params.tripId, q, { includeStays: tripContextOf(req).view.stays })
+    await searchAll(await getDataStore(), req.params.tripId, q, {
+      includeStays: tripContextOf(req).view.stays,
+    })
   )
 })
 
