@@ -37,7 +37,7 @@ export function DayHighlights({ day, highlights, zoneId = null, tripId }: Props)
     <div className="space-y-2">
       {highlights.map((h) =>
         editingId === h.id ? (
-          <div key={h.id} className="rounded-[14px] bg-blush p-3">
+          <div key={h.id} className="rounded-2xl bg-brand/10 p-3">
             <HighlightForm
               initial={h}
               pending={update.isPending}
@@ -50,23 +50,25 @@ export function DayHighlights({ day, highlights, zoneId = null, tripId }: Props)
             />
           </div>
         ) : (
-          <div key={h.id} className="flex items-center gap-2.5 rounded-[14px] bg-blush px-3.5 py-3">
-            <span className="text-sm leading-none" aria-hidden>
+          <div key={h.id} className="flex items-center gap-3 rounded-2xl bg-brand/10 px-4 py-3">
+            <span className="text-2xl leading-none" aria-hidden>
               {h.icon || DEFAULT_ICON}
             </span>
-            <p className="min-w-0 flex-1 text-[13px] font-bold text-brand">{h.title}</p>
+            <p className="min-w-0 flex-1 font-display text-sm font-bold text-brand-700">
+              {h.title}
+            </p>
             {canEdit && (
               <div className="flex shrink-0 gap-3 text-xs font-semibold">
                 <button
                   type="button"
-                  className="text-[11px] text-brand-700"
+                  className="text-brand-700/70"
                   onClick={() => setEditingId(h.id)}
                 >
                   Edit
                 </button>
                 <button
                   type="button"
-                  className="text-[11px] text-brand-700"
+                  className="text-brand-700"
                   onClick={() => setDeletingId(h.id)}
                 >
                   Remove
@@ -78,7 +80,7 @@ export function DayHighlights({ day, highlights, zoneId = null, tripId }: Props)
       )}
 
       {adding ? (
-        <div className="rounded-[14px] bg-blush p-3">
+        <div className="rounded-2xl bg-brand/10 p-3">
           <HighlightForm
             pending={create.isPending}
             error={create.isError}
