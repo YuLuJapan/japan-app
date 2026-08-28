@@ -193,6 +193,7 @@ A traveller wants to be told when a saved place has no location yet, so the map 
 
 ## Assumptions
 
+- The screen's arrangement follows a design reference the Monday item supplied after this spec was written — option **2a · Full-bleed explore** from `Onward Redesign Options.dc.html`, chosen by the user from three. The renders are committed at `reference/`, and how the build follows and departs from them is the plan's business, not this spec's: every requirement below is about behaviour and holds under any of the three arrangements.
 - Coordinates already exist as fields on both places and zones, so this is a data and interface feature, not a schema change.
 - The free address-lookup service already used elsewhere in the app is adequate for the backfill and for confirming a location on save; its rate limit is what forces the backfill to run outside a request.
 - All 9 zones' existing coordinates are correct, so the whole-trip view works before the backfill runs.

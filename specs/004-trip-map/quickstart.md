@@ -80,6 +80,12 @@ Then, on a phone, from the deployed preview: the map's "where am I" asks for per
 
 Open a zone → Map. Expect every located place in that zone as a pin, categories visually distinct, all of them in frame on open. Toggle a category off: only its pins go. Toggle it back: they return. No request is made for either — the filter is client-side over a list already fetched.
 
+### B1b. The 2a arrangement
+
+Hold `reference/map-2a-full-bleed-explore.png` beside the screen at 375px and check each element: the map reaching every edge with nothing inset over it; the floating top bar with the search pill and the two-segment toggle; the legend card floating over the map's right; the peeking sheet with its grab handle, tinted chips and a card row visibly cut off at the right edge.
+
+**Two differences are expected and correct.** The segments read `City` / `Trip` rather than the render's `Day` / `Trip` — the render's word describes day-scoping, which this spec does not carry (research R13). And the pin colours are stock violet/sky/amber/pink rather than the render's warm slate/olive/terracotta/ochre: that palette left with PR #94's revert, and shipping on the stock colours was a decision (research R12). Everything else should match. Four elements the render does not show are additions, each required by a story: the tile attribution, the locate button, the missing-count line under the chips, and the city clusters at the `Trip` scale.
+
 ### B2. The withheld-stays check, on the wire
 
 This is the one to do properly, because the screen is not the control.
@@ -104,7 +110,7 @@ A viewer whose view drops Documents has five tabs even with the map on, and keep
 
 Devtools → Network → Offline, then open the map on a trip already loaded.
 
-Expect the places as a list plus a plain statement that the map needs a connection. Not a grey square, not a spinner, not an error screen (FR-026).
+Expect the sheet to expand to full height, the card row to become a vertical list, and a plain statement above it that the map needs a connection. Not a grey square, not a spinner, not an error screen (FR-026). This is the one state where 2b's arrangement is borrowed, and the right one to borrow it in.
 
 ### B5. The entry bundle did not move
 

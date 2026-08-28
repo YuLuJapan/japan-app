@@ -14,6 +14,56 @@ What is actually missing is: coordinates in those columns (0 of 39), a way for n
 
 The approach is four independently revertible slices, in dependency order, with the riskiest thing — a script that writes to production rows — made reversible by construction rather than by care.
 
+## The design reference
+
+The Monday item gained a design update after this plan was first written. It comes from `Onward Redesign Options.dc.html` — the same exploration file spec 009 draws on — and offered three arrangements without picking one. **The user picked 2a · Full-bleed explore.** The three renders are committed alongside this plan so it stands on its own:
+
+- [`reference/map-2a-full-bleed-explore.png`](./reference/map-2a-full-bleed-explore.png) — **the one being built**
+- [`reference/map-2b-split-map-list.png`](./reference/map-2b-split-map-list.png), [`reference/map-2c-city-chapters.png`](./reference/map-2c-city-chapters.png) — not taken
+- [`reference/sheet-map-directions.png`](./reference/sheet-map-directions.png) — all three side by side
+
+They were rendered at 300px device width and 2× scale from the design's own webfonts, so they are a faithful phone-width reading rather than a desktop mock.
+
+### What 2a draws, element by element
+
+Reading the render top to bottom. Everything here is a target, not a suggestion — where this plan departs from it, the departure is named and argued in the next section.
+
+| Element      | As drawn                                                                                                                                                                                                                                                | Where it lives     |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| The map      | Full-bleed. It reaches every edge; nothing is inset over it.                                                                                                                                                                                            | `MapCanvas`        |
+| Top bar      | Floating over the map: a white pill search field on the left, a two-segment toggle on the right (active segment solid dark with white text, inactive white with dark text)                                                                              | `MapTopBar`        |
+| Pins         | Solid category-coloured discs, white ring, soft drop shadow — not teardrops, not icons                                                                                                                                                                  | `pins.ts` → engine |
+| Legend       | A small white rounded card floating over the map's right side, one coloured dot and label per category                                                                                                                                                  | `MapLegend`        |
+| Bottom sheet | Peeking, rounded top corners, a short grab handle centred at the top                                                                                                                                                                                    | `MapSheet`         |
+| Filter chips | A row inside the sheet: `All` active as a solid dark pill, the rest as category-tinted pills                                                                                                                                                            | `CategoryChips`    |
+| Place cards  | A horizontally scrolling row under the chips, each a white rounded card with a coloured dot, the place name in bold, and a quieter second line (`Stay · 2 nights`, `Do · Tokyo`). The row is deliberately cut off at the right edge to show it scrolls. | `PlaceCardRow`     |
+
+### Where this plan departs from 2a, and why
+
+Six departures. Each is either something the render could not know, or something a story requires that the render has no slot for.
+
+1. **The segments read `City` / `Trip`, not `Day` / `Trip`.** The render labels the left segment "Day", which implies scoping pins to one date — 2b's day chips do exactly that. No requirement in this spec asks for it, and FR-008 defines the two scales as _the current step's zone_ and _the whole trip_. Keeping the label "Day" over a control that switches cities would be a lie in two words. Same control, same place, same styling; honest labels.
+2. **The search field opens the existing trip search.** 2a draws "Search Japan…" but the render cannot say what it searches. Building map-specific search would be a new requirement; leaving a dead field on screen is worse. It routes to `/search`, which already exists. **Known cosmetic duplication**: the app header already carries a magnifier, so this screen offers two ways into the same search. Spec 009 restyles that header anyway. Filtering pins by name client-side was considered and rejected as scope this spec does not carry.
+3. **Attribution is added.** The render has none, being a mock. FR-013 makes it a condition of using the tiles at all, so it sits along the map's bottom edge, above the sheet.
+4. **A locate control is added.** US2 needs one and 2a draws none. A small circular floating button on the map, in the legend card's floating idiom so it does not read as a new species of control.
+5. **The missing-places count gets a line of its own**, directly under the chip row, always visible in the peeking state. FR-019 says the count must be _stated on the map_; the last card in a horizontal row that must be scrolled to is not stated. This is the one element 2a has no room for, and giving it a scrolling position would quietly break the requirement it exists to serve.
+6. **The whole-trip scale borrows 2c's vocabulary.** 2a renders only the city scale. Rather than invent a second visual language for the `Trip` segment, it uses the design's own answer from 2c — one circle per city, sized by how much is saved there, with a name pill beneath — drawn inside 2a's full-bleed frame. The card row becomes one card per city. This is the design file answering a question its own 2a render left open.
+
+### Two things the render cannot show, that the code has to get right
+
+**Colours.** The reference renders use the redesign's category palette — slate blue for stays, olive for things to do, terracotta for food, ochre for shopping. Those tokens arrived with PR #93 and left with its revert in PR #94; `main` is back to stock Tailwind violet/sky/amber/pink. **The user chose to ship on the stock colours** rather than pull redesign tokens into this feature. So the map's arrangement will match the reference and its hues will not, until spec 009 re-lands.
+
+What makes that a deferral rather than a debt: **every pin, chip, dot and legend swatch reads its colour from `CATEGORY_META`**, never from a map-local palette. `CATEGORY_META` today carries a tint pair per category (`bg-violet-100 text-violet-700`); the map needs a solid fill too, so it gains a `dot` field using stock Tailwind classes (`bg-violet-500`, …) — **no `tailwind.config.ts` change, no new token**. When 009 re-lands its palette, one edit to that table recolours the map, the chips and the legend together, and the map will match the render exactly with no map code touched.
+
+**Full-bleed has to escape the app frame.** `Layout` wraps every page in `<main class="page-transition flex-1 px-5 pb-28 pt-1">`, so a page cannot reach the screen edges today, and the bottom nav is `fixed`. The map therefore needs a `bleed` mode on `Layout` that drops the horizontal padding and the top spacing for this route only, with the sheet resting on top of the nav rather than under it. The existing header stays: it carries the trip name and the way back out, and dropping it on one screen would be a worse inconsistency than a duplicated magnifier.
+
+### What is carried forward from the reverted PR #93, and what is not
+
+PR #93 built 2c and was reverted whole in PR #94. Two things from it are worth knowing:
+
+- **`projectStops` is not carried forward.** It projects lat/lng onto a percentage field because that implementation had _no tiles underneath_. With a real tile layer, Leaflet owns the projection and a hand-rolled linear one would fight it. What _is_ carried forward is the cluster's visual treatment — a sized, counted circle with a name pill — which is what departure 6 above adopts.
+- **The flag differs, and ours wins.** PR #93 used `trip-map` defaulting **on**, a kill switch. This feature uses `show-map` defaulting **off**, settled explicitly with the user: the map appears only where PostHog turns it on. `trip-map` no longer exists on `main`, so there is no collision — but the two were never the same decision and should not be conflated.
+
 ## Technical Context
 
 **Language/Version**: TypeScript 5, React 18, Node 20 (ESM; relative imports under `server/` carry explicit `.js`)
@@ -133,7 +183,9 @@ _The MVP. FR-007, FR-010 to FR-018._
 
 - `src/map/*` as laid out above; `leaflet` added to dependencies.
 - `src/pages/TripMap.tsx`, route `/trips/:tripId/map` behind `RequireMap`, dynamic import.
-- `src/components/Layout.tsx`: the sixth tab, and `navLabels(count)` (FR-012).
+- **The 2a arrangement**: full-bleed `MapCanvas`, floating `MapTopBar` and `MapLegend`, and the peeking `MapSheet` carrying `CategoryChips` and `PlaceCardRow`. Built against `reference/map-2a-full-bleed-explore.png`.
+- `src/components/Layout.tsx`: the sixth tab, `navLabels(count)` (FR-012), and the `bleed` mode that lets one route drop `px-5 pt-1` and reach the screen edges.
+- `src/api/types.ts`: `CATEGORY_META` gains a `dot` field (stock Tailwind classes, no token change) so pins, chips, legend swatches and card dots all read one table.
 - `src/lib/nav-labels.ts`: pure, unit-tested.
 - Server: extract the inline projection in `listZonePlaces` into `zonePlaceListItem()` in `lib/place-view.ts`, carrying `Record<keyof Place, 'list' | 'omit'>`. Behaviour-preserving; the point is that a new `Place` column stops the build until someone decides (G2, G6).
 - `server/tests/map-pins.test.ts`: a viewer without stays receives no hotel from the all-categories sweep, and no hotel in the counts. This is FR-016's actual enforcement — asserted on what the endpoint returns, not on what the screen draws.
@@ -146,7 +198,7 @@ _FR-011, FR-022 to FR-025._
 
 - `src/lib/geolocation.ts`: `requestPosition()` → a discriminated union of `granted` / `denied` / `unavailable`. Never called on mount (FR-023).
 - Self-marker through `MapEngine.setSelfMarker`; framing rule from FR-025 lives in `pins.ts`, not in the component.
-- `src/components/map/PinSheet.tsx`: the summary, a link to the place, a link out.
+- The pin sheet is **not a new overlay**: in 2a the sheet already exists, so tapping a pin scrolls `PlaceCardRow` to that place and expands its card into the summary, the place link and the directions link. One sheet, two states.
 - `src/lib/maps.ts`: add `directionsUrl(...)` beside the existing `placeMapsUrl` — the current link is a search, and FR-011 asks for a destination.
 - `map_pin_opened` declared and sent.
 
@@ -188,16 +240,21 @@ src/
 │   └── scope.ts                #   pure: zoneScope / tripScope
 ├── components/
 │   ├── LocationPicker.tsx      # NEW — extracted from JourneySteps, used twice
-│   ├── Layout.tsx              # TOUCHED — sixth tab
-│   └── map/
-│       ├── MapCanvas.tsx       # NEW — mounts the engine, Suspense + offline fallback
-│       ├── CategoryChips.tsx   # NEW
-│       ├── PinSheet.tsx        # NEW
-│       └── MissingPlaces.tsx   # NEW
+│   ├── Layout.tsx              # TOUCHED — sixth tab, and the `bleed` mode 2a needs
+│   └── map/                    # NEW — the 2a arrangement, one file per element
+│       ├── MapCanvas.tsx       #   full-bleed map, Suspense + offline fallback
+│       ├── MapTopBar.tsx       #   floating search field + City/Trip segments
+│       ├── MapLegend.tsx       #   floating category legend card
+│       ├── LocateButton.tsx    #   floating locate control (US2, not in the render)
+│       ├── MapSheet.tsx        #   the peeking bottom sheet: handle, chips, cards
+│       ├── CategoryChips.tsx   #   the filter row inside the sheet
+│       ├── PlaceCardRow.tsx    #   the horizontal card row, and a card's expanded state
+│       └── MissingPlaces.tsx   #   the count line under the chips, and its list
 ├── pages/
 │   ├── TripMap.tsx             # NEW — the screen; orchestration only
 │   ├── PlaceForm.tsx           # TOUCHED — geocode-on-save
 │   └── JourneySteps.tsx        # TOUCHED — now consumes LocationPicker
+├── api/types.ts                # TOUCHED — CATEGORY_META gains `dot` (stock classes)
 ├── lib/
 │   ├── geolocation.ts          # NEW — permission states as data
 │   ├── nav-labels.ts           # NEW — pure
@@ -227,6 +284,7 @@ specs/001-japan-trip-app/contracts/api.md  # TOUCHED — the contract source of 
 
 | Violation                                                                                                                                                   | Why Needed                                                                                                                                                                                                                                                                                                                                                                                   | Simpler Alternative Rejected Because                                                                                                                                                                                                                                                                                |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A `bleed` mode on `Layout`, when every other page lives inside its padding                                                                                  | 2a is full-bleed: the map reaches every edge and the controls float over it. A page cannot do that inside `px-5 pt-1`, and negative margins to cancel the padding would leave the page fighting a frame it is still nominally inside. One boolean, one route.                                                                                                                                | Wrapping the map in negative margins (`-mx-5`) was the smaller diff and was rejected: it hard-codes the padding value in a second place, so changing `Layout`'s padding silently breaks the map's bleed. A prop states the intent where the padding is defined.                                                     |
 | A `Record<keyof Place, 'list' \| 'omit'>` field policy in `place-view.ts`, when the existing inline object literal already enumerates its fields explicitly | The literal is explicit but silent: adding a column to `Place` leaves it valid, and the new field simply never reaches the list — or, on the next hand-edit, quietly does. `CLAUDE.md` states the rule that anything returning a place gets the `TripView` treatment, and 003 established the compile-error form of it. ~15 lines, one behaviour-preserving move, covered by existing tests. | Leaving the literal alone was considered and is genuinely simpler. It was rejected because the failure it permits is silent and privacy-shaped, which is the same argument that put the policy tables in `export-view.ts` — and having the pattern in the repo already makes the second use cheaper than the first. |
 
 ## Post-Design Constitution Re-check

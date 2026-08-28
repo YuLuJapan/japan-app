@@ -8,7 +8,7 @@ description: 'Task list for the Map feature'
 
 **Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md), [research.md](./research.md), [data-model.md](./data-model.md), [contracts/map.md](./contracts/map.md), [quickstart.md](./quickstart.md)
 
-**Tests**: Included. This repository ships 940 tests and treats them as the contract (`CLAUDE.md`), and the plan names the test files each slice needs. Tests are listed **before** the code they cover wherever that is honest. Two are not: T035 and T036 lock in behaviour that already exists, so they pass the moment they are written — that is the point of them, and pretending otherwise would be theatre.
+**Tests**: Included. This repository ships 940 tests and treats them as the contract (`CLAUDE.md`), and the plan names the test files each slice needs. Tests are listed **before** the code they cover wherever that is honest. Two are not: T022 (the stay filter, on an endpoint that already filters) and T044 (watching the field-policy guard actually fail) lock in behaviour rather than drive it, so they pass the moment they are written — that is the point of them, and pretending otherwise would be theatre.
 
 **Organization**: by user story, in the priority order the spec sets. The four delivery slices in `plan.md` map onto the phases as: Slice A = Phase 2, Slice B = Phase 3, Slice C = Phases 4–5, Slice D = Phases 6–7.
 
@@ -112,28 +112,35 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 
 ### Implementation — the screen
 
-- [ ] T031 [US1] Create `src/components/map/MapCanvas.tsx`: dynamically imports `engine.leaflet`, mounts it, and renders the offline fallback — the same pins as a list plus a plain statement that the map needs a connection (FR-026). Never a grey square, never a bare spinner.
-- [ ] T032 [P] [US1] Create `src/components/map/CategoryChips.tsx`, offering only the categories actually present in the current view (FR-010, FR-017) and filtering client-side over the list already fetched.
-- [ ] T033 [US1] Create `src/pages/TripMap.tsx`: read the zone's places with the existing hook (no `category`), hold the scope and the active filters, and render. **Orchestration only** — a `.filter(` or a `Math.min(` appearing here belongs in `pins.ts` (plan → Small methods).
-- [ ] T034 [US1] Add `RequireMap` to `src/router.tsx`, modelled line-for-line on `RequireExport`, plus the `/trips/:tripId/map` route behind it. `useBooleanFlag('show-map', false)` — gating the entry points _and_ the route, so a bookmark is closed too.
-- [ ] T035 [US1] Add the sixth tab to `src/components/Layout.tsx` behind the same flag, and route every tab label through `navLabels(tabs.length)` (FR-012). Build the tab list first, then ask it how many there are.
-- [ ] T036 [US1] Send `map_opened { scope, pin_count, missing_coords }` from `src/pages/TripMap.tsx` through the `src/lib/posthog.ts` helpers — never `posthog.capture` directly.
+- [ ] T031 [US1] Add a `bleed` mode to `src/components/Layout.tsx` that drops `px-5 pt-1` from `<main>` for one route, so a page can reach the screen edges. The header stays; the fixed bottom nav stays; the map's sheet rests on top of it. **Do not cancel the padding with negative margins** — that hard-codes the value in a second place (plan → Complexity Tracking).
+- [ ] T032 [P] [US1] Add a `dot` field to `CATEGORY_META` in `src/api/types.ts` using **stock Tailwind classes** (`bg-violet-500`, `bg-sky-500`, `bg-amber-500`, `bg-pink-500`, `bg-emerald-500`). **No `tailwind.config.ts` change.** Every pin, chip, legend swatch and card dot reads from this table, so re-landing spec 009's palette later recolours the map in one edit (research R12).
+- [ ] T033 [US1] Create `src/components/map/MapCanvas.tsx`: dynamically imports `engine.leaflet`, mounts it **full-bleed** inside the `bleed` layout, and renders the offline fallback — the sheet expanded to full height with the card row as a vertical list and the explanation above it (FR-026, research R11). Never a grey square, never a bare spinner.
+- [ ] T034 [P] [US1] Create `src/components/map/MapTopBar.tsx` per `reference/map-2a-full-bleed-explore.png`: a white pill search field on the left routing to the existing `/search`, and a two-segment toggle on the right — active segment solid dark with white text, inactive white with dark text. **The segments read `City` and `Trip`, not `Day` and `Trip`** (research R13). The `Trip` segment is inert until US4; wire it there.
+- [ ] T035 [P] [US1] Create `src/components/map/MapLegend.tsx`: the small floating white card over the map's right side, one `CATEGORY_META.dot` swatch and label per category present. Hidden for a category the caller's view withholds (FR-017).
+- [ ] T036 [US1] Create `src/components/map/MapSheet.tsx`: the peeking bottom sheet — rounded top corners, a short centred grab handle, resting above the fixed nav. It holds the chips, the missing-count line (US5) and the card row. Two states only: peeking and expanded.
+- [ ] T037 [P] [US1] Create `src/components/map/CategoryChips.tsx` as the row inside the sheet: `All` active as a solid dark pill, the rest as `CATEGORY_META.color` tinted pills, horizontally scrollable at 320px. Offers only the categories actually present in the current view (FR-010, FR-017) and filters client-side over the list already fetched.
+- [ ] T038 [P] [US1] Create `src/components/map/PlaceCardRow.tsx`: the horizontal scrolling row under the chips. Each card white and rounded, with a `CATEGORY_META.dot` dot, the place name in bold and a quieter second line (`CATEGORY_META.singular` · the zone's name). Leave the row visibly cut at the right edge so it reads as scrollable, exactly as the render draws it.
+- [ ] T039 [US1] Create `src/pages/TripMap.tsx`: read the zone's places with the existing hook (no `category`), hold the scope, the active filters and the selected place, and compose the 2a elements. **Orchestration only** — a `.filter(` or a `Math.min(` appearing here belongs in `pins.ts` (plan → Small methods).
+- [ ] T040 [US1] Add `RequireMap` to `src/router.tsx`, modelled line-for-line on `RequireExport`, plus the `/trips/:tripId/map` route behind it. `useBooleanFlag('show-map', false)` — gating the entry points _and_ the route, so a bookmark is closed too.
+- [ ] T041 [US1] Add the sixth tab to `src/components/Layout.tsx` behind the same flag, and route every tab label through `navLabels(tabs.length)` (FR-012). Build the tab list first, then ask it how many there are.
+- [ ] T042 [US1] Send `map_opened { scope, pin_count, missing_coords }` from `src/pages/TripMap.tsx` through the `src/lib/posthog.ts` helpers — never `posthog.capture` directly.
 
 ### Implementation — the guarantee
 
-- [ ] T037 [US1] Move the inline place literal out of `listZonePlaces` (`server/src/services/zones.ts`) into `zonePlaceListItem()` in `server/src/lib/place-view.ts`, driven by an explicit `Record<keyof Place, 'list' | 'omit'>` policy. Behaviour-preserving; the point is that adding a column to `Place` now fails `npm run typecheck` until someone decides (data-model → field policy, plan → Complexity Tracking).
-- [ ] T038 [US1] Confirm T037 works as intended: temporarily add a field to the `Place` interface in `server/src/lib/datastore.ts`, run `npm run typecheck`, see it fail, then remove it. **A guard nobody has watched fail is not a guard.**
+- [ ] T043 [US1] Move the inline place literal out of `listZonePlaces` (`server/src/services/zones.ts`) into `zonePlaceListItem()` in `server/src/lib/place-view.ts`, driven by an explicit `Record<keyof Place, 'list' | 'omit'>` policy. Behaviour-preserving; the point is that adding a column to `Place` now fails `npm run typecheck` until someone decides (data-model → field policy, plan → Complexity Tracking).
+- [ ] T044 [US1] Confirm T043 works as intended: temporarily add a field to the `Place` interface in `server/src/lib/datastore.ts`, run `npm run typecheck`, see it fail, then remove it. **A guard nobody has watched fail is not a guard.**
 
 ### Tests over the finished screen
 
-- [ ] T039 [P] [US1] Write `src/tests/map.test.tsx` against `engine.fake`: pins for a zone's located places, a category toggle removing and restoring only its own, the empty-zone message, and the offline fallback listing the places.
-- [ ] T040 [P] [US1] Write `src/tests/map-flag.test.tsx`, mirroring `src/tests/export-flag.test.tsx`: flag off → no tab and the route redirects to the trip; flag on → both present.
+- [ ] T045 [P] [US1] Write `src/tests/map.test.tsx` against `engine.fake`: pins for a zone's located places, a category toggle removing and restoring only its own, the empty-zone message, and the offline fallback listing the places.
+- [ ] T046 [P] [US1] Write `src/tests/map-flag.test.tsx`, mirroring `src/tests/export-flag.test.tsx`: flag off → no tab and the route redirects to the trip; flag on → both present.
 
 ### Checkpoint
 
-- [ ] T041 [US1] Run `npm run build` and confirm the entry chunk is still ~233 KB gzip with Leaflet and `src/map/*` as separate chunks. **A grown entry chunk means something imported the engine statically** — find it before shipping.
-- [ ] T042 [US1] Confirm `src/map/*` is **not** added to the Workbox precache in `vite.config.ts`. Unlike `src/export/`, precaching it buys nothing: its tiles cannot come with it under the tile policy (research R4).
-- [ ] T043 [US1] Run the full gate, walk `quickstart.md` §B1–B5 including the devtools check that a restricted viewer's response body contains no `hotel`, then commit Slice B. **US1 is shippable on its own — this is the MVP.**
+- [ ] T047 [US1] Compare the built screen side by side with `reference/map-2a-full-bleed-explore.png` at 375px: full-bleed map, floating top bar, floating legend, peeking sheet with handle, tinted chips, cut-off card row. **The pin hues will not match the render** — it was drawn against the redesign palette that PR #94 reverted, and shipping on the stock colours is a decision, not a defect (research R12). Everything else should match.
+- [ ] T048 [US1] Run `npm run build` and confirm the entry chunk is still ~233 KB gzip with Leaflet and `src/map/*` as separate chunks. **A grown entry chunk means something imported the engine statically** — find it before shipping.
+- [ ] T049 [US1] Confirm `src/map/*` is **not** added to the Workbox precache in `vite.config.ts`. Unlike `src/export/`, precaching it buys nothing: its tiles cannot come with it under the tile policy (research R4).
+- [ ] T050 [US1] Run the full gate, walk `quickstart.md` §B1–B5 including the devtools check that a restricted viewer's response body contains no `hotel`, then commit Slice B. **US1 is shippable on its own — this is the MVP.**
 
 ---
 
@@ -147,19 +154,20 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 
 ### Tests
 
-- [ ] T044 [P] [US2] Write `src/tests/geolocation.test.ts` over a stubbed `navigator.geolocation`: each of `idle`, `asking`, `granted`, `denied`, `unavailable` is reachable, a refusal is not retried within the visit (FR-023), and a timeout reads as `unavailable`, not `denied`. Fails until T045.
+- [ ] T051 [P] [US2] Write `src/tests/geolocation.test.ts` over a stubbed `navigator.geolocation`: each of `idle`, `asking`, `granted`, `denied`, `unavailable` is reachable, a refusal is not retried within the visit (FR-023), and a timeout reads as `unavailable`, not `denied`. Fails until T052.
 
 ### Implementation
 
-- [ ] T045 [US2] Create `src/lib/geolocation.ts` exposing `requestPosition()` and the `PositionState` discriminated union (data-model). **Permission as data, not as exceptions**, so every branch of FR-022 to FR-025 is a rendered case rather than a `catch`.
-- [ ] T046 [US2] Implement `setSelfMarker` in `src/map/engine.leaflet.ts` and `src/map/engine.fake.ts` — visually distinct from place pins.
-- [ ] T047 [US2] Add the FR-025 framing rule to `src/map/pins.ts`: a self position far outside the current bounds does not widen them. The saved places stay the subject; the traveller gets a control to move to themselves. **The rule lives here, not in the component.**
-- [ ] T048 [US2] Wire it into `src/pages/TripMap.tsx`: the position is requested only when asked for, never on mount, and a `denied` or `unavailable` state renders a plain line rather than an error screen (FR-024).
-- [ ] T049 [P] [US2] Write `src/tests/map-position.test.tsx`: granted shows the marker and recentres; denied leaves every pin and filter working and states the position is unavailable; the map is never asked for a position on mount.
+- [ ] T052 [US2] Create `src/lib/geolocation.ts` exposing `requestPosition()` and the `PositionState` discriminated union (data-model). **Permission as data, not as exceptions**, so every branch of FR-022 to FR-025 is a rendered case rather than a `catch`.
+- [ ] T053 [US2] Implement `setSelfMarker` in `src/map/engine.leaflet.ts` and `src/map/engine.fake.ts` — visually distinct from place pins.
+- [ ] T054 [US2] Add the FR-025 framing rule to `src/map/pins.ts`: a self position far outside the current bounds does not widen them. The saved places stay the subject; the traveller gets a control to move to themselves. **The rule lives here, not in the component.**
+- [ ] T055 [P] [US2] Create `src/components/map/LocateButton.tsx` — a small circular floating control on the map, in `MapLegend`'s floating idiom so it does not read as a new species of control. **Not in the 2a render**; US2 needs it (plan → departure 4).
+- [ ] T056 [US2] Wire it into `src/pages/TripMap.tsx`: the position is requested only when asked for, never on mount, and a `denied` or `unavailable` state renders a plain line rather than an error screen (FR-024).
+- [ ] T057 [P] [US2] Write `src/tests/map-position.test.tsx`: granted shows the marker and recentres; denied leaves every pin and filter working and states the position is unavailable; the map is never asked for a position on mount.
 
 ### Checkpoint
 
-- [ ] T050 [US2] Run the gate and `quickstart.md` §C1 — including the devtools sensors check that a far-away position does not zoom the map out to span both — then commit.
+- [ ] T058 [US2] Run the gate and `quickstart.md` §C1 — including the devtools sensors check that a far-away position does not zoom the map out to span both — then commit.
 
 ---
 
@@ -173,18 +181,18 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 
 ### Tests
 
-- [ ] T051 [P] [US3] Extend `src/tests/maps.test.ts` for `directionsUrl`: coordinates when the place has them, the name + address + city text query when it does not, and correct encoding of both. Fails until T052.
+- [ ] T059 [P] [US3] Extend `src/tests/maps.test.ts` for `directionsUrl`: coordinates when the place has them, the name + address + city text query when it does not, and correct encoding of both. Fails until T060.
 
 ### Implementation
 
-- [ ] T052 [US3] Add `directionsUrl(...)` to `src/lib/maps.ts` beside `placeMapsUrl` — `https://www.google.com/maps/dir/?api=1&destination=…`, so directions open directly rather than a search the traveller must tap through (research R10, SC-008). Leave `placeMapsUrl` and its two callers alone.
-- [ ] T053 [US3] Create `src/components/map/PinSheet.tsx`: name, category, address and the existing `summary_line`, a link to the place's own screen and a link to directions. It renders what the list already returned — **it does not fetch the place again**.
-- [ ] T054 [US3] Wire `MapEngine.onPinTap` through `src/pages/TripMap.tsx` to the sheet, and send `map_pin_opened { category }`.
-- [ ] T055 [P] [US3] Write `src/tests/map-pin-sheet.test.tsx`: tapping a pin shows that place's summary, both links carry the right targets, and dismissing the sheet leaves the map where it was.
+- [ ] T060 [US3] Add `directionsUrl(...)` to `src/lib/maps.ts` beside `placeMapsUrl` — `https://www.google.com/maps/dir/?api=1&destination=…`, so directions open directly rather than a search the traveller must tap through (research R10, SC-008). Leave `placeMapsUrl` and its two callers alone.
+- [ ] T061 [US3] Add the expanded state to `src/components/map/PlaceCardRow.tsx`: a selected card grows to show name, category, address, the existing `summary_line`, a link to the place's own screen and a link to directions. **Not a second sheet** — 2a already has one and an overlay would cover it (research R13). It renders what the list already returned — **it does not fetch the place again**.
+- [ ] T062 [US3] Wire `MapEngine.onPinTap` through `src/pages/TripMap.tsx` so tapping a pin scrolls `PlaceCardRow` to that place and expands its card — and tapping a card selects its pin, so the two stay in step in both directions. Send `map_pin_opened { category }`.
+- [ ] T063 [P] [US3] Write `src/tests/map-pin-sheet.test.tsx`: tapping a pin shows that place's summary, both links carry the right targets, and dismissing the sheet leaves the map where it was.
 
 ### Checkpoint
 
-- [ ] T056 [US3] Run the gate and `quickstart.md` §C2, counting the taps from pin to directions against SC-008's budget of two, then commit Slice C.
+- [ ] T064 [US3] Run the gate and `quickstart.md` §C2, counting the taps from pin to directions against SC-008's budget of two, then commit Slice C.
 
 ---
 
@@ -198,18 +206,19 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 
 ### Tests
 
-- [ ] T057 [P] [US4] Write `src/tests/scope.test.ts`: `tripScope` yields one pin per zone with a located zone count; `defaultScope` picks the current step's zone during the trip, the next one before it, and the first when the trip has not started; both scopes return the same shape. Fails until T058/T059.
+- [ ] T065 [P] [US4] Write `src/tests/scope.test.ts`: `tripScope` yields one pin per zone with a located zone count; `defaultScope` picks the current step's zone during the trip, the next one before it, and the first when the trip has not started; both scopes return the same shape. Fails until T066/T068.
 
 ### Implementation
 
-- [ ] T058 [US4] Add `tripScope(...)` to `src/map/scope.ts`, built from the trip bundle's `steps[].zone`, with `onPinTap` switching the page to that zone's `zoneScope` (FR-009). **No new request** (contracts §2).
-- [ ] T059 [US4] Add `defaultScope(...)` to `src/map/scope.ts` — current or next journey step's zone, falling back to the first (FR-008). A pure function of the steps and today's date.
-- [ ] T060 [US4] Add the scale toggle to `src/pages/TripMap.tsx`. The page swaps one `MapScope` for another and renders identically — **if this needs an `if (scope.kind === …)` anywhere but the toggle itself, the strategy has leaked** (research R6).
-- [ ] T061 [P] [US4] Write `src/tests/map-scales.test.tsx`: the whole-trip view shows one pin per zone; tapping one moves to that zone's places; a freshly opened map is on the current step's zone, not the whole trip.
+- [ ] T066 [US4] Add `tripScope(...)` to `src/map/scope.ts`, built from the trip bundle's `steps[].zone`, with `onPinTap` switching the page to that zone's `zoneScope` (FR-009). **No new request** (contracts §2).
+- [ ] T067 [US4] Render the trip scale in 2c's vocabulary inside 2a's frame: one circle per city **sized by how much is saved there**, carrying the count, with a name pill beneath (`reference/map-2c-city-chapters.png`). The card row becomes one card per city with its count. Do **not** port `projectStops` from the reverted PR #93 — it exists because that build had no tiles; Leaflet owns the projection here (plan → carried forward).
+- [ ] T068 [US4] Add `defaultScope(...)` to `src/map/scope.ts` — current or next journey step's zone, falling back to the first (FR-008). A pure function of the steps and today's date.
+- [ ] T069 [US4] Activate the `Trip` segment of `MapTopBar` (inert since T034) in `src/pages/TripMap.tsx`. The page swaps one `MapScope` for another and renders identically — **if this needs an `if (scope.kind === …)` anywhere but the toggle itself, the strategy has leaked** (research R6).
+- [ ] T070 [P] [US4] Write `src/tests/map-scales.test.tsx`: the whole-trip view shows one pin per zone; tapping one moves to that zone's places; a freshly opened map is on the current step's zone, not the whole trip.
 
 ### Checkpoint
 
-- [ ] T062 [US4] Run the gate and `quickstart.md` §D1, then commit.
+- [ ] T071 [US4] Run the gate and `quickstart.md` §D1, then commit.
 
 ---
 
@@ -223,29 +232,30 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 
 ### Tests
 
-- [ ] T063 [P] [US5] Write `src/tests/map-missing.test.tsx`: the count appears only when something is missing (FR-019's fourth scenario); it lists exactly the places lacking coordinates; a row links to that place's edit route; for a member who cannot edit the count is stated and leads nowhere (FR-021). Fails until T064/T065.
+- [ ] T072 [P] [US5] Write `src/tests/map-missing.test.tsx`: the count appears only when something is missing (FR-019's fourth scenario); it lists exactly the places lacking coordinates; a row links to that place's edit route; for a member who cannot edit the count is stated and leads nowhere (FR-021). Fails until T073/T074.
 
 ### Implementation
 
-- [ ] T064 [US5] Create `src/components/map/MissingPlaces.tsx`: the count, the list behind it, and a row linking to `/trips/:tripId/places/:placeId/edit`. **No second location editor** — the picker from Phase 2 already lives on that screen (the user's settled clarification).
-- [ ] T065 [US5] Render it from `src/pages/TripMap.tsx` using `missingCount` from `pins.ts`, gated on `useCanEdit()` for the interactive half only. The count itself is shown to everyone.
-- [ ] T066 [US5] Verify the arithmetic of SC-004 by hand in a zone containing a hidden stay: pins on screen + missing count = the places that member can see. This is the number that proves the map is not under-reporting, and the hidden-stay case is the one where it is easy to get wrong.
+- [ ] T073 [US5] Create `src/components/map/MissingPlaces.tsx`: a line **directly under the chip row, always visible in the sheet's peeking state** — not a card at the end of the scrolling row, which FR-019 would not count as stated on the map (research R11). Behind it, the list, each row linking to `/trips/:tripId/places/:placeId/edit`. **No second location editor** — the picker from Phase 2 already lives on that screen (the user's settled clarification).
+- [ ] T074 [US5] Render it from `src/pages/TripMap.tsx` using `missingCount` from `pins.ts`, gated on `useCanEdit()` for the interactive half only. The count itself is shown to everyone.
+- [ ] T075 [US5] Verify the arithmetic of SC-004 by hand in a zone containing a hidden stay: pins on screen + missing count = the places that member can see. This is the number that proves the map is not under-reporting, and the hidden-stay case is the one where it is easy to get wrong.
 
 ### Checkpoint
 
-- [ ] T067 [US5] Run the gate and `quickstart.md` §D2–D3, then commit Slice D.
+- [ ] T076 [US5] Run the gate and `quickstart.md` §D2–D3, then commit Slice D.
 
 ---
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T068 Walk `quickstart.md` end to end on a preview deployment, including §B3 at **375px and 320px** — SC-006's legibility cannot be proven in jsdom and is verified here.
-- [ ] T069 [P] Add a Map paragraph to `CLAUDE.md` in the style of the existing feature notes: no migration, the engine port and why it exists, why tiles are never precached, and that the nav labels shorten as a function of tab count.
-- [ ] T070 [P] Update `README.md` with the `npm run backfill:coords` workflow — dry run, apply, revert — since it is the one command in this feature that writes to production data.
-- [ ] T071 Re-read every diff in the feature adversarially against `src/map/engine.types.ts`: confirm nothing outside `src/map/engine.leaflet.ts` imports `leaflet`, and that `src/pages/PlaceForm.tsx` still does not import `src/map/`.
-- [ ] T072 Confirm each slice reverts cleanly in a scratch branch: revert Slice D, then C, then B, and check the app still builds and its tests pass at each step. **A rollback plan nobody has executed is a hypothesis** (plan → Quick rollback).
-- [ ] T073 Confirm the code default for `show-map` is `false` at **both** call sites — `src/components/Layout.tsx` and the `RequireMap` guard in `src/router.tsx` — and that it stays that way. **Decided by the user: the default is off permanently and the map appears only when `show-map` is turned on explicitly in PostHog.** There is no later commit that flips it to `true`; PostHog is the only switch. The accepted consequences: the map is invisible in local dev and on any deploy without `VITE_POSTHOG_PROJECT_TOKEN`, and on a device's first run the tab is absent until flags arrive and stays absent if that fetch fails.
-- [ ] T074 Final gate — `npm test && npm run typecheck && npm run lint && npm run format` — and confirm no debug flag flips (`useBooleanFlag('show-map', true)`) survived from local development.
+- [ ] T077 Check every 2a element against `reference/map-2a-full-bleed-explore.png` once more on a real phone, and confirm the six documented departures are all present and that none has quietly grown a seventh: `City`/`Trip` labels, search routing to `/search`, tile attribution, the locate button, the missing-count line, and 2c's clusters at the trip scale.
+- [ ] T078 Walk `quickstart.md` end to end on a preview deployment, including §B3 at **375px and 320px** — SC-006's legibility cannot be proven in jsdom and is verified here.
+- [ ] T079 [P] Add a Map paragraph to `CLAUDE.md` in the style of the existing feature notes: no migration, the engine port and why it exists, why tiles are never precached, and that the nav labels shorten as a function of tab count.
+- [ ] T080 [P] Update `README.md` with the `npm run backfill:coords` workflow — dry run, apply, revert — since it is the one command in this feature that writes to production data.
+- [ ] T081 Re-read every diff in the feature adversarially against `src/map/engine.types.ts`: confirm nothing outside `src/map/engine.leaflet.ts` imports `leaflet`, and that `src/pages/PlaceForm.tsx` still does not import `src/map/`.
+- [ ] T082 Confirm each slice reverts cleanly in a scratch branch: revert Slice D, then C, then B, and check the app still builds and its tests pass at each step. **A rollback plan nobody has executed is a hypothesis** (plan → Quick rollback).
+- [ ] T083 Confirm the code default for `show-map` is `false` at **both** call sites — `src/components/Layout.tsx` and the `RequireMap` guard in `src/router.tsx` — and that it stays that way. **Decided by the user: the default is off permanently and the map appears only when `show-map` is turned on explicitly in PostHog.** There is no later commit that flips it to `true`; PostHog is the only switch. The accepted consequences: the map is invisible in local dev and on any deploy without `VITE_POSTHOG_PROJECT_TOKEN`, and on a device's first run the tab is absent until flags arrive and stays absent if that fetch fails.
+- [ ] T084 Final gate — `npm test && npm run typecheck && npm run lint && npm run format` — and confirm no debug flag flips (`useBooleanFlag('show-map', true)`) survived from local development.
 
 ---
 
@@ -267,7 +277,7 @@ The template's ideal is stories that are independent of one another. Here **US2 
 
 ### Within each story
 
-Tests come before the code they cover, except T022 and T038, which are regression locks over behaviour that already exists and pass on arrival. Pure modules (`pins.ts`, `scope.ts`, `nav-labels.ts`, `geolocation.ts`) come before the components that consume them — that is what keeps the components thin enough to be worth the name.
+Tests come before the code they cover, except T022 and T044, which are regression locks over behaviour that already exists and pass on arrival. Pure modules (`pins.ts`, `scope.ts`, `nav-labels.ts`, `geolocation.ts`) come before the components that consume them — that is what keeps the components thin enough to be worth the name.
 
 ---
 
@@ -286,12 +296,16 @@ T017 (vercel.json) is parallel to both.
 T020 pins.test · T021 nav-labels.test · T022 server map-pins.test
 T024 scope.ts · T025 tiles.ts · T026 nav-labels.ts · T027 engine.types · T028 engine.fake
 
+# Phase 3 — the 2a elements, once T031 (bleed) and T032 (CATEGORY_META.dot) are in
+T034 MapTopBar · T035 MapLegend · T037 CategoryChips · T038 PlaceCardRow
+(T036 MapSheet holds the last two; T033 MapCanvas needs T031)
+
 # Phases 4 and 5 — different files throughout, two people or two sittings
-US2: T044 → T045 → T046 → T047 → T048 → T049
-US3: T051 → T052 → T053 → T054 → T055
+US2: T051 → T052 → T053 → T054 → T056 → T057
+US3: T059 → T060 → T061 → T062 → T063
 ```
 
-Not parallel, whatever it looks like: T033, T048, T054, T060 and T065 all edit `src/pages/TripMap.tsx`, and T029/T030 must precede anything that mounts a real engine.
+Not parallel, whatever it looks like: T039, T056, T062, T069 and T074 all edit `src/pages/TripMap.tsx`, and T029/T030 must precede anything that mounts a real engine. Within US1, T031 (the `bleed` mode) must land before T033 mounts a full-bleed map inside it, and T032 (`CATEGORY_META.dot`) before T034–T038 draw a pin, a chip, a swatch or a card dot.
 
 ---
 
@@ -311,13 +325,13 @@ Each phase after the MVP is one commit that leaves the app working: US2 (you are
 
 ### Rollback, at any point
 
-`show-map` off in PostHog removes the tab and closes the route with no deploy. Below that: revert one slice's commit; revert the backfill with its journal; revert one line of `vercel.json`. There is no migration, so there is no schema rollback to get wrong. T072 exists so that this is a rehearsed procedure rather than a paragraph.
+`show-map` off in PostHog removes the tab and closes the route with no deploy. Below that: revert one slice's commit; revert the backfill with its journal; revert one line of `vercel.json`. There is no migration, so there is no schema rollback to get wrong. T082 exists so that this is a rehearsed procedure rather than a paragraph.
 
 ---
 
 ## Notes
 
-- `npm run typecheck` is not optional and `npm test` cannot replace it: Vitest transpiles types away, so the field policy in T037 fails only there.
+- `npm run typecheck` is not optional and `npm test` cannot replace it: Vitest transpiles types away, so the field policy in T043 fails only there.
 - Never call `posthog.capture` directly — go through the helpers in `src/lib/posthog.ts`, or an unconfigured build calls into an uninitialised client.
 - A new mutation gets its toast from `meta`; none of these tasks add a mutation, and the location picker rides on the existing place save.
 - Commit at each checkpoint task, not at each task. The checkpoints are the revert boundaries.

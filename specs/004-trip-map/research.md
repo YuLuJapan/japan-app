@@ -153,3 +153,52 @@ and `stepView` (`server/src/lib/step-view.ts`) spreads the whole zone row onto e
 
 - _Reusing `placeMapsUrl` unchanged._ Rejected against SC-008's two-tap budget.
 - _Detecting the platform and emitting Apple Maps links on iOS._ Rejected as unrequested scope; the Google deep link opens the installed app on both platforms.
+
+---
+
+## R11 — The arrangement: 2a, full-bleed explore
+
+**Decision**: build `map-2a-full-bleed-explore.png`. The map owns the screen; a peeking bottom sheet carries the category chips and a horizontal row of place cards; a floating top bar carries the search field and the scale toggle; a legend card floats over the map.
+
+**Rationale**: chosen by the user from the three the design file offers. It is the arrangement that makes "browse in space" the point of the screen rather than half of it — which is the job the feature exists for, the 6pm-in-Shibuya problem where the map _is_ the answer and the list is the fallback.
+
+**What it costs, stated plainly**: the saved-places list is never fully visible — it is a horizontal row in a peeking sheet. Two requirements lean on that list, and both are handled rather than assumed:
+
+- **FR-019, the missing count**, gets a line of its own under the chips rather than a card at the end of the scrolling row. A count you have to scroll sideways to find is not "stated on the map".
+- **FR-026, offline**, expands the sheet to full height and turns the card row into a vertical list with the explanation above it. This is 2b's arrangement borrowed for the one state where the map genuinely cannot be the answer — which is the right time to borrow it.
+
+**Alternatives considered**:
+
+- _2b · split map + list._ Its "Tokyo" / "Whole trip ›" header is FR-008's toggle drawn exactly, and its permanent list would have made FR-019 and FR-026 nearly free. Rejected in favour of 2a: the map is only ever half a screen, and it has no category filter at all, so FR-010's chips would have had to be invented into it anyway.
+- _2c · city chapters._ Whole-trip as the default view contradicts FR-008, which opens on the current step's zone, and puts the pins one extra tap away on a single-city day. Its cluster treatment is kept for the `Trip` scale (see the plan's departure 6), which is where it was always the right answer.
+- _A synthesis of all three._ Considered and offered; the user picked a single direction, which is the better outcome — a screen assembled from three references reads as none of them.
+
+---
+
+## R12 — Ship on the stock palette; route every colour through `CATEGORY_META`
+
+**Decision**: no `tailwind.config.ts` change. `CATEGORY_META` gains a `dot` field using stock Tailwind classes (`bg-violet-500`, `bg-sky-500`, `bg-amber-500`, `bg-pink-500`, `bg-emerald-500`), and pins, chips, legend swatches and card dots all read from it.
+
+**Rationale**: the reference renders were made against the redesign's category palette — slate blue, olive, terracotta, ochre — which arrived with PR #93 and was reverted with it in PR #94. `main` carries stock violet/sky/amber/pink. The user chose to ship on those rather than pull redesign tokens into this feature.
+
+**So the map's arrangement will match the reference and its hues will not**, until spec 009 re-lands. That is a stated, accepted difference, not an oversight — and worth checking against the render at review time so nobody "fixes" it back.
+
+**What keeps it cheap to correct**: one table. Because no map file names a colour, re-landing 009's palette recolours the pins, the chips, the legend and the card dots in a single edit to `CATEGORY_META`, with no map code touched. The alternative — a `MAP_PIN_COLOURS` constant inside `src/map/` — would have been marginally simpler now and would have guaranteed the map drifted out of step with every other surface that shows a category.
+
+**Alternatives considered**:
+
+- _Lift the four category colour pairs out of the reverted commit._ Ten lines, additive, and the map would match the render exactly. Not chosen: it starts re-landing a reverted redesign from inside an unrelated feature, and a token change is not revertible with this feature's commits.
+- _Take the whole reverted token set_ (neutral ramp, Bricolage Grotesque). Rejected as spec 009's work — it restyles every existing screen and would make this feature impossible to revert alone.
+- _Block on 009._ Rejected: it makes a shippable feature wait on a spec that was just reverted and has no date.
+
+---
+
+## R13 — Two labels, one search field, and what the render could not decide
+
+Three small decisions the render leaves open, recorded because each is the kind of thing that gets silently "corrected" later.
+
+**The segments say `City` / `Trip`, not `Day` / `Trip`.** 2a's left segment reads "Day", which in 2b's vocabulary means scoping pins to one date. No requirement here asks for day-scoping; FR-008 defines the scales as the current step's zone and the whole trip. The control keeps its position, its shape and its styling; only the word changes, because the word was describing a different feature.
+
+**The search field routes to the existing `/search`.** The render cannot say what "Search Japan…" searches. Map-specific search is not in any FR, and a field that does nothing is worse than one that does something adjacent. Consequence accepted: this screen offers two routes into search, since the app header already carries a magnifier — cosmetic, on a header spec 009 restyles anyway. _Client-side pin filtering by name was considered_ — cheap over 39 places, genuinely useful on a map — and rejected as behaviour no FR carries; it belongs in a follow-up, not smuggled in through a design render.
+
+**The sheet is not doubled for US3.** The original plan had a `PinSheet` overlay for a tapped pin. 2a already has a sheet, so a second one would cover the first. Tapping a pin instead scrolls `PlaceCardRow` to that place and expands its card into the summary, the place link and the directions link — one sheet with two states, which is what the render's card row is already shaped for.
