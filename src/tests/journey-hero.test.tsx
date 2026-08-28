@@ -7,7 +7,9 @@
 // photo. And the countdown card opens collapsed: the numbers are the whole
 // card until someone asks for the rest.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import { PhotoHero } from '../components/PhotoHero'
 import Journey from '../pages/Journey'
 import { renderAt } from './helpers'
 
@@ -146,6 +148,28 @@ describe('the trip hero', () => {
 
     await screen.findByRole('heading', { name: 'Portugal' })
     expect(screen.queryByTestId('sushi-hero')).not.toBeInTheDocument()
+  })
+})
+
+describe('the hero caption', () => {
+  // The bug this exists for: the caption sat 24px off the bottom while the
+  // countdown card was pulled up 64px, so the card landed on top of "Japan".
+  // The design's pairing is 76px of clearance against the card's -64px.
+  it('lifts clear of the card that rides up over the photo', async () => {
+    mockApi(bundle(flight))
+    renderAt('/trips/trip-1', route)
+
+    await screen.findByRole('heading', { name: 'Japan' })
+    expect(screen.getByTestId('photo-hero-caption').className).toContain('pb-[76px]')
+  })
+
+  it('sits low against the frame when nothing overlaps it', () => {
+    render(
+      <MemoryRouter>
+        <PhotoHero src={null} alt="Tokyo" title="Tokyo" height="h-40" />
+      </MemoryRouter>
+    )
+    expect(screen.getByTestId('photo-hero-caption').className).toContain('pb-6')
   })
 })
 

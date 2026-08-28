@@ -32,11 +32,25 @@ interface Props {
   /** Sits opposite the back button — the city page hangs "Photo" here. */
   action?: ReactNode
   /**
-   * How far the card below should ride up over the photo. The countdown card
-   * on the trip screen overlaps it by 64px; a city has nothing to overlap.
+   * A card that rides up over the bottom of the photo — the trip screen's
+   * countdown, pulled up 64px. Passing one also moves the caption up out of
+   * its way (see CAPTION_CLEARANCE); a city passes nothing and keeps the
+   * caption low against the frame.
    */
   children?: ReactNode
 }
+
+/**
+ * How far the caption sits above the bottom of the photo.
+ *
+ * The two values are the design's, and the pair is load-bearing rather than
+ * decorative: the trip hero's caption sits at 76px because the countdown card
+ * comes up 64px, which leaves 12px of air between them. Drop the caption to
+ * the city's 22px while a card still rides up and the card lands on top of the
+ * title — so these two numbers only ever move together with the `-mt-16` on
+ * the card in Journey.
+ */
+const CAPTION_CLEARANCE = { overlapped: 'pb-[76px]', plain: 'pb-6' }
 
 export function PhotoHero({
   src,
@@ -87,7 +101,12 @@ export function PhotoHero({
         )}
         {action && <div className="absolute right-4 top-4">{action}</div>}
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 px-[18px] pb-6">
+        <div
+          data-testid="photo-hero-caption"
+          className={`pointer-events-none absolute inset-x-0 bottom-0 px-[18px] ${
+            children ? CAPTION_CLEARANCE.overlapped : CAPTION_CLEARANCE.plain
+          }`}
+        >
           {eyebrow && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-black/30 px-2.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.16em] text-white backdrop-blur">
               {eyebrow}
