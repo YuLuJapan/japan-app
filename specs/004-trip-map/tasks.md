@@ -48,37 +48,37 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 
 ### Tests
 
-- [X] T004 [P] Write `server/tests/geocode-resolve.test.ts` covering `resolvePlaceLocation` through the `setGeocoder` seam: returns the best candidate for a name + address, returns `null` when nothing matches, passes the zone's coordinates through as the bias, and does not throw when the upstream is unreachable. Fails until T005.
+- [x] T004 [P] Write `server/tests/geocode-resolve.test.ts` covering `resolvePlaceLocation` through the `setGeocoder` seam: returns the best candidate for a name + address, returns `null` when nothing matches, passes the zone's coordinates through as the bias, and does not throw when the upstream is unreachable. Fails until T005.
 
 ### Implementation — resolving a location
 
-- [X] T005 Add `resolvePlaceLocation({ name, address, near })` and the `setGeocoder()` test seam to `server/src/services/geocode.ts`, built over the existing `geocodeSearch`. Keep it under twenty lines: pick the best candidate, return `null` otherwise. **The rate limit belongs to the caller, not here** — this function is called once per place by the script and once per save by the form. Do not touch `server/src/routes/geocode.ts`.
+- [x] T005 Add `resolvePlaceLocation({ name, address, near })` and the `setGeocoder()` test seam to `server/src/services/geocode.ts`, built over the existing `geocodeSearch`. Keep it under twenty lines: pick the best candidate, return `null` otherwise. **The rate limit belongs to the caller, not here** — this function is called once per place by the script and once per save by the form. Do not touch `server/src/routes/geocode.ts`.
 
 ### Implementation — the backfill
 
-- [X] T006 Create `scripts/backfill-coords.ts` following the `scripts/seed.ts` shape (`loadEnv()`, then a dynamic import of the server modules). Read every place through `getDataStore()`, resolve each one via `resolvePlaceLocation` biased by its zone's coordinates, and print what it _would_ write. **`--dry-run` is the default; writing requires an explicit `--apply`.**
-- [X] T007 Add journalling to `scripts/backfill-coords.ts`: under `--apply`, write every change to `scripts/.backfill/<timestamp>.json` as `{ id, name, before: { lat, lng }, after: { lat, lng } }`, and print the journal path on exit.
-- [X] T008 Add `--revert <journal>` to `scripts/backfill-coords.ts`, restoring `before` for every row in the named journal. This is the rollback lever for the only production write in the feature (plan → Quick rollback, lever 6).
-- [X] T009 Make `scripts/backfill-coords.ts` idempotent and honest: skip a place that already has coordinates (so a re-run is safe and an interrupted run resumes), throttle to one request per second per the Nominatim policy, and close with a summary of resolved / skipped / **unresolved listed by name** (FR-002).
-- [X] T010 Run the full cycle from `quickstart.md` §A1 against the memory store — dry run, `--apply`, `--apply` again (expect "already located, skipped"), then `--revert`. Confirm every place returns to `lat: null`. **A revert that does not restore cleanly means the script is not ready to point at production.**
+- [x] T006 Create `scripts/backfill-coords.ts` following the `scripts/seed.ts` shape (`loadEnv()`, then a dynamic import of the server modules). Read every place through `getDataStore()`, resolve each one via `resolvePlaceLocation` biased by its zone's coordinates, and print what it _would_ write. **`--dry-run` is the default; writing requires an explicit `--apply`.**
+- [x] T007 Add journalling to `scripts/backfill-coords.ts`: under `--apply`, write every change to `scripts/.backfill/<timestamp>.json` as `{ id, name, before: { lat, lng }, after: { lat, lng } }`, and print the journal path on exit.
+- [x] T008 Add `--revert <journal>` to `scripts/backfill-coords.ts`, restoring `before` for every row in the named journal. This is the rollback lever for the only production write in the feature (plan → Quick rollback, lever 6).
+- [x] T009 Make `scripts/backfill-coords.ts` idempotent and honest: skip a place that already has coordinates (so a re-run is safe and an interrupted run resumes), throttle to one request per second per the Nominatim policy, and close with a summary of resolved / skipped / **unresolved listed by name** (FR-002).
+- [x] T010 Run the full cycle from `quickstart.md` §A1 against the memory store — dry run, `--apply`, `--apply` again (expect "already located, skipped"), then `--revert`. Confirm every place returns to `lat: null`. **A revert that does not restore cleanly means the script is not ready to point at production.**
 
 ### Implementation — the location picker
 
-- [X] T011 [P] Write `src/tests/location-picker.test.tsx`: debounces before searching, lists candidates, requires an explicit pick, reports "nothing found", and emits nothing when the field is left untouched. Fails until T012.
-- [X] T012 Extract `src/components/LocationPicker.tsx` from the destination field in `src/pages/JourneySteps.tsx` (lines ~154–195) — debounce, search, result list, selection — with the bias coordinates and the placeholder as props. **A behaviour-preserving extraction, nothing more.**
-- [X] T013 Point `src/pages/JourneySteps.tsx` at `LocationPicker` and delete the inlined version. `src/tests/journey-editor.test.tsx` must pass **unchanged** — that is what makes this a refactor rather than a rewrite (research R7).
-- [X] T014 [P] Write `src/tests/place-form-location.test.tsx`: accepting a candidate sends `lat`/`lng`; choosing a different one sends that one; declining saves the place with neither; a place with no address triggers no lookup at all. Fails until T015.
-- [X] T015 Wire `LocationPicker` into `src/pages/PlaceForm.tsx`, biased by the zone's coordinates, showing where the candidate landed and **storing nothing the traveller has not accepted** (FR-003). Declining, or having no address, saves the place normally with no coordinates (FR-004). The endpoint already accepts and validates both fields — this adds no server change.
-- [X] T016 Render the candidate's resolved address line as the picker's default confirmation, with any mini-map as a progressive enhancement inside the same boundary. **`src/pages/PlaceForm.tsx` must not import `src/map/`** — that coupling is what would make Slice A un-revertible without Slice B.
+- [x] T011 [P] Write `src/tests/location-picker.test.tsx`: debounces before searching, lists candidates, requires an explicit pick, reports "nothing found", and emits nothing when the field is left untouched. Fails until T012.
+- [x] T012 Extract `src/components/LocationPicker.tsx` from the destination field in `src/pages/JourneySteps.tsx` (lines ~154–195) — debounce, search, result list, selection — with the bias coordinates and the placeholder as props. **A behaviour-preserving extraction, nothing more.**
+- [x] T013 Point `src/pages/JourneySteps.tsx` at `LocationPicker` and delete the inlined version. `src/tests/journey-editor.test.tsx` must pass **unchanged** — that is what makes this a refactor rather than a rewrite (research R7).
+- [x] T014 [P] Write `src/tests/place-form-location.test.tsx`: accepting a candidate sends `lat`/`lng`; choosing a different one sends that one; declining saves the place with neither; a place with no address triggers no lookup at all. Fails until T015.
+- [x] T015 Wire `LocationPicker` into `src/pages/PlaceForm.tsx`, biased by the zone's coordinates, showing where the candidate landed and **storing nothing the traveller has not accepted** (FR-003). Declining, or having no address, saves the place normally with no coordinates (FR-004). The endpoint already accepts and validates both fields — this adds no server change.
+- [x] T016 Render the candidate's resolved address line as the picker's default confirmation, with any mini-map as a progressive enhancement inside the same boundary. **`src/pages/PlaceForm.tsx` must not import `src/map/`** — that coupling is what would make Slice A un-revertible without Slice B.
 
 ### Implementation — the header
 
-- [X] T017 [P] Change `Permissions-Policy` in `vercel.json` from `geolocation=()` to `geolocation=(self)`. One value; embeds stay denied; our own pages may ask (FR-006, research R5).
+- [x] T017 [P] Change `Permissions-Policy` in `vercel.json` from `geolocation=()` to `geolocation=(self)`. One value; embeds stay denied; our own pages may ask (FR-006, research R5).
 - [ ] T018 **(deferred — needs a preview deployment)** Verify T017 on a preview deployment, since no local test can: `curl -sI https://<preview>/ | grep -i permissions-policy` shows `geolocation=(self)`, and a phone opening the preview gets a **permission prompt**. No prompt and no error is the original bug.
 
 ### Checkpoint
 
-- [X] T019 Run `npm test && npm run typecheck && npm run lint && npm run format`, then commit Slice A. All 39 places are located or listed by name, new places acquire a location the traveller confirmed, and the deployed site permits its own pages to ask. **No map exists yet, and nothing about the app looks different.**
+- [x] T019 Run `npm test && npm run typecheck && npm run lint && npm run format`, then commit Slice A. All 39 places are located or listed by name, new places acquire a location the traveller confirmed, and the deployed site permits its own pages to ask. **No map exists yet, and nothing about the app looks different.**
 
 ---
 
@@ -92,16 +92,16 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 
 ### Tests
 
-- [X] T020 [P] [US1] Write `src/tests/pins.test.ts` for the pure projection: `toPins` drops places with a null `lat` or `lng`, `missingCount` counts exactly those, `pins.length + missingCount === places.length` for a mixed array (SC-004), and `boundsOf` frames every pin and returns `null` for an empty list. Fails until T023.
-- [X] T021 [P] [US1] Write `src/tests/nav-labels.test.ts`: five tabs or fewer yield today's labels; six yield the short set. Fails until T026.
+- [x] T020 [P] [US1] Write `src/tests/pins.test.ts` for the pure projection: `toPins` drops places with a null `lat` or `lng`, `missingCount` counts exactly those, `pins.length + missingCount === places.length` for a mixed array (SC-004), and `boundsOf` frames every pin and returns `null` for an empty list. Fails until T023.
+- [x] T021 [P] [US1] Write `src/tests/nav-labels.test.ts`: five tabs or fewer yield today's labels; six yield the short set. Fails until T026.
 - [ ] T022 [P] [US1] Write `server/tests/map-pins.test.ts` asserting the FR-016 guarantee on the response body of `GET /api/trips/:tripId/zones/:zoneId/places` **with no `category`**: an owner receives hotels; a viewer with `can_see_stays: false` receives none, and a non-member receives 404. **This passes immediately** — it locks in behaviour `listZonePlaces` already has, so that a later refactor cannot quietly remove it (research R1).
 
 ### Implementation — the pure core
 
-- [X] T023 [US1] Create `src/map/pins.ts`: `toPins(places)`, `missingCount(places)`, `boundsOf(pins)`, `categoryStyle(category)`. Pure, no React, no Leaflet. `toPins` and `missingCount` walk the same array so the two counts cannot drift (data-model → `MapPin`).
+- [x] T023 [US1] Create `src/map/pins.ts`: `toPins(places)`, `missingCount(places)`, `boundsOf(pins)`, `categoryStyle(category)`. Pure, no React, no Leaflet. `toPins` and `missingCount` walk the same array so the two counts cannot drift (data-model → `MapPin`).
 - [ ] T024 [P] [US1] Create `src/map/scope.ts` with `zoneScope(...)` returning `{ kind: 'zone', pins, bounds, emptyMessage, onPinTap }`. `tripScope` arrives in US4 — the shape exists now so the page never learns to branch on scale (research R6).
 - [ ] T025 [P] [US1] Create `src/map/tiles.ts` holding the OSM tile URL template and the attribution string, exported once. FR-013 makes attribution a condition of using the tiles at all, and a string duplicated across components is one that gets deleted from the wrong one.
-- [X] T026 [P] [US1] Create `src/lib/nav-labels.ts`: `navLabels(tabCount)` returns the current labels at five or fewer and the short set (Alerts, Info, Docs) at six. **Shortening is a function of the count, not a separate change** — that is what makes turning the flag off a total rollback (research R8).
+- [x] T026 [P] [US1] Create `src/lib/nav-labels.ts`: `navLabels(tabCount)` returns the current labels at five or fewer and the short set (Alerts, Info, Docs) at six. **Shortening is a function of the count, not a separate change** — that is what makes turning the flag off a total rollback (research R8).
 
 ### Implementation — the engine boundary
 
@@ -113,7 +113,7 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 ### Implementation — the screen
 
 - [ ] T031 [US1] Add a `bleed` mode to `src/components/Layout.tsx` that drops `px-5 pt-1` from `<main>` for one route, so a page can reach the screen edges. The header stays; the fixed bottom nav stays; the map's sheet rests on top of it. **Do not cancel the padding with negative margins** — that hard-codes the value in a second place (plan → Complexity Tracking).
-- [X] T032 [P] [US1] Add a `dot` field to `CATEGORY_META` in `src/api/types.ts` using **stock Tailwind classes** (`bg-violet-500`, `bg-sky-500`, `bg-amber-500`, `bg-pink-500`, `bg-emerald-500`). **No `tailwind.config.ts` change.** Every pin, chip, legend swatch and card dot reads from this table, so re-landing spec 009's palette later recolours the map in one edit (research R12).
+- [x] T032 [P] [US1] Add a `dot` field to `CATEGORY_META` in `src/api/types.ts` using **stock Tailwind classes** (`bg-violet-500`, `bg-sky-500`, `bg-amber-500`, `bg-pink-500`, `bg-emerald-500`). **No `tailwind.config.ts` change.** Every pin, chip, legend swatch and card dot reads from this table, so re-landing spec 009's palette later recolours the map in one edit (research R12).
 - [ ] T033 [US1] Create `src/components/map/MapCanvas.tsx`: dynamically imports `engine.leaflet`, mounts it **full-bleed** inside the `bleed` layout, and renders the offline fallback — the sheet expanded to full height with the card row as a vertical list and the explanation above it (FR-026, research R11). Never a grey square, never a bare spinner.
 - [ ] T034 [P] [US1] Create `src/components/map/MapTopBar.tsx` per `reference/map-2a-full-bleed-explore.png`: a white pill search field on the left routing to the existing `/search`, and a two-segment toggle on the right — active segment solid dark with white text, inactive white with dark text. **The segments read `City` and `Trip`, not `Day` and `Trip`** (research R13). The `Trip` segment is inert until US4; wire it there.
 - [ ] T035 [P] [US1] Create `src/components/map/MapLegend.tsx`: the small floating white card over the map's right side, one `CATEGORY_META.dot` swatch and label per category present. Hidden for a category the caller's view withholds (FR-017).
