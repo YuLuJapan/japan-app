@@ -2,25 +2,53 @@
 export const CATEGORIES = ['hotel', 'attraction', 'food', 'shopping', 'other'] as const
 export type Category = (typeof CATEGORIES)[number]
 
+/**
+ * One row per place category. `color` is the tinted pill the icon sits in and
+ * `dot` the solid mark used where a category has to read at a few pixels — the
+ * timeline bullet on a day plan, and the pin on the map. Both come from the
+ * redesign's category palette (`stay`/`sight`/`table`/`market` in
+ * tailwind.config.ts) rather than stock Tailwind hues, so the four of them sit
+ * together in one grid without competing with the coral.
+ */
 export const CATEGORY_META: Record<
   Category,
-  { label: string; singular: string; icon: string; color: string }
+  { label: string; singular: string; icon: string; color: string; dot: string }
 > = {
-  hotel: { label: 'Stays', singular: 'Stay', icon: '🛏️', color: 'bg-violet-100 text-violet-700' },
+  hotel: {
+    label: 'Stays',
+    singular: 'Stay',
+    icon: '🛏️',
+    color: 'bg-stay-tint text-stay',
+    dot: 'bg-stay',
+  },
   attraction: {
     label: 'Things to do',
     singular: 'Attraction',
-    icon: '📸',
-    color: 'bg-sky-100 text-sky-700',
+    icon: '📷',
+    color: 'bg-sight-tint text-sight',
+    dot: 'bg-sight',
   },
   food: {
-    label: 'Food & Cafés',
+    label: 'Food & cafés',
     singular: 'Food spot',
     icon: '🍜',
-    color: 'bg-amber-100 text-amber-700',
+    color: 'bg-table-tint text-table',
+    dot: 'bg-table',
   },
-  shopping: { label: 'Shopping', singular: 'Shop', icon: '🛍️', color: 'bg-pink-100 text-pink-700' },
-  other: { label: 'More', singular: 'Place', icon: '📍', color: 'bg-emerald-100 text-emerald-700' },
+  shopping: {
+    label: 'Shopping',
+    singular: 'Shop',
+    icon: '🛍️',
+    color: 'bg-market-tint text-market',
+    dot: 'bg-market',
+  },
+  other: {
+    label: 'More',
+    singular: 'Place',
+    icon: '📍',
+    color: 'bg-sand text-muted',
+    dot: 'bg-dust',
+  },
 }
 
 /** A free-text traveller on a trip — not a linked account. `email` is optional and only
@@ -338,6 +366,23 @@ export interface ItineraryItem {
   position: number
   highlight: boolean // shown as a "featured" banner above the day's plan
   icon: string | null // leading emoji for the banner
+  /**
+   * The tag the traveller chose for this activity. Stored, unlike
+   * `place_category` below — it is what lets an activity that links to nothing
+   * saved still carry a coloured pill. Takes precedence when both are set.
+   * Optional so a payload cached before the column existed still parses.
+   */
+  category?: Category | null
+  /**
+   * Category of the place this activity links to, for the coloured tag under
+   * its title. Derived per request by the server, never stored — and null both
+   * when nothing is linked and when the link was cut off a stay this caller
+   * may not see. Optional so a cached payload written before the field existed
+   * still parses.
+   */
+  place_category?: Category | null
+  /** Names of files attached to that place. Empty when documents are withheld. */
+  place_files?: string[]
 }
 
 export interface ItineraryItemInput {
@@ -350,7 +395,11 @@ export interface ItineraryItemInput {
   position?: number
   highlight?: boolean
   icon?: string | null
+  category?: Category | null
 }
+
+/** The categories an activity may be tagged with — every one the plan can draw. */
+export const TAGGABLE_CATEGORIES = ['hotel', 'attraction', 'food', 'shopping'] as const
 
 // Shopping list — things to buy in Japan (photo, where, how much, bought yet).
 export const SHOPPING_CATEGORIES = [

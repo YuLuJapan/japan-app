@@ -258,6 +258,14 @@ export interface ItineraryItem {
   position: number
   highlight: boolean // shown as a "featured" banner above the day's plan
   icon: string | null // leading emoji for the banner
+  /**
+   * The tag the traveller chose for this activity, shown as a coloured pill on
+   * the day plan. Distinct from `place_category`, which is *derived* from the
+   * linked place: this one is typed on the activity itself, so an entry that
+   * points at nothing saved ("Whatever the konbini has") can still say it is
+   * food. `other` is not offered — a tag nobody can read is not a tag.
+   */
+  category: Category | null
 }
 
 export interface ItineraryItemInput {
@@ -271,6 +279,7 @@ export interface ItineraryItemInput {
   position?: number
   highlight?: boolean
   icon?: string | null
+  category?: Category | null
 }
 
 // Shopping list ("things to buy in Japan") — trip-level, not tied to a zone.

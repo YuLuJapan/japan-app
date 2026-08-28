@@ -207,9 +207,14 @@ function isMissingCoordColumn(error: { code?: string; message?: string } | null)
   )
 }
 
-/** Ensure the 0004 fields exist on a row that may predate the migration. */
+/**
+ * Ensure the optional itinerary columns exist on a row that may predate their
+ * migration — `highlight`/`icon` (0004) and `category` (0022). Committing a
+ * migration is not deploying it, so a row read before someone runs it must
+ * still arrive as a complete `ItineraryItem` rather than 500 the day plan.
+ */
 function withHighlightDefaults(row: Record<string, unknown>): ItineraryItem {
-  return { highlight: false, icon: null, ...row } as ItineraryItem
+  return { highlight: false, icon: null, category: null, ...row } as ItineraryItem
 }
 
 export function createSupabaseStore(): DataStore {
@@ -868,7 +873,12 @@ export function createSupabaseStore(): DataStore {
         note: input.note ?? null,
         position: input.position ?? 0,
       }
-      const row = { ...base, highlight: input.highlight ?? false, icon: input.icon ?? null }
+      const row = {
+        ...base,
+        highlight: input.highlight ?? false,
+        icon: input.icon ?? null,
+        category: input.category ?? null,
+      }
       let { data, error } = await db.from('itinerary_items').insert(row).select().single()
       if (error && isMissingHighlightColumn(error))
         ({ data, error } = await db.from('itinerary_items').insert(base).select().single())
@@ -887,6 +897,7 @@ export function createSupabaseStore(): DataStore {
       if (patch.position !== undefined) fields.position = patch.position ?? 0
       if (patch.highlight !== undefined) fields.highlight = patch.highlight ?? false
       if (patch.icon !== undefined) fields.icon = patch.icon ?? null
+      if (patch.category !== undefined) fields.category = patch.category ?? null
       const run = (f: Record<string, unknown>) =>
         db
           .from('itinerary_items')
@@ -900,6 +911,7 @@ export function createSupabaseStore(): DataStore {
         const rest = { ...fields }
         delete rest.highlight
         delete rest.icon
+        delete rest.category
         // Same "nothing left to update" case as updatePlace above — fail
         // loudly rather than issuing an empty UPDATE that matches no row.
         if (Object.keys(rest).length === 0) {
