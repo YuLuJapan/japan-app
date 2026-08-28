@@ -680,8 +680,16 @@ is a strict subset of what that member can already read on the other routes.
 
 - 200 (share): `{"export":{"detail":"share","generated_at":"2026-08-28T12:00:00.000Z","trip":{"title":"Japan","start_date":"2026-11-01","end_date":"2026-11-14","country":"Japan"},"steps":[{"start_date":"2026-11-01","end_date":"2026-11-05","zone":{"name":"Tokyo","places":[{"name":"Kagari Ginza","address":"6-4-12 Ginza, Chuo City","category":"food"}]}}],"days":[],"stats":{"place_count":39,"places_without_address":2,"day_count":0,"included_stays":true}}}`
 - 200 (full): the same envelope plus, per place, `description` and `links`; per place and zone, `tips`; per
-  zone, `summary`; the trip's `description`; and a populated `days` array (`day_count` counts the days
-  carrying at least one item).
+  zone, `summary`; the trip's `description`; and a populated `days` array.
+
+**The day plan runs the whole trip.** `days` covers every date from `start_date` to `end_date`, each entry
+`{"day":"2026-11-03","zones":["Tokyo"],"items":[…]}`. A day with nothing planned is listed with an empty
+`items` array rather than omitted — the gaps are what a reader plans into. `zones` is the city or cities the
+day touches in journey order: one ordinarily, **two on the day you move between stops**, since a step's last
+day and the next step's first day are the same date (the same rule the app's own day-by-day screen uses).
+It is empty for a day no step covers. `stats.day_count` counts only the days carrying at least one item, so
+it remains the answer to "how much of this is planned" while `days.length` is the trip's length.
+
 - 400 `VALIDATION` — `details: ["detail must be \"share\" or \"full\""]` · 401 `UNAUTHORIZED` · 404
   `NOT_FOUND` (no such trip, **or** the caller is not a member of it).
 

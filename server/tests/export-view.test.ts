@@ -121,15 +121,44 @@ describe('the full projection', () => {
 
   it('adds the day plan, grouped by day in the store’s order', () => {
     const payload = project(FULL_VIEW, 'full')
-    expect(payload.days.map((d) => d.day)).toEqual(['2026-10-06', '2026-10-10'])
-    expect(payload.days[0].items.map((i) => i.title)).toEqual(['Ramen Bar', 'Walk Shinjuku'])
-    expect(payload.days[0].items[0]).toMatchObject({
+    const sixth = payload.days.find((d) => d.day === '2026-10-06')!
+    expect(sixth.items.map((i) => i.title)).toEqual(['Ramen Bar', 'Walk Shinjuku'])
+    expect(sixth.items[0]).toMatchObject({
       start_time: '20:00',
       place_name: 'Ramen Bar',
       highlight: false,
     })
-    expect(payload.days[0].items[1].start_time).toBeUndefined()
+    expect(sixth.items[1].start_time).toBeUndefined()
+    // Days carrying something — not days listed, which is the whole trip.
     expect(payload.stats.day_count).toBe(2)
+  })
+
+  it('runs the plan over every day of the trip, not only the planned ones', () => {
+    const payload = project(FULL_VIEW, 'full')
+    // 1–14 October inclusive: a day-by-day plan that skips the empty days is a
+    // list of activities, and the gaps are what a reader plans into.
+    expect(payload.days).toHaveLength(14)
+    expect(payload.days[0].day).toBe('2026-10-01')
+    expect(payload.days.at(-1)!.day).toBe('2026-10-14')
+    expect(payload.days.map((d) => d.day)).toEqual([...payload.days.map((d) => d.day)].sort())
+    // An unplanned day is listed with nothing in it.
+    expect(payload.days.find((d) => d.day === '2026-10-02')).toEqual({
+      day: '2026-10-02',
+      zones: [],
+      items: [],
+    })
+  })
+
+  it('says which city each day is spent in, and names both on a moving day', () => {
+    const days = project(FULL_VIEW, 'full').days
+    const on = (day: string) => days.find((d) => d.day === day)?.zones
+    // step-1 Tokyo 10-05→10-09, step-2 Kyoto 10-09→10-12 — they meet on the 9th.
+    expect(on('2026-10-06')).toEqual(['Tokyo'])
+    expect(on('2026-10-09')).toEqual(['Tokyo', 'Kyoto'])
+    expect(on('2026-10-10')).toEqual(['Kyoto'])
+    // Before the journey starts, no stop covers the day. That is a real gap
+    // and is shown as one rather than guessed at.
+    expect(on('2026-10-01')).toEqual([])
   })
 
   it('still carries no flight, no shopping, no document and no member name', () => {

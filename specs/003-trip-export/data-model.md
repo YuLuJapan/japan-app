@@ -105,7 +105,7 @@ ExportPayload
 │       └── zone: { name, summary?, places: ExportPlace[], tips?: string[] }
 │           └── ExportPlace: { name, address, category, description?, links?, tips?[] }
 ├── days: ExportDay[]                  — full only; empty array at share detail
-│   └── { day, items: [{ start_time?, title, note?, highlight, icon?, place_name? }] }
+│   └── { day, zones: string[], items: [{ start_time?, title, note?, highlight, icon?, place_name? }] }
 └── stats: { place_count, places_without_address, day_count, included_stays }
 ```
 
@@ -119,6 +119,19 @@ ExportPayload
   `flight` key, and it means a share payload cannot carry an empty container that a writer might label.
 - `stats.places_without_address` is what FR-018 reports; `included_stays` is the exporter's view, not a
   property of any place.
+- **`days` runs the whole trip**, `start_date` to `end_date`, not only the days somebody typed into. A
+  day-by-day plan that skips its empty days is a list of activities, and the gaps are exactly what a reader
+  plans into. A day with nothing on it is listed with an empty `items` array. (Any day carrying an item from
+  outside the trip's window is included too — the range rule makes that impossible today, and an export that
+  silently dropped a stranded activity would be worse than one printing a day off the end.)
+- **`zones` is the city or cities the day touches**, in journey order: one ordinarily, two on the day you
+  move between stops, because a step's last day and the next step's first day are the same date. This
+  mirrors `coveringSteps` / `dayZones` in `src/lib/schedule.ts`, which is what the app's own day-by-day
+  screen shows above each day — without it a printed plan reads "6 Oct · 20:00 Ramen Bar" and leaves the
+  reader to work out which city they are in. Empty for a day no step covers, which is a real gap in the
+  journey and is shown as one.
+- `stats.day_count` counts the days **carrying at least one item**, so it stays the answer to "how much of
+  this is planned" now that `days.length` is the trip's length.
 
 ---
 

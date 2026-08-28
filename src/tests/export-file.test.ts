@@ -229,6 +229,27 @@ describe('the writers, against each other', () => {
   })
 })
 
+describe('the day-by-day plan', () => {
+  it('names the city on every day, and both on a moving day', () => {
+    const days = buildOutline(fullPayload()).days
+    expect(days.map((d) => d.where)).toEqual(['Tokyo', 'Tokyo to Kyoto'])
+  })
+
+  it('keeps a day with nothing planned, in every readable writer', async () => {
+    const payload = fullPayload()
+    const docx = await textIn(await renderDocx(payload), /word\/document\.xml/)
+    const xlsx = await textIn(await renderXlsx(payload), /worksheets\/sheet/)
+    for (const writer of [docx, xlsx]) {
+      // The moving day carries no activity and must still be in the plan —
+      // a gap is what a reader plans into, and hiding it makes the trip look
+      // fuller than it is.
+      expect(writer).toContain('9 Oct 2026')
+      expect(writer).toContain('Tokyo to Kyoto')
+    }
+    expect(docx).toContain('Nothing planned.')
+  })
+})
+
 describe('the JSON backup', () => {
   it('is the only writer that emits identifiers', async () => {
     const payload = sharePayload()
@@ -251,5 +272,42 @@ describe('the JSON backup', () => {
     const place = json.export.steps[0].zone.places[0]
     expect(Object.keys(place).sort()).toEqual(['address', 'category', 'id', 'name', 'zone_id'])
     expect(jsonStrings(sharePayload())).toContain('Ramen Bar')
+  })
+})
+
+describe('what the readable writers may say in their own words', () => {
+  // WinAnsiEncoding is Latin-1 plus a named handful in the 0x80–0x9F slots —
+  // the dashes, curly quotes, the bullet, the ellipsis, the euro. Everything
+  // else (an arrow, for instance) has no glyph in a core font.
+  const WINANSI_EXTRAS = new Set(
+    [
+      0x20ac, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021, 0x02c6, 0x2030, 0x0160, 0x2039,
+      0x0152, 0x017d, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014, 0x02dc, 0x2122,
+      0x0161, 0x203a, 0x0153, 0x017e, 0x0178,
+    ].map((cp) => String.fromCodePoint(cp))
+  )
+
+  it('stays inside the encoding the PDF’s core font can print', () => {
+    // The PDF uses jsPDF's core Helvetica with no embedded font (research R2),
+    // so anything the *outline* adds of its own — labels, joiners, the "no
+    // address" mark — has to be WinAnsi-encodable or it prints as a wrong
+    // glyph. Trip content is the traveller's business and out of scope here
+    // (the fixture is romaji); this guards the wording we choose ourselves,
+    // and it is what caught a `Tokyo → Kyoto` that would have shipped.
+    const outline = buildOutline(fullPayload())
+    const ours = [
+      outline.detailLabel,
+      outline.statsLine,
+      outline.generated,
+      outline.addressGapLine ?? '',
+      ...outline.days.map((d) => d.where),
+      ...outline.days.map((d) => d.title),
+      ...outline.sections.flatMap((s) => [s.dates, ...s.places.map((p) => p.type)]),
+      NO_ADDRESS,
+    ].join('')
+    const unprintable = [...ours].filter(
+      (ch) => ch.codePointAt(0)! > 0xff && !WINANSI_EXTRAS.has(ch)
+    )
+    expect(unprintable).toEqual([])
   })
 })

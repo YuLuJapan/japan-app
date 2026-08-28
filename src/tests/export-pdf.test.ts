@@ -61,6 +61,20 @@ describe('a share PDF', () => {
   })
 })
 
+describe('the day-by-day plan in a full PDF', () => {
+  it('prints every day with the city it is spent in, empty ones included', () => {
+    const text = allText(buildPdf(fullPayload()))
+    expect(text).toContain('Day by day')
+    expect(text).toContain('6 Oct 2026')
+    expect(text).toContain('Tokyo')
+    // The moving day: both cities, and an honest "nothing planned" rather than
+    // a day quietly missing from the plan.
+    expect(text).toContain('9 Oct 2026')
+    expect(text).toContain('Tokyo to Kyoto')
+    expect(text).toContain('Nothing planned.')
+  })
+})
+
 describe('a long trip', () => {
   const payload = longTripPayload()
 

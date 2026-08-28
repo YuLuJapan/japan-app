@@ -35,9 +35,15 @@ export async function renderXlsx(payload: ExportPayload): Promise<Blob> {
   if (o.days.length) {
     sheets.push({
       name: 'Day by day',
-      header: ['Day', 'What'],
-      widths: [18, 80],
-      rows: o.days.flatMap((day) => day.items.map((item) => [day.title, item])),
+      header: ['Day', 'Where', 'What'],
+      widths: [18, 24, 80],
+      // A day with nothing planned still gets a row: sorting or filtering this
+      // sheet must not be the thing that reveals a gap in the trip.
+      rows: o.days.flatMap((day) =>
+        day.items.length
+          ? day.items.map((item) => [day.title, day.where, item])
+          : [[day.title, day.where, '']]
+      ),
     })
   }
 

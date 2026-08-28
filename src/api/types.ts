@@ -533,6 +533,9 @@ export interface ExportDayItem {
 
 export interface ExportDay {
   day: string
+  /** The city or cities the day touches — two of them is a moving day. */
+  zones: string[]
+  /** Empty on a day with nothing planned; the day is still listed. */
   items: ExportDayItem[]
 }
 

@@ -124,7 +124,13 @@ describe('the full version', () => {
     expect(inari.description).toContain('Go before 7am')
     expect(inari.links).toHaveLength(2)
     expect(payload.steps[0].zone.tips).toEqual(['Get a Suica card'])
-    expect(payload.days.map((d: { day: string }) => d.day)).toEqual(['2026-10-06', '2026-10-10'])
+    // The whole trip, day by day, each day saying where it is spent.
+    expect(payload.days).toHaveLength(14)
+    expect(payload.days.find((d: { day: string }) => d.day === '2026-10-09').zones).toEqual([
+      'Tokyo',
+      'Kyoto',
+    ])
+    // `day_count` still counts the days carrying something, not the days listed.
     expect(payload.stats.day_count).toBe(2)
   })
 
