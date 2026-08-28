@@ -19,6 +19,13 @@ Tracked in Monday on the "Onward — Next Four" board:
 | `trip-1a-story-hero.png` | 1a · countdown always expanded | Not taken |
 | `sheet-trip-and-city.png` | 1e / 1f / 1g side by side | — |
 
+Two details cropped from the above, for the stories that turn on them:
+
+| File | Shows |
+| --- | --- |
+| `detail-countdown-collapsed-vs-expanded.png` | The countdown card in both states, side by side |
+| `detail-day-plan-timeline.png` | The day plan as a timeline, with category and attachment pills |
+
 ## Map
 
 No direction is picked yet. The 004 stories specify the behaviour; these are three
