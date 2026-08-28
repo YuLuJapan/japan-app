@@ -44,7 +44,12 @@ export async function renderDocx(payload: ExportPayload): Promise<Blob> {
     p.push({ text: 'Day by day', style: 'Heading1' })
     for (const day of o.days) {
       p.push({ text: day.title, style: 'Heading3' })
-      for (const item of day.items) p.push({ text: item, bullet: true })
+      if (day.where) p.push({ text: day.where, muted: true })
+      if (day.items.length) {
+        for (const item of day.items) p.push({ text: item, bullet: true })
+      } else {
+        p.push({ text: 'Nothing planned.', muted: true })
+      }
     }
   }
 

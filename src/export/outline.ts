@@ -62,7 +62,20 @@ export interface OutlineSection {
 
 export interface OutlineDay {
   title: string
-  /** One line per activity, already in the server's order. */
+  /**
+   * Where the day is spent. `Tokyo`, or `Tokyo to Kyoto` on the day you move —
+   * the same thing the app's day-by-day screen shows above each day. Empty
+   * only for a day no stop covers.
+   *
+   * Words rather than an arrow, and that is a constraint rather than a
+   * preference: the PDF writer uses jsPDF's core Helvetica with no embedded
+   * font (research R2), whose WinAnsi encoding has no `→`. The app's screen
+   * can draw one; a printed file cannot, and would print a wrong glyph
+   * instead. Anything added to the outline has to survive that encoding.
+   */
+  where: string
+  /** One line per activity, already in the server's order. Empty is a real
+   *  answer: the day is listed with nothing planned rather than skipped. */
   items: string[]
 }
 
@@ -111,6 +124,9 @@ export function buildOutline(payload: ExportPayload): Outline {
 
   const days: OutlineDay[] = payload.days.map((day) => ({
     title: formatDate(day.day),
+    // On a moving day the order is the journey's, so it reads as leaving one
+    // city for the next. See `where` above for why this is not an arrow.
+    where: day.zones.join(' to '),
     items: day.items.map((item) =>
       [
         item.start_time,
@@ -126,7 +142,10 @@ export function buildOutline(payload: ExportPayload): Outline {
 
   const { place_count, places_without_address, day_count } = payload.stats
   const stats = [plural(place_count, 'place'), plural(payload.steps.length, 'stop')]
-  if (full && day_count) stats.push(plural(day_count, 'day', 'days') + ' planned')
+  // `day_count` is the days carrying something, not the days listed — the
+  // plan below runs the whole trip, so "12 days planned" of a 14-day trip is
+  // the honest line rather than a restatement of the length.
+  if (full && day_count) stats.push(`${plural(day_count, 'day')} planned`)
 
   return {
     title: payload.trip.title,
@@ -169,6 +188,10 @@ export function contentStrings(payload: ExportPayload): string[] {
       out.push(place.name, place.address, place.type, ...place.details)
     }
   }
-  for (const day of o.days) out.push(day.title, ...day.items)
+  for (const day of o.days) {
+    out.push(day.title)
+    if (day.where) out.push(day.where)
+    out.push(...day.items)
+  }
   return out
 }

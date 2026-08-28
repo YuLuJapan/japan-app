@@ -71,7 +71,7 @@ board's cross-cutting constraints item, and the plan is evaluated against those 
 | Services collect all validation errors | Only one input to validate (`detail`), so a single `VALIDATION` error with a `details` array. |
 | A new analytics event must be declared first | `trip_exported` is added to `AnalyticsEventProperties` before any call site (T019). All five properties are shapes — format, detail, two counts, one flag. |
 | A property is never trip content | No place name, address, description or trip title reaches PostHog. The sanitizer would drop them anyway; the call site never offers them. |
-| Feature flags default off | **Not flagged.** See "Complexity Tracking" below — this is a deliberate deviation from the board's blanket "every flag defaults off", justified there. |
+| Feature flags default off | Met. Shipped behind `export-trip`, defaulting off, gating the entry points but not the endpoint. The plan originally argued against a flag here; see "Complexity Tracking" for what changed. |
 | Migration committed ≠ deployed | Not applicable: no migration. Called out explicitly so nobody goes looking for one. |
 | Free tiers only | No new service, no new infrastructure, no server-side rendering. Two npm packages, shipped in a lazy chunk. |
 | $0 target | Met. The only cost is bundle bytes, addressed in research R2. |
@@ -164,6 +164,14 @@ on the result sheet. Library selection for DOCX/XLSX is deliberately deferred to
 
 | Deviation | Why | Alternative rejected because |
 | --- | --- | --- |
-| **No feature flag**, against the board's "every flag defaults off" | Export is a read-only, client-rendered action with no spend, no new table and no destructive path. A flag would mean the button is absent on first load of a new device (flags land after first paint) — a rare feature that is missing exactly when someone goes looking for it. | Flagging it costs a PostHog round trip and an absent-on-first-paint button to protect against a risk this feature does not carry. The flag exists to guard spend and destructive writes; this is neither. Reconsider if the PDF chunk turns out to break older Safari. |
+| **~~No feature flag~~ — reversed after review: it ships behind `export-trip`, defaulting off** | The plan argued that a flag means the button is absent on a new device's first load, since flags land after first paint — a rare feature missing exactly when someone goes looking for it. That cost is real and is accepted. The board's rule is the rule, and the argument against it would exempt every read-only feature; what the flag buys is the risk this feature does carry, a 415 KB PDF engine running on whatever browser the traveller has, so a remote switch-off is worth an absent button. | Shipping unflagged was rejected on the board's convention. Defaulting the flag **on**, as a kill switch rather than a rollout gate, was rejected too: it reads as "flagged" while behaving as "not flagged" on every device that has no answer, which is the one case the convention exists for. |
+
+**What the default costs, stated plainly.** `getBoolean` returns the default whenever PostHog has no answer —
+analytics switched off, flags not yet fetched, a phone with no signal, or the key not created yet. With the
+default off, the export is therefore invisible in local dev and on any deploy without a
+`VITE_POSTHOG_PROJECT_TOKEN`, and absent on a device's first paint until the flags arrive. The second case
+self-corrects, because `useBooleanFlag` re-reads on `onFeatureFlags`. Neither damages the offline guarantee:
+an offline export already requires a previous online visit for the payload prefetch, and that is the same
+visit that caches the flag. The first case is a development inconvenience, and is called out in `CLAUDE.md`.
 | **Two new `DataStore` methods** rather than reusing per-parent reads | 60 Supabase round trips inside one Hobby invocation for a 39-place trip. Measured against the interface, not guessed: `listTips` takes a single parent. | Looping the existing methods works on the memory store (which is what tests use) and would be slow-to-broken in production — precisely the failure mode `CLAUDE.md` warns about, arriving through performance instead of a missing migration. |
 | **A `typecheck` script becomes part of the test path** | FR-011's guard is a type error, and Vitest transpiles types away without checking them. Without this, the guard silently does nothing. | A runtime key-comparison test alone cannot see a field that exists only in the TS interface, so it catches accidental spreads but not the drift the requirement is actually about. Both are implemented; only the type check catches the real case. |

@@ -157,7 +157,15 @@ function dayPlan(c: Cursor, outline: Outline) {
   for (const day of outline.days) {
     ensure(c, 50)
     text(c, day.title, { size: 12, bold: true })
-    for (const item of day.items) text(c, `• ${item}`, { size: 11 })
+    // Which city, on every day — a printed plan that only lists activities
+    // leaves the reader working out where they are.
+    if (day.where) text(c, day.where, { size: 10, color: MUTED })
+    if (day.items.length) {
+      for (const item of day.items) text(c, `• ${item}`, { size: 11 })
+    } else {
+      // A blank day is a real answer and part of what makes this a plan.
+      text(c, 'Nothing planned.', { size: 10, color: MUTED })
+    }
     c.y += 10
   }
 }

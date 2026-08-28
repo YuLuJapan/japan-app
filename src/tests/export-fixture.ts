@@ -86,11 +86,15 @@ export const fullPayload = (): ExportPayload => ({
   days: [
     {
       day: '2026-10-06',
+      zones: ['Tokyo'],
       items: [
         { start_time: '20:00', title: 'Ramen Bar', highlight: false, place_name: 'Ramen Bar' },
         { title: 'Walk Shinjuku', note: 'After dinner', highlight: false },
       ],
     },
+    // The day you move: two cities, and nothing planned. Both are states a
+    // real trip has and neither may vanish from the plan.
+    { day: '2026-10-09', zones: ['Tokyo', 'Kyoto'], items: [] },
   ],
   stats: { place_count: 2, places_without_address: 1, day_count: 1, included_stays: true },
 })
@@ -134,6 +138,7 @@ export function longTripPayload(stops = 12, placesPerStop = 10): ExportPayload {
     steps,
     days: Array.from({ length: stops }, (_, d) => ({
       day: `2026-10-${String(d + 1).padStart(2, '0')}`,
+      zones: [`Stop ${d + 1}`],
       items: [{ start_time: '09:00', title: `Day ${d + 1} plan`, highlight: false }],
     })),
     stats: {

@@ -28,6 +28,7 @@ import type {
   Trip,
   Zone,
 } from './datastore.js'
+import { addDays } from './trip-dates.js'
 import { displayTitle } from './trip-title.js'
 import { isStay, type TripView } from './trip-view.js'
 
@@ -192,6 +193,20 @@ export interface ExportDayItem {
 
 export interface ExportDay {
   day: string
+  /**
+   * The city or cities this day touches, in journey order.
+   *
+   * Two of them is a moving day — the same rule the app's own day-by-day
+   * screen uses (`coveringSteps` / `dayZones` in `src/lib/schedule.ts`), where
+   * a step's last day and the next step's first day are the same date. A
+   * printed plan without this says "6 Oct · 20:00 Ramen Bar" and leaves the
+   * reader to work out which country they are in.
+   *
+   * Empty only for a day no step covers — a gap in the journey, which is a
+   * real state and is shown as one rather than hidden.
+   */
+  zones: string[]
+  /** Empty on a day with nothing planned. The day is still listed. */
   items: ExportDayItem[]
 }
 
@@ -314,7 +329,10 @@ export function projectExport(
     } as ExportStep)
   }
 
-  const days = detail === 'full' ? projectDays(source.itinerary, visiblePlaces, at) : []
+  const days =
+    detail === 'full'
+      ? projectDays(source.trip, source.steps, zonesById, source.itinerary, visiblePlaces, at)
+      : []
 
   return {
     detail,
@@ -325,7 +343,10 @@ export function projectExport(
     stats: {
       place_count: counted.size,
       places_without_address: placesWithoutAddress,
-      day_count: days.length,
+      // Days carrying something, not days listed: `days` is now the whole
+      // trip, so the two are different numbers and this is the one that
+      // answers "how much of this is actually planned".
+      day_count: days.filter((d) => d.items.length).length,
       included_stays: view.stays,
     },
   }
@@ -397,16 +418,35 @@ const bodies = (tips: Tip[], at: Emission): string[] =>
   admits(TIP_FIELD_POLICY.body, at) ? tips.map((t) => t.body) : []
 
 /**
- * The day plan, grouped in the order the store returned it (by day, then timed
- * items, then position) — the export does not re-sort.
+ * The day plan: every day of the trip, in order, each with the city it is
+ * spent in and whatever was planned for it.
+ *
+ * **Every day, not only the planned ones.** A day-by-day plan that silently
+ * skips the days nobody typed into is a list of activities, not a plan — and
+ * the gaps are exactly what a reader uses to decide what to do. The app's own
+ * screen enumerates the trip's days for the same reason. `stats.day_count`
+ * still counts only the days carrying something, so the number that answers
+ * "how much of this is planned" is unchanged.
+ *
+ * Items keep the order the store returned them in (by day, then timed items,
+ * then position) — the export does not re-sort.
  *
  * A row whose place this caller may not see keeps its own words and loses its
  * link, exactly as the itinerary service already treats `place_id`. Dropping
  * the row instead would leave a hole in the day that says something was there.
  */
-function projectDays(itinerary: ItineraryItem[], visible: Place[], at: Emission): ExportDay[] {
+function projectDays(
+  trip: Trip,
+  steps: JourneyStep[],
+  zonesById: Map<string, Zone>,
+  itinerary: ItineraryItem[],
+  visible: Place[],
+  at: Emission
+): ExportDay[] {
+  if (!admits(ITINERARY_FIELD_POLICY.day, at)) return []
+
   const nameById = new Map(visible.map((p) => [p.id, p.name]))
-  const days: ExportDay[] = []
+  const itemsByDay = new Map<string, ExportDayItem[]>()
   for (const item of itinerary) {
     const out: Partial<ExportDayItem> = {}
     if (admits(ITINERARY_FIELD_POLICY.title, at)) out.title = item.title
@@ -419,10 +459,45 @@ function projectDays(itinerary: ItineraryItem[], visible: Place[], at: Emission)
     const name = item.place_id ? nameById.get(item.place_id) : undefined
     if (name) out.place_name = name
 
-    if (!admits(ITINERARY_FIELD_POLICY.day, at)) continue
-    const last = days.at(-1)
-    if (last?.day === item.day) last.items.push(out as ExportDayItem)
-    else days.push({ day: item.day, items: [out as ExportDayItem] })
+    const bucket = itemsByDay.get(item.day)
+    if (bucket) bucket.push(out as ExportDayItem)
+    else itemsByDay.set(item.day, [out as ExportDayItem])
   }
-  return days
+
+  // The trip's own window, plus any day an item somehow sits outside it. The
+  // range rule (lib/trip-dates.ts) means that second set is normally empty —
+  // but an export that quietly dropped a stranded activity would be worse than
+  // one that prints a day off the end.
+  const days = new Set<string>(itemsByDay.keys())
+  for (let day = trip.start_date; day <= trip.end_date; day = addDays(day, 1)) days.add(day)
+
+  return [...days].sort().map((day) => ({
+    day,
+    zones: zonesOn(steps, zonesById, day, at),
+    items: itemsByDay.get(day) ?? [],
+  }))
+}
+
+/**
+ * The cities a day touches, in journey order — one ordinarily, two on the day
+ * you move. Mirrors `coveringSteps`/`dayZones` on the client, which is what
+ * the app's day-by-day screen shows above each day.
+ */
+function zonesOn(
+  steps: JourneyStep[],
+  zonesById: Map<string, Zone>,
+  day: string,
+  at: Emission
+): string[] {
+  if (!admits(ZONE_FIELD_POLICY.name, at)) return []
+  const seen = new Set<string>()
+  const names: string[] = []
+  for (const step of steps) {
+    if (step.start_date > day || day > step.end_date) continue
+    const zone = zonesById.get(step.zone_id)
+    if (!zone || seen.has(zone.id)) continue
+    seen.add(zone.id)
+    names.push(zone.name)
+  }
+  return names
 }
