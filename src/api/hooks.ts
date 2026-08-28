@@ -1,8 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
 import { useTripId, useTripPath } from './tripPath'
 import type {
   Category,
+  ExportDetail,
+  ExportPayload,
   CurrencyCatalogue,
   GeocodeResult,
   ImageResult,
@@ -222,3 +225,65 @@ export const useInvitePreview = (token: string) =>
     queryFn: () => api.get<{ invite: InvitePreview }>(`/invites/${token}`),
     retry: false,
   })
+
+/**
+ * The trip, projected to one detail level, ready to be written into a file.
+ *
+ * Cached for five minutes and — more to the point — cached by the service
+ * worker's `NetworkFirst` rule for `/api`, which is what lets the export run
+ * with no signal. That only holds for a URL that has been fetched at least
+ * once, which is what the trip home's background prefetch is for
+ * (`useTripExportPrefetch`).
+ */
+export const useTripExport = (detail: ExportDetail, enabled = true) => {
+  const tripId = useTripId()
+  const path = useTripPath()
+  return useQuery({
+    queryKey: ['export', tripId, detail],
+    // `ids=1` on every fetch, not only when a backup is wanted: one payload
+    // has to serve all four writers for the offline guarantee to hold, and the
+    // readable ones render `src/export/outline.ts`, which has no way to reach
+    // an id. The identifiers are opaque uuids — never trip content — so
+    // carrying them costs nothing and saves a second request on a train.
+    queryFn: () => api.get<{ export: ExportPayload }>(path(`/export?detail=${detail}&ids=1`)),
+    staleTime: 5 * 60 * 1000,
+    enabled: enabled && !!tripId,
+  })
+}
+
+/**
+ * Warm both detail levels in the background, once, after the screen has drawn.
+ *
+ * This is the whole of the offline guarantee (SC-004). The service worker's
+ * rule for `/api` is `NetworkFirst`: it serves a cached response with no
+ * signal, but only for a URL that has been fetched at least once. Without
+ * this, the first export ever attempted on a train fails — which is the exact
+ * scenario the feature exists for.
+ *
+ * Deferred past first paint and skipped when the browser already knows it is
+ * offline, so it never competes with the trip the traveller is looking at.
+ * `prefetchQuery` is a no-op for data still inside its `staleTime`, so
+ * re-mounting the home screen costs nothing.
+ */
+export function useTripExportPrefetch(tripId: string, enabled = true) {
+  const client = useQueryClient()
+  useEffect(() => {
+    if (!enabled || !tripId || !navigator.onLine) return
+    let cancelled = false
+    const timer = setTimeout(() => {
+      if (cancelled) return
+      for (const detail of ['share', 'full'] as const) {
+        void client.prefetchQuery({
+          queryKey: ['export', tripId, detail],
+          queryFn: () =>
+            api.get<{ export: ExportPayload }>(`/trips/${tripId}/export?detail=${detail}&ids=1`),
+          staleTime: 5 * 60 * 1000,
+        })
+      }
+    }, 2000)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [client, tripId, enabled])
+}

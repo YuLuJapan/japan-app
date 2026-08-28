@@ -512,6 +512,16 @@ export interface DataStore {
   listPlaces(tripId: string, zoneId: string, category: Category): Promise<Place[]>
   /** Every place in a zone, all categories (used by the city map). */
   listPlacesInZone(tripId: string, zoneId: string): Promise<Place[]>
+  /**
+   * Every place in the trip, all zones, all categories — the export's single
+   * sweep (`services/export.ts`).
+   *
+   * Sliced by zone it must read exactly as `listPlacesInZone` would have: the
+   * relative order of one zone's rows is the same in both, which is what lets
+   * the export nest them without re-sorting. `server/tests/ordering.test.ts`
+   * holds the two together.
+   */
+  listAllPlaces(tripId: string): Promise<Place[]>
   getPlace(tripId: string, placeId: string): Promise<Place | null>
   /** Ids of every place in one category — one query, so a restricted view can drop stays cheaply. */
   listPlaceIdsByCategory(tripId: string, category: Category): Promise<string[]>
@@ -540,6 +550,17 @@ export interface DataStore {
   deleteShoppingItem(tripId: string, itemId: string): Promise<boolean>
 
   listTips(tripId: string, parent: { zone_id: string } | { place_id: string }): Promise<Tip[]>
+  /**
+   * Every tip in the trip, zone-level and place-level alike, in the same order
+   * `listTips` returns the same rows in.
+   *
+   * Added for the export (`services/export.ts`), which needs all of them at
+   * once: fetching per parent means one query per zone plus one per place —
+   * around 50 round trips for a real trip, inside a single serverless
+   * invocation. `server/tests/ordering.test.ts` pins this against `listTips`
+   * so the two implementations cannot drift.
+   */
+  listAllTips(tripId: string): Promise<Tip[]>
   createTip(tripId: string, input: TipInput): Promise<Tip>
   updateTip(tripId: string, tipId: string, body: string): Promise<Tip | null>
   deleteTip(tripId: string, tipId: string): Promise<boolean>

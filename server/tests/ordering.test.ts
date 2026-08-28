@@ -91,3 +91,53 @@ describe('the shopping list', () => {
     expect(fromStore.at(-1)?.bought).toBe(true)
   })
 })
+
+// The export reads a whole trip at once (listAllPlaces / listAllTips) instead
+// of once per zone and once per parent, which is the difference between five
+// queries and sixty on a real trip. Two reads of the same rows is the same
+// drift risk as a mirrored comparator, so it is pinned the same way.
+describe('the export’s whole-trip sweeps', () => {
+  it('return each zone’s places in the order the per-zone read does', async () => {
+    await store.createPlace('trip-1', { zone_id: 'zone-kyoto', category: 'food', name: 'Nishiki' })
+    await store.createPlace('trip-1', {
+      zone_id: 'zone-tokyo',
+      category: 'attraction',
+      name: 'teamLab',
+    })
+    await store.createPlace('trip-1', { zone_id: 'zone-kyoto', category: 'other', name: 'Fushimi' })
+
+    const all = await store.listAllPlaces('trip-1')
+    for (const zoneId of ['zone-tokyo', 'zone-kyoto']) {
+      const perZone = await store.listPlacesInZone('trip-1', zoneId)
+      expect(all.filter((p) => p.zone_id === zoneId).map((p) => p.id)).toEqual(
+        perZone.map((p) => p.id)
+      )
+      expect(perZone.length).toBeGreaterThan(0)
+    }
+    // And nothing from the other tenant's trip rides along.
+    expect(all.some((p) => p.id === 'place-other')).toBe(false)
+  })
+
+  it('return every tip, matching the per-parent reads parent by parent', async () => {
+    await store.createTip('trip-1', { zone_id: 'zone-kyoto', body: 'Rent a bike' })
+    await store.createTip('trip-1', { place_id: 'place-hotel', body: 'Check in after 15:00' })
+
+    const all = await store.listAllTips('trip-1')
+    for (const zoneId of ['zone-tokyo', 'zone-kyoto']) {
+      const perZone = await store.listTips('trip-1', { zone_id: zoneId })
+      expect(all.filter((t) => t.zone_id === zoneId).map((t) => t.id)).toEqual(
+        perZone.map((t) => t.id)
+      )
+    }
+    for (const placeId of ['place-ramen', 'place-hotel']) {
+      const perPlace = await store.listTips('trip-1', { place_id: placeId })
+      expect(all.filter((t) => t.place_id === placeId).map((t) => t.id)).toEqual(
+        perPlace.map((t) => t.id)
+      )
+    }
+    // Both kinds of parent, and only this trip's.
+    expect(all.some((t) => t.zone_id)).toBe(true)
+    expect(all.some((t) => t.place_id)).toBe(true)
+    expect(all.some((t) => t.id === 'tip-other')).toBe(false)
+  })
+})

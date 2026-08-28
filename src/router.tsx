@@ -29,6 +29,7 @@ import ShoppingForm from './pages/ShoppingForm'
 import ShoppingItemDetail from './pages/ShoppingItem'
 import ShoppingList from './pages/ShoppingList'
 import TripEssentials from './pages/TripEssentials'
+import TripExport from './pages/TripExport'
 import TripFiles from './pages/TripFiles'
 import TripMembers from './pages/TripMembers'
 import TripsList from './pages/TripsList'
@@ -133,6 +134,9 @@ export const router = createBrowserRouter([
           },
           { path: 'reminders', element: <Reminders /> },
           { path: 'essentials', element: <TripEssentials /> },
+          // Every member may export, viewers included (FR-007) — the file is a
+          // subset of what they already see, so this sits outside RequireOwner.
+          { path: 'export', element: <TripExport /> },
 
           // Everyone on the trip can see who else is on it; the screen itself
           // offers the owner-only controls only to an owner, and a viewer-only

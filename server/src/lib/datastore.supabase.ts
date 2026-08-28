@@ -713,6 +713,24 @@ export function createSupabaseStore(): DataStore {
       return (data as unknown as Place[]) ?? []
     },
 
+    // The export's sweep: every place in the trip in one query rather than one
+    // per zone. `created_at` ascending is the same order listPlacesInZone uses,
+    // so slicing this by zone gives exactly what the per-zone read would have.
+    async listAllPlaces(tripId) {
+      const zoneIds = await zoneIdsFor(db, tripId)
+      if (!zoneIds.length) return []
+      const run = (cols: string) =>
+        db
+          .from('places')
+          .select(cols)
+          .in('zone_id', zoneIds)
+          .order('created_at', { ascending: true })
+      let { data, error } = await run(PLACE_COLS)
+      if (error && isMissingCoordColumn(error)) ({ data, error } = await run(PLACE_BASE_COLS))
+      if (error) throw new Error(error.message)
+      return (data as unknown as Place[]) ?? []
+    },
+
     async getPlace(tripId, placeId) {
       const zoneIds = await zoneIdsFor(db, tripId)
       if (!zoneIds.length) return null
@@ -982,6 +1000,25 @@ export function createSupabaseStore(): DataStore {
       if (!(await placeIdsFor(db, zoneIds)).includes(parent.place_id)) return []
       const { data } = await q.eq('place_id', parent.place_id)
       return (data as Tip[]) ?? []
+    },
+
+    // Both parents in one query pair — the export needs all of a trip's tips,
+    // and asking per parent is ~50 round trips for a real trip (research R5).
+    async listAllTips(tripId) {
+      const zoneIds = await zoneIdsFor(db, tripId)
+      const placeIds = await placeIdsFor(db, zoneIds)
+      const cols = 'id,zone_id,place_id,body'
+      const [zoneTips, placeTips] = await Promise.all([
+        zoneIds.length
+          ? db.from('tips').select(cols).in('zone_id', zoneIds)
+          : Promise.resolve({ data: [] as unknown[], error: null }),
+        placeIds.length
+          ? db.from('tips').select(cols).in('place_id', placeIds)
+          : Promise.resolve({ data: [] as unknown[], error: null }),
+      ])
+      if (zoneTips.error) throw new Error(zoneTips.error.message)
+      if (placeTips.error) throw new Error(placeTips.error.message)
+      return [...((zoneTips.data as Tip[]) ?? []), ...((placeTips.data as Tip[]) ?? [])]
     },
 
     async createTip(tripId, input: TipInput) {

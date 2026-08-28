@@ -109,5 +109,14 @@ message that says so. A spinner that stops, or an empty file, is the failure (FR
 ## What you should not find
 
 - No new migration in `supabase/migrations/` — this feature adds none, deliberately.
-- No change to the entry bundle size: `npm run build` should still report ~157 KB gzip for the entry chunk,
-  with the PDF writer arriving as its own lazy chunk.
+- No meaningful change to the entry bundle: `npm run build` puts the PDF writer and the other three in their
+  own lazy chunks, and the entry chunk grows only by the export screen (~8 KB gzip).
+
+  The "~157 KB gzip" this line used to quote was already stale before this feature: the entry chunk measures
+  **225.59 KB gzip on `main`** and **233.17 KB** with the export, so that is the number to compare against.
+  `CLAUDE.md` has been corrected too.
+
+- Every `src/export/` chunk **is** in the Workbox precache manifest (`grep assets/ dist/sw.js`) — that is
+  what makes an offline export work, so its absence is a bug rather than a saving. jsPDF's `html2canvas`,
+  `canvg` and `dompurify` chunks are deliberately _not_: nothing here can reach them, and precaching them
+  would cost every phone ~380 KB at install (`globIgnores` in `vite.config.ts`).

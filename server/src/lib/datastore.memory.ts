@@ -455,6 +455,13 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return db.places.filter((p) => p.zone_id === zoneId)
     },
 
+    // The export's sweep. Same filter, one trip wide: db order is preserved,
+    // so one zone's rows come back in exactly the order listPlacesInZone
+    // returns them in.
+    async listAllPlaces(tripId) {
+      return placesIn(tripId)
+    },
+
     async getPlace(tripId, placeId) {
       const place = db.places.find((p) => p.id === placeId)
       return place && zoneIn(tripId, place.zone_id) ? place : null
@@ -617,6 +624,12 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       }
       if (!placeIn(tripId, parent.place_id)) return []
       return db.tips.filter((t) => t.place_id === parent.place_id)
+    },
+
+    // Every tip in the trip, both parents at once — the export's sweep, and
+    // the only read that does not name a parent.
+    async listAllTips(tripId) {
+      return db.tips.filter((t) => tipIn(tripId, t))
     },
 
     async createTip(tripId, input: TipInput) {

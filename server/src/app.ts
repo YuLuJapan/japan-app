@@ -2,6 +2,7 @@ import express, { Router } from 'express'
 import { authMiddleware } from './lib/auth.js'
 import { errorMiddleware, notFound } from './lib/errors.js'
 import { requireTripAccess } from './lib/trip-context.js'
+import { exportTripRouter } from './routes/export.js'
 import { filesTripRouter } from './routes/files.js'
 import { geocodeRouter } from './routes/geocode.js'
 import { healthRouter } from './routes/health.js'
@@ -44,6 +45,7 @@ export function tripScopedRouter() {
   router.use(remindersTripRouter)
   router.use(filesTripRouter)
   router.use(searchTripRouter)
+  router.use(exportTripRouter)
   router.use(membersTripRouter)
   // Last: its '/' routes would otherwise swallow nothing, but keeping the
   // bundle after the sub-resources makes the nesting read top-down.

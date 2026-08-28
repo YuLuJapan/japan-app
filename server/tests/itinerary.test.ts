@@ -18,7 +18,7 @@ describe('itinerary', () => {
     const res = await auth(request(app).get('/api/trips/trip-1/itinerary'))
     expect(res.status).toBe(200)
     const ids = res.body.items.map((i: { id: string }) => i.id)
-    expect(ids).toEqual(['itin-ramen', 'itin-walk']) // 20:00 before "anytime"
+    expect(ids).toEqual(['itin-ramen', 'itin-walk', 'itin-ryokan']) // 20:00 before "anytime"
   })
 
   it('POST /api/itinerary creates an item and it appears in the list', async () => {
@@ -176,6 +176,7 @@ describe('trip-scoped itinerary routes', () => {
     expect(trip1List.body.items.map((i: { id: string }) => i.id)).toEqual([
       'itin-ramen',
       'itin-walk',
+      'itin-ryokan',
     ])
   })
 

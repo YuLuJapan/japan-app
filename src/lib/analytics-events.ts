@@ -11,7 +11,7 @@
 //    easy to state and easy to break by reflex — `{ name: place.name }` looks
 //    perfectly reasonable at the call site — so it is enforced here rather than
 //    trusted, and the offending value never leaves the device.
-import type { Category, ShoppingCategory, TripRole } from '../api/types'
+import type { Category, ExportDetail, ExportFormat, ShoppingCategory, TripRole } from '../api/types'
 import type { InstallOutcome, InstallPlatform } from './install'
 
 /**
@@ -108,6 +108,18 @@ export interface AnalyticsEventProperties {
   trip_created: TripFacts & { has_flight: boolean; has_description: boolean }
   trip_updated: TripFacts & { fields: string[] }
   trip_deleted: undefined
+
+  // Exporting the trip (feature 003). Five shapes and nothing else: two enums,
+  // two counts and a flag. `included_stays` describes the exporter's view, not
+  // any particular place. Declared here before the call site exists, because
+  // `capture` is typed against this map and would not compile otherwise.
+  trip_exported: {
+    format: ExportFormat
+    detail: ExportDetail
+    place_count: number
+    day_count: number
+    included_stays: boolean
+  }
 
   // Sharing
   trip_member_invited: {
