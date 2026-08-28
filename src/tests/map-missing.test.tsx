@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import TripMap from '../pages/TripMap'
+import { CATEGORY_META, type Category } from '../api/types'
 import { renderAt } from './helpers'
 import { lastFakeEngine, resetFakeEngine } from '../map/engine.fake'
 
@@ -25,6 +26,12 @@ vi.mock('../api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/client')>()),
   api: mocks,
 }))
+
+// A chip is named by `CATEGORY_META`, and these read it rather than repeating
+// it: the labels are copy that other features legitimately reword — the
+// redesign has already changed one of them once — and a test that hard-codes
+// them fails on a rename that broke nothing.
+const chip = (category: Category) => ({ name: CATEGORY_META[category].label })
 
 const TOKYO = {
   id: 'zone-tokyo',
@@ -179,7 +186,7 @@ describe('the arithmetic that proves the map is not under-reporting (SC-004)', (
     const engine = lastFakeEngine()!
     await waitFor(() => expect(engine.pins).toHaveLength(1))
     // Turning off Food leaves one pin (teamLab) and one unlocated attraction.
-    await userEvent.click(screen.getByRole('button', { name: 'Food & Cafés' }))
+    await userEvent.click(screen.getByRole('button', chip('food')))
     expect(await screen.findByText(/1 place is not on the map/)).toBeInTheDocument()
     expect(engine.pins).toHaveLength(1)
   })

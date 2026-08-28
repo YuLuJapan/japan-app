@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import TripMap from '../pages/TripMap'
+import { CATEGORY_META, type Category } from '../api/types'
 import { renderAt } from './helpers'
 import { lastFakeEngine, resetFakeEngine } from '../map/engine.fake'
 
@@ -18,6 +19,12 @@ vi.mock('../api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/client')>()),
   api: mocks,
 }))
+
+// A chip is named by `CATEGORY_META`, and these read it rather than repeating
+// it: the labels are copy that other features legitimately reword — the
+// redesign has already changed one of them once — and a test that hard-codes
+// them fails on a rename that broke nothing.
+const chip = (category: Category) => ({ name: CATEGORY_META[category].label })
 
 const TOKYO = { id: 'zone-tokyo', name: 'Tokyo', image_url: null, lat: 35.68, lng: 139.76 }
 
@@ -155,7 +162,7 @@ describe('when it is refused', () => {
     expect(engine.pins).toHaveLength(2)
 
     // The chips still filter — a refused position is not a broken screen.
-    await userEvent.click(screen.getByRole('button', { name: 'Food & Cafés' }))
+    await userEvent.click(screen.getByRole('button', chip('food')))
     await waitFor(() => expect(engine.pins).toHaveLength(1))
 
     // And tapping the control again does not re-prompt within the visit.

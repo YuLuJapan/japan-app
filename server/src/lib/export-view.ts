@@ -141,6 +141,12 @@ export const ITINERARY_FIELD_POLICY: Record<keyof ItineraryItem, ExportLevel> = 
   position: 'full', // as order
   highlight: 'full',
   icon: 'full',
+  // The traveller's own tag on an activity. Classified out for now rather than
+  // promoted: it would need a field on ExportDayItem and a rendering decision in
+  // all four writers, and the exported plan already names the linked place where
+  // there is one. Nothing stops a later change making it 'full' — this is the
+  // decision being recorded, not a limitation.
+  category: 'never',
   place_id: 'never', // resolved to a place *name*, and only where visible
   id: 'never',
   trip_id: 'never',

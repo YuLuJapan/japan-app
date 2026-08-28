@@ -9,7 +9,7 @@
 // what that fixed view granted; the difference is that it is now per member,
 // so an owner can widen any of it.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '../api/client'
 import { Layout } from '../components/Layout'
@@ -165,7 +165,7 @@ describe('viewer — zones', () => {
       viewer
     )
 
-    expect(await screen.findByText('Food & Cafés')).toBeInTheDocument()
+    expect(await screen.findByText('Food & cafés')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: '+ Add' })).not.toBeInTheDocument()
   })
 })
@@ -261,7 +261,10 @@ describe('viewer — stays and flight', () => {
     )
     renderAt('/trips/trip-1', journeyRoute)
 
-    expect(await screen.findByText('ABC123')).toBeInTheDocument()
+    // The card opens collapsed now, so the reference and the legs are one tap
+    // in — the point here is that a traveller is offered them at all.
+    fireEvent.click(await screen.findByText('Tap here to see the flight details'))
+    expect(screen.getByText('ABC123')).toBeInTheDocument()
     expect(screen.getByText('ET 419')).toBeInTheDocument()
   })
 

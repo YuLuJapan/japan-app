@@ -3,16 +3,23 @@ export const CATEGORIES = ['hotel', 'attraction', 'food', 'shopping', 'other'] a
 export type Category = (typeof CATEGORIES)[number]
 
 /**
- * One table per category, and every surface reads it.
+ * One row per place category, and **every surface reads it**.
  *
- * `color` is the tint pair a chip or a badge wears; `dot` is the solid fill a
- * map pin, a legend swatch and a place card's dot need. Both are **stock
- * Tailwind classes on purpose** — no `tailwind.config.ts` token (research
- * R12). The reference renders for the map were drawn against the redesign
- * palette that arrived with PR #93 and left with its revert in #94, so the
- * map's hues will not match its render until spec 009 re-lands. Because no map
- * file names a colour, re-landing that palette is one edit here and recolours
- * the pins, the chips, the legend and the cards together.
+ * `color` is the tinted pill the icon sits in and `dot` the solid mark used
+ * where a category has to read at a few pixels — the timeline bullet on a day
+ * plan, and on the map the pin, the legend swatch, the filter chip and the
+ * place card's dot. Both come from the redesign's category palette
+ * (`stay`/`sight`/`table`/`market` in tailwind.config.ts) rather than stock
+ * Tailwind hues, so the four of them sit together in one grid without
+ * competing with the coral.
+ *
+ * That single table is why the map needed no colour of its own (spec 004,
+ * research R12). It was built while this palette was reverted, on stock hues,
+ * and its reference renders were drawn against these — so re-landing them
+ * recoloured the pins, the chips, the legend and the cards in one edit, with
+ * no map file touched. Keep it that way: a `MAP_PIN_COLOURS` next door would
+ * be marginally simpler and would guarantee the map drifted out of step with
+ * every other surface that shows a category.
  */
 export const CATEGORY_META: Record<
   Category,
@@ -22,36 +29,36 @@ export const CATEGORY_META: Record<
     label: 'Stays',
     singular: 'Stay',
     icon: '🛏️',
-    color: 'bg-violet-100 text-violet-700',
-    dot: 'bg-violet-500',
+    color: 'bg-stay-tint text-stay',
+    dot: 'bg-stay',
   },
   attraction: {
     label: 'Things to do',
     singular: 'Attraction',
-    icon: '📸',
-    color: 'bg-sky-100 text-sky-700',
-    dot: 'bg-sky-500',
+    icon: '📷',
+    color: 'bg-sight-tint text-sight',
+    dot: 'bg-sight',
   },
   food: {
-    label: 'Food & Cafés',
+    label: 'Food & cafés',
     singular: 'Food spot',
     icon: '🍜',
-    color: 'bg-amber-100 text-amber-700',
-    dot: 'bg-amber-500',
+    color: 'bg-table-tint text-table',
+    dot: 'bg-table',
   },
   shopping: {
     label: 'Shopping',
     singular: 'Shop',
     icon: '🛍️',
-    color: 'bg-pink-100 text-pink-700',
-    dot: 'bg-pink-500',
+    color: 'bg-market-tint text-market',
+    dot: 'bg-market',
   },
   other: {
     label: 'More',
     singular: 'Place',
     icon: '📍',
-    color: 'bg-emerald-100 text-emerald-700',
-    dot: 'bg-emerald-500',
+    color: 'bg-sand text-muted',
+    dot: 'bg-dust',
   },
 }
 
@@ -370,6 +377,23 @@ export interface ItineraryItem {
   position: number
   highlight: boolean // shown as a "featured" banner above the day's plan
   icon: string | null // leading emoji for the banner
+  /**
+   * The tag the traveller chose for this activity. Stored, unlike
+   * `place_category` below — it is what lets an activity that links to nothing
+   * saved still carry a coloured pill. Takes precedence when both are set.
+   * Optional so a payload cached before the column existed still parses.
+   */
+  category?: Category | null
+  /**
+   * Category of the place this activity links to, for the coloured tag under
+   * its title. Derived per request by the server, never stored — and null both
+   * when nothing is linked and when the link was cut off a stay this caller
+   * may not see. Optional so a cached payload written before the field existed
+   * still parses.
+   */
+  place_category?: Category | null
+  /** Names of files attached to that place. Empty when documents are withheld. */
+  place_files?: string[]
 }
 
 export interface ItineraryItemInput {
@@ -382,7 +406,11 @@ export interface ItineraryItemInput {
   position?: number
   highlight?: boolean
   icon?: string | null
+  category?: Category | null
 }
+
+/** The categories an activity may be tagged with — every one the plan can draw. */
+export const TAGGABLE_CATEGORIES = ['hotel', 'attraction', 'food', 'shopping'] as const
 
 // Shopping list — things to buy in Japan (photo, where, how much, bought yet).
 export const SHOPPING_CATEGORIES = [

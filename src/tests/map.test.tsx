@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import TripMap from '../pages/TripMap'
+import { CATEGORY_META, type Category } from '../api/types'
 import { renderAt } from './helpers'
 import { lastFakeEngine, resetFakeEngine } from '../map/engine.fake'
 
@@ -20,6 +21,12 @@ vi.mock('../api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/client')>()),
   api: mocks,
 }))
+
+// A chip is named by `CATEGORY_META`, and these read it rather than repeating
+// it: the labels are copy that other features legitimately reword — the
+// redesign has already changed one of them once — and a test that hard-codes
+// them fails on a rename that broke nothing.
+const chip = (category: Category) => ({ name: CATEGORY_META[category].label })
 
 const place = (
   id: string,
@@ -111,7 +118,7 @@ describe('the zone map', () => {
     const engine = await openMap()
     await waitFor(() => expect(engine.pins).toHaveLength(2))
     const before = mocks.get.mock.calls.length
-    await userEvent.click(screen.getByRole('button', { name: 'Food & Cafés' }))
+    await userEvent.click(screen.getByRole('button', chip('food')))
     await waitFor(() => expect(engine.pins).toHaveLength(1))
     // Toggling a chip is a client-side filter over the list already fetched
     // (contracts §1) — a request per chip would be a request per thought.
@@ -121,19 +128,19 @@ describe('the zone map', () => {
   it('removes only the toggled category, and puts it back', async () => {
     const engine = await openMap()
     await waitFor(() => expect(engine.pins).toHaveLength(2))
-    await userEvent.click(screen.getByRole('button', { name: 'Food & Cafés' }))
+    await userEvent.click(screen.getByRole('button', chip('food')))
     await waitFor(() => expect(engine.pins.map((p) => p.id)).toEqual(['p-teamlab']))
-    await userEvent.click(screen.getByRole('button', { name: 'Food & Cafés' }))
+    await userEvent.click(screen.getByRole('button', chip('food')))
     await waitFor(() => expect(engine.pins.map((p) => p.id)).toEqual(['p-ramen', 'p-teamlab']))
   })
 
   it('offers a chip only for a category present in the view (FR-010)', async () => {
     await openMap()
-    expect(await screen.findByRole('button', { name: 'Food & Cafés' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Things to do' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', chip('food'))).toBeInTheDocument()
+    expect(screen.getByRole('button', chip('attraction'))).toBeInTheDocument()
     // No stay in this zone, so no Stays chip — the same rule that hides it for
     // a member whose view withholds them.
-    expect(screen.queryByRole('button', { name: 'Stays' })).toBeNull()
+    expect(screen.queryByRole('button', chip('hotel'))).toBeNull()
   })
 
   it('says so plainly when nothing in the zone has a location', async () => {
