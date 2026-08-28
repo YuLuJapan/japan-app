@@ -48,16 +48,14 @@ describe('a trip with no name override', () => {
     expect(screen.queryByText('Japan')).not.toBeInTheDocument()
   })
 
-  it('opens on the destination rather than the composed title', async () => {
+  it('accents the country inside the hero title', async () => {
     mocks.get.mockResolvedValue({ trip: unnamedTrip, steps: [], flight: null })
     renderAt('/trips/trip-1', [{ path: '/trips/:tripId', element: <Journey /> }])
 
-    // The redesign sets the hero in 40px over a photo, so it takes the short
-    // label. "Yuval and Luciana in Japan" would wrap to three lines and bury
-    // the picture — it is still what the trips list and the export call this
-    // trip, and still what the accented HeroTitle renders behind the sushi flag.
-    await screen.findByRole('heading', { name: 'Japan' })
-    expect(screen.queryByText('Yuval and Luciana in Japan')).not.toBeInTheDocument()
+    await screen.findByRole('heading', { name: 'Yuval and Luciana in Japan' })
+    // The travellers hold the first line, the destination gets its own.
+    expect(screen.getByText('Yuval and Luciana')).toHaveClass('block')
+    expect(screen.getByText('Japan')).toHaveClass('text-brand')
   })
 
   it('leaves a name override plain — there is no country at its tail to accent', async () => {

@@ -1,12 +1,6 @@
-// One day's activities, drawn as the redesign's timeline (option 1g): a
-// hairline down the left with a dot per activity, the time in a fixed column
-// so titles align, and the linked place's category and attachments as tags
-// underneath. Inline add / edit / delete; deletes are confirmed. Times are
-// optional — timed items sort ahead of "anytime" ones (server order).
-//
-// The first activity of a day takes the coral dot and coral time; the rest are
-// muted. That is the design's own emphasis, and it reads as "this is where the
-// day starts" without needing to know anything about the clock.
+// One day's activities: an ordered list with inline add / edit / delete.
+// Items may link to a saved place; deletes are confirmed. Times are optional —
+// timed items sort ahead of "anytime" ones (server order).
 //
 // Editing an activity can also move it to another day, so a plan that shifts by
 // a day is a date change rather than a delete-and-retype. The picker is bounded
@@ -19,7 +13,7 @@ import {
   useDeleteItineraryItem,
   useUpdateItineraryItem,
 } from '../api/mutations'
-import { CATEGORY_META, type ItineraryItem } from '../api/types'
+import type { ItineraryItem } from '../api/types'
 import { saveErrorMessage } from '../lib/errors'
 import { fmtDayLong } from '../lib/schedule'
 import { useCanEdit } from '../lib/session'
@@ -80,10 +74,10 @@ export function DayPlan({ day, items, zoneId = null, tripId }: Props) {
       {items.length === 0 && !adding ? (
         <EmptyState message="Nothing planned for this day yet." />
       ) : (
-        <ol className="relative ml-[18px] border-l border-line pl-[18px]">
-          {items.map((item, i) =>
+        <ol className="space-y-2">
+          {items.map((item) =>
             editingId === item.id ? (
-              <li key={item.id} className="mb-2 rounded-2xl border border-line bg-white p-3">
+              <li key={item.id} className="rounded-2xl border border-line bg-white p-3">
                 <ItemForm
                   initial={item}
                   day={day}
@@ -106,79 +100,45 @@ export function DayPlan({ day, items, zoneId = null, tripId }: Props) {
                 />
               </li>
             ) : (
-              <li key={item.id} className="relative pb-5 last:pb-0">
-                <span
-                  aria-hidden
-                  className={`absolute -left-[18px] top-[7px] h-2 w-2 rounded-full ${
-                    i === 0 ? 'bg-brand' : 'bg-dust'
-                  }`}
-                />
-                <div className="flex items-baseline gap-3">
-                  <span
-                    className={`w-14 shrink-0 text-[11px] ${
-                      i === 0 ? 'font-bold text-brand' : 'font-semibold text-faint'
-                    }`}
-                  >
-                    {item.start_time ? fmtTime(item.start_time) : 'Anytime'}
-                  </span>
-                  <p className="min-w-0 flex-1 text-sm font-bold leading-snug text-ink">
-                    {item.title}
-                  </p>
-                </div>
-                <div className="ml-[68px]">
-                  {item.note && (
-                    <p className="mt-1 text-[11px] leading-relaxed text-[#8A8478]">{item.note}</p>
+              <li key={item.id} className="flex gap-3 rounded-2xl border border-line bg-white p-3">
+                <div className="w-16 shrink-0 pt-0.5">
+                  {item.start_time ? (
+                    <span className="text-sm font-extrabold text-brand">
+                      {fmtTime(item.start_time)}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-semibold text-muted">Anytime</span>
                   )}
-                  {(item.place_category || item.place_files?.length) && (
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                      {item.place_category && (
-                        <span
-                          className={`rounded-full px-2 py-[3px] text-[10px] font-bold ${
-                            CATEGORY_META[item.place_category].color
-                          }`}
-                        >
-                          {CATEGORY_META[item.place_category].icon}{' '}
-                          {CATEGORY_META[item.place_category].label}
-                        </span>
-                      )}
-                      {item.place_files?.map((name) => (
-                        <span
-                          key={name}
-                          className="max-w-[160px] truncate rounded-full bg-sand px-2 py-[3px] text-[10px] font-semibold text-slate"
-                        >
-                          📎 {name}
-                        </span>
-                      ))}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold leading-snug">{item.title}</p>
+                  {item.note && <p className="mt-0.5 text-sm text-muted">{item.note}</p>}
+                  {item.place_id && (
+                    <Link
+                      to={`/trips/${tripId}/places/${item.place_id}`}
+                      className="mt-1 inline-block text-xs font-bold text-brand"
+                    >
+                      View place ↗
+                    </Link>
+                  )}
+                  {canEdit && (
+                    <div className="mt-2 flex gap-3 text-xs font-semibold">
+                      <button
+                        type="button"
+                        className="text-muted"
+                        onClick={() => setEditingId(item.id)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="text-brand"
+                        onClick={() => setDeletingId(item.id)}
+                      >
+                        Delete
+                      </button>
                     </div>
                   )}
-                  <div className="mt-1.5 flex gap-3 text-[11px] font-semibold">
-                    {item.place_id && (
-                      <Link
-                        to={`/trips/${tripId}/places/${item.place_id}`}
-                        className="font-bold text-brand"
-                      >
-                        View place ↗
-                      </Link>
-                    )}
-                    {canEdit && (
-                      <>
-                        <button
-                          type="button"
-                          className="text-muted"
-                          onClick={() => setEditingId(item.id)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          className="text-brand"
-                          onClick={() => setDeletingId(item.id)}
-                        >
-                          Delete
-                        </button>
-                      </>
-                    )}
-                  </div>
                 </div>
               </li>
             )

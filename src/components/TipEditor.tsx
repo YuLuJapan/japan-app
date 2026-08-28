@@ -45,7 +45,7 @@ export function TipEditor({ tips, parent, title = 'Tips' }: Props) {
   return (
     <section>
       <div className="flex items-center justify-between">
-        <h2 className="font-display text-lg font-bold tracking-tight">{title}</h2>
+        <h2 className="font-display text-lg font-bold">{title}</h2>
         {canEdit && !adding && (
           <button
             type="button"
@@ -61,7 +61,7 @@ export function TipEditor({ tips, parent, title = 'Tips' }: Props) {
 
       <ul className="mt-3 space-y-2">
         {tips.map((tip) => (
-          <li key={tip.id} className="rounded-[14px] bg-white px-3.5 py-3 shadow-card">
+          <li key={tip.id} className="rounded-2xl border border-line bg-white px-4 py-3">
             {editingId === tip.id ? (
               <div className="space-y-2">
                 <textarea
@@ -88,14 +88,10 @@ export function TipEditor({ tips, parent, title = 'Tips' }: Props) {
                 </div>
               </div>
             ) : (
-              <div className="flex items-start gap-2.5">
-                {/* The redesign marks a tip with a coral bullet rather than a
-                    border — the card is already a card, and the dot is what
-                    makes a stack of them read as a list. */}
-                <span aria-hidden className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
-                <p className="min-w-0 flex-1 text-xs leading-relaxed text-graphite">{tip.body}</p>
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm leading-relaxed">{tip.body}</p>
                 {canEdit && (
-                  <span className="flex shrink-0 gap-3 text-[11px] font-semibold">
+                  <span className="flex shrink-0 gap-3 text-xs font-semibold">
                     <button
                       type="button"
                       className="text-muted"

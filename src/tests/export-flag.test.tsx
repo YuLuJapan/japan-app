@@ -12,12 +12,7 @@ import Journey from '../pages/Journey'
 import { renderAt } from './helpers'
 
 const flag = vi.hoisted(() => ({ on: false }))
-// Keyed, not blanket: Journey reads three flags now, and a mock that answered
-// `flag.on` to all of them would swap the hero for the sushi sequence every
-// time this file turned the export on.
-vi.mock('../lib/flags', () => ({
-  useBooleanFlag: (key: string, fallback: boolean) => (key === 'export-trip' ? flag.on : fallback),
-}))
+vi.mock('../lib/flags', () => ({ useBooleanFlag: () => flag.on }))
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() }))
 vi.mock('../api/client', async (importOriginal) => ({

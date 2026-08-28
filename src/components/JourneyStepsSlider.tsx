@@ -1,12 +1,7 @@
 // Journey visualization (FR-005/FR-006): a horizontal, snap-scrolling slider of
-// photo cards — one per stop, in order, numbered, with a "Now" badge on the
-// current stop. Step status is computed from the device date; `today` is
+// photo cards — one per stop, in order, with dates, nights, and a "Now" badge on
+// the current stop. Step status is computed from the device date; `today` is
 // injectable for tests.
-//
-// The redesign (option 1e) makes these pure photo tiles: a number, the city's
-// name, nothing else. The dates and nights that used to sit in a strip under
-// each card are gone from here — they are on the city's own screen, and the
-// day rail immediately below this slider is the better answer to "when".
 import { Link } from 'react-router-dom'
 import type { TripStep } from '../api/types'
 import { ZoneImage } from './ZoneImage'
@@ -20,6 +15,12 @@ export function stepStatus(step: TripStep, today: Date): StepStatus {
   return 'current'
 }
 
+const fmt = (iso: string) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString('en', { month: 'short', day: 'numeric' })
+
+const nights = (a: string, b: string) =>
+  Math.round((+new Date(`${b}T00:00:00`) - +new Date(`${a}T00:00:00`)) / 86_400_000)
+
 export function JourneyStepsSlider({
   steps,
   today = new Date(),
@@ -31,51 +32,50 @@ export function JourneyStepsSlider({
 }) {
   return (
     <div
-      className="no-scrollbar -mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-2"
+      className="no-scrollbar -mx-5 flex snap-x snap-mandatory gap-3.5 overflow-x-auto px-5 pb-2"
       data-testid="journey-slider"
     >
       {steps.map((step, i) => {
         const status = stepStatus(step, today)
         const zone = step.zone
+        const n = nights(step.start_date, step.end_date)
         return (
           <Link
             key={step.id}
             to={zone ? `/trips/${tripId}/zones/${zone.id}` : '#'}
             data-status={status}
-            className={`relative h-[120px] w-[150px] shrink-0 snap-start overflow-hidden rounded-[20px] transition ${
-              // The design draws one state for these tiles; the trip has two.
-              // A coral ring is the cheapest way to say "you are here" without
-              // adding a second badge to a 150px card.
-              status === 'current' ? 'ring-2 ring-brand ring-offset-2 ring-offset-canvas' : ''
+            className={`relative w-[210px] shrink-0 snap-start overflow-hidden rounded-3xl bg-white shadow-card ring-1 transition ${
+              status === 'current' ? 'ring-2 ring-brand' : 'ring-line'
             }`}
           >
-            <ZoneImage
-              src={zone?.image_url}
-              alt={zone ? zone.name : ''}
-              className="h-full w-full"
-            />
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0"
-              style={{
-                backgroundImage:
-                  'linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,0) 35%,rgba(0,0,0,.62) 100%)',
-              }}
-            />
-            <span className="absolute left-2 top-2 flex h-[22px] w-[22px] items-center justify-center rounded-full bg-white text-[11px] font-bold text-ink">
-              {i + 1}
-            </span>
-            {status === 'current' && (
-              <span className="absolute right-2 top-2 rounded-full bg-brand px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-white">
-                Now
+            <div className="relative">
+              <ZoneImage
+                src={zone?.image_url}
+                alt={zone ? `${zone.name}` : ''}
+                className="h-[130px] w-full"
+              />
+              <span className="absolute left-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-xs font-extrabold text-ink shadow">
+                {i + 1}
               </span>
-            )}
-            <p
-              className="absolute bottom-2 left-2.5 right-2.5 truncate font-display text-[17px] font-bold text-white"
-              style={{ textShadow: '0 2px 8px rgba(0,0,0,.55)' }}
-            >
-              {zone?.name ?? 'Unknown'}
-            </p>
+              {status === 'current' && (
+                <span className="absolute right-3 top-3 rounded-full bg-brand px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-white shadow">
+                  ● Now
+                </span>
+              )}
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-3 pt-8">
+                <p className="font-display text-xl font-bold text-white drop-shadow">
+                  {zone?.name ?? 'Unknown'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between px-3.5 py-3">
+              <span className="text-sm font-semibold text-ink">
+                {fmt(step.start_date)} – {fmt(step.end_date)}
+              </span>
+              <span className="chip bg-canvas text-muted">
+                {n} {n === 1 ? 'night' : 'nights'}
+              </span>
+            </div>
           </Link>
         )
       })}

@@ -30,17 +30,13 @@ const renderSlider = (today: Date) =>
   )
 
 describe('JourneyStepsSlider (US2)', () => {
-  it('renders all steps in order, numbered, and links each to its city', () => {
+  it('renders all steps in order with zone names and dates', () => {
     renderSlider(new Date('2026-01-01T12:00:00Z'))
     const links = screen.getAllByRole('link')
     expect(links).toHaveLength(2)
     expect(links[0]).toHaveTextContent('Tokyo')
     expect(links[1]).toHaveTextContent('Kyoto')
-    // Numbered rather than dated: the redesign's tiles carry the position in
-    // the trip, and the dates moved to the city's own screen and the day rail.
-    expect(links[0]).toHaveTextContent('1')
-    expect(links[1]).toHaveTextContent('2')
-    expect(links[0]).not.toHaveTextContent('Oct 5')
+    expect(links[0]).toHaveTextContent('Oct 5')
     expect(links[0]).toHaveAttribute('href', '/trips/trip-1/zones/z1')
   })
 
