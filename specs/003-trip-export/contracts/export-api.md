@@ -5,7 +5,7 @@
 Conventions, auth and the error envelope are unchanged — see
 [`specs/001-japan-trip-app/contracts/api.md`](../../001-japan-trip-app/contracts/api.md). **That file is the
 source of truth for the API; this one is the working draft for the endpoint, and its content is merged into
-it as part of implementation** (task T-009). One route is added; nothing existing changes.
+it as part of implementation** (task T015). One route is added; nothing existing changes.
 
 ---
 

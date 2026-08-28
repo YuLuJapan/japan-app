@@ -126,8 +126,9 @@ ExportPayload
 
 One input. `detail` must be exactly `share` or `full`; anything else (including absent) is
 `400 VALIDATION` with `details: ['detail must be "share" or "full"']`. Following the house pattern, errors are
-collected into an array even though there is only one field, so the shape does not change when a `format`
-parameter is added in phase 3.
+collected into an array even though there is only one field, so the shape matches every other service in
+the app and does not change if the route ever takes a second input. **`format` is not one of them**: the file
+type is decided on the device, so it never reaches the API.
 
 ---
 

@@ -69,7 +69,7 @@ board's cross-cutting constraints item, and the plan is evaluated against those 
 | Never import a concrete datastore | The service takes `DataStore` as an argument; the route resolves it via `getDataStore()`. |
 | `asyncHandler` on every route | The export handler is wrapped; errors reach `errorMiddleware` as the standard envelope. |
 | Services collect all validation errors | Only one input to validate (`detail`), so a single `VALIDATION` error with a `details` array. |
-| A new analytics event must be declared first | `trip_exported` is added to `AnalyticsEventProperties` before any call site (T-020). All five properties are shapes — format, detail, two counts, one flag. |
+| A new analytics event must be declared first | `trip_exported` is added to `AnalyticsEventProperties` before any call site (T019). All five properties are shapes — format, detail, two counts, one flag. |
 | A property is never trip content | No place name, address, description or trip title reaches PostHog. The sanitizer would drop them anyway; the call site never offers them. |
 | Feature flags default off | **Not flagged.** See "Complexity Tracking" below — this is a deliberate deviation from the board's blanket "every flag defaults off", justified there. |
 | Migration committed ≠ deployed | Not applicable: no migration. Called out explicitly so nobody goes looking for one. |
