@@ -30,9 +30,9 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 
 **Purpose**: the three things every later phase assumes. All independent of each other.
 
-- [ ] T001 [P] Declare `map_opened { scope: 'zone' | 'trip'; pin_count: number; missing_coords: number }` and `map_pin_opened { category: Category }` in `src/lib/analytics-events.ts`, in a commented section beside `trip_exported`. Declare them **before** any call site exists — `capture` is typed against this catalogue and will not compile against an undeclared name. No coordinate, name or address is a property (research R9).
-- [ ] T002 [P] Add `"backfill:coords": "tsx scripts/backfill-coords.ts"` to the `scripts` block of `package.json`, and add `scripts/.backfill/` to `.gitignore` — journals are local operational records, not source.
-- [ ] T003 [P] Document the relied-upon behaviour in `specs/001-japan-trip-app/contracts/api.md` for `GET /api/trips/:tripId/zones/:zoneId/places`: an empty `category` means every category; `lat`/`lng` are returned as `null` rather than omitted; a caller whose `TripView` withholds stays never receives a `hotel`. This is the contract source of truth and is currently silent on all three.
+- [x] T001 [P] Declare `map_opened { scope: 'zone' | 'trip'; pin_count: number; missing_coords: number }` and `map_pin_opened { category: Category }` in `src/lib/analytics-events.ts`, in a commented section beside `trip_exported`. Declare them **before** any call site exists — `capture` is typed against this catalogue and will not compile against an undeclared name. No coordinate, name or address is a property (research R9).
+- [x] T002 [P] Add `"backfill:coords": "tsx scripts/backfill-coords.ts"` to the `scripts` block of `package.json`, and add `scripts/.backfill/` to `.gitignore` — journals are local operational records, not source.
+- [x] T003 [P] Document the relied-upon behaviour in `specs/001-japan-trip-app/contracts/api.md` for `GET /api/trips/:tripId/zones/:zoneId/places`: an empty `category` means every category; `lat`/`lng` are returned as `null` rather than omitted; a caller whose `TripView` withholds stays never receives a `hotel`. This is the contract source of truth and is currently silent on all three.
 
 **Checkpoint**: nothing user-visible has changed. `npm test`, `npm run typecheck` and `npm run lint` all pass.
 
@@ -48,37 +48,37 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 
 ### Tests
 
-- [ ] T004 [P] Write `server/tests/geocode-resolve.test.ts` covering `resolvePlaceLocation` through the `setGeocoder` seam: returns the best candidate for a name + address, returns `null` when nothing matches, passes the zone's coordinates through as the bias, and does not throw when the upstream is unreachable. Fails until T005.
+- [X] T004 [P] Write `server/tests/geocode-resolve.test.ts` covering `resolvePlaceLocation` through the `setGeocoder` seam: returns the best candidate for a name + address, returns `null` when nothing matches, passes the zone's coordinates through as the bias, and does not throw when the upstream is unreachable. Fails until T005.
 
 ### Implementation — resolving a location
 
-- [ ] T005 Add `resolvePlaceLocation({ name, address, near })` and the `setGeocoder()` test seam to `server/src/services/geocode.ts`, built over the existing `geocodeSearch`. Keep it under twenty lines: pick the best candidate, return `null` otherwise. **The rate limit belongs to the caller, not here** — this function is called once per place by the script and once per save by the form. Do not touch `server/src/routes/geocode.ts`.
+- [X] T005 Add `resolvePlaceLocation({ name, address, near })` and the `setGeocoder()` test seam to `server/src/services/geocode.ts`, built over the existing `geocodeSearch`. Keep it under twenty lines: pick the best candidate, return `null` otherwise. **The rate limit belongs to the caller, not here** — this function is called once per place by the script and once per save by the form. Do not touch `server/src/routes/geocode.ts`.
 
 ### Implementation — the backfill
 
-- [ ] T006 Create `scripts/backfill-coords.ts` following the `scripts/seed.ts` shape (`loadEnv()`, then a dynamic import of the server modules). Read every place through `getDataStore()`, resolve each one via `resolvePlaceLocation` biased by its zone's coordinates, and print what it _would_ write. **`--dry-run` is the default; writing requires an explicit `--apply`.**
-- [ ] T007 Add journalling to `scripts/backfill-coords.ts`: under `--apply`, write every change to `scripts/.backfill/<timestamp>.json` as `{ id, name, before: { lat, lng }, after: { lat, lng } }`, and print the journal path on exit.
-- [ ] T008 Add `--revert <journal>` to `scripts/backfill-coords.ts`, restoring `before` for every row in the named journal. This is the rollback lever for the only production write in the feature (plan → Quick rollback, lever 6).
-- [ ] T009 Make `scripts/backfill-coords.ts` idempotent and honest: skip a place that already has coordinates (so a re-run is safe and an interrupted run resumes), throttle to one request per second per the Nominatim policy, and close with a summary of resolved / skipped / **unresolved listed by name** (FR-002).
-- [ ] T010 Run the full cycle from `quickstart.md` §A1 against the memory store — dry run, `--apply`, `--apply` again (expect "already located, skipped"), then `--revert`. Confirm every place returns to `lat: null`. **A revert that does not restore cleanly means the script is not ready to point at production.**
+- [X] T006 Create `scripts/backfill-coords.ts` following the `scripts/seed.ts` shape (`loadEnv()`, then a dynamic import of the server modules). Read every place through `getDataStore()`, resolve each one via `resolvePlaceLocation` biased by its zone's coordinates, and print what it _would_ write. **`--dry-run` is the default; writing requires an explicit `--apply`.**
+- [X] T007 Add journalling to `scripts/backfill-coords.ts`: under `--apply`, write every change to `scripts/.backfill/<timestamp>.json` as `{ id, name, before: { lat, lng }, after: { lat, lng } }`, and print the journal path on exit.
+- [X] T008 Add `--revert <journal>` to `scripts/backfill-coords.ts`, restoring `before` for every row in the named journal. This is the rollback lever for the only production write in the feature (plan → Quick rollback, lever 6).
+- [X] T009 Make `scripts/backfill-coords.ts` idempotent and honest: skip a place that already has coordinates (so a re-run is safe and an interrupted run resumes), throttle to one request per second per the Nominatim policy, and close with a summary of resolved / skipped / **unresolved listed by name** (FR-002).
+- [X] T010 Run the full cycle from `quickstart.md` §A1 against the memory store — dry run, `--apply`, `--apply` again (expect "already located, skipped"), then `--revert`. Confirm every place returns to `lat: null`. **A revert that does not restore cleanly means the script is not ready to point at production.**
 
 ### Implementation — the location picker
 
-- [ ] T011 [P] Write `src/tests/location-picker.test.tsx`: debounces before searching, lists candidates, requires an explicit pick, reports "nothing found", and emits nothing when the field is left untouched. Fails until T012.
-- [ ] T012 Extract `src/components/LocationPicker.tsx` from the destination field in `src/pages/JourneySteps.tsx` (lines ~154–195) — debounce, search, result list, selection — with the bias coordinates and the placeholder as props. **A behaviour-preserving extraction, nothing more.**
-- [ ] T013 Point `src/pages/JourneySteps.tsx` at `LocationPicker` and delete the inlined version. `src/tests/journey-editor.test.tsx` must pass **unchanged** — that is what makes this a refactor rather than a rewrite (research R7).
-- [ ] T014 [P] Write `src/tests/place-form-location.test.tsx`: accepting a candidate sends `lat`/`lng`; choosing a different one sends that one; declining saves the place with neither; a place with no address triggers no lookup at all. Fails until T015.
-- [ ] T015 Wire `LocationPicker` into `src/pages/PlaceForm.tsx`, biased by the zone's coordinates, showing where the candidate landed and **storing nothing the traveller has not accepted** (FR-003). Declining, or having no address, saves the place normally with no coordinates (FR-004). The endpoint already accepts and validates both fields — this adds no server change.
-- [ ] T016 Render the candidate's resolved address line as the picker's default confirmation, with any mini-map as a progressive enhancement inside the same boundary. **`src/pages/PlaceForm.tsx` must not import `src/map/`** — that coupling is what would make Slice A un-revertible without Slice B.
+- [X] T011 [P] Write `src/tests/location-picker.test.tsx`: debounces before searching, lists candidates, requires an explicit pick, reports "nothing found", and emits nothing when the field is left untouched. Fails until T012.
+- [X] T012 Extract `src/components/LocationPicker.tsx` from the destination field in `src/pages/JourneySteps.tsx` (lines ~154–195) — debounce, search, result list, selection — with the bias coordinates and the placeholder as props. **A behaviour-preserving extraction, nothing more.**
+- [X] T013 Point `src/pages/JourneySteps.tsx` at `LocationPicker` and delete the inlined version. `src/tests/journey-editor.test.tsx` must pass **unchanged** — that is what makes this a refactor rather than a rewrite (research R7).
+- [X] T014 [P] Write `src/tests/place-form-location.test.tsx`: accepting a candidate sends `lat`/`lng`; choosing a different one sends that one; declining saves the place with neither; a place with no address triggers no lookup at all. Fails until T015.
+- [X] T015 Wire `LocationPicker` into `src/pages/PlaceForm.tsx`, biased by the zone's coordinates, showing where the candidate landed and **storing nothing the traveller has not accepted** (FR-003). Declining, or having no address, saves the place normally with no coordinates (FR-004). The endpoint already accepts and validates both fields — this adds no server change.
+- [X] T016 Render the candidate's resolved address line as the picker's default confirmation, with any mini-map as a progressive enhancement inside the same boundary. **`src/pages/PlaceForm.tsx` must not import `src/map/`** — that coupling is what would make Slice A un-revertible without Slice B.
 
 ### Implementation — the header
 
-- [ ] T017 [P] Change `Permissions-Policy` in `vercel.json` from `geolocation=()` to `geolocation=(self)`. One value; embeds stay denied; our own pages may ask (FR-006, research R5).
-- [ ] T018 Verify T017 on a preview deployment, since no local test can: `curl -sI https://<preview>/ | grep -i permissions-policy` shows `geolocation=(self)`, and a phone opening the preview gets a **permission prompt**. No prompt and no error is the original bug.
+- [X] T017 [P] Change `Permissions-Policy` in `vercel.json` from `geolocation=()` to `geolocation=(self)`. One value; embeds stay denied; our own pages may ask (FR-006, research R5).
+- [ ] T018 **(deferred — needs a preview deployment)** Verify T017 on a preview deployment, since no local test can: `curl -sI https://<preview>/ | grep -i permissions-policy` shows `geolocation=(self)`, and a phone opening the preview gets a **permission prompt**. No prompt and no error is the original bug.
 
 ### Checkpoint
 
-- [ ] T019 Run `npm test && npm run typecheck && npm run lint && npm run format`, then commit Slice A. All 39 places are located or listed by name, new places acquire a location the traveller confirmed, and the deployed site permits its own pages to ask. **No map exists yet, and nothing about the app looks different.**
+- [X] T019 Run `npm test && npm run typecheck && npm run lint && npm run format`, then commit Slice A. All 39 places are located or listed by name, new places acquire a location the traveller confirmed, and the deployed site permits its own pages to ask. **No map exists yet, and nothing about the app looks different.**
 
 ---
 

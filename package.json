@@ -15,6 +15,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "push:keys": "node scripts/gen-vapid-keys.mjs",
+    "backfill:coords": "tsx scripts/backfill-coords.ts",
     "seed": "tsx scripts/seed.ts",
     "seed:files": "tsx scripts/seed-files.ts",
     "check:db": "tsx scripts/check-supabase.ts"

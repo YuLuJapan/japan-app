@@ -67,6 +67,10 @@ export const useZone = (zoneId: string) => {
     // invalidations in mutations.ts match on this prefix.
     queryKey: ['zone', zoneId],
     queryFn: () => api.get<ZoneDetail>(path(`/zones/${zoneId}`)),
+    // The place form asks for the zone it is adding into before it knows which
+    // one that is (editing: the zone arrives with the place), and `/zones//…`
+    // would 404 on the way past. Same guard, same reason, as `usePlace`.
+    enabled: zoneId !== '',
   })
 }
 

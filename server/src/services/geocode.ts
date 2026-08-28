@@ -82,3 +82,51 @@ export async function geocodeSearch(
   cache.set(key, { at: Date.now(), results })
   return results
 }
+
+/** What a lookup is, so a test can be one. Same idiom as `setDataStore`. */
+export type Geocoder = (
+  query: string,
+  bias?: { lat: number; lng: number }
+) => Promise<GeocodeResult[]>
+
+let geocoder: Geocoder | null = null
+
+/** Swap the lookup out (tests). `null` restores the real Nominatim search. */
+export const setGeocoder = (next: Geocoder | null) => {
+  geocoder = next
+}
+
+/**
+ * The single best location for one place, or `null`.
+ *
+ * Two callers: the backfill script, once per existing place, and the place
+ * form, once per save. **Neither rate limit lives here** — the script throttles
+ * itself to Nominatim's one request per second, and a form save is one lookup
+ * a person just asked for. A limiter in this function would slow the form down
+ * to protect a policy the form cannot breach.
+ *
+ * A failed lookup is `null`, never a throw: the backfill walks 39 places and
+ * one unreachable moment must not end the run (it lists what it could not
+ * resolve, FR-002).
+ */
+export async function resolvePlaceLocation({
+  name,
+  address,
+  near,
+}: {
+  name: string
+  address?: string | null
+  near?: { lat: number; lng: number }
+}): Promise<GeocodeResult | null> {
+  const query = [name, address ?? '']
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(', ')
+  if (query.length < 2) return null
+  try {
+    const results = await (geocoder ?? geocodeSearch)(query, near)
+    return results[0] ?? null
+  } catch {
+    return null
+  }
+}
