@@ -65,6 +65,20 @@ function layout() {
   return { chips, scrollTo }
 }
 
+// The strip breaks out of the page padding (-mx-5) and puts it back (px-5) so
+// the first chip lines up with the headings above it. Snapping undoes that
+// unless scroll-padding says otherwise — the snapport is the scrollport, which
+// ignores padding, so the browser scrolls the padding away and leaves chip one
+// flush against the screen edge.
+describe('the strip lines up with the rest of the page', () => {
+  it('carries scroll padding to match its own padding', () => {
+    render(<DayStrip days={days} selected={days[0]} onSelect={() => {}} />)
+    const strip = screen.getByTestId('day-strip')
+    expect(strip.className).toContain('px-5')
+    expect(strip.className).toContain('scroll-px-5')
+  })
+})
+
 describe('DayStrip auto-scroll', () => {
   it('leaves the strip put when the picked day is already in view', () => {
     render(<Harness />)

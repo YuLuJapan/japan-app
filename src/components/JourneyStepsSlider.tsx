@@ -31,7 +31,13 @@ export function JourneyStepsSlider({
 }) {
   return (
     <div
-      className="no-scrollbar -mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-2"
+      // scroll-px-5 matches the px-5: with snapping on, the snapport is the
+      // scrollport, which ignores padding — so the browser aligns the first
+      // card's edge to the container edge and scrolls the padding away,
+      // leaving card 1 cut off against the screen while every heading around
+      // it stays indented. scroll-padding is what puts the padding back into
+      // the snap geometry.
+      className="no-scrollbar -mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-px-5 px-5 pb-2"
       data-testid="journey-slider"
     >
       {steps.map((step, i) => {

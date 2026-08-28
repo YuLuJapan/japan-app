@@ -62,7 +62,11 @@ export function DayStrip({
   return (
     <div
       ref={ref}
-      className="no-scrollbar -mx-5 flex snap-x gap-2.5 overflow-x-auto px-5 py-1"
+      // scroll-px-5 pairs with the px-5 — see the note in JourneyStepsSlider:
+      // without it the snap geometry ignores the padding and the first chip
+      // ends up flush against the screen edge, out of line with everything
+      // above it.
+      className="no-scrollbar -mx-5 flex snap-x gap-2.5 overflow-x-auto scroll-px-5 px-5 py-1"
       data-testid="day-strip"
     >
       {days.map((day, i) => {

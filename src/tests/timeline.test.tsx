@@ -30,6 +30,16 @@ const renderSlider = (today: Date) =>
   )
 
 describe('JourneyStepsSlider (US2)', () => {
+  // Same pairing as the day strip: -mx-5/px-5 puts the first card in line with
+  // "The journey" above it, and snapping scrolls that padding away unless
+  // scroll-padding is set to match.
+  it('carries scroll padding to match its own padding', () => {
+    renderSlider(new Date('2026-01-01T12:00:00Z'))
+    const slider = screen.getByTestId('journey-slider')
+    expect(slider.className).toContain('px-5')
+    expect(slider.className).toContain('scroll-px-5')
+  })
+
   it('renders all steps in order, numbered, and links each to its city', () => {
     renderSlider(new Date('2026-01-01T12:00:00Z'))
     const links = screen.getAllByRole('link')
