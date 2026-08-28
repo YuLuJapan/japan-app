@@ -20,6 +20,34 @@ export function stepStatus(step: TripStep, today: Date): StepStatus {
   return 'current'
 }
 
+/** Tile width (150px) less the 10px the name is inset by on each side. */
+const NAME_WIDTH = 130
+/** Rough advance width of Bricolage Grotesque at 700, as a fraction of the size. */
+const AVG_CHAR = 0.58
+/** The design's size, and the smallest that still reads over a photo. */
+const MAX_SIZE = 17
+const MIN_SIZE = 11
+
+/**
+ * Type size for a city's name on its tile.
+ *
+ * The design draws every name at 17px, which is right for the names it was
+ * drawn with — "Tokyo", "Hakone". A real trip has "Fujikawaguchiko", and at
+ * 17px that is wider than the tile. It is also a single word, so no amount of
+ * wrapping saves it: the size itself has to come down.
+ *
+ * Measured against the longest *word* rather than the whole string, because
+ * that word is what cannot be broken; a multi-word name wraps to a second line
+ * instead of shrinking. Short names are untouched, so the common tile still
+ * matches the design exactly.
+ */
+export function nameSize(name: string): number {
+  const longest = name.split(/\s+/).reduce((n, word) => Math.max(n, word.length), 0)
+  if (!longest) return MAX_SIZE
+  const fits = NAME_WIDTH / (longest * AVG_CHAR)
+  return Math.max(MIN_SIZE, Math.min(MAX_SIZE, Math.floor(fits)))
+}
+
 export function JourneyStepsSlider({
   steps,
   today = new Date(),
@@ -77,8 +105,15 @@ export function JourneyStepsSlider({
               </span>
             )}
             <p
-              className="absolute bottom-2 left-2.5 right-2.5 truncate font-display text-[17px] font-bold text-white"
-              style={{ textShadow: '0 2px 8px rgba(0,0,0,.55)' }}
+              className="absolute bottom-2 left-2.5 right-2.5 line-clamp-2 font-display font-bold leading-[1.05] text-white"
+              style={{
+                fontSize: nameSize(zone?.name ?? ''),
+                // Last resort behind nameSize: a name long enough to still
+                // overflow at 11px breaks mid-word rather than running off
+                // the tile.
+                overflowWrap: 'anywhere',
+                textShadow: '0 2px 8px rgba(0,0,0,.55)',
+              }}
             >
               {zone?.name ?? 'Unknown'}
             </p>
