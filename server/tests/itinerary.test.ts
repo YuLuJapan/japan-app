@@ -21,6 +21,41 @@ describe('itinerary', () => {
     expect(ids).toEqual(['itin-ramen', 'itin-walk', 'itin-ryokan']) // 20:00 before "anytime"
   })
 
+  // The day plan tags an activity with the category of the place it links to
+  // and with what is attached to that place (redesign option 1g). Both are
+  // derived per response — nothing is stored, and nothing is accepted on write.
+  it('tags each item with its linked place’s category and attachments', async () => {
+    const res = await auth(request(app).get('/api/trips/trip-1/itinerary'))
+    const byId = Object.fromEntries(
+      res.body.items.map((i: { id: string }) => [i.id, i as Record<string, unknown>])
+    )
+
+    expect(byId['itin-ramen'].place_category).toBe('food')
+    expect(byId['itin-ramen'].place_files).toEqual(['Menu photo'])
+    // Linked to nothing, so nothing to tag it with.
+    expect(byId['itin-walk'].place_category).toBeNull()
+    expect(byId['itin-walk'].place_files).toEqual([])
+    // Linked to a place that has no files.
+    expect(byId['itin-ryokan'].place_category).toBe('hotel')
+    expect(byId['itin-ryokan'].place_files).toEqual([])
+  })
+
+  it('ignores the tags on write — they are derived, not stored', async () => {
+    const created = await auth(request(app).post('/api/trips/trip-1/itinerary')).send({
+      zone_id: 'zone-tokyo',
+      day: '2026-10-06',
+      title: 'Invented',
+      place_category: 'hotel',
+      place_files: ['Not a real file.pdf'],
+    })
+    expect(created.status).toBe(201)
+
+    const res = await auth(request(app).get('/api/trips/trip-1/itinerary'))
+    const mine = res.body.items.find((i: { title: string }) => i.title === 'Invented')
+    expect(mine.place_category).toBeNull()
+    expect(mine.place_files).toEqual([])
+  })
+
   it('POST /api/itinerary creates an item and it appears in the list', async () => {
     const res = await auth(request(app).post('/api/trips/trip-1/itinerary')).send({
       zone_id: 'zone-kyoto',

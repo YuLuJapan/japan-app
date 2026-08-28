@@ -32,6 +32,7 @@ import ShoppingList from './pages/ShoppingList'
 import TripEssentials from './pages/TripEssentials'
 import TripExport from './pages/TripExport'
 import TripFiles from './pages/TripFiles'
+import TripMap from './pages/TripMap'
 import TripMembers from './pages/TripMembers'
 import TripsList from './pages/TripsList'
 import Zone from './pages/Zone'
@@ -112,6 +113,24 @@ export function RequireExport() {
 }
 
 /**
+ * The map, while it is being built out.
+ *
+ * `trip-map` defaults **on**, unlike `export-trip`: the screen is reachable and
+ * useful as it stands (it lays the trip's stops out in space and opens them),
+ * so hiding it by default would only hide finished work. The flag is a kill
+ * switch rather than a rollout — turning it off in PostHog closes both the link
+ * and this route, which is what a bookmark needs.
+ */
+export function RequireMap() {
+  const { tripId } = useParams<{ tripId: string }>()
+  return useBooleanFlag('trip-map', true) ? (
+    <Outlet />
+  ) : (
+    <Navigate to={`/trips/${tripId}`} replace />
+  )
+}
+
+/**
  * The shopping section, when this trip shares it with you. The tab is already
  * gone from the nav; this catches the other ways in — a bookmark, a link
  * somebody pasted — so they land on the journey rather than on an error the
@@ -155,6 +174,9 @@ export const router = createBrowserRouter([
             ],
           },
           { path: 'reminders', element: <Reminders /> },
+          // Everyone on the trip can see where it goes — the stops and their
+          // names are already on the journey screen, so this adds no content.
+          { element: <RequireMap />, children: [{ path: 'map', element: <TripMap /> }] },
           { path: 'essentials', element: <TripEssentials /> },
           // Every member may export, viewers included (FR-007) — the file is a
           // subset of what they already see, so this sits outside RequireOwner.
