@@ -169,6 +169,40 @@ export function fixture(): MemoryData {
         address: null,
         links: [],
       },
+      // Every field a place has, populated — the fixture the export's exclusion
+      // tests are only meaningful against. A share projection of this row must
+      // emit exactly name, address and category; anything else showing up here
+      // is a field that joined the share export without a decision (FR-011).
+      {
+        id: 'place-everything',
+        zone_id: 'zone-kyoto',
+        category: 'attraction',
+        name: 'Fushimi Inari',
+        name_ja: '伏見稲荷大社',
+        description: 'Go before 7am. We paid ¥0 — it is free, but the tea house is not.',
+        address: '68 Fukakusa Yabunouchicho, Fushimi Ward',
+        links: [
+          { label: 'Official', url: 'https://inari.jp' },
+          { label: 'Map', url: 'https://maps.example.com/inari' },
+        ],
+        image_url: 'https://example.com/inari.jpg',
+        lat: 34.9671,
+        lng: 135.7727,
+      },
+      // A stay carrying exactly what the share version exists to keep out. The
+      // three words are what server/tests/export.test.ts greps the whole
+      // serialised payload for.
+      {
+        id: 'place-ryokan',
+        zone_id: 'zone-kyoto',
+        category: 'hotel',
+        name: 'Kyoto Ryokan',
+        name_ja: null,
+        description:
+          'Booking on Rakuten, confirmation RYO-99231. The reservation covers two nights, breakfast included.',
+        address: '3 Higashiyama, Kyoto',
+        links: [{ label: 'Booking', url: 'https://example.com/reservation/RYO-99231' }],
+      },
       {
         id: 'place-other',
         zone_id: 'zone-osaka',
@@ -183,6 +217,9 @@ export function fixture(): MemoryData {
     tips: [
       { id: 'tip-zone', zone_id: 'zone-tokyo', place_id: null, body: 'Get a Suica card' },
       { id: 'tip-place', zone_id: null, place_id: 'place-ramen', body: 'Cash only' },
+      { id: 'tip-kyoto', zone_id: 'zone-kyoto', place_id: null, body: 'Buy a bus day pass' },
+      // Hangs off a stay, so it must disappear exactly when the stay does.
+      { id: 'tip-ryokan', zone_id: null, place_id: 'place-ryokan', body: 'Check in after 15:00' },
       { id: 'tip-other', zone_id: 'zone-osaka', place_id: null, body: 'Secret Osaka plan' },
     ],
     itinerary: [
@@ -208,6 +245,21 @@ export function fixture(): MemoryData {
         start_time: null,
         title: 'Walk Shinjuku',
         note: 'After dinner',
+        position: 0,
+        highlight: false,
+        icon: null,
+      },
+      // Points at a stay: a caller who cannot see stays keeps the row and loses
+      // the link, the way the itinerary service already treats place_id.
+      {
+        id: 'itin-ryokan',
+        trip_id: 'trip-1',
+        zone_id: 'zone-kyoto',
+        place_id: 'place-ryokan',
+        day: '2026-10-10',
+        start_time: '15:00',
+        title: 'Check into the ryokan',
+        note: null,
         position: 0,
         highlight: false,
         icon: null,
@@ -276,4 +328,57 @@ export function fixture(): MemoryData {
       },
     ],
   }
+}
+
+/**
+ * The same trip at roughly three times real size — ~120 places across a dozen
+ * stops (SC-003). The seed data has 39 places across 9 zones, which fits
+ * comfortably and therefore proves nothing about a trip that does not.
+ *
+ * Built on top of `fixture()` so the small, hand-written rows the other tests
+ * assert against are all still there; this only adds.
+ */
+export function largeFixture(stops = 12, placesPerStop = 10): MemoryData {
+  const data = fixture()
+  for (let s = 0; s < stops; s++) {
+    const zoneId = `zone-big-${s}`
+    data.zones.push({
+      id: zoneId,
+      trip_id: 'trip-1',
+      name: `Stop ${s + 1}`,
+      name_ja: null,
+      summary: `Two nights in stop ${s + 1}.`,
+    })
+    data.steps.push({
+      id: `step-big-${s}`,
+      trip_id: 'trip-1',
+      zone_id: zoneId,
+      position: 10 + s,
+      start_date: '2026-10-01',
+      end_date: '2026-10-02',
+    })
+    data.tips.push({ id: `tip-big-${s}`, zone_id: zoneId, place_id: null, body: `Tip ${s + 1}` })
+    for (let p = 0; p < placesPerStop; p++) {
+      const placeId = `place-big-${s}-${p}`
+      data.places.push({
+        id: placeId,
+        zone_id: zoneId,
+        category: (['food', 'attraction', 'shopping', 'hotel', 'other'] as const)[p % 5],
+        name: `Place ${s + 1}-${p + 1}`,
+        name_ja: null,
+        description: `Notes about place ${s + 1}-${p + 1}.`,
+        // Every fifth place has no address, so the count in `stats` is
+        // exercised at a size where a miscount would not be obvious.
+        address: p % 5 === 0 ? null : `${p + 1} Some Long Street, District ${s + 1}`,
+        links: [{ label: 'Site', url: `https://example.com/${s}/${p}` }],
+      })
+      data.tips.push({
+        id: `tip-big-${s}-${p}`,
+        zone_id: null,
+        place_id: placeId,
+        body: `Go early to ${s + 1}-${p + 1}`,
+      })
+    }
+  }
+  return data
 }

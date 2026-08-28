@@ -14,15 +14,16 @@ npm run dev          # frontend on :3000 (Vite), API on :3001 (Express), run con
 npm run dev:web       # frontend only
 npm run dev:api       # API only (tsx watch server/dev.ts)
 
-npm test              # vitest run — both projects (web + server), 169 tests
+npm test              # vitest run — both projects (web + server), 940 tests
 npm run test:watch    # vitest watch mode
 npx vitest run server/tests/browse.test.ts        # single server test file
 npx vitest run src/tests/browse.test.tsx          # single web test file
 npx vitest run -t "returns the journey skeleton"  # by test name
 
+npm run typecheck      # tsc --noEmit — not optional: the export's field-policy guard is a type error (specs/003)
 npm run lint           # ESLint (flat config, typescript-eslint recommended)
 npm run format          # prettier --write .
-npm run build            # production bundle (vite build; currently ~157 KB gzip JS)
+npm run build            # production bundle (vite build; entry chunk ~233 KB gzip, plus lazy chunks)
 npm run preview           # serve the production build locally
 
 npm run push:keys     # generate the VAPID key pair for web push (run once, see README)
@@ -33,7 +34,7 @@ npm run check:db        # sanity-check the Supabase connection
 
 Signing in locally needs Supabase Auth configured (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `VITE_*` — see `.env.example`). There is no shared access code any more; without those vars the gate has no working button.
 
-There is no separate typecheck script; `tsc` runs implicitly via Vite/vitest. Run `npx tsc --noEmit` if you need an explicit check.
+`npm run typecheck` is not a nicety. Vitest transpiles types away without checking them, so `npm test` cannot see a type error — and the export's whole safety story (`server/src/lib/export-view.ts`) _is_ a type error. Run it alongside the tests.
 
 ## Architecture
 
@@ -96,6 +97,16 @@ The frontend mirrors both — `useCanEdit()` / `useTripShows()` (`src/lib/sessio
 **The toast waits for the screen.** The success line is fired from the MutationCache's `onSettled`, not its `onSuccess`, and **every mutation's `onSuccess` returns its invalidations** — query-core awaits that before `onSettled`, so "Place saved" lands with the saved place on screen instead of a second ahead of it. Dropping a `return` in `mutations.ts` breaks nothing visible except that ordering, which is exactly the bug it fixes, so the invalidation helpers all hand back a promise to make the `return` the obvious thing to write. Failures still speak immediately: there is nothing to wait for, and a refetch after a failed write would only confirm the old state. Awaiting is safe by construction — `invalidateQueries` swallows a failed refetch (`throwOnError` is off) and resolves immediately for queries paused offline, so neither can turn a successful save into an error toast or hang the confirmation. **The wait is bounded** (`refreshed`, `REFRESH_GRACE_MS` = 500ms): `isPending` holds the disabled button and the "Saving…" label for as long as that promise, and on a cold serverless function a refetch can take seconds — a form sitting in "Saving…" long after the save succeeded is a worse lie than an early toast. Past the grace the waiting ends, not the refetch: it lands when it lands and the screen catches up then.
 
 **Better than waiting is not needing to.** Where a response says exactly what changed, the write puts it where the screen reads it (`replaceById` / `removeById` / `patchCachedFiles` in `mutations.ts`) and then calls `reconcile` instead of `refreshed` — the row has already repainted, so the confirmation waits for nothing. A file rename is written into all three lists that can hold it (`['trip-files']`, `['zone']`, `['place']`, inactive copies included, so the zone page opened later is already right), merging rather than replacing so a row keeps what the response doesn't carry — `attached_to` on a trip document. Ticking a shopping item off is the same trick and the one that matters most, since the list _filters_ on `bought`. **The line these stop at is ordering**: a row is patched when what is rendered follows from its own fields, and left to the refetch when the server owns the sequence — an itinerary edit can move an item, and a patched-in-place copy would show the right words in the wrong order for a moment, which is the failure being fixed, not a lesser one. Deletes are always safe to patch: taking a row out cannot disturb the rows that remain. **A write answers with the row its list renders** — every `POST`/`PATCH` returns the same shape the matching `GET` returns per item, assembled by one shared function: `lib/place-view.ts` (a place plus its `summary_line`), `lib/step-view.ts` (a journey card, zone and counts included), `documentView` in `services/files.ts` (a document plus `attached_to`). That is the rule that makes the cache writes possible at all, so **anything new returning an entity should answer with its list's shape**, not the bare row. Where a list is ordered, the datastore owns the order; `src/lib/ordering.ts` mirrors it so a saved row can be put back in the right place, and `server/tests/ordering.test.ts` runs both over the same rows so a copy cannot drift quietly. Where the client would have to _recreate_ server logic to build the row, it doesn't — it gets the API to hand the row over instead. That is why `summary_line` rides on every place the API returns (`server/src/lib/place-view.ts`, the same function the zone's category lists use): an edited activity goes straight back into its zone's list, and a recategorised one moves between two lists and two tallies, with nothing derived twice. Waiting is the rare case now rather than the rule: `refreshed` survives only where the screen genuinely cannot be right without a read — accepting the terms (the gate opens on `['me']`), joining a trip (a trips row nothing local can build), and a date change the server answered by moving stops.
+
+**Exporting a trip** (`specs/003-trip-export/`) is one server-side projection and four client-side writers. `GET /api/trips/:tripId/export?detail=share|full` returns a JSON payload; the device turns it into a file. Rendering stays on the device deliberately — that is what makes an export work with no signal, and a server-side renderer would also put a document engine inside a Hobby function.
+
+**The whole feature is `server/src/lib/export-view.ts`**, and specifically the field-policy tables in it: `Record<keyof Place, ExportLevel>` and one per entity. A field reaches an exported file only by being named there, so **adding a column to `Place` is a compile error until someone decides whether it travels** — which is why `npm run typecheck` is part of the test path rather than a nicety. `'json'` is the fourth level, for `id`/`zone_id`: identifiers the machine-readable backup carries and no readable writer can reach.
+
+**The order of the two filters is the requirement**, not an implementation detail. `projectExport` takes the caller's `TripView` _first_, applies it, and only then the field policy. Reversed, a hidden stay would be cut down to a name and an address and then exported — harmless-looking at share detail and a straight leak at full. A hidden stay takes its tips and its day-plan link with it, and `stats.included_stays` is the only place the response admits a view was applied at all.
+
+**Neither version carries the flight, the shopping list, the documents or any member name** (FR-004a) — for an owner too. Those are not filtered per caller; they have no policy entry at all, because a field nobody can classify is a field nobody can accidentally promote. The trip's title is derived _without_ the member-name fallback `displayTitle` normally allows, for the same reason.
+
+On the client, `src/export/outline.ts` is the document one step before it is a file, and **every readable writer renders it** — PDF, DOCX and XLSX — so a format cannot widen what is included (FR-014) even by accident. Only the JSON backup reads the payload directly. Everything under `src/export/` is dynamically imported and must stay that way; the chunks are in the Workbox precache manifest, which is what makes an offline export possible and also what makes their size an install-time cost for every phone (hence `globIgnores` in `vite.config.ts` for jsPDF's unreachable `html2canvas`/`canvg`/`dompurify`). The two export actions are **two labelled buttons, never one control with a toggle** — a toggle left where the last person put it is how a confirmation number reaches a group chat.
 
 **API contract source of truth:** `specs/001-japan-trip-app/contracts/api.md`. When adding/changing an endpoint, update this file too — it's not just historical documentation, it's referenced by both frontend and backend code comments.
 

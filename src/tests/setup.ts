@@ -18,3 +18,23 @@ window.matchMedia ??= ((query: string) => ({
   removeEventListener: () => {},
   dispatchEvent: () => false,
 })) as typeof window.matchMedia
+
+// jsdom's Blob has no `text()` or `arrayBuffer()`. The export writers hand
+// back Blobs — that is what goes to a share sheet — so the tests that read one
+// back need these. Implemented over FileReader, which jsdom does have.
+Blob.prototype.arrayBuffer ??= function (this: Blob) {
+  return new Promise<ArrayBuffer>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as ArrayBuffer)
+    reader.onerror = () => reject(reader.error)
+    reader.readAsArrayBuffer(this)
+  })
+}
+Blob.prototype.text ??= function (this: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsText(this)
+  })
+}

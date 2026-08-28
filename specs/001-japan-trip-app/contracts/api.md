@@ -653,6 +653,61 @@ Sends "notifications are working" to the caller's own devices, and nobody else's
 
 - 200: `{"subscriptions":1,"sent":1,"failed":0}` · 403 (access code) · 503 when unconfigured.
 
+## Export (feature 003)
+
+One projection of the trip at one of two detail levels, returned as JSON. The bytes of the actual file are
+produced **on the device** — there is no route that returns a PDF, no temporary storage, no signed link and
+nothing to expire. See [`specs/003-trip-export/`](../../003-trip-export/) for the field policy this is built
+on (`server/src/lib/export-view.ts`), which is where a field is admitted to an export in the first place.
+
+### GET /api/trips/:tripId/export?detail=share|full
+
+Read-only and deterministic: the same trip at the same detail always returns the same content (SC-006).
+Nothing in it is generated, inferred, summarised or reworded (FR-006).
+
+Mounted on the trip-scoped router, so `requireTripAccess` applies by construction — a trip the caller is not
+a member of answers **404, never 403**. **Any member may call it, viewers included** (FR-007): the response
+is a strict subset of what that member can already read on the other routes.
+
+- `detail` is required. Absent, empty or anything but `share`/`full` → 400; it is not defaulted, because
+  which version you are exporting is never something the server should guess.
+- `ids` is optional (`ids=1`). Off by default, and the default is what the shapes below describe. With it,
+  every place additionally carries its `id` and `zone_id` — the only fields the field policy marks `json`,
+  and the only thing the machine-readable backup needs that a readable file must never show. It widens
+  nothing else: a share payload with `ids=1` still carries exactly the share fields plus those two. The app
+  asks for it on every fetch so that one cached payload can serve all four writers offline; the readable
+  writers render an outline that has no way to reach an id.
+
+- 200 (share): `{"export":{"detail":"share","generated_at":"2026-08-28T12:00:00.000Z","trip":{"title":"Japan","start_date":"2026-11-01","end_date":"2026-11-14","country":"Japan"},"steps":[{"start_date":"2026-11-01","end_date":"2026-11-05","zone":{"name":"Tokyo","places":[{"name":"Kagari Ginza","address":"6-4-12 Ginza, Chuo City","category":"food"}]}}],"days":[],"stats":{"place_count":39,"places_without_address":2,"day_count":0,"included_stays":true}}}`
+- 200 (full): the same envelope plus, per place, `description` and `links`; per place and zone, `tips`; per
+  zone, `summary`; the trip's `description`; and a populated `days` array (`day_count` counts the days
+  carrying at least one item).
+- 400 `VALIDATION` — `details: ["detail must be \"share\" or \"full\""]` · 401 `UNAUTHORIZED` · 404
+  `NOT_FOUND` (no such trip, **or** the caller is not a member of it).
+
+**Absent, not null.** Optional keys are omitted at share detail rather than sent empty, so a share payload
+carries no container a writer could render as a labelled, empty section. `address` is the exception: it is
+always present, empty where the place has none, and `stats.places_without_address` is what reports the gap
+(FR-018) rather than a run of blank rows.
+
+**What is in neither version (FR-004a).** No flight details, no shopping item, no document and no member or
+traveller name — for _every_ caller, an owner with the unrestricted view included. These are not filtered
+out per caller; they are not part of the projection at all, so a full copy forwarded to the wrong person
+still leaks no booking reference and no present. The trip's `title` is derived without falling back to
+member names for the same reason.
+
+**The caller's view, applied first (FR-008).** The exporting member's `TripView` is applied _before_ the
+field policy — reversed, a hidden stay would be cut down to a name and an address and then exported. For a
+viewer without `can_see_stays`: no `hotel` place in any zone, no tip hanging off one, no day-plan row
+linking to one (the row survives, its link does not), and the stay is out of `stats.place_count`.
+`stats.included_stays` is `false` — the one place the response admits a view was applied at all, and a
+property of the export rather than a hint about any particular place. Nothing states what was withheld.
+
+**Caching.** An ordinary `GET` under `/api`, so the service worker's `NetworkFirst` rule applies: fresh when
+online, last known when not. No `Cache-Control` beyond the app default and no ETag — the payload is small
+and always cheap to rebuild. Offline export therefore depends on the payload having been fetched once, which
+is what the trip home's background prefetch is for.
+
 ## Ops
 
 ### GET /api/health

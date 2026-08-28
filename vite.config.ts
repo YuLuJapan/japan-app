@@ -32,6 +32,21 @@ export default defineConfig({
         // push + notificationclick handlers (public/push-sw.js), folded into
         // the generated service worker
         importScripts: ['/push-sw.js'],
+        // jsPDF dynamically imports html2canvas, canvg and dompurify for its
+        // `doc.html()` and SVG paths. The export writer uses neither — it
+        // draws text and tables — so those three chunks are ~380 KB of install
+        // weight for code that can never run here. Precaching is what makes an
+        // offline export possible (research R2), and it is also what makes
+        // every byte in the manifest a byte every phone downloads on install,
+        // so the unreachable ones are left out of it. They are still built and
+        // still served, so a future code path that does reach them works — it
+        // just fetches them.
+        globIgnores: [
+          'assets/html2canvas*.js',
+          'assets/canvg*.js',
+          'assets/index.es*.js',
+          'assets/purify.es*.js',
+        ],
         navigateFallback: '/index.html',
         // never serve the SPA shell for API calls
         navigateFallbackDenylist: [/^\/api\//],

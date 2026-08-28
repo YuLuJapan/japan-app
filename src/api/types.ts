@@ -482,3 +482,83 @@ export interface SearchResult {
   subtitle: string
   href: string
 }
+
+// --- the export (feature 003) ------------------------------------------------
+//
+// One projection, two detail levels, four writers. These mirror
+// `server/src/lib/export-view.ts`, which is where a field is admitted to an
+// export in the first place — nothing on this side may widen them, and nothing
+// on this side decides what is in a file.
+
+export type ExportDetail = 'share' | 'full'
+
+export type ExportFormat = 'pdf' | 'docx' | 'xlsx' | 'json'
+
+export interface ExportPlace {
+  name: string
+  /** Always present; empty when the place has no address. */
+  address: string
+  category: Category
+  description?: string
+  links?: PlaceLink[]
+  tips?: string[]
+  /** JSON backup only. */
+  id?: string
+  /** JSON backup only. */
+  zone_id?: string
+}
+
+export interface ExportZone {
+  name: string
+  summary?: string
+  places: ExportPlace[]
+  tips?: string[]
+}
+
+export interface ExportStep {
+  start_date: string
+  end_date: string
+  zone: ExportZone
+}
+
+export interface ExportDayItem {
+  start_time?: string
+  title: string
+  note?: string
+  highlight: boolean
+  icon?: string
+  /** Absent where the place is one this caller may not see. */
+  place_name?: string
+}
+
+export interface ExportDay {
+  day: string
+  items: ExportDayItem[]
+}
+
+export interface ExportTrip {
+  title: string
+  start_date: string
+  end_date: string
+  country: string
+  description?: string
+}
+
+export interface ExportStats {
+  place_count: number
+  /** How many of them have no address — reported rather than shown as blanks. */
+  places_without_address: number
+  day_count: number
+  /** Whether stays are in this file: a property of the export, not of a place. */
+  included_stays: boolean
+}
+
+export interface ExportPayload {
+  detail: ExportDetail
+  generated_at: string
+  trip: ExportTrip
+  steps: ExportStep[]
+  /** Full detail only; empty at share detail. */
+  days: ExportDay[]
+  stats: ExportStats
+}

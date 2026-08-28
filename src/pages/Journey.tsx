@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { useItinerary, useTrip } from '../api/hooks'
+import { useItinerary, useTrip, useTripExportPrefetch } from '../api/hooks'
 import { CountdownWidget } from '../components/CountdownWidget'
 import { ErrorState } from '../components/ErrorState'
 import { GenericCountdown } from '../components/GenericCountdown'
@@ -33,6 +33,10 @@ export default function Journey() {
   const tripId = useTripId()
   const { data, isPending, isError, refetch } = useTrip(tripId)
   const itinerary = useItinerary(tripId)
+  // Warms the export payloads so the file can still be made on a train
+  // (research R4). Called before the early returns below, because a hook has
+  // to be — and it costs nothing while the trip itself is still loading.
+  useTripExportPrefetch(tripId)
 
   if (isPending) return <Loading label="Loading the journey…" />
   if (isError) return <ErrorState message="Could not load the trip." onRetry={() => refetch()} />
@@ -92,6 +96,11 @@ export default function Journey() {
             <div className="mb-3 flex items-baseline justify-between">
               <h2 className="font-display text-2xl font-semibold tracking-tight">The journey</h2>
               <div className="flex items-center gap-3">
+                {/* Everyone on the trip can export it, viewers included: the
+                    file is a subset of what they are already looking at. */}
+                <Link to={`/trips/${tripId}/export`} className="text-sm font-bold text-brand">
+                  Export
+                </Link>
                 <span className="text-xs text-muted">swipe →</span>
                 {canEdit && (
                   <Link

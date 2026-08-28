@@ -352,7 +352,7 @@ describe('trips', () => {
     expect(res.status).toBe(200)
     expect(res.body.trip).toMatchObject({ start_date: '2027-01-10', end_date: '2027-01-24' })
     expect(res.body.moved_stops).toHaveLength(2)
-    expect(res.body.moved).toHaveLength(2)
+    expect(res.body.moved).toHaveLength(3)
 
     const trip = await request(app).get('/api/trips/trip-1').set(OWNER_BEARER)
     // Tokyo kept its 4 nights, Kyoto its 3, both anchored on the new first day.
@@ -431,7 +431,7 @@ describe('trips', () => {
     expect(res.status).toBe(200)
     expect(res.body.deleted).toBeUndefined()
     const items = await request(app).get('/api/trips/trip-1/itinerary').set(OWNER_BEARER)
-    expect(items.body.items).toHaveLength(2)
+    expect(items.body.items).toHaveLength(3)
   })
 
   it('PATCH /api/trips/:tripId allows a date change that still covers everything planned', async () => {
