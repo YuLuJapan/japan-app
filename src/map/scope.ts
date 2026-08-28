@@ -37,7 +37,18 @@ export interface MapCard {
   subtitle: string
   /** A `CATEGORY_META.dot` class, or null where the pin itself carries the count. */
   dot: string | null
-  place?: { category: Category; address: string | null; summary: string }
+  /**
+   * What is behind the card, when something is: a place. It carries its own
+   * coordinates so the directions link aims at the doorway rather than at a
+   * text search for a namesake (research R10).
+   */
+  place?: {
+    category: Category
+    address: string | null
+    summary: string
+    lat: number | null
+    lng: number | null
+  }
 }
 
 /** One shape, whichever scale produced it. */
@@ -115,5 +126,7 @@ const placeCard = (place: PlaceListItem, zoneName: string): MapCard => ({
     category: place.category,
     address: place.address ?? null,
     summary: place.summary_line,
+    lat: place.lat ?? null,
+    lng: place.lng ?? null,
   },
 })

@@ -81,3 +81,42 @@ export const categoryStyle = (category: Category) => ({
   dot: CATEGORY_META[category].dot,
   label: CATEGORY_META[category].label,
 })
+
+/**
+ * How far outside the frame counts as "here too" — beyond it, the traveller is
+ * somewhere else. Padded by the frame's own size so a city map tolerates a
+ * suburb and a single-pin map does not tolerate the next prefecture, with a
+ * floor of roughly 5km for the case where every pin is on one street.
+ */
+const NEAR_FLOOR_DEG = 0.05
+
+/**
+ * The frame, once the traveller's own position is known — FR-025's rule, and
+ * it lives here rather than in the component because it is arithmetic.
+ *
+ * A position **near** what is on screen widens the frame to include it, which
+ * is the whole point of showing it: "near" should mean near you. A position
+ * far away does not, because zooming out to span Kyoto and a hotel in Tel Aviv
+ * shows neither. The saved places stay the subject; the locate button is how
+ * the traveller goes to themselves instead.
+ */
+export function framedWith(
+  bounds: Bounds | null,
+  self: { lat: number; lng: number } | null
+): Bounds | null {
+  if (!bounds || !self) return bounds
+  const padLat = Math.max(bounds.north - bounds.south, NEAR_FLOOR_DEG)
+  const padLng = Math.max(bounds.east - bounds.west, NEAR_FLOOR_DEG)
+  const near =
+    self.lat >= bounds.south - padLat &&
+    self.lat <= bounds.north + padLat &&
+    self.lng >= bounds.west - padLng &&
+    self.lng <= bounds.east + padLng
+  if (!near) return bounds
+  return {
+    south: Math.min(bounds.south, self.lat),
+    west: Math.min(bounds.west, self.lng),
+    north: Math.max(bounds.north, self.lat),
+    east: Math.max(bounds.east, self.lng),
+  }
+}
