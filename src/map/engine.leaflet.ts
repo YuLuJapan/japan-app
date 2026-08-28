@@ -10,7 +10,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { CreateMapEngine, MapEngine, MapView, SelfPosition } from './engine.types'
 import type { Bounds, MapPin } from './pins'
-import { categoryStyle } from './pins'
+import { categoryStyle, clusterSize } from './pins'
 import { MAX_TILE_ZOOM, TILE_ATTRIBUTION, TILE_ATTRIBUTION_URL, TILE_URL } from './tiles'
 
 /** Room around the outermost pins, so none of them sits on the screen edge. */
@@ -36,6 +36,42 @@ const pinIcon = (pin: MapPin) =>
     iconSize: [16, 16],
     iconAnchor: [8, 8],
   })
+
+/**
+ * A city at the trip scale, in 2c's vocabulary: a circle sized by how much is
+ * saved there, carrying the count, with a name pill beneath it.
+ *
+ * This is the treatment carried forward from the reverted PR #93 — the part of
+ * it that was right. What is *not* carried forward is its `projectStops`, which
+ * mapped lat/lng onto a percentage field because that build had no tiles
+ * underneath. Here Leaflet owns the projection, and a hand-rolled linear one
+ * would fight it.
+ */
+const clusterIcon = (pin: MapPin) => {
+  const size = clusterSize(pin.count ?? 0)
+  return L.divIcon({
+    className: '',
+    html:
+      `<span class="flex flex-col items-center" style="width:${size}px">` +
+      `<span class="flex items-center justify-center rounded-full bg-ink font-display font-bold text-white shadow-pop" ` +
+      `style="width:${size}px;height:${size}px">${pin.count ?? 0}</span>` +
+      `<span class="mt-1 whitespace-nowrap rounded-full bg-white px-2 py-0.5 text-xs font-bold shadow-card">${escapeHtml(
+        pin.name
+      )}</span>` +
+      `</span>`,
+    // Anchored on the circle rather than the whole stack, so the pill hangs
+    // below the point instead of shifting the city off it.
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  })
+}
+
+/** A city name reaches the DOM as markup here, and a trip is user-typed. */
+const escapeHtml = (value: string) =>
+  value.replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string
+  )
 
 /** "You", and never mistakable for a place. */
 const selfIcon = () =>
@@ -80,7 +116,12 @@ export const createEngine: CreateMapEngine = (): MapEngine => {
       if (!map || !layer) return
       layer.clearLayers()
       for (const pin of pins) {
-        L.marker([pin.lat, pin.lng], { icon: pinIcon(pin), title: pin.name })
+        // One shape, two vocabularies: a place is a category disc, a city is a
+        // counted cluster. `count` is what the scale put there.
+        L.marker([pin.lat, pin.lng], {
+          icon: pin.count === undefined ? pinIcon(pin) : clusterIcon(pin),
+          title: pin.name,
+        })
           .on('click', () => handler(pin.id))
           .addTo(layer)
       }

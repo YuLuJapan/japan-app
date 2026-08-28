@@ -17,9 +17,9 @@
 // coordinates, or the whole trip's. Left to the component it would have been
 // the fifth difference, and the first `if`.
 import type { Bounds, MapPin } from './pins'
-import { boundsOf, toPins } from './pins'
+import { boundsOf, missingPlaces, toPins } from './pins'
 import type { MapView } from './engine.types'
-import { CATEGORY_META, type Category, type PlaceListItem } from '../api/types'
+import { CATEGORY_META, type Category, type PlaceListItem, type TripStep } from '../api/types'
 
 /**
  * One row of the sheet's card row, at either scale.
@@ -61,6 +61,14 @@ export interface MapScope {
   view: MapView
   /** One card per pin, in the same order. */
   cards: MapCard[]
+  /**
+   * Exactly what this scale could not put on the map, for US5's line to state
+   * and list (FR-019, FR-020). Empty at the trip scale, where a pin is a city
+   * and every stop is either located or not a stop the map claims to show —
+   * which is what keeps the page from asking which scale it is on to decide
+   * whether to render the line at all.
+   */
+  missing: PlaceListItem[]
   /** What to say when `pins` is empty. Only ever read then. */
   emptyMessage: string
   onPinTap: (id: string) => void
@@ -109,6 +117,7 @@ export function zoneScope({
     // is a row that scrolls to nothing. The ones without a location are
     // counted and listed by `MissingPlaces` instead (FR-019).
     cards: places.filter((p) => located.has(p.id)).map((p) => placeCard(p, zone.name)),
+    missing: missingPlaces(places),
     emptyMessage: places.length
       ? `Nothing saved in ${zone.name} has a location yet.`
       : `Nothing saved in ${zone.name} yet.`,
@@ -130,3 +139,103 @@ const placeCard = (place: PlaceListItem, zoneName: string): MapCard => ({
     lng: place.lng ?? null,
   },
 })
+
+/** The whole trip, once a map has been asked to show it. Overridden by `bounds`. */
+const COUNTRY_ZOOM = 6
+
+/**
+ * The whole journey: one pin per city, in the order the trip visits them.
+ *
+ * Fed entirely from the trip bundle's `steps[].zone`, which already carries
+ * every zone row with its coordinates — so this scale needs **no request of its
+ * own** and worked on day one, before a single place had been located
+ * (contracts §2).
+ *
+ * **It does not plot individual places, deliberately** (FR-008): the trip spans
+ * roughly 500km, and at a zoom that fits it on a phone every place in a city
+ * lands within a few pixels of every other. Tapping a city switches the page to
+ * that city's `zoneScope`, which is the second of the two taps every place
+ * stays behind.
+ *
+ * A city with no coordinates is dropped from the pins rather than pinned at
+ * (0, 0) — the same rule `toPins` applies to places, for the same reason.
+ */
+export function tripScope({
+  steps,
+  onPinTap,
+}: {
+  steps: TripStep[]
+  onPinTap: (zoneId: string) => void
+}): MapScope {
+  const zones = steps
+    .map((step) => step.zone)
+    .filter((zone): zone is NonNullable<TripStep['zone']> => zone !== null)
+  const byId = new Map(zones.map((zone) => [zone.id, zone]))
+  const pins = toPins(
+    zones.map((zone) => ({
+      id: zone.id,
+      name: zone.name,
+      // Every zone pin is drawn as a counted cluster rather than by category,
+      // so the category here is only what keeps the shape one shape.
+      category: 'other' as Category,
+      name_ja: null,
+      summary_line: '',
+      address: null,
+      lat: zone.lat ?? null,
+      lng: zone.lng ?? null,
+    }))
+    // By id, not by index: `toPins` drops the cities with no coordinates, so
+    // the two arrays stop lining up exactly where it matters most.
+  ).map((pin) => ({ ...pin, count: savedIn(byId.get(pin.id) ?? {}) }))
+  const located = new Set(pins.map((p) => p.id))
+  return {
+    kind: 'trip',
+    pins,
+    bounds: boundsOf(pins),
+    view: viewOf(zones[0] ?? {}, COUNTRY_ZOOM),
+    cards: zones.filter((z) => located.has(z.id)).map(cityCard),
+    missing: [],
+    emptyMessage: zones.length
+      ? 'None of this trip’s stops has a location yet.'
+      : 'This trip has no stops yet.',
+    onPinTap,
+  }
+}
+
+/** How much is saved in a city — the number its cluster carries. */
+export const savedIn = (zone: { place_counts?: Record<Category, number> }): number =>
+  Object.values(zone.place_counts ?? {}).reduce((total, n) => total + n, 0)
+
+/** A city, as the trip scale's card row draws it. */
+const cityCard = (zone: NonNullable<TripStep['zone']>): MapCard => {
+  const saved = savedIn(zone)
+  return {
+    id: zone.id,
+    title: zone.name,
+    subtitle: `${saved} saved`,
+    // No dot: at this scale the pin itself is a counted circle, and a category
+    // swatch beside a whole city would be claiming something untrue.
+    dot: null,
+  }
+}
+
+/**
+ * Which city the map opens on: the current journey step's zone, the next one
+ * before the trip starts, and the first when there is no answer either way
+ * (FR-008).
+ *
+ * A pure function of the steps and today's date, so the rule is testable
+ * without a clock, a router or a render. Dates are compared as the `YYYY-MM-DD`
+ * strings they are stored as — the same comparison every other range rule in
+ * the app makes, and one that has no timezone in it to get wrong.
+ */
+export function defaultZoneId(steps: TripStep[], today: string): string | null {
+  const withZone = steps.filter((step) => step.zone).sort((a, b) => a.position - b.position)
+  if (!withZone.length) return null
+  const current = withZone.find((s) => s.start_date <= today && today <= s.end_date)
+  if (current) return current.zone!.id
+  const next = withZone.find((s) => s.start_date > today)
+  // Past the end of the trip there is no "next", and the first stop is the one
+  // the journey is still told from.
+  return (next ?? withZone[0]).zone!.id
+}

@@ -24,6 +24,13 @@ export interface MapPin {
   /** Never null — a pin cannot exist without a location. */
   lat: number
   lng: number
+  /**
+   * How much is saved here, when a pin stands for a city rather than a place.
+   * Present only at the trip scale, where the pin is a counted cluster (2c's
+   * treatment, carried forward from the reverted PR #93 — its visual answer
+   * was right; its hand-rolled projection was not, because Leaflet owns that).
+   */
+  count?: number
 }
 
 /** A box to frame, in the only two axes a map has. */
@@ -75,6 +82,22 @@ export function boundsOf(pins: MapPin[]): Bounds | null {
     east: Math.max(...lngs),
   }
 }
+
+/** The smallest and largest a city cluster gets, in CSS pixels. */
+const CLUSTER_MIN_PX = 34
+const CLUSTER_STEP_PX = 2
+const CLUSTER_CAP = 12
+
+/**
+ * How big a city's circle is: "sized by how much is saved there", which is the
+ * one thing the trip scale says that a list of names does not.
+ *
+ * Capped, because the difference between 20 and 40 saved places is not worth a
+ * circle that covers the next city — and the number is written inside it
+ * anyway.
+ */
+export const clusterSize = (count: number): number =>
+  CLUSTER_MIN_PX + Math.min(Math.max(count, 0), CLUSTER_CAP) * CLUSTER_STEP_PX
 
 /** How a category is drawn, from the one table every other surface reads. */
 export const categoryStyle = (category: Category) => ({

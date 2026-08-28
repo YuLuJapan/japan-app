@@ -8,7 +8,8 @@
 //
 // It also never asks which scale it is on. `zoneScope` and `tripScope` return
 // one shape, so the page renders the same six elements either way (research
-// R6) — the only `scope.kind` in this file is the toggle itself.
+// R6) — the only `scope.kind` left in this file is the toggle that chooses a
+// scale, and the analytics event that reports which one was chosen.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTrip, useZonePlaces } from '../api/hooks'
 import { CATEGORIES, type Category } from '../api/types'
@@ -18,16 +19,29 @@ import { MapSheet } from '../components/map/MapSheet'
 import { MapTopBar, type MapScale } from '../components/map/MapTopBar'
 import { CategoryChips } from '../components/map/CategoryChips'
 import { LocateButton } from '../components/map/LocateButton'
+import { MissingPlaces } from '../components/map/MissingPlaces'
 import { PlaceCardRow } from '../components/map/PlaceCardRow'
-import { zoneScope } from '../map/scope'
-import { framedWith, missingCount } from '../map/pins'
+import { defaultZoneId, tripScope, zoneScope } from '../map/scope'
+import { framedWith } from '../map/pins'
 import type { MapEngine } from '../map/engine.types'
 import { positionMessage, requestPosition, shouldAsk, type PositionState } from '../lib/geolocation'
 import { capture } from '../lib/posthog'
+import { useCanEdit } from '../lib/session'
 import { useTripId } from '../lib/trip'
+
+/**
+ * Today, as the `YYYY-MM-DD` string every date in this app is stored as, in the
+ * phone's own zone rather than UTC — a traveller in Tokyo at 8am is not still
+ * on yesterday's step.
+ */
+const today = () => {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+}
 
 export default function TripMap() {
   const tripId = useTripId()
+  const canEdit = useCanEdit()
   const trip = useTrip(tripId)
   const steps = useMemo(() => trip.data?.steps ?? [], [trip.data])
 
@@ -40,14 +54,16 @@ export default function TripMap() {
   const [position, setPosition] = useState<PositionState>({ status: 'idle' })
   const engine = useRef<MapEngine | null>(null)
 
-  // Which city the map opens on. The trip bundle already carries every step's
-  // whole zone, coordinates included, so this costs no request (contracts §2).
-  const openOn = steps.find((s) => s.zone)?.zone ?? null
+  // Which city the map opens on: the current or next journey step's zone
+  // (FR-008), decided by a pure function of the steps and today's date. The
+  // trip bundle already carries every step's whole zone, coordinates included,
+  // so both scales cost no request of their own (contracts §2).
+  const opensOn = useMemo(() => defaultZoneId(steps, today()), [steps])
   useEffect(() => {
-    if (!zoneId && openOn) setZoneId(openOn.id)
-  }, [zoneId, openOn])
+    if (!zoneId && opensOn) setZoneId(opensOn)
+  }, [zoneId, opensOn])
 
-  const zone = steps.map((s) => s.zone).find((z) => z?.id === zoneId) ?? openOn
+  const zone = steps.map((s) => s.zone).find((z) => z?.id === (zoneId || opensOn)) ?? null
   const places = useZonePlaces(zoneId, '' as Category)
   const all = useMemo(() => places.data?.places ?? [], [places.data])
 
@@ -63,15 +79,22 @@ export default function TripMap() {
   // handler is reached through a ref rather than rebuilding every scope (and
   // with it every pin) whenever a selection changes.
   const selectRef = useRef<(id: string) => void>(() => undefined)
+  const openZoneRef = useRef<(zoneId: string) => void>(() => undefined)
 
+  // **The only place in this file that knows there are two scales.** Both
+  // functions return one shape, so everything below renders identically and
+  // never asks which one it has (research R6) — an `if (scope.kind === …)`
+  // anywhere else would mean the strategy had leaked.
   const scope = useMemo(
     () =>
-      zoneScope({
-        zone: zone ?? { name: 'this trip', lat: null, lng: null },
-        places: shown,
-        onPinTap: (id) => selectRef.current(id),
-      }),
-    [zone, shown]
+      scale === 'trip'
+        ? tripScope({ steps, onPinTap: (id) => openZoneRef.current(id) })
+        : zoneScope({
+            zone: zone ?? { name: 'this trip', lat: null, lng: null },
+            places: shown,
+            onPinTap: (id) => selectRef.current(id),
+          }),
+    [scale, steps, zone, shown]
   )
 
   // Tapping a pin and tapping a card are the same event, so they are one
@@ -83,11 +106,28 @@ export default function TripMap() {
     if (card?.place) capture('map_pin_opened', { category: card.place.category })
   }
 
-  // The engine's own handler reads through the ref, so a new selection never
+  // Tapping a city at the trip scale drops into that city's places, which is
+  // the second of the two taps every saved place stays behind (FR-009). No new
+  // request: the zone response is already in the query cache for a city the
+  // traveller has opened, and one fetch away for one they have not.
+  const openZone = (nextZoneId: string) => {
+    setZoneId(nextZoneId)
+    setSelectedId(null)
+    setScale('zone')
+  }
+
+  // The engine's own handlers read through refs, so a new selection never
   // rebuilds the scope — and never redraws every pin to expand one card.
   selectRef.current = select
+  openZoneRef.current = openZone
 
-  const missing = missingCount(shown)
+  // Over the *shown* places, not over every place in the zone: the identity
+  // that makes the number honest is `pins on screen + missing = what this
+  // member can see in this view` (SC-004), and a filtered view is still a view.
+  // The hidden-stay case takes care of itself — a withheld stay was never sent,
+  // so it is in neither half. Both halves come from the scope, built from one
+  // array in one pass, so they cannot drift.
+  const missing = scope.missing.length
   // Narrowed to what the engine draws, rather than handing the state object
   // over: `status` is the page's business and a marker has no use for it.
   const self =
@@ -177,6 +217,7 @@ export default function TripMap() {
         {scope.pins.length === 0 && (
           <p className="px-4 py-3 text-sm text-muted">{scope.emptyMessage}</p>
         )}
+        <MissingPlaces places={scope.missing} tripId={tripId} canEdit={canEdit} />
         {/* A refusal is a line, not an error screen: the map is fully usable
             without a position and saying otherwise would be theatre (FR-024). */}
         {positionMessage(position) && (
