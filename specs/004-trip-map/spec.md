@@ -136,7 +136,7 @@ A traveller wants to be told when a saved place has no location yet, so the map 
 #### The map
 
 - **FR-007**: The system MUST offer a map of the places saved in a single zone, showing one pin per located place, distinguished by category, framed so that every pin is visible when the map opens.
-- **FR-008**: The map MUST open by default on the zone of the trip's current or next journey step, and MUST offer a whole-trip view showing one pin per zone.
+- **FR-008**: The map MUST open by default on the zone of the trip's current or next journey step, and MUST offer a whole-trip view showing one pin per zone. **The whole-trip view MUST NOT plot individual places.** Deliberate: the trip spans roughly 500km, and at a zoom that fits it on a phone every place in a city lands within a few pixels of every other, so a single map of all of them is one unreadable, untappable mass. Every saved place stays two taps away — city, then place — and no screen shows all of them at once.
 - **FR-009**: From the whole-trip view, selecting a zone MUST move the map to that zone's places.
 - **FR-010**: The traveller MUST be able to show and hide each place category independently, and only the categories actually present in the current view MUST be offered.
 - **FR-011**: Selecting a pin MUST show a summary of that place — at least its name, category and address — without leaving the map, and MUST offer both a route to that place's own screen and a route to an external maps application with that place as the destination.
@@ -200,5 +200,6 @@ A traveller wants to be told when a saved place has no location yet, so the map 
 - Free map imagery is available under terms requiring attribution and forbidding bulk pre-fetching; no paid mapping account is introduced, in keeping with the project's zero-cost constraint.
 - Turn-by-turn navigation stays with the external maps app the traveller already uses; the app's map is for overview and does not attempt routing.
 - The trip's journey steps and dates are sufficient to decide which zone is "current or next"; where the trip has not started, the first step is used.
+- **Not a goal: one map of every saved place across every city.** Considered and declined with the user — see FR-008. Should it ever be wanted, it needs pin clustering to be readable at trip scale, and a way to fetch every zone's places at once, which the endpoints deliberately do not offer today.
 - The existing place edit screen is the single place a location is set or corrected, both for new places and for fixing a bad backfill result.
 - Flag behaviour follows the app's existing rule: the default applies when no answer has arrived, so the map is invisible on a device's first run until flags load. **The code default stays `false` permanently — decided rather than deferred: the map appears only where `show-map` has been turned on explicitly in PostHog, and no later change flips the default to `true`.** The consequences are accepted: the map is invisible in local dev and on any deploy without analytics configured, and a device that never receives flags never sees the tab.
