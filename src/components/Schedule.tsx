@@ -70,36 +70,39 @@ export function Schedule({ steps, items, days, today, mode, zoneId, tripId }: Pr
         today={today}
         hasItems={dayHasItems}
         isMoving={isMovingDay}
+        // A city screen has less to say per day and sits under a shorter hero,
+        // so its rail is drawn one size down (design option 1g).
+        size={mode === 'zone' ? 'sm' : 'md'}
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <p className="font-display text-lg font-bold">{fmtDayLong(day)}</p>
+        <p className="font-display text-base font-bold tracking-tight">{fmtDayLong(day)}</p>
         {mode === 'trip' &&
           zones.map((z, i) => (
             <span key={z.id} className="flex items-center gap-2">
               {i > 0 && <span className="text-muted">→</span>}
               <Link
                 to={`/trips/${tripId}/zones/${z.id}`}
-                className="chip bg-canvas font-bold text-ink"
+                className="chip bg-sand font-bold text-ink"
               >
                 {z.name}
               </Link>
             </span>
           ))}
         {mode === 'trip' && isTravelDay(steps, day) && (
-          <span className="chip bg-amber-100 text-amber-700">Travel day</span>
+          <span className="chip bg-market-tint text-market">✈ Travel day</span>
         )}
         {/* On a city page the shared checkout/arrival day is easy to miss — say where
             the day goes, and link the other city so you can flip between the two. */}
         {moving && (
           <span className="flex flex-wrap items-center gap-2">
-            <span className="chip bg-amber-100 text-amber-700" data-testid="moving-day-chip">
-              Moving day
+            <span className="chip bg-market-tint text-market" data-testid="moving-day-chip">
+              ✈ Moving day
             </span>
             {moving.from && (
               <Link
                 to={`/trips/${tripId}/zones/${moving.from.id}`}
-                className="chip bg-canvas font-bold text-ink"
+                className="chip bg-sand font-bold text-ink"
               >
                 {moving.from.name} →
               </Link>
@@ -107,7 +110,7 @@ export function Schedule({ steps, items, days, today, mode, zoneId, tripId }: Pr
             {moving.to && (
               <Link
                 to={`/trips/${tripId}/zones/${moving.to.id}`}
-                className="chip bg-canvas font-bold text-ink"
+                className="chip bg-sand font-bold text-ink"
               >
                 → {moving.to.name}
               </Link>
