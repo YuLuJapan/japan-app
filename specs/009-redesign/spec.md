@@ -22,9 +22,16 @@ option each one is.
 | City   | **1g**                                      | —                                                                                        |
 
 The same design file explores three **map** arrangements (2a / 2b / 2c). None is
-built here — the map is [004 · Map](https://lkirsmans-team-company.monday.com/boards/5103092435/pulses/3191900327),
-it has its own foundational blocker (no place has coordinates yet), and its
-direction is still an open pick.
+built here — the map is [spec 004](../004-trip-map/spec.md), which has since
+picked **2a** and planned itself independently.
+
+The two specs meet at one table. `004/plan.md` notes that it ships on stock
+Tailwind hues and gives `CATEGORY_META` a `dot` field for the solid pin fill,
+"until spec 009 re-lands" its palette — at which point one edit to that table
+recolours the map, its chips and its legend together. **This spec is that
+re-landing**: it adds the same `dot` field and the real category colours, so
+whichever of the two merges second inherits the other's half rather than
+needing a follow-up.
 
 ## Scope
 
