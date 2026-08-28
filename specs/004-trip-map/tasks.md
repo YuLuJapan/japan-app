@@ -92,16 +92,16 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 
 ### Tests
 
-- [ ] T020 [P] [US1] Write `src/tests/pins.test.ts` for the pure projection: `toPins` drops places with a null `lat` or `lng`, `missingCount` counts exactly those, `pins.length + missingCount === places.length` for a mixed array (SC-004), and `boundsOf` frames every pin and returns `null` for an empty list. Fails until T023.
-- [ ] T021 [P] [US1] Write `src/tests/nav-labels.test.ts`: five tabs or fewer yield today's labels; six yield the short set. Fails until T026.
+- [X] T020 [P] [US1] Write `src/tests/pins.test.ts` for the pure projection: `toPins` drops places with a null `lat` or `lng`, `missingCount` counts exactly those, `pins.length + missingCount === places.length` for a mixed array (SC-004), and `boundsOf` frames every pin and returns `null` for an empty list. Fails until T023.
+- [X] T021 [P] [US1] Write `src/tests/nav-labels.test.ts`: five tabs or fewer yield today's labels; six yield the short set. Fails until T026.
 - [ ] T022 [P] [US1] Write `server/tests/map-pins.test.ts` asserting the FR-016 guarantee on the response body of `GET /api/trips/:tripId/zones/:zoneId/places` **with no `category`**: an owner receives hotels; a viewer with `can_see_stays: false` receives none, and a non-member receives 404. **This passes immediately** — it locks in behaviour `listZonePlaces` already has, so that a later refactor cannot quietly remove it (research R1).
 
 ### Implementation — the pure core
 
-- [ ] T023 [US1] Create `src/map/pins.ts`: `toPins(places)`, `missingCount(places)`, `boundsOf(pins)`, `categoryStyle(category)`. Pure, no React, no Leaflet. `toPins` and `missingCount` walk the same array so the two counts cannot drift (data-model → `MapPin`).
+- [X] T023 [US1] Create `src/map/pins.ts`: `toPins(places)`, `missingCount(places)`, `boundsOf(pins)`, `categoryStyle(category)`. Pure, no React, no Leaflet. `toPins` and `missingCount` walk the same array so the two counts cannot drift (data-model → `MapPin`).
 - [ ] T024 [P] [US1] Create `src/map/scope.ts` with `zoneScope(...)` returning `{ kind: 'zone', pins, bounds, emptyMessage, onPinTap }`. `tripScope` arrives in US4 — the shape exists now so the page never learns to branch on scale (research R6).
 - [ ] T025 [P] [US1] Create `src/map/tiles.ts` holding the OSM tile URL template and the attribution string, exported once. FR-013 makes attribution a condition of using the tiles at all, and a string duplicated across components is one that gets deleted from the wrong one.
-- [ ] T026 [P] [US1] Create `src/lib/nav-labels.ts`: `navLabels(tabCount)` returns the current labels at five or fewer and the short set (Alerts, Info, Docs) at six. **Shortening is a function of the count, not a separate change** — that is what makes turning the flag off a total rollback (research R8).
+- [X] T026 [P] [US1] Create `src/lib/nav-labels.ts`: `navLabels(tabCount)` returns the current labels at five or fewer and the short set (Alerts, Info, Docs) at six. **Shortening is a function of the count, not a separate change** — that is what makes turning the flag off a total rollback (research R8).
 
 ### Implementation — the engine boundary
 
@@ -113,7 +113,7 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 ### Implementation — the screen
 
 - [ ] T031 [US1] Add a `bleed` mode to `src/components/Layout.tsx` that drops `px-5 pt-1` from `<main>` for one route, so a page can reach the screen edges. The header stays; the fixed bottom nav stays; the map's sheet rests on top of it. **Do not cancel the padding with negative margins** — that hard-codes the value in a second place (plan → Complexity Tracking).
-- [ ] T032 [P] [US1] Add a `dot` field to `CATEGORY_META` in `src/api/types.ts` using **stock Tailwind classes** (`bg-violet-500`, `bg-sky-500`, `bg-amber-500`, `bg-pink-500`, `bg-emerald-500`). **No `tailwind.config.ts` change.** Every pin, chip, legend swatch and card dot reads from this table, so re-landing spec 009's palette later recolours the map in one edit (research R12).
+- [X] T032 [P] [US1] Add a `dot` field to `CATEGORY_META` in `src/api/types.ts` using **stock Tailwind classes** (`bg-violet-500`, `bg-sky-500`, `bg-amber-500`, `bg-pink-500`, `bg-emerald-500`). **No `tailwind.config.ts` change.** Every pin, chip, legend swatch and card dot reads from this table, so re-landing spec 009's palette later recolours the map in one edit (research R12).
 - [ ] T033 [US1] Create `src/components/map/MapCanvas.tsx`: dynamically imports `engine.leaflet`, mounts it **full-bleed** inside the `bleed` layout, and renders the offline fallback — the sheet expanded to full height with the card row as a vertical list and the explanation above it (FR-026, research R11). Never a grey square, never a bare spinner.
 - [ ] T034 [P] [US1] Create `src/components/map/MapTopBar.tsx` per `reference/map-2a-full-bleed-explore.png`: a white pill search field on the left routing to the existing `/search`, and a two-segment toggle on the right — active segment solid dark with white text, inactive white with dark text. **The segments read `City` and `Trip`, not `Day` and `Trip`** (research R13). The `Trip` segment is inert until US4; wire it there.
 - [ ] T035 [P] [US1] Create `src/components/map/MapLegend.tsx`: the small floating white card over the map's right side, one `CATEGORY_META.dot` swatch and label per category present. Hidden for a category the caller's view withholds (FR-017).

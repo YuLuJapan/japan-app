@@ -2,25 +2,57 @@
 export const CATEGORIES = ['hotel', 'attraction', 'food', 'shopping', 'other'] as const
 export type Category = (typeof CATEGORIES)[number]
 
+/**
+ * One table per category, and every surface reads it.
+ *
+ * `color` is the tint pair a chip or a badge wears; `dot` is the solid fill a
+ * map pin, a legend swatch and a place card's dot need. Both are **stock
+ * Tailwind classes on purpose** — no `tailwind.config.ts` token (research
+ * R12). The reference renders for the map were drawn against the redesign
+ * palette that arrived with PR #93 and left with its revert in #94, so the
+ * map's hues will not match its render until spec 009 re-lands. Because no map
+ * file names a colour, re-landing that palette is one edit here and recolours
+ * the pins, the chips, the legend and the cards together.
+ */
 export const CATEGORY_META: Record<
   Category,
-  { label: string; singular: string; icon: string; color: string }
+  { label: string; singular: string; icon: string; color: string; dot: string }
 > = {
-  hotel: { label: 'Stays', singular: 'Stay', icon: '🛏️', color: 'bg-violet-100 text-violet-700' },
+  hotel: {
+    label: 'Stays',
+    singular: 'Stay',
+    icon: '🛏️',
+    color: 'bg-violet-100 text-violet-700',
+    dot: 'bg-violet-500',
+  },
   attraction: {
     label: 'Things to do',
     singular: 'Attraction',
     icon: '📸',
     color: 'bg-sky-100 text-sky-700',
+    dot: 'bg-sky-500',
   },
   food: {
     label: 'Food & Cafés',
     singular: 'Food spot',
     icon: '🍜',
     color: 'bg-amber-100 text-amber-700',
+    dot: 'bg-amber-500',
   },
-  shopping: { label: 'Shopping', singular: 'Shop', icon: '🛍️', color: 'bg-pink-100 text-pink-700' },
-  other: { label: 'More', singular: 'Place', icon: '📍', color: 'bg-emerald-100 text-emerald-700' },
+  shopping: {
+    label: 'Shopping',
+    singular: 'Shop',
+    icon: '🛍️',
+    color: 'bg-pink-100 text-pink-700',
+    dot: 'bg-pink-500',
+  },
+  other: {
+    label: 'More',
+    singular: 'Place',
+    icon: '📍',
+    color: 'bg-emerald-100 text-emerald-700',
+    dot: 'bg-emerald-500',
+  },
 }
 
 /** A free-text traveller on a trip — not a linked account. `email` is optional and only
