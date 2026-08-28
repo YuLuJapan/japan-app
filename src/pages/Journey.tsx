@@ -39,10 +39,6 @@ export default function Journey() {
    * gated on the destination either way, because it is a Japan artwork.
    */
   const sushiHero = useBooleanFlag('journey-sushi-hero', false)
-  // Defaults on — see RequireMap in router.tsx. Gated here as well as on the
-  // route so turning the flag off takes the link away too, rather than leaving
-  // one that redirects straight back.
-  const canMap = useBooleanFlag('trip-map', true)
   // Warms the export payloads so the file can still be made on a train
   // (research R4). Called before the early returns below, because a hook has
   // to be — and it costs nothing while the trip itself is still loading.
@@ -135,11 +131,6 @@ export default function Journey() {
                 {canExport && (
                   <Link to={`/trips/${tripId}/export`} className="text-xs font-bold text-brand">
                     Export
-                  </Link>
-                )}
-                {canMap && (
-                  <Link to={`/trips/${tripId}/map`} className="text-xs font-bold text-brand">
-                    Map
                   </Link>
                 )}
                 {canEdit ? (
