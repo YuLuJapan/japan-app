@@ -9,6 +9,7 @@ import { JourneyStepsSlider } from '../components/JourneyStepsSlider'
 import { Loading } from '../components/Loading'
 import { Schedule } from '../components/Schedule'
 import { SushiSequence } from '../components/SushiSequence'
+import { useBooleanFlag } from '../lib/flags'
 import { enumerateDays, toISODate } from '../lib/schedule'
 import { useCanEdit, useTripShows } from '../lib/session'
 import { useTripId } from '../lib/trip'
@@ -33,10 +34,14 @@ export default function Journey() {
   const tripId = useTripId()
   const { data, isPending, isError, refetch } = useTrip(tripId)
   const itinerary = useItinerary(tripId)
+  const canExport = useBooleanFlag('export-trip', false)
   // Warms the export payloads so the file can still be made on a train
   // (research R4). Called before the early returns below, because a hook has
   // to be — and it costs nothing while the trip itself is still loading.
-  useTripExportPrefetch(tripId)
+  // Follows the flag: there is no sense warming a payload for a screen nobody
+  // can open, and when the flag arrives late the hook re-runs and warms it
+  // then.
+  useTripExportPrefetch(tripId, canExport)
 
   if (isPending) return <Loading label="Loading the journey…" />
   if (isError) return <ErrorState message="Could not load the trip." onRetry={() => refetch()} />
@@ -98,9 +103,11 @@ export default function Journey() {
               <div className="flex items-center gap-3">
                 {/* Everyone on the trip can export it, viewers included: the
                     file is a subset of what they are already looking at. */}
-                <Link to={`/trips/${tripId}/export`} className="text-sm font-bold text-brand">
-                  Export
-                </Link>
+                {canExport && (
+                  <Link to={`/trips/${tripId}/export`} className="text-sm font-bold text-brand">
+                    Export
+                  </Link>
+                )}
                 <span className="text-xs text-muted">swipe →</span>
                 {canEdit && (
                   <Link

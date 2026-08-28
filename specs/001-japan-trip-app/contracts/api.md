@@ -711,6 +711,11 @@ linking to one (the row survives, its link does not), and the stay is out of `st
 `stats.included_stays` is `false` — the one place the response admits a view was applied at all, and a
 property of the export rather than a hint about any particular place. Nothing states what was withheld.
 
+**Client-side rollout:** the UI for this sits behind the `export-trip` PostHog flag (`src/lib/flags.ts`),
+defaulting off — it gates the trip-home link, the `/trips/:tripId/export` route and the payload prefetch.
+The endpoint itself is always live, the same arrangement as `files-rename`: a flag is a rollout control, not
+an access control, and gating the route would only add a way for a correctly-authorised request to fail.
+
 **Caching.** An ordinary `GET` under `/api`, so the service worker's `NetworkFirst` rule applies: fresh when
 online, last known when not. No `Cache-Control` beyond the app default and no ETag — the payload is small
 and always cheap to rebuild. Offline export therefore depends on the payload having been fetched once, which

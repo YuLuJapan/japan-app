@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Navigate, Outlet, createBrowserRouter, useParams } from 'react-router-dom'
 import { getAccessCode } from './api/client'
+import { useBooleanFlag } from './lib/flags'
 import { setTripContext, tripContext } from './lib/posthog'
 import { Layout } from './components/Layout'
 import { useTrip } from './api/hooks'
@@ -90,6 +91,27 @@ function RequireOwner() {
 }
 
 /**
+ * The export, while it is rolling out.
+ *
+ * `export-trip` defaults **off**, the same way `files-rename` does: a flag is
+ * a rollout control, so the code carries it before PostHog does and deleting
+ * it there can never take a screen down. It gates the *entry points* only —
+ * the endpoint stays live, because gating a route would add a way for a
+ * correctly-authorised request to fail without protecting anything.
+ *
+ * This catches the ways in that are not the button: a bookmark, a pasted link,
+ * a back button into a session where the flag has since gone off.
+ */
+export function RequireExport() {
+  const { tripId } = useParams<{ tripId: string }>()
+  return useBooleanFlag('export-trip', false) ? (
+    <Outlet />
+  ) : (
+    <Navigate to={`/trips/${tripId}`} replace />
+  )
+}
+
+/**
  * The shopping section, when this trip shares it with you. The tab is already
  * gone from the nav; this catches the other ways in — a bookmark, a link
  * somebody pasted — so they land on the journey rather than on an error the
@@ -136,7 +158,7 @@ export const router = createBrowserRouter([
           { path: 'essentials', element: <TripEssentials /> },
           // Every member may export, viewers included (FR-007) — the file is a
           // subset of what they already see, so this sits outside RequireOwner.
-          { path: 'export', element: <TripExport /> },
+          { element: <RequireExport />, children: [{ path: 'export', element: <TripExport /> }] },
 
           // Everyone on the trip can see who else is on it; the screen itself
           // offers the owner-only controls only to an owner, and a viewer-only
