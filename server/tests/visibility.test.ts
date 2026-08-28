@@ -86,6 +86,30 @@ describe('stays', () => {
     const zone = await request(app).get('/api/trips/trip-1/zones/zone-tokyo').set(viewer)
     expect(zone.body.place_counts.hotel).toBe(1)
   })
+
+  // The day plan tags each activity with the category of the place it links to.
+  // That tag has to disappear with the link, or a withheld stay would announce
+  // itself from the plan as "Stays" instead of from a page that answers 403.
+  it('takes the day plan’s category tag away with the link', async () => {
+    await asViewer({ stays: false })
+    const res = await request(app).get('/api/trips/trip-1/itinerary').set(viewer)
+    const ryokan = res.body.items.find((i: { id: string }) => i.id === 'itin-ryokan')
+
+    expect(ryokan.title).toBe('Check into the ryokan')
+    expect(ryokan.place_id).toBeNull()
+    expect(ryokan.place_category).toBeNull()
+
+    // An activity pointing at something they may see keeps its tag.
+    const ramen = res.body.items.find((i: { id: string }) => i.id === 'itin-ramen')
+    expect(ramen.place_category).toBe('food')
+  })
+
+  it('tags the stay for a caller who can see stays', async () => {
+    await asViewer({ stays: true })
+    const res = await request(app).get('/api/trips/trip-1/itinerary').set(viewer)
+    const ryokan = res.body.items.find((i: { id: string }) => i.id === 'itin-ryokan')
+    expect(ryokan.place_category).toBe('hotel')
+  })
 })
 
 describe('flight', () => {
@@ -117,6 +141,23 @@ describe('documents', () => {
     const list = await request(app).get('/api/trips/trip-1/files').set(viewer)
     expect(list.body.files.length).toBeGreaterThan(0)
     await request(app).get('/api/trips/trip-1/files/file-trip/content').set(viewer).expect(200)
+  })
+
+  // A file name is a document. The plan's attachment tag names one, so it is
+  // gated on the same flag the documents section is — otherwise a withheld
+  // attachment would still announce itself from the day plan.
+  it('drops the day plan’s attachment tags', async () => {
+    await asViewer({ documents: false })
+    const res = await request(app).get('/api/trips/trip-1/itinerary').set(viewer)
+    const ramen = res.body.items.find((i: { id: string }) => i.id === 'itin-ramen')
+    expect(ramen.place_files).toEqual([])
+  })
+
+  it('names them when documents are shared', async () => {
+    await asViewer({ documents: true })
+    const res = await request(app).get('/api/trips/trip-1/itinerary').set(viewer)
+    const ramen = res.body.items.find((i: { id: string }) => i.id === 'itin-ramen')
+    expect(ramen.place_files).toEqual(['Menu photo'])
   })
 })
 

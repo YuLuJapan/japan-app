@@ -120,7 +120,8 @@ Base URL: `/api` (Express app behind one Vercel serverless function). All bodies
   - `place_counts.hotel` is always `0`, in zone detail and in the `steps[].zone` summaries of the trip bundle;
   - the trip bundle omits `flight` entirely (the key is absent, not `null`);
   - `GET /api/trips/:tripId/search` drops `hotel` places and any tip whose parent is one;
-  - itinerary items keep their `title`/`note` but come back with `place_id: null` when it pointed at a `hotel`;
+  - itinerary items keep their `title`/`note` but come back with `place_id: null` when it pointed at a `hotel` — and with `place_category: null`, so the tag cannot restate what the nulled link just withheld;
+  - itinerary items come back with `place_files: []` when `can_see_documents` is off;
   - anything under `/api/trips/:tripId/files` → `403 FORBIDDEN`, reads included, and the `files` array in zone/place responses comes back `[]`;
   - anything under `/api/trips/:tripId/shopping` → `403 FORBIDDEN`, reads included, when `can_see_shopping` is off.
 
@@ -390,8 +391,16 @@ An item's `day` must fall within its trip's own `start_date`/`end_date` — the 
 
 ### GET /api/itinerary
 
-- 200: `{"items":[{"id":"…","trip_id":"…","zone_id":"…","place_id":"…","day":"YYYY-MM-DD","start_time":"HH:MM"|null,"title":"…","note":"…"|null,"position":0,"highlight":false,"icon":"…"|null}]}`
+- 200: `{"items":[{"id":"…","trip_id":"…","zone_id":"…","place_id":"…","day":"YYYY-MM-DD","start_time":"HH:MM"|null,"title":"…","note":"…"|null,"position":0,"highlight":false,"icon":"…"|null,"place_category":"food"|null,"place_files":["Entry ticket.pdf"]}]}`
 - When the stays are withheld, an item that pointed at a `hotel` place comes back with `place_id: null` — the day still reads the same, it just doesn't link to a page that would answer 403.
+
+**`place_category` and `place_files` (2026-08-28 addition, redesign option 1g).** Two derived read-only fields describing the place an item links to, so the day plan can tag an activity with its category and with what is attached to it without a second request per item. They are computed per response and are **not** stored columns and **not** accepted on write — `POST`/`PATCH` ignore them, and the export's field policy (`server/src/lib/export-view.ts`) is keyed on the stored row, so neither reaches an exported file.
+
+They follow the visibility rules rather than being filtered separately:
+
+- both are `null`/`[]` for an item that links to no place;
+- `place_category` is `null` wherever `place_id` has been nulled — so a withheld stay cannot re-announce itself as a category tag;
+- `place_files` is always `[]` when `can_see_documents` is off, since a file name is a document.
 
 ### POST /api/itinerary
 

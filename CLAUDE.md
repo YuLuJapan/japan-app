@@ -14,7 +14,7 @@ npm run dev          # frontend on :3000 (Vite), API on :3001 (Express), run con
 npm run dev:web       # frontend only
 npm run dev:api       # API only (tsx watch server/dev.ts)
 
-npm test              # vitest run — both projects (web + server), 940 tests
+npm test              # vitest run — both projects (web + server), 970 tests
 npm run test:watch    # vitest watch mode
 npx vitest run server/tests/browse.test.ts        # single server test file
 npx vitest run src/tests/browse.test.tsx          # single web test file
@@ -110,6 +110,16 @@ On the client, `src/export/outline.ts` is the document one step before it is a f
 
 The whole feature sits behind the **`export-trip`** flag, defaulting off, exactly as `files-rename` does: it gates the trip-home link, the `/trips/:tripId/export` route (so a bookmark is closed too, not just the link) and the payload prefetch — but **not the endpoint**, because a flag is a rollout control rather than an access control and gating the route would only add a way for an authorised request to fail. Note the consequence of the default: with no `VITE_POSTHOG_PROJECT_TOKEN` there is no answer, so the flag reads off and the export is invisible in local dev and on any deploy without analytics. Flip the default in `src/pages/Journey.tsx` and `src/router.tsx` to work on it.
 
+**The redesign (2026-08-28, `Onward Redesign Options.dc.html`).** Two screens were rebuilt from the design's options **1e/1f** (trip) and **1g** (city), plus a new map screen from **2c**. Three things about it are load-bearing rather than cosmetic:
+
+- **`PhotoHero` is full-bleed by cancelling `<main>`'s padding** (`-mx-5 -mt-1`), so it must be the first thing on its page — nothing else in the app breaks out of that container. Its two-stop scrim is tuned so white text survives a bright photo; a trip has no image of its own, so the trip hero borrows the **first stop's zone photo** and falls back to `ZoneImage`'s gradient. The hero shows the _short_ label (`name || country`), not `display_title` — 40px extrabold over a photo cannot hold "Yuval and Luciana in Japan".
+- **The countdown opens collapsed.** `CountdownWidget` shows four numerals and one line; the booking reference and every leg are one tap in. The two directions are now **stacked, not swiped** — the old two-pane carousel hid the return flight behind an undiscoverable gesture.
+- **The sushi hero is behind `journey-sushi-hero`, defaulting off**, and still gated on the destination. Default off means local dev, a deploy without analytics and a phone with no signal all get the photo hero; turning the flag on puts the animation back on Japan trips. It is the only thing still rendering `HeroTitle`, so neither is dead code.
+
+The **map** (`src/pages/TripMap.tsx`, `trip-map` flag, defaulting **on** — a kill switch, not a rollout, unlike `export-trip`) is the design's _arrangement_ driven by real data, and deliberately not yet a map: there are no tiles under the clusters. `projectStops` already speaks lat/lng, so dropping a tile layer (Leaflet over OpenStreetMap — the choice that stays inside the free tiers) under the field is the next step and nothing above it has to change.
+
+**The day plan's tags are derived, never stored.** `listItinerary` adds `place_category` and `place_files` to each item from one sweep of `listAllPlaces`/`listAllFiles`, and only when some item actually links to a place — this is the trip screen's endpoint and it is read more than anything else in the app. They are **view fields, not columns**: the export's field policy is keyed on `keyof ItineraryItem`, so a stored column could not have been added without classifying it, and this way the export keeps projecting the row it already knows. They follow the existing visibility rules rather than adding new ones — `place_category` is null wherever `place_id` was nulled (a withheld stay must not re-announce itself as a category tag), and `place_files` is empty whenever `can_see_documents` is off (a file name is a document). Writes ignore both.
+
 **API contract source of truth:** `specs/001-japan-trip-app/contracts/api.md`. When adding/changing an endpoint, update this file too — it's not just historical documentation, it's referenced by both frontend and backend code comments.
 
 ## Conventions worth knowing
@@ -120,5 +130,5 @@ The whole feature sits behind the **`export-trip`** flag, defaulting off, exactl
 - `Partial<...>Input` + a `partial: boolean` flag is the standard shape for validating both POST (full) and PATCH (partial) bodies with one function.
 - Deleting a place reparents its files to the trip first (`reparentFilesToTrip`) — "no silent file loss" is a deliberate product rule, not an oversight; keep that in mind for any other delete-cascade logic.
 - Vitest is configured as two projects in one run (`vitest.config.ts`): `web` (jsdom, `src/tests/**/*.test.tsx`) and `server` (node, `server/tests/**/*.test.ts`). Server tests use `supertest` against `createApp()` with a fixture datastore; web tests use React Testing Library with helpers in `src/tests/helpers.tsx`.
-- Design system: Tailwind tokens in `tailwind.config.ts` (`canvas`/`ink`/`muted`/`line`/`brand`/`sun`/`ocean`, `Plus Jakarta Sans` font, capped `max-w-app` mobile-first container) — reuse these tokens rather than introducing new ad-hoc colors.
+- Design system: Tailwind tokens in `tailwind.config.ts` — surfaces (`canvas`/`ink`/`muted`/`line`/`brand`/`sun`/`ocean`/`leaf`), the redesign's warm neutral ramp (`sand`/`blush`/`stone`/`dust`/`faint`/`hush`/`slate`/`graphite`) and one colour pair per place category (`stay`/`sight`/`table`/`market`, each with a `.tint`). `Bricolage Grotesque` display + `Plus Jakarta Sans` body, capped `max-w-app` mobile-first container. Reuse these tokens rather than introducing new ad-hoc colors — in particular, a category's colour lives in `CATEGORY_META` (`src/api/types.ts`), which carries both the tinted pill (`color`) and the solid mark (`dot`), so a new surface showing categories picks them up rather than inventing a fifth palette.
 - Budget/infra constraint baked into product decisions: everything must fit free tiers (Vercel Hobby + Supabase Free, $0 target, $5 hard ceiling) — don't suggest paid services or infra.

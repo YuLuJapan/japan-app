@@ -3,10 +3,10 @@ import { useItinerary, useTrip, useTripExportPrefetch } from '../api/hooks'
 import { CountdownWidget } from '../components/CountdownWidget'
 import { ErrorState } from '../components/ErrorState'
 import { GenericCountdown } from '../components/GenericCountdown'
-import { HeroTitle } from '../components/HeroTitle'
 import { InstallBanner } from '../components/InstallPrompt'
 import { JourneyStepsSlider } from '../components/JourneyStepsSlider'
 import { Loading } from '../components/Loading'
+import { PhotoHero } from '../components/PhotoHero'
 import { Schedule } from '../components/Schedule'
 import { SushiSequence } from '../components/SushiSequence'
 import { useBooleanFlag } from '../lib/flags'
@@ -17,15 +17,9 @@ import { useTripId } from '../lib/trip'
 const fmt = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString('en', { month: 'short', day: 'numeric' })
 
-// Only the Japan trip has hero artwork — see the HEROES-equivalent note in the
-// design prototype. Any other trip skips the hero. Matches by word so "Japan
-// Solo" etc. still count.
-//
-// The flight is *not* gated this way any more: it used to be, because the only
-// booking in existence was seeded onto this one trip, so showing the card
-// anywhere else would only ever have shown an empty state. Now that any trip
-// can have one added from the trip sheet, gating on the name would hide the
-// booking someone had just typed in.
+// Only the Japan trip ever had hero artwork. Kept as the gate on the sushi
+// sequence below, which was drawn for this one destination and is nonsense
+// anywhere else. Matches by word so "Japan Solo" etc. still count.
 const isJapanTrip = (name: string) => /\bjapan\b/i.test(name)
 
 export default function Journey() {
@@ -35,6 +29,20 @@ export default function Journey() {
   const { data, isPending, isError, refetch } = useTrip(tripId)
   const itinerary = useItinerary(tripId)
   const canExport = useBooleanFlag('export-trip', false)
+  /**
+   * The scroll-driven sushi hero, kept behind a flag rather than deleted.
+   *
+   * The redesign replaces it with a photo of where you are actually going, and
+   * that is the default — so with no PostHog answer (local dev, a deploy
+   * without analytics, a phone with no signal) every trip gets the photo. Turn
+   * `journey-sushi-hero` on to put the animation back on Japan trips; it stays
+   * gated on the destination either way, because it is a Japan artwork.
+   */
+  const sushiHero = useBooleanFlag('journey-sushi-hero', false)
+  // Defaults on — see RequireMap in router.tsx. Gated here as well as on the
+  // route so turning the flag off takes the link away too, rather than leaving
+  // one that redirects straight back.
+  const canMap = useBooleanFlag('trip-map', true)
   // Warms the export payloads so the file can still be made on a train
   // (research R4). Called before the early returns below, because a hook has
   // to be — and it costs nothing while the trip itself is still loading.
@@ -47,17 +55,35 @@ export default function Journey() {
   if (isError) return <ErrorState message="Could not load the trip." onRetry={() => refetch()} />
 
   const today = new Date()
-  const japan = isJapanTrip(data.trip.country ?? data.trip.name ?? '')
   const hasSteps = data.steps.length > 0
-  // "Yuval and Luciana in Japan" — composed on the server now (display_title),
-  // so every screen and every client agree on what a trip is called. This used
-  // to be built here from trip.name plus travellersLabel, which meant the title
-  // differed depending on which screen you were looking at.
-  const heroTitle = data.trip.display_title
-  // Where the trip is going, accented inside that title. HeroTitle only
-  // colours it when the composed title actually ends in it, so an explicit
-  // name override ("Honeymoon") stays plain.
-  const destination = data.trip.country ?? undefined
+  const meta = `${fmt(data.trip.start_date)} – ${fmt(data.trip.end_date)} · ${data.steps.length} ${
+    data.steps.length === 1 ? 'stop' : 'stops'
+  }`
+  // The redesign sets the destination in 40px extrabold over the photo, so the
+  // hero takes the short label rather than the composed title: "Japan", not
+  // "Yuval and Luciana in Japan", which would wrap to three lines and lose the
+  // photo underneath it. The full title is still what the trips list and the
+  // export call this trip.
+  const heroTitle = data.trip.name || data.trip.country || data.trip.display_title
+  // Nothing on the trip carries a photo of its own, so the hero borrows the
+  // first stop's — the city you land in, which is the picture of the trip
+  // anyone would have chosen. With no stops (or no photo on the first one)
+  // ZoneImage falls back to the warm gradient rather than a broken image.
+  const heroImage = data.steps[0]?.zone?.image_url
+
+  const countdown = data.flight ? (
+    <CountdownWidget flight={data.flight} />
+  ) : (
+    <GenericCountdown
+      startDate={data.trip.start_date}
+      startTime={data.trip.start_time}
+      startTz={data.trip.start_tz}
+      // Two different absences look identical here: no booking attached
+      // yet, or one this caller may not see. `shows` is what tells them
+      // apart, so the second doesn't read as the first.
+      note={shows.flight ? undefined : 'The travellers keep the flight details private.'}
+    />
+  )
 
   return (
     <div className="space-y-6">
@@ -65,57 +91,66 @@ export default function Journey() {
           fold behind a full-bleed image and a countdown. */}
       <InstallBanner />
 
-      {japan ? (
-        <SushiSequence
+      {sushiHero && isJapanTrip(data.trip.country ?? data.trip.name ?? '') ? (
+        <>
+          <SushiSequence
+            title={data.trip.display_title}
+            destination={data.trip.country ?? undefined}
+            meta={meta}
+          />
+          {countdown}
+        </>
+      ) : (
+        <PhotoHero
+          src={heroImage}
+          alt={heroTitle}
+          // The design draws a 480px hero on a 300px-wide phone frame — a tall,
+          // deliberately photo-led opening. Taken literally that is 1.6× the
+          // viewport width, which on a real handset buries the countdown card
+          // well below the fold, so it is capped: 62vh keeps the card peeking
+          // on every screen height, and 30rem is the design's own 480px as the
+          // ceiling on a tablet.
+          height="h-[min(62vh,30rem)]"
+          eyebrow={
+            <>
+              <span aria-hidden>📍</span> Trip overview
+            </>
+          }
           title={heroTitle}
-          destination={destination}
-          meta={`${fmt(data.trip.start_date)} – ${fmt(data.trip.end_date)} · ${data.steps.length} stops`}
-        />
-      ) : (
-        <div>
-          <p className="section-title">Our trip</p>
-          <HeroTitle title={heroTitle} destination={destination} className="mt-2.5" />
-          <p className="mt-3 text-sm text-muted">
-            {fmt(data.trip.start_date)} – {fmt(data.trip.end_date)} · {data.steps.length} stops
-          </p>
-        </div>
-      )}
-
-      {data.flight ? (
-        <CountdownWidget flight={data.flight} />
-      ) : (
-        <GenericCountdown
-          startDate={data.trip.start_date}
-          startTime={data.trip.start_time}
-          startTz={data.trip.start_tz}
-          // Two different absences look identical here: no booking attached
-          // yet, or one this caller may not see. `shows` is what tells them
-          // apart, so the second doesn't read as the first.
-          note={shows.flight ? undefined : 'The travellers keep the flight details private.'}
-        />
+          meta={meta}
+        >
+          {/* Rides up over the bottom of the photo, as the design draws it. */}
+          <div className="relative z-[1] -mt-16 px-4">{countdown}</div>
+        </PhotoHero>
       )}
 
       {hasSteps ? (
         <>
           <div>
-            <div className="mb-3 flex items-baseline justify-between">
-              <h2 className="font-display text-2xl font-semibold tracking-tight">The journey</h2>
+            <div className="mb-3 flex items-baseline justify-between gap-3">
+              <h2 className="font-display text-xl font-bold tracking-tight">The journey</h2>
               <div className="flex items-center gap-3">
                 {/* Everyone on the trip can export it, viewers included: the
                     file is a subset of what they are already looking at. */}
                 {canExport && (
-                  <Link to={`/trips/${tripId}/export`} className="text-sm font-bold text-brand">
+                  <Link to={`/trips/${tripId}/export`} className="text-xs font-bold text-brand">
                     Export
                   </Link>
                 )}
-                <span className="text-xs text-muted">swipe →</span>
-                {canEdit && (
+                {canMap && (
+                  <Link to={`/trips/${tripId}/map`} className="text-xs font-bold text-brand">
+                    Map
+                  </Link>
+                )}
+                {canEdit ? (
                   <Link
                     to={`/trips/${tripId}/journey/edit`}
-                    className="text-sm font-bold text-brand"
+                    className="text-xs font-bold text-brand"
                   >
                     Edit
                   </Link>
+                ) : (
+                  <span className="text-[11px] text-faint">swipe →</span>
                 )}
               </div>
             </div>
@@ -123,7 +158,7 @@ export default function Journey() {
           </div>
 
           <section>
-            <h2 className="mb-3 font-display text-2xl font-semibold tracking-tight">Day by day</h2>
+            <h2 className="mb-3 font-display text-xl font-bold tracking-tight">Day by day</h2>
             {itinerary.isPending ? (
               <Loading label="Loading the schedule…" />
             ) : itinerary.isError ? (
