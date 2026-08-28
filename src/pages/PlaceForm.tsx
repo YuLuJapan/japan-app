@@ -5,10 +5,12 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { usePlace } from '../api/hooks'
 import { useCreatePlace, useUpdatePlace } from '../api/mutations'
-import type { Category, PlaceInput, PlaceLink } from '../api/types'
+import { useZone } from '../api/hooks'
+import type { Category, GeocodeResult, PlaceInput, PlaceLink } from '../api/types'
 import { CATEGORIES, CATEGORY_META } from '../api/types'
 import { Breadcrumbs } from '../components/Breadcrumbs'
 import { Loading } from '../components/Loading'
+import { LocationPicker } from '../components/LocationPicker'
 import { useTripId } from '../lib/trip'
 
 export default function PlaceForm() {
@@ -19,6 +21,9 @@ export default function PlaceForm() {
   const editing = Boolean(placeId)
 
   const existing = usePlace(placeId ?? '')
+  // The city this place sits in, for the location search to lean on. Adding
+  // knows its zone from the route; editing learns it with the place.
+  const zone = useZone(zoneId ?? existing.data?.place.zone_id ?? '')
   const create = useCreatePlace()
   const update = useUpdatePlace(placeId ?? '')
   const mutation = editing ? update : create
@@ -29,6 +34,11 @@ export default function PlaceForm() {
   const [address, setAddress] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [links, setLinks] = useState<PlaceLink[]>([])
+  // The candidate the traveller accepted, and nothing else. Null is the
+  // default and stays the default until somebody picks: a place saves
+  // perfectly well with no location (FR-004), and a guessed one would put a
+  // confident wrong pin on the map.
+  const [located, setLocated] = useState<GeocodeResult | null>(null)
 
   // prefill once when editing
   const loaded = editing && existing.data
@@ -47,6 +57,11 @@ export default function PlaceForm() {
   if (editing && existing.isPending) return <Loading />
 
   const targetZone = editing ? existing.data?.place.zone_id : zoneId
+  const z = zone.data?.zone
+  const zoneBias =
+    typeof z?.lat === 'number' && typeof z?.lng === 'number'
+      ? { lat: z.lat, lng: z.lng }
+      : undefined
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -57,6 +72,10 @@ export default function PlaceForm() {
       address: address.trim() || null,
       image_url: imageUrl.trim() || null,
       links: links.filter((l) => l.label.trim() && l.url.trim()),
+      // Only what was accepted. Omitted rather than nulled when nothing was
+      // picked, so editing a place's notes never quietly clears the location
+      // the backfill found for it (the PATCH convention `flight` follows).
+      ...(located ? { lat: located.lat, lng: located.lng } : {}),
     }
     const onSuccess = (data: { place: { id: string } }) =>
       navigate(`/trips/${tripId}/places/${data.place.id}`, { replace: true })
@@ -123,17 +142,41 @@ export default function PlaceForm() {
         />
       </div>
 
-      <div>
-        <label className="label" htmlFor="address">
-          Address
-        </label>
-        <input
-          id="address"
-          className="field"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-        />
-      </div>
+      {/* The address *is* the lookup. Typing one offers real candidates biased
+          by the city this place sits in; picking one is what stores where it
+          is (FR-003). Typing an address and picking nothing saves the address
+          alone, which is exactly what the form did before this feature.
+
+          `initialQuery` is read from the loaded place rather than from form
+          state: the prefill effect lands one render after the data does, and
+          the picker keeps its own copy of what it started with. */}
+      <LocationPicker
+        label="Location"
+        placeholder="Street, area, or landmark"
+        initialQuery={editing ? (existing.data?.place.address ?? '') : ''}
+        near={zoneBias}
+        onPick={setLocated}
+        onQueryChange={(query) => setAddress(query)}
+        pickedText={(r) => [r.name, r.address].filter(Boolean).join(', ')}
+        hint={
+          located ? (
+            <p className="mt-1 text-xs text-muted">
+              {/* Where it landed, in words — the check that says whether the
+                  lookup found the right Ichiran. A mini-map would be a nicer
+                  version of this line, and would have to arrive as a
+                  progressive enhancement behind the same MapEngine port: this
+                  screen must not import src/map/, or Slice A stops being
+                  revertible on its own. */}
+              Located at {[located.name, located.address].filter(Boolean).join(', ')}
+            </p>
+          ) : (
+            <p className="mt-1 text-xs text-muted">
+              Pick a suggestion to put this on the map. Saving without one is fine — it just won't
+              have a pin.
+            </p>
+          )
+        }
+      />
 
       <div>
         <label className="label" htmlFor="image-url">

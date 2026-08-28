@@ -1,7 +1,7 @@
 import type { Category, DataStore, ZonePatch } from '../lib/datastore.js'
 import { CATEGORIES } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
-import { summaryLine } from '../lib/place-view.js'
+import { zonePlaceListItem } from '../lib/place-view.js'
 import { hideStayCounts, isStay } from '../lib/trip-view.js'
 
 /**
@@ -62,19 +62,12 @@ export async function listZonePlaces(
   // Covers both shapes: asking for the stays themselves, and the map's
   // all-categories sweep that would otherwise carry them along.
   const places = includeStays ? all : all.filter((p) => !isStay(p))
-  return {
-    places: places.map((p) => ({
-      id: p.id,
-      name: p.name,
-      name_ja: p.name_ja,
-      category: p.category,
-      summary_line: summaryLine(p.description),
-      image_url: p.image_url ?? null,
-      address: p.address ?? null,
-      lat: p.lat ?? null,
-      lng: p.lng ?? null,
-    })),
-  }
+  // The projection lives in `lib/place-view.ts` behind a field policy, so a new
+  // `Place` column stops the build until someone decides whether it belongs on
+  // a list. Note the order: the view is applied *here*, before the projection —
+  // reversed, a hidden stay would be cut down to a name and an address and then
+  // sent anyway.
+  return { places: places.map(zonePlaceListItem) }
 }
 
 const isHttpUrl = (u: string) => /^https?:\/\/.+/.test(u)

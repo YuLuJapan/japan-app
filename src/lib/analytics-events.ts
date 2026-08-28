@@ -121,6 +121,18 @@ export interface AnalyticsEventProperties {
     included_stays: boolean
   }
 
+  // The map (feature 004). Two enums and two counts, and nothing else: which
+  // scale was open, how much was on it, and how much could not be. Declared
+  // here before either call site exists, for the same reason `trip_exported`
+  // was — `capture` is typed against this map and would not compile otherwise.
+  //
+  // **A coordinate is content and is never sent.** A latitude/longitude pair
+  // names a hotel more precisely than the hotel's name does, and the questions
+  // these two exist to answer — is the map used, at which scale, how much is
+  // missing — are answered by counts (research R9).
+  map_opened: { scope: 'zone' | 'trip'; pin_count: number; missing_coords: number }
+  map_pin_opened: { category: Category }
+
   // Sharing
   trip_member_invited: {
     role: 'partner' | 'viewer'

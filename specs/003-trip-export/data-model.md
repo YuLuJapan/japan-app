@@ -17,69 +17,69 @@ type ExportLevel = 'share' | 'full' | 'never'
 
 ### Place (`server/src/lib/datastore.ts`)
 
-| field | level | why |
-| --- | --- | --- |
-| `name` | share | half of what a share export *is* |
-| `address` | share | the other half |
-| `category` | share | how the recipient reads the list |
-| `id` | never* | not in the readable formats; present in the JSON backup (US4) |
-| `zone_id` | never* | same — structure is expressed by nesting in the readable formats |
-| `description` | full | carries the booking reference; the reason share exists |
-| `links` | full | a reservation link is a reservation |
-| `name_ja` | never | deferred this phase — backlog, returns with the CJK font work |
-| `image_url` | never | photos are not in scope for any format |
-| `lat` / `lng` | never | 0 of 39 places have them today; no export need |
-| `summary_line` (derived) | never | the first 100 chars of the description, so it carries what the description carries |
+| field                    | level  | why                                                                                |
+| ------------------------ | ------ | ---------------------------------------------------------------------------------- |
+| `name`                   | share  | half of what a share export _is_                                                   |
+| `address`                | share  | the other half                                                                     |
+| `category`               | share  | how the recipient reads the list                                                   |
+| `id`                     | never* | not in the readable formats; present in the JSON backup (US4)                      |
+| `zone_id`                | never* | same — structure is expressed by nesting in the readable formats                   |
+| `description`            | full   | carries the booking reference; the reason share exists                             |
+| `links`                  | full   | a reservation link is a reservation                                                |
+| `name_ja`                | never  | deferred this phase — backlog, returns with the CJK font work                      |
+| `image_url`              | never  | photos are not in scope for any format                                             |
+| `lat` / `lng`            | never  | 0 of 39 places have them today; no export need                                     |
+| `summary_line` (derived) | never  | the first 100 chars of the description, so it carries what the description carries |
 
 \* `id` and `zone_id` are emitted **only** by the JSON writer (US4), which round-trips identifiers by design.
 The policy carries a fourth column, `json`, for exactly these two; the readable writers never read it.
 
 ### Zone
 
-| field | level |
-| --- | --- |
-| `name` | share |
-| `summary` | full |
-| `id` | never* |
-| `name_ja`, `image_url`, `lat`, `lng` | never |
+| field                                | level  |
+| ------------------------------------ | ------ |
+| `name`                               | share  |
+| `summary`                            | full   |
+| `id`                                 | never* |
+| `name_ja`, `image_url`, `lat`, `lng` | never  |
 
 ### Trip
 
-| field | level |
-| --- | --- |
-| `title` (derived, `lib/trip-title.ts`) | share |
-| `start_date`, `end_date` | share |
-| `country` | share |
-| `description` | full |
-| `flight` | never | **FR-004a** — out of both versions |
-| `people` | never | **FR-004a** — member names are out |
-| `local_currency`, `home_currencies` | never |
-| `start_time`, `start_tz`, `id` | never* |
+| field                                  | level  |
+| -------------------------------------- | ------ |
+| `title` (derived, `lib/trip-title.ts`) | share  |
+| `start_date`, `end_date`               | share  |
+| `country`                              | share  |
+| `description`                          | full   |
+| `flight`                               | never  | **FR-004a** — out of both versions |
+| `people`                               | never  | **FR-004a** — member names are out |
+| `local_currency`, `home_currencies`    | never  |
+| `start_time`, `start_tz`, `id`         | never* |
 
 ### JourneyStep
 
-| field | level |
-| --- | --- |
-| `position`, `start_date`, `end_date` | share |
-| `zone_id` | resolved to the nested zone, not emitted |
-| `id`, `trip_id` | never* |
+| field                                | level                                    |
+| ------------------------------------ | ---------------------------------------- |
+| `position`, `start_date`, `end_date` | share                                    |
+| `zone_id`                            | resolved to the nested zone, not emitted |
+| `id`, `trip_id`                      | never*                                   |
 
 ### Tip
 
-| field | level |
-| --- | --- |
-| `body` | full |
+| field                       | level                                       |
+| --------------------------- | ------------------------------------------- |
+| `body`                      | full                                        |
 | `id`, `zone_id`, `place_id` | never* — the tip is nested under its parent |
 
 ### ItineraryItem
 
-| field | level |
-| --- | --- |
-| `day`, `start_time`, `title`, `position` | full |
-| `note` | full |
-| `highlight`, `icon` | full |
-| `place_id` | resolved to a place name where visible, else omitted |
-| `id`, `trip_id`, `zone_id` | never* |
+| field                                    | level                                                |
+| ---------------------------------------- | ---------------------------------------------------- |
+| `day`, `start_time`, `title`, `position` | full                                                 |
+| `note`                                   | full                                                 |
+| `highlight`, `icon`                      | full                                                 |
+| `place_id`                               | resolved to a place name where visible, else omitted |
+| `id`, `trip_id`, `zone_id`               | never*                                               |
 
 ### Not in the model at all
 

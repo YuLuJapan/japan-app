@@ -17,3 +17,5 @@ Thumbs.db
 __pycache__/
 *.py[cod]
 .claude/worktrees/
+# Backfill journals: local operational records of one run, not source.
+scripts/.backfill/

@@ -3,12 +3,13 @@
 // derived from start_date server-side — there is no manual reordering.
 // Destinations are free text, validated against real places via the geocode
 // autocomplete (Nominatim) rather than picked from a fixed zone list.
-import { useEffect, useId, useState } from 'react'
-import { geocode, useTrip } from '../api/hooks'
+import { useId, useState } from 'react'
+import { useTrip } from '../api/hooks'
 import { useCreateStep, useDeleteStep, useUpdateStep } from '../api/mutations'
 import type { GeocodeResult, JourneyStepInput, TripStep } from '../api/types'
 import { Breadcrumbs } from '../components/Breadcrumbs'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { LocationPicker } from '../components/LocationPicker'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
 import { saveErrorMessage } from '../lib/errors'
@@ -152,10 +153,8 @@ function DestinationForm({
   onCancel: () => void
 }) {
   const originalName = initial?.zone?.name ?? ''
-  const [query, setQuery] = useState(originalName)
   const [selected, setSelected] = useState<GeocodeResult | null>(null)
-  const [results, setResults] = useState<GeocodeResult[]>([])
-  const [searching, setSearching] = useState(false)
+  const [destinationTouched, setDestinationTouched] = useState(!initial)
   const fieldId = useId()
   const [startDate, setStartDate] = useState(initial?.start_date ?? '')
   const [endDate, setEndDate] = useState(initial?.end_date ?? '')
@@ -163,35 +162,6 @@ function DestinationForm({
   // Editing an existing destination without touching the text field keeps the
   // current zone (no re-validation needed); adding, or changing the text,
   // requires picking a real place from the autocomplete before submitting.
-  const destinationTouched = !initial || query.trim() !== originalName.trim()
-
-  useEffect(() => {
-    const q = query.trim()
-    if (!destinationTouched || selected || q.length < 2) {
-      setResults([])
-      setSearching(false)
-      return
-    }
-    let ignore = false
-    setSearching(true)
-    const t = setTimeout(() => {
-      geocode(q)
-        .then((r) => !ignore && setResults(r.results))
-        .catch(() => !ignore && setResults([]))
-        .finally(() => !ignore && setSearching(false))
-    }, 450)
-    return () => {
-      ignore = true
-      clearTimeout(t)
-    }
-  }, [query, destinationTouched, selected])
-
-  const pickResult = (r: GeocodeResult) => {
-    setSelected(r)
-    setQuery(r.name)
-    setResults([])
-  }
-
   const canSubmit = !!startDate && !!endDate && (!destinationTouched || !!selected)
 
   const submit = () => {
@@ -205,40 +175,13 @@ function DestinationForm({
 
   return (
     <div className="space-y-2">
-      <div>
-        <label className="label" htmlFor={`${fieldId}-destination`}>
-          Destination
-        </label>
-        <input
-          id={`${fieldId}-destination`}
-          className="field"
-          placeholder="Search a city or place…"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value)
-            setSelected(null)
-          }}
-        />
-        {destinationTouched && !selected && query.trim().length >= 2 && (
-          <div className="mt-1 overflow-hidden rounded-2xl ring-1 ring-line">
-            {searching && <p className="px-3 py-2 text-sm text-muted">Searching…</p>}
-            {!searching && results.length === 0 && (
-              <p className="px-3 py-2 text-sm text-muted">No matches — try a different name.</p>
-            )}
-            {results.map((r, i) => (
-              <button
-                key={`${r.lat},${r.lng},${i}`}
-                type="button"
-                onClick={() => pickResult(r)}
-                className="flex w-full flex-col items-start border-b border-line bg-white px-3 py-2 text-left last:border-0 hover:bg-line/40 active:bg-line/60"
-              >
-                <span className="text-sm font-semibold">{r.name}</span>
-                {r.address && <span className="line-clamp-1 text-xs text-muted">{r.address}</span>}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <LocationPicker
+        label="Destination"
+        placeholder="Search a city or place…"
+        initialQuery={originalName}
+        onPick={setSelected}
+        onQueryChange={(_query, touched) => setDestinationTouched(touched)}
+      />
       {/* An empty date input shows the browser's own `dd/mm/yyyy` and nothing
           else, so two of them side by side are indistinguishable — hence a
           visible label each rather than the aria-label they used to carry

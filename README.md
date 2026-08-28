@@ -65,6 +65,36 @@ Anyone can register — Google, or email + password — and each account sees on
 - **The seed**: [server/src/data/placeholder-data.json](server/src/data/placeholder-data.json) is what the live database was built from and what local dev loads. Editing it does **not** change the deployed data — re-run `npm run seed` against Supabase for that, or just edit in the app.
 - Sample files live in `public/placeholder-files/`; regenerate the PDFs with `node scripts/make-placeholder-files.mjs`.
 
+### Giving places a location (`npm run backfill:coords`)
+
+Places carry `lat`/`lng` columns and the map plots whatever is in them. New
+places get a location on save — the form offers a candidate and you accept it —
+but existing rows need one pass of the backfill. It is the **only command in the
+repo that writes to production data**, so it is built to be undone:
+
+```bash
+npm run backfill:coords              # dry run — prints what it would write, changes nothing
+npm run backfill:coords -- --apply   # writes, and journals every change; prints the journal path
+npm run backfill:coords -- --revert scripts/.backfill/<timestamp>.json
+```
+
+- **`--dry-run` is the default.** Writing takes an explicit `--apply`.
+- Every write is journalled to `scripts/.backfill/<timestamp>.json` as
+  `{ id, name, before, after }`. That directory is gitignored: a journal is a
+  local operational record, not source.
+- It is idempotent — a place that already has coordinates is skipped — so a
+  re-run is safe and an interrupted run resumes.
+- It runs at one request per second, which is what the free lookup service's
+  policy allows and why this is a script rather than an endpoint.
+- Every place it could **not** resolve is printed by name at the end. That is
+  the difference between a gap and a silence.
+
+Address lookup is confident about wrong answers, so spot-check a handful against
+the city they belong to before trusting a batch — a Kyoto place with a Tokyo
+latitude looks exactly like a success in the log. The journal makes a bad batch
+one command to undo. Try the whole cycle on the memory store first, where it
+costs nothing.
+
 ## Infrastructure (Supabase — live)
 
 **Status: activated.** The deployed app runs on Supabase (`DATA_BACKEND=supabase`

@@ -20,9 +20,7 @@ const meWith = (accepted: boolean) => ({
 })
 
 const renderGate = () =>
-  renderAt('/trips', [
-    { path: '/trips', element: <TermsGate>the app</TermsGate> },
-  ])
+  renderAt('/trips', [{ path: '/trips', element: <TermsGate>the app</TermsGate> }])
 
 describe('TermsGate', () => {
   it('lets an account that has accepted straight through', async () => {
@@ -38,7 +36,10 @@ describe('TermsGate', () => {
       'href',
       '/terms'
     )
-    expect(screen.getByRole('link', { name: /privacy policy/i })).toHaveAttribute('href', '/privacy')
+    expect(screen.getByRole('link', { name: /privacy policy/i })).toHaveAttribute(
+      'href',
+      '/privacy'
+    )
     expect(screen.queryByText('the app')).not.toBeInTheDocument()
   })
 

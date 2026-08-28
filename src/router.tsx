@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { Navigate, Outlet, createBrowserRouter, useParams } from 'react-router-dom'
 import { getAccessCode } from './api/client'
 import { useBooleanFlag } from './lib/flags'
@@ -35,6 +35,18 @@ import TripFiles from './pages/TripFiles'
 import TripMembers from './pages/TripMembers'
 import TripsList from './pages/TripsList'
 import Zone from './pages/Zone'
+
+/**
+ * The whole map screen, one dynamic import away.
+ *
+ * Lazy rather than static, unlike every other page here: with `show-map` off
+ * nothing under `src/map/` is ever fetched, so a broken map chunk cannot reach
+ * a screen that never loads it and the entry bundle does not move for a
+ * feature most devices will not see (plan → rollback lever 3). Leaflet itself
+ * is a *second* import inside `MapCanvas`, so it arrives only once a map is
+ * actually being drawn.
+ */
+const TripMap = lazy(() => import('./pages/TripMap'))
 
 /** Route guard: without a signed-in session, everything redirects to the gate. */
 function RequireAccess() {
@@ -112,6 +124,32 @@ export function RequireExport() {
 }
 
 /**
+ * The map, while it is rolling out.
+ *
+ * Modelled line for line on `RequireExport`, with one difference that matters:
+ * `show-map` gates the *route* as well as the entry points. An export flag
+ * cannot gate its route without inventing a way for an authorised request to
+ * fail; a map has no endpoint of its own, so closing the route closes the
+ * bookmark, the pasted link and the back button into a session where the flag
+ * has since gone off — which is what FR-015 and SC-010 ask for.
+ *
+ * The default is `false` and stays `false`: the map appears only where the
+ * flag has been turned on explicitly in PostHog, so an unreachable, unanswered
+ * or deleted flag reads as "rolled back" rather than as "shipped". The
+ * accepted cost is that the map is invisible in local dev and on any deploy
+ * without `VITE_POSTHOG_PROJECT_TOKEN` — flip the default here and in
+ * `Layout.tsx` to work on it, and flip it back before committing.
+ */
+export function RequireMap() {
+  const { tripId } = useParams<{ tripId: string }>()
+  return useBooleanFlag('show-map', false) ? (
+    <Outlet />
+  ) : (
+    <Navigate to={`/trips/${tripId}`} replace />
+  )
+}
+
+/**
  * The shopping section, when this trip shares it with you. The tab is already
  * gone from the nav; this catches the other ways in — a bookmark, a link
  * somebody pasted — so they land on the journey rather than on an error the
@@ -159,6 +197,24 @@ export const router = createBrowserRouter([
           // Every member may export, viewers included (FR-007) — the file is a
           // subset of what they already see, so this sits outside RequireOwner.
           { element: <RequireExport />, children: [{ path: 'export', element: <TripExport /> }] },
+          // Behind the flag *and* behind the route guard: with `show-map` off
+          // there is no tab, and a bookmarked /map redirects to the trip.
+          {
+            element: <RequireMap />,
+            children: [
+              {
+                path: 'map',
+                // No fallback UI: the chunk is small and the screen it would
+                // flash over is the map's own tiles loading in. A spinner here
+                // would be a second loading state for one wait.
+                element: (
+                  <Suspense fallback={null}>
+                    <TripMap />
+                  </Suspense>
+                ),
+              },
+            ],
+          },
 
           // Everyone on the trip can see who else is on it; the screen itself
           // offers the owner-only controls only to an owner, and a viewer-only

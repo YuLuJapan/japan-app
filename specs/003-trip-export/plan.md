@@ -62,19 +62,19 @@ travellers.
 is no constitution gate to pass or fail. The binding constraints for this repository are `CLAUDE.md` and the
 board's cross-cutting constraints item, and the plan is evaluated against those instead:
 
-| Constraint | How this plan meets it |
-| --- | --- |
-| Routes are access-checked by construction | The export route is mounted on `tripScopedRouter()` behind `requireTripAccess`. It inherits the check; it does **not** inherit the view, so the view is applied explicitly in the service (FR-008). |
-| Anything returning a place needs the `TripView` treatment | The projection takes `TripView` as its first filter, before the field policy. Stays are dropped from places, from tips hanging off a stay, and from itinerary rows pointing at one. |
-| Never import a concrete datastore | The service takes `DataStore` as an argument; the route resolves it via `getDataStore()`. |
-| `asyncHandler` on every route | The export handler is wrapped; errors reach `errorMiddleware` as the standard envelope. |
-| Services collect all validation errors | Only one input to validate (`detail`), so a single `VALIDATION` error with a `details` array. |
-| A new analytics event must be declared first | `trip_exported` is added to `AnalyticsEventProperties` before any call site (T019). All five properties are shapes — format, detail, two counts, one flag. |
-| A property is never trip content | No place name, address, description or trip title reaches PostHog. The sanitizer would drop them anyway; the call site never offers them. |
-| Feature flags default off | Met. Shipped behind `export-trip`, defaulting off, gating the entry points but not the endpoint. The plan originally argued against a flag here; see "Complexity Tracking" for what changed. |
-| Migration committed ≠ deployed | Not applicable: no migration. Called out explicitly so nobody goes looking for one. |
-| Free tiers only | No new service, no new infrastructure, no server-side rendering. Two npm packages, shipped in a lazy chunk. |
-| $0 target | Met. The only cost is bundle bytes, addressed in research R2. |
+| Constraint                                                | How this plan meets it                                                                                                                                                                              |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Routes are access-checked by construction                 | The export route is mounted on `tripScopedRouter()` behind `requireTripAccess`. It inherits the check; it does **not** inherit the view, so the view is applied explicitly in the service (FR-008). |
+| Anything returning a place needs the `TripView` treatment | The projection takes `TripView` as its first filter, before the field policy. Stays are dropped from places, from tips hanging off a stay, and from itinerary rows pointing at one.                 |
+| Never import a concrete datastore                         | The service takes `DataStore` as an argument; the route resolves it via `getDataStore()`.                                                                                                           |
+| `asyncHandler` on every route                             | The export handler is wrapped; errors reach `errorMiddleware` as the standard envelope.                                                                                                             |
+| Services collect all validation errors                    | Only one input to validate (`detail`), so a single `VALIDATION` error with a `details` array.                                                                                                       |
+| A new analytics event must be declared first              | `trip_exported` is added to `AnalyticsEventProperties` before any call site (T019). All five properties are shapes — format, detail, two counts, one flag.                                          |
+| A property is never trip content                          | No place name, address, description or trip title reaches PostHog. The sanitizer would drop them anyway; the call site never offers them.                                                           |
+| Feature flags default off                                 | Met. Shipped behind `export-trip`, defaulting off, gating the entry points but not the endpoint. The plan originally argued against a flag here; see "Complexity Tracking" for what changed.        |
+| Migration committed ≠ deployed                            | Not applicable: no migration. Called out explicitly so nobody goes looking for one.                                                                                                                 |
+| Free tiers only                                           | No new service, no new infrastructure, no server-side rendering. Two npm packages, shipped in a lazy chunk.                                                                                         |
+| $0 target                                                 | Met. The only cost is bundle bytes, addressed in research R2.                                                                                                                                       |
 
 ## Project Structure
 
@@ -150,7 +150,7 @@ The three phases match the spec's story priorities, and each is shippable on its
 
 **Phase 1 — US1, the MVP (P1).** The field policy, the projection, the two new store reads, the endpoint, the
 `typecheck` script, the PDF writer, delivery, the export screen with both actions, and `trip_exported`. Ships
-as: share export, as a PDF, working offline. Note that the *screen* carries both buttons from day one — "Full
+as: share export, as a PDF, working offline. Note that the _screen_ carries both buttons from day one — "Full
 copy" is wired in phase 2 — because FR-005 is about the shape of the UI, and adding the second button later
 is how you end up with a toggle.
 
@@ -162,8 +162,8 @@ on the result sheet. Library selection for DOCX/XLSX is deliberately deferred to
 
 ## Complexity Tracking
 
-| Deviation | Why | Alternative rejected because |
-| --- | --- | --- |
+| Deviation                                                                                      | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Alternative rejected because                                                                                                                                                                                                                                                                     |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **~~No feature flag~~ — reversed after review: it ships behind `export-trip`, defaulting off** | The plan argued that a flag means the button is absent on a new device's first load, since flags land after first paint — a rare feature missing exactly when someone goes looking for it. That cost is real and is accepted. The board's rule is the rule, and the argument against it would exempt every read-only feature; what the flag buys is the risk this feature does carry, a 415 KB PDF engine running on whatever browser the traveller has, so a remote switch-off is worth an absent button. | Shipping unflagged was rejected on the board's convention. Defaulting the flag **on**, as a kill switch rather than a rollout gate, was rejected too: it reads as "flagged" while behaving as "not flagged" on every device that has no answer, which is the one case the convention exists for. |
 
 **What the default costs, stated plainly.** `getBoolean` returns the default whenever PostHog has no answer —

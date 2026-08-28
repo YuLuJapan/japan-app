@@ -70,7 +70,12 @@ async function resolvesToPrivateAddress(hostname: string): Promise<boolean> {
 /** Hostnames that must never be fetched: our own network, not a shop's. */
 function isBlockedHost(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/^\[|\]$/g, '')
-  if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal'))
+  if (
+    h === 'localhost' ||
+    h.endsWith('.localhost') ||
+    h.endsWith('.local') ||
+    h.endsWith('.internal')
+  )
     return true
   return isPrivateAddress(h)
 }
@@ -181,8 +186,14 @@ function decodeEntities(s: string): string {
 function metaContent(html: string, key: string): string | null {
   const k = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const patterns = [
-    new RegExp(`<meta[^>]+(?:property|name|itemprop)=["']${k}["'][^>]*content=["']([^"']*)["']`, 'i'),
-    new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name|itemprop)=["']${k}["']`, 'i'),
+    new RegExp(
+      `<meta[^>]+(?:property|name|itemprop)=["']${k}["'][^>]*content=["']([^"']*)["']`,
+      'i'
+    ),
+    new RegExp(
+      `<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name|itemprop)=["']${k}["']`,
+      'i'
+    ),
   ]
   for (const re of patterns) {
     const m = re.exec(html)
@@ -306,17 +317,15 @@ function tidyTitle(title: string, shop: string | null): string {
     return a === b || a.includes(b) || b.includes(a)
   }
   // "公式" = "official", "オンラインストア"/"online store" — storefront boilerplate
-  const boilerplate = /^(公式|.*公式(サイト|通販|オンラインストア)?|online ?store|official( site)?|通販|オンラインストア)$/i
+  const boilerplate =
+    /^(公式|.*公式(サイト|通販|オンラインストア)?|online ?store|official( site)?|通販|オンラインストア)$/i
 
   const meaty = segments.filter((s) => !shopish(s) && !boilerplate.test(s))
   const best = (meaty.length ? meaty : segments).reduce((a, b) => (b.length > a.length ? b : a))
   return best.slice(0, 120)
 }
 
-export async function previewProductUrl(
-  store: DataStore,
-  rawUrl: string
-): Promise<ProductPreview> {
+export async function previewProductUrl(store: DataStore, rawUrl: string): Promise<ProductPreview> {
   const url = parseUrl(rawUrl)
   if (await resolvesToPrivateAddress(url.hostname))
     throw validation(['that address cannot be fetched'])
@@ -359,9 +368,14 @@ export async function previewProductUrl(
   }
 
   // price: OG/product meta first, then JSON-LD
-  const metaAmount = metaContent(html, 'product:price:amount') ?? metaContent(html, 'og:price:amount') ?? metaContent(html, 'price')
+  const metaAmount =
+    metaContent(html, 'product:price:amount') ??
+    metaContent(html, 'og:price:amount') ??
+    metaContent(html, 'price')
   const metaCurrency =
-    metaContent(html, 'product:price:currency') ?? metaContent(html, 'og:price:currency') ?? metaContent(html, 'priceCurrency')
+    metaContent(html, 'product:price:currency') ??
+    metaContent(html, 'og:price:currency') ??
+    metaContent(html, 'priceCurrency')
   let price: { amount: number; currency: string | null } | null = null
   if (metaAmount) {
     const amount = Number(metaAmount.replace(/[^0-9.]/g, ''))
@@ -408,8 +422,7 @@ async function toEnglish(
     englishUrl.pathname = url.pathname.replace(/\/ja(\/|$)/, '/en$1')
     const englishPage = await fetchHtml(englishUrl)
     if (englishPage) {
-      const raw =
-        metaContent(englishPage.html, 'og:title') ?? titleTag(englishPage.html) ?? null
+      const raw = metaContent(englishPage.html, 'og:title') ?? titleTag(englishPage.html) ?? null
       const shop = shopName(englishPage.html, englishPage.finalUrl)
       const candidate = raw ? tidyTitle(raw, shop) : null
       if (candidate && !containsJapanese(candidate)) return { name: candidate, name_ja: name }

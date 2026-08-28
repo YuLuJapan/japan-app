@@ -36,7 +36,7 @@ Technical approach (from [research.md](research.md)): React 18 + Vite + Tailwind
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
 `.specify/memory/constitution.md` is an unfilled template — no project principles have been ratified. No gates to enforce. **PASS (vacuous)**.
 

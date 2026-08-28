@@ -51,7 +51,7 @@ All provider limits below were verified against official pricing/docs pages on 2
 ## R7. Journey visualization
 
 - **Decision**: Custom vertical timeline component (ordered steps, date ranges, current-step highlight computed from device date), each step tappable into its zone. No charting/diagram library.
-- **Rationale**: FR-005/FR-006 ask for a *simple* visualization; a bespoke ~100-line component renders on one scrollable mobile screen (SC-002) with zero dependency weight. Vertical suits phones.
+- **Rationale**: FR-005/FR-006 ask for a _simple_ visualization; a bespoke ~100-line component renders on one scrollable mobile screen (SC-002) with zero dependency weight. Vertical suits phones.
 - **Alternatives considered**: timeline/diagram libraries (react-chrono, mermaid) — 10–100× the code weight for less design control.
 
 ## R8. Access control (private two-traveler app)

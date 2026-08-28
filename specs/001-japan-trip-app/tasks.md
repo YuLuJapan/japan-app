@@ -26,11 +26,11 @@ Per plan.md structure: Vite React SPA at repo root (`src/`), Node/Express backen
 
 **Purpose**: Project initialization and basic structure
 
-- [X] T001 Initialize Vite + React 18 + TypeScript project at repo root (`package.json`, `vite.config.ts`, `tsconfig.json`, `index.html`, `src/main.tsx`, `src/App.tsx`); add deps: react-router-dom 6, @tanstack/react-query 5, express 4 (@supabase/supabase-js deferred to Phase 8)
-- [X] T002 [P] Set up Tailwind CSS 3 with the Japanese design tokens from research R6 (paper-white bg, sumi-ink text, vermillion accent, spacing scale) in `tailwind.config.ts` and `src/styles/index.css`; load Zen Kaku Gothic via Google Fonts in `index.html`
-- [X] T003 [P] Configure Vitest for both halves (`vitest.config.ts` with jsdom environment for `src/tests/`, node for `server/tests/`); add supertest + @testing-library/react dev deps; npm scripts: `dev`, `build`, `test` (`seed`/`seed:files` arrive in Phase 8)
-- [X] T004 [P] Create `vercel.json` (rewrite `/api/(.*)` → `api/index.ts`, SPA fallback to `index.html`, daily cron `GET /api/health`), `.env.example` (TRIP_ACCESS_CODE, DATA_BACKEND=memory; SUPABASE_URL / SUPABASE_SERVICE_KEY documented as Phase-8-only), and `.gitignore` (node_modules, dist, .env*)
-- [X] T005 [P] Configure ESLint + Prettier (`eslint.config.js`, `.prettierrc`) for TS/React across `src/`, `server/`, `api/`, `scripts/`
+- [x] T001 Initialize Vite + React 18 + TypeScript project at repo root (`package.json`, `vite.config.ts`, `tsconfig.json`, `index.html`, `src/main.tsx`, `src/App.tsx`); add deps: react-router-dom 6, @tanstack/react-query 5, express 4 (@supabase/supabase-js deferred to Phase 8)
+- [x] T002 [P] Set up Tailwind CSS 3 with the Japanese design tokens from research R6 (paper-white bg, sumi-ink text, vermillion accent, spacing scale) in `tailwind.config.ts` and `src/styles/index.css`; load Zen Kaku Gothic via Google Fonts in `index.html`
+- [x] T003 [P] Configure Vitest for both halves (`vitest.config.ts` with jsdom environment for `src/tests/`, node for `server/tests/`); add supertest + @testing-library/react dev deps; npm scripts: `dev`, `build`, `test` (`seed`/`seed:files` arrive in Phase 8)
+- [x] T004 [P] Create `vercel.json` (rewrite `/api/(.*)` → `api/index.ts`, SPA fallback to `index.html`, daily cron `GET /api/health`), `.env.example` (TRIP_ACCESS_CODE, DATA_BACKEND=memory; SUPABASE_URL / SUPABASE_SERVICE_KEY documented as Phase-8-only), and `.gitignore` (node_modules, dist, .env*)
+- [x] T005 [P] Configure ESLint + Prettier (`eslint.config.js`, `.prettierrc`) for TS/React across `src/`, `server/`, `api/`, `scripts/`
 
 ---
 
@@ -40,18 +40,18 @@ Per plan.md structure: Vite React SPA at repo root (`src/`), Node/Express backen
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [X] T006 Define the datastore interface in `server/src/lib/datastore.ts`: TypeScript entity types (Trip, JourneyStep, Zone, Place, Tip, FileAttachment per data-model.md) + repository methods needed by all services (getTripBundle, getZone, listPlaces, getPlace, create/update/deletePlace, create/update/deleteTip, listTripFiles, getFileUrl, ping) and a factory selecting the implementation from `DATA_BACKEND` (default `memory`)
-- [X] T007 [P] Author placeholder content in `server/src/data/placeholder-data.json`: the real trip skeleton with placeholder details — trip with dates, ordered journey steps, zones (name + name_ja), several places per category per zone, zone- and place-level tips, and file entries whose storage_path points into `public/placeholder-files/`; add 2–3 sample files there (a PDF, an image)
-- [X] T008 Implement the in-memory datastore in `server/src/lib/datastore.memory.ts`: loads placeholder-data.json at startup, serves all reads, applies mutations in memory (documented: non-persistent, resets on restart — acceptable until Phase 8), validates per data-model.md rules, `getFileUrl` returns the static `/placeholder-files/...` path and reports FILE_MISSING when the manifest points at a nonexistent file
-- [X] T009 [P] Error envelope + async route wrapper in `server/src/lib/errors.ts` (codes UNAUTHORIZED, NOT_FOUND, VALIDATION, FILE_MISSING, INTERNAL per contracts/api.md conventions)
-- [X] T010 [P] Shared-access-code bearer middleware in `server/src/lib/auth.ts` (compares `Authorization: Bearer` to TRIP_ACCESS_CODE; exempts `/api/health`)
-- [X] T011 Express app assembly in `server/src/app.ts` (json parsing, auth middleware, error handler) with `server/src/routes/health.ts` (GET /api/health → datastore `ping()`) and POST /api/auth/verify in `server/src/routes/auth.ts`
-- [X] T012 Vercel serverless entry `api/index.ts` exporting the Express app from `server/src/app.ts`; verify `vercel dev` (or Vite proxy + local node server) serves SPA + API together with zero external dependencies
-- [X] T013 [P] Typed frontend API client in `src/api/client.ts` (base fetch with bearer from localStorage, error-envelope normalization, 401 → redirect to gate) and TanStack Query client in `src/api/queryClient.ts` (refetch-on-focus on, sensible staleTime for slow connections)
-- [X] T014 [P] Router + app shell: `src/router.tsx` (routes for all pages incl. NotFound), `src/components/Layout.tsx` (mobile-first header/nav), `src/pages/NotFound.tsx`
-- [X] T015 [P] Shared state components `src/components/Loading.tsx`, `src/components/ErrorState.tsx` (message + retry button, FR-013), `src/components/EmptyState.tsx` (FR-012)
-- [X] T016 AccessGate page `src/pages/AccessGate.tsx` (code entry → POST /api/auth/verify → store in localStorage → route to Journey; wrong code shows clear error) plus route guard in `src/router.tsx`
-- [X] T017 Foundation API tests in `server/tests/foundation.test.ts` (supertest against the app with the memory datastore: /api/health 200 without auth; /api/auth/verify 200/401; any other route 401 without/with-wrong bearer)
+- [x] T006 Define the datastore interface in `server/src/lib/datastore.ts`: TypeScript entity types (Trip, JourneyStep, Zone, Place, Tip, FileAttachment per data-model.md) + repository methods needed by all services (getTripBundle, getZone, listPlaces, getPlace, create/update/deletePlace, create/update/deleteTip, listTripFiles, getFileUrl, ping) and a factory selecting the implementation from `DATA_BACKEND` (default `memory`)
+- [x] T007 [P] Author placeholder content in `server/src/data/placeholder-data.json`: the real trip skeleton with placeholder details — trip with dates, ordered journey steps, zones (name + name_ja), several places per category per zone, zone- and place-level tips, and file entries whose storage_path points into `public/placeholder-files/`; add 2–3 sample files there (a PDF, an image)
+- [x] T008 Implement the in-memory datastore in `server/src/lib/datastore.memory.ts`: loads placeholder-data.json at startup, serves all reads, applies mutations in memory (documented: non-persistent, resets on restart — acceptable until Phase 8), validates per data-model.md rules, `getFileUrl` returns the static `/placeholder-files/...` path and reports FILE_MISSING when the manifest points at a nonexistent file
+- [x] T009 [P] Error envelope + async route wrapper in `server/src/lib/errors.ts` (codes UNAUTHORIZED, NOT_FOUND, VALIDATION, FILE_MISSING, INTERNAL per contracts/api.md conventions)
+- [x] T010 [P] Shared-access-code bearer middleware in `server/src/lib/auth.ts` (compares `Authorization: Bearer` to TRIP_ACCESS_CODE; exempts `/api/health`)
+- [x] T011 Express app assembly in `server/src/app.ts` (json parsing, auth middleware, error handler) with `server/src/routes/health.ts` (GET /api/health → datastore `ping()`) and POST /api/auth/verify in `server/src/routes/auth.ts`
+- [x] T012 Vercel serverless entry `api/index.ts` exporting the Express app from `server/src/app.ts`; verify `vercel dev` (or Vite proxy + local node server) serves SPA + API together with zero external dependencies
+- [x] T013 [P] Typed frontend API client in `src/api/client.ts` (base fetch with bearer from localStorage, error-envelope normalization, 401 → redirect to gate) and TanStack Query client in `src/api/queryClient.ts` (refetch-on-focus on, sensible staleTime for slow connections)
+- [x] T014 [P] Router + app shell: `src/router.tsx` (routes for all pages incl. NotFound), `src/components/Layout.tsx` (mobile-first header/nav), `src/pages/NotFound.tsx`
+- [x] T015 [P] Shared state components `src/components/Loading.tsx`, `src/components/ErrorState.tsx` (message + retry button, FR-013), `src/components/EmptyState.tsx` (FR-012)
+- [x] T016 AccessGate page `src/pages/AccessGate.tsx` (code entry → POST /api/auth/verify → store in localStorage → route to Journey; wrong code shows clear error) plus route guard in `src/router.tsx`
+- [x] T017 Foundation API tests in `server/tests/foundation.test.ts` (supertest against the app with the memory datastore: /api/health 200 without auth; /api/auth/verify 200/401; any other route 401 without/with-wrong bearer)
 
 **Checkpoint**: Foundation ready — full app runs locally on placeholder data; user story implementation can now begin
 
@@ -65,19 +65,19 @@ Per plan.md structure: Vite React SPA at repo root (`src/`), Node/Express backen
 
 ### Implementation for User Story 1
 
-- [X] T018 [P] [US1] Trip read service in `server/src/services/trips.ts`: trip + ordered steps with embedded zone summaries + per-category place_counts + trip_files_count via the datastore interface (response shape of GET /api/trip in contracts/api.md)
-- [X] T019 [P] [US1] Zone read service in `server/src/services/zones.ts`: zone by id with zone-level tips, file metadata, place_counts; places by (zone, category) as list items with `summary_line`
-- [X] T020 [P] [US1] Place read service in `server/src/services/places.ts`: place by id with its tips and file metadata
-- [X] T021 [US1] Route GET /api/trip in `server/src/routes/trip.ts`; register in `server/src/app.ts`
-- [X] T022 [US1] Routes GET /api/zones/:zoneId and GET /api/zones/:zoneId/places?category= (400 on bad category, 404 unknown zone) in `server/src/routes/zones.ts`; register in `server/src/app.ts`
-- [X] T023 [US1] Route GET /api/places/:placeId (404 unknown) in `server/src/routes/places.ts`; register in `server/src/app.ts`
-- [X] T024 [P] [US1] Browse endpoint tests in `server/tests/browse.test.ts` (supertest over the memory datastore with a test fixture: happy paths match contract shapes; 401; 400 bad category; 404s; counts match fixture)
-- [X] T025 [P] [US1] Query hooks in `src/api/hooks.ts`: useTrip, useZone, useZonePlaces, usePlace (typed against contract shapes)
-- [X] T026 [US1] Journey home page (browse form) `src/pages/Journey.tsx`: renders trip name + plain ordered list of steps/zones from useTrip as navigation entry (timeline visuals arrive in US2)
-- [X] T027 [US1] Zone page `src/pages/Zone.tsx`: zone header (name + name_ja), zone tips, category tiles with counts — categories with 0 entries hidden or shown empty without breaking navigation (FR-012)
-- [X] T028 [US1] CategoryList page `src/pages/CategoryList.tsx`: list of place cards (name, name_ja, summary_line) linking to detail; EmptyState when none
-- [X] T029 [US1] PlaceDetail page `src/pages/PlaceDetail.tsx`: full details (description, address, external links) + place tips section
-- [X] T030 [P] [US1] RTL tests in `src/tests/browse.test.tsx`: Zone page hides/marks empty categories; PlaceDetail shows tips alongside details (US1 AC3)
+- [x] T018 [P] [US1] Trip read service in `server/src/services/trips.ts`: trip + ordered steps with embedded zone summaries + per-category place_counts + trip_files_count via the datastore interface (response shape of GET /api/trip in contracts/api.md)
+- [x] T019 [P] [US1] Zone read service in `server/src/services/zones.ts`: zone by id with zone-level tips, file metadata, place_counts; places by (zone, category) as list items with `summary_line`
+- [x] T020 [P] [US1] Place read service in `server/src/services/places.ts`: place by id with its tips and file metadata
+- [x] T021 [US1] Route GET /api/trip in `server/src/routes/trip.ts`; register in `server/src/app.ts`
+- [x] T022 [US1] Routes GET /api/zones/:zoneId and GET /api/zones/:zoneId/places?category= (400 on bad category, 404 unknown zone) in `server/src/routes/zones.ts`; register in `server/src/app.ts`
+- [x] T023 [US1] Route GET /api/places/:placeId (404 unknown) in `server/src/routes/places.ts`; register in `server/src/app.ts`
+- [x] T024 [P] [US1] Browse endpoint tests in `server/tests/browse.test.ts` (supertest over the memory datastore with a test fixture: happy paths match contract shapes; 401; 400 bad category; 404s; counts match fixture)
+- [x] T025 [P] [US1] Query hooks in `src/api/hooks.ts`: useTrip, useZone, useZonePlaces, usePlace (typed against contract shapes)
+- [x] T026 [US1] Journey home page (browse form) `src/pages/Journey.tsx`: renders trip name + plain ordered list of steps/zones from useTrip as navigation entry (timeline visuals arrive in US2)
+- [x] T027 [US1] Zone page `src/pages/Zone.tsx`: zone header (name + name_ja), zone tips, category tiles with counts — categories with 0 entries hidden or shown empty without breaking navigation (FR-012)
+- [x] T028 [US1] CategoryList page `src/pages/CategoryList.tsx`: list of place cards (name, name_ja, summary_line) linking to detail; EmptyState when none
+- [x] T029 [US1] PlaceDetail page `src/pages/PlaceDetail.tsx`: full details (description, address, external links) + place tips section
+- [x] T030 [P] [US1] RTL tests in `src/tests/browse.test.tsx`: Zone page hides/marks empty categories; PlaceDetail shows tips alongside details (US1 AC3)
 
 **Checkpoint**: User Story 1 fully functional on placeholder data — the app is a usable trip browser (MVP)
 
@@ -91,9 +91,9 @@ Per plan.md structure: Vite React SPA at repo root (`src/`), Node/Express backen
 
 ### Implementation for User Story 2
 
-- [X] T031 [P] [US2] JourneyTimeline component in `src/components/JourneyTimeline.tsx`: vertical timeline of steps (zone name + name_ja + date range), past/current/future status computed from device date (no step current when trip entirely past/future — spec edge case), custom-built per research R7
-- [X] T032 [US2] Replace the plain list in `src/pages/Journey.tsx` with JourneyTimeline; each step navigates to its Zone page; trip-level header with overall dates
-- [X] T033 [P] [US2] RTL tests in `src/tests/timeline.test.tsx`: ordering, date rendering, current-step highlight with mocked "today" inside/before/after the trip
+- [x] T031 [P] [US2] JourneyTimeline component in `src/components/JourneyTimeline.tsx`: vertical timeline of steps (zone name + name_ja + date range), past/current/future status computed from device date (no step current when trip entirely past/future — spec edge case), custom-built per research R7
+- [x] T032 [US2] Replace the plain list in `src/pages/Journey.tsx` with JourneyTimeline; each step navigates to its Zone page; trip-level header with overall dates
+- [x] T033 [P] [US2] RTL tests in `src/tests/timeline.test.tsx`: ordering, date rendering, current-step highlight with mocked "today" inside/before/after the trip
 
 **Checkpoint**: User Stories 1 AND 2 both work independently
 
@@ -107,17 +107,17 @@ Per plan.md structure: Vite React SPA at repo root (`src/`), Node/Express backen
 
 ### Implementation for User Story 3
 
-- [X] T034 [P] [US3] Place mutation methods in `server/src/services/places.ts`: create/update/delete via the datastore with validation (required name/zone/category, category enum, links URL check, length caps per data-model.md); delete is plain hard delete here (file re-parenting added in US4)
-- [X] T035 [P] [US3] Tips service in `server/src/services/tips.ts`: create (exactly-one-parent rule), update body, delete
-- [X] T036 [US3] Routes POST /api/places, PATCH /api/places/:placeId, DELETE /api/places/:placeId (201/200/204, 400 VALIDATION with details, 404) in `server/src/routes/places.ts`
-- [X] T037 [US3] Routes POST /api/tips, PATCH /api/tips/:tipId, DELETE /api/tips/:tipId in `server/src/routes/tips.ts`; register in `server/src/app.ts`
-- [X] T038 [P] [US3] Mutation endpoint tests in `server/tests/edit.test.ts` (supertest: happy paths, validation 400s incl. both-parents tip, 404s, 401)
-- [X] T039 [P] [US3] Mutation hooks in `src/api/mutations.ts`: create/update/delete place + tip with TanStack Query cache invalidation (zone, category list, place, trip counts) so edits appear immediately and on the other device via refetch-on-focus (FR-018)
-- [X] T040 [US3] PlaceForm page `src/pages/PlaceForm.tsx` (add + edit modes; category picker; on save failure keep all entered text and show ErrorState with retry, FR-019); routes `/zones/:zoneId/places/new` and `/places/:placeId/edit`
-- [X] T041 [P] [US3] ConfirmDialog component `src/components/ConfirmDialog.tsx` (accessible, used for all deletes, FR-017)
-- [X] T042 [US3] Wire editing entry points: add-place button on Zone/CategoryList pages, edit + delete (with ConfirmDialog) on PlaceDetail in `src/pages/Zone.tsx`, `src/pages/CategoryList.tsx`, `src/pages/PlaceDetail.tsx`
-- [X] T043 [US3] TipEditor component `src/components/TipEditor.tsx` (inline add/edit/delete of tips with confirmation) integrated on Zone and PlaceDetail pages (FR-016)
-- [X] T044 [P] [US3] RTL tests in `src/tests/edit.test.tsx`: delete shows confirmation before mutation fires; failed save preserves form input and offers retry
+- [x] T034 [P] [US3] Place mutation methods in `server/src/services/places.ts`: create/update/delete via the datastore with validation (required name/zone/category, category enum, links URL check, length caps per data-model.md); delete is plain hard delete here (file re-parenting added in US4)
+- [x] T035 [P] [US3] Tips service in `server/src/services/tips.ts`: create (exactly-one-parent rule), update body, delete
+- [x] T036 [US3] Routes POST /api/places, PATCH /api/places/:placeId, DELETE /api/places/:placeId (201/200/204, 400 VALIDATION with details, 404) in `server/src/routes/places.ts`
+- [x] T037 [US3] Routes POST /api/tips, PATCH /api/tips/:tipId, DELETE /api/tips/:tipId in `server/src/routes/tips.ts`; register in `server/src/app.ts`
+- [x] T038 [P] [US3] Mutation endpoint tests in `server/tests/edit.test.ts` (supertest: happy paths, validation 400s incl. both-parents tip, 404s, 401)
+- [x] T039 [P] [US3] Mutation hooks in `src/api/mutations.ts`: create/update/delete place + tip with TanStack Query cache invalidation (zone, category list, place, trip counts) so edits appear immediately and on the other device via refetch-on-focus (FR-018)
+- [x] T040 [US3] PlaceForm page `src/pages/PlaceForm.tsx` (add + edit modes; category picker; on save failure keep all entered text and show ErrorState with retry, FR-019); routes `/zones/:zoneId/places/new` and `/places/:placeId/edit`
+- [x] T041 [P] [US3] ConfirmDialog component `src/components/ConfirmDialog.tsx` (accessible, used for all deletes, FR-017)
+- [x] T042 [US3] Wire editing entry points: add-place button on Zone/CategoryList pages, edit + delete (with ConfirmDialog) on PlaceDetail in `src/pages/Zone.tsx`, `src/pages/CategoryList.tsx`, `src/pages/PlaceDetail.tsx`
+- [x] T043 [US3] TipEditor component `src/components/TipEditor.tsx` (inline add/edit/delete of tips with confirmation) integrated on Zone and PlaceDetail pages (FR-016)
+- [x] T044 [P] [US3] RTL tests in `src/tests/edit.test.tsx`: delete shows confirmation before mutation fires; failed save preserves form input and offers retry
 
 **Checkpoint**: On-the-fly editing complete; browsing stories unaffected
 
@@ -131,12 +131,12 @@ Per plan.md structure: Vite React SPA at repo root (`src/`), Node/Express backen
 
 ### Implementation for User Story 4
 
-- [X] T045 [P] [US4] Files service in `server/src/services/files.ts`: list trip-level files; resolve a file's open URL via datastore `getFileUrl` (memory: static path; later Supabase: 300 s signed URL); distinguish NOT_FOUND (no row) from FILE_MISSING (entry exists, file gone) per contracts/api.md
-- [X] T046 [US4] Routes GET /api/files and GET /api/files/:fileId/url in `server/src/routes/files.ts`; register in `server/src/app.ts`
-- [X] T047 [US4] Update place deletion in `server/src/services/places.ts`: re-parent the place's files to the trip before delete (no silent file loss, data-model.md note)
-- [X] T048 [P] [US4] Files endpoint tests in `server/tests/files.test.ts` (supertest: listing, URL happy path, 404 NOT_FOUND vs 404 FILE_MISSING, 401; place-delete re-parents files)
-- [X] T049 [P] [US4] FileList component `src/components/FileList.tsx`: name + type icon (by mime) + size; tap → fetch URL from /api/files/:id/url → open in new tab/download; FILE_MISSING → clear inline error (FR-013)
-- [X] T050 [US4] TripFiles page `src/pages/TripFiles.tsx` (trip-level docs area, linked from Layout nav) and integrate FileList into `src/pages/Zone.tsx` and `src/pages/PlaceDetail.tsx`
+- [x] T045 [P] [US4] Files service in `server/src/services/files.ts`: list trip-level files; resolve a file's open URL via datastore `getFileUrl` (memory: static path; later Supabase: 300 s signed URL); distinguish NOT_FOUND (no row) from FILE_MISSING (entry exists, file gone) per contracts/api.md
+- [x] T046 [US4] Routes GET /api/files and GET /api/files/:fileId/url in `server/src/routes/files.ts`; register in `server/src/app.ts`
+- [x] T047 [US4] Update place deletion in `server/src/services/places.ts`: re-parent the place's files to the trip before delete (no silent file loss, data-model.md note)
+- [x] T048 [P] [US4] Files endpoint tests in `server/tests/files.test.ts` (supertest: listing, URL happy path, 404 NOT_FOUND vs 404 FILE_MISSING, 401; place-delete re-parents files)
+- [x] T049 [P] [US4] FileList component `src/components/FileList.tsx`: name + type icon (by mime) + size; tap → fetch URL from /api/files/:id/url → open in new tab/download; FILE_MISSING → clear inline error (FR-013)
+- [x] T050 [US4] TripFiles page `src/pages/TripFiles.tsx` (trip-level docs area, linked from Layout nav) and integrate FileList into `src/pages/Zone.tsx` and `src/pages/PlaceDetail.tsx`
 
 **Checkpoint**: All four user stories independently functional on placeholder data
 
@@ -146,10 +146,10 @@ Per plan.md structure: Vite React SPA at repo root (`src/`), Node/Express backen
 
 **Purpose**: Improvements that affect multiple user stories — everything here runs without any infrastructure
 
-- [X] T051 [P] Design polish pass across all pages/components per research R6 (consistent ma spacing, thin rules, vermillion accents, Japanese decorative subtitles, category icons) in `src/styles/` and `src/components/`
-- [X] T052 [P] Mobile audit on real phone (via LAN dev server) + DevTools: no horizontal scrolling anywhere, tap targets ≥ 44 px, one-handed reachability (SC-004) — fix findings across `src/pages/` and `src/components/`
-- [X] T053 Performance: check bundle size, lazy-load PlaceForm/TripFiles routes if needed, run Lighthouse mobile on Journey + Zone against local preview build → content < 3 s (SC-006)
-- [X] T054 [P] Write `README.md` (what it is, placeholder-mode quick run, planned infra activation, access code handling, $0 cost notes)
+- [x] T051 [P] Design polish pass across all pages/components per research R6 (consistent ma spacing, thin rules, vermillion accents, Japanese decorative subtitles, category icons) in `src/styles/` and `src/components/`
+- [x] T052 [P] Mobile audit on real phone (via LAN dev server) + DevTools: no horizontal scrolling anywhere, tap targets ≥ 44 px, one-handed reachability (SC-004) — fix findings across `src/pages/` and `src/components/`
+- [x] T053 Performance: check bundle size, lazy-load PlaceForm/TripFiles routes if needed, run Lighthouse mobile on Journey + Zone against local preview build → content < 3 s (SC-006)
+- [x] T054 [P] Write `README.md` (what it is, placeholder-mode quick run, planned infra activation, access code handling, $0 cost notes)
 
 ---
 
@@ -157,15 +157,15 @@ Per plan.md structure: Vite React SPA at repo root (`src/`), Node/Express backen
 
 **Purpose**: Configure the real infrastructure (Supabase DB + Storage, Vercel hosting) and swap the datastore — no feature code changes
 
-- [X] T055 Supabase free project created, schema applied, private bucket `trip-files` created, `.env.local` set with SUPABASE_URL + SUPABASE_SECRET_KEY (new-format `sb_secret_...` key; code reads SUPABASE_SECRET_KEY, falls back to legacy SUPABASE_SERVICE_KEY). @supabase/supabase-js added.
-- [X] T056 Schema migration `supabase/migrations/0001_init.sql`: tables trips, journey_steps, zones, places, tips, files per data-model.md (TEXT PKs to preserve human-readable seed ids — see data-model note; FKs with cascade rules, `unique(trip_id, position)`, tips/files `num_nonnulls(...) = 1` checks, `(zone_id, category)` index, `updated_at` trigger, deny-all RLS on every table). Includes the added image_url/lat/lng columns.
-- [X] T057 Supabase server client in `server/src/lib/supabase.ts` (service-role key from env, single shared client, FILES_BUCKET constant)
-- [X] T058 Supabase datastore implementation in `server/src/lib/datastore.supabase.ts` fulfilling the T006 interface (reads, validated mutations, `getFileUrl` → 300 s signed URL with FILE_MISSING detection, `ping` → trivial select); registered in the T006 factory under `DATA_BACKEND=supabase`
-- [X] T059 [P] Seed script `scripts/seed.ts` (`npm run seed`): loads `server/src/data/placeholder-data.json` into Supabase, idempotent upserts, FK-safe order
-- [X] T060 [P] File upload script `scripts/seed-files.ts` (`npm run seed:files`): uploads blobs from `public/<storage_path>` to the bucket at the matching key (upsert)
-- [X] T061 Seeded (`npm run seed`: 1 trip/8 zones/9 steps/30 places/13 tips/3 files; `npm run seed:files`: 3 blobs) and verified against Supabase from a networked server: reads (trip/zone/files), a create→read→delete write cycle, real storage signed URLs, and the full UI rendering (8 map pins + 9 step cards). New diagnostic: `npx tsx scripts/check-supabase.ts`.
-- [X] T062 Deployed to Vercel (GitHub-connected auto-deploy), env vars set for Production. Two deploy issues found + fixed: (a) ERR_MODULE_NOT_FOUND — Vercel's per-file ESM transpile left extensionless relative imports. Final clean fix: explicit `.js` extensions on all relative imports in server/ and api/ (proper Node ESM) — no bundling, no generated files, `api/index.ts` is a plain re-export. (b) routing — a plain `api/index.ts` + rewrite `/api/(.*)` → `/api` funnels every /api/* depth to the one function (the `[...path]` catch-all only matched one segment under the Vite preset). Live at japan-app-eight.vercel.app.
-- [X] T063 Validated live: /api/health 200 (Supabase reachable), gate login (verify POST) works, home + map + slider render, zone/category/place nested routes and files all return 200 from Supabase in production. (A phone pass by the travelers is the only thing left, at their leisure.)
+- [x] T055 Supabase free project created, schema applied, private bucket `trip-files` created, `.env.local` set with SUPABASE_URL + SUPABASE_SECRET_KEY (new-format `sb_secret_...` key; code reads SUPABASE_SECRET_KEY, falls back to legacy SUPABASE_SERVICE_KEY). @supabase/supabase-js added.
+- [x] T056 Schema migration `supabase/migrations/0001_init.sql`: tables trips, journey_steps, zones, places, tips, files per data-model.md (TEXT PKs to preserve human-readable seed ids — see data-model note; FKs with cascade rules, `unique(trip_id, position)`, tips/files `num_nonnulls(...) = 1` checks, `(zone_id, category)` index, `updated_at` trigger, deny-all RLS on every table). Includes the added image_url/lat/lng columns.
+- [x] T057 Supabase server client in `server/src/lib/supabase.ts` (service-role key from env, single shared client, FILES_BUCKET constant)
+- [x] T058 Supabase datastore implementation in `server/src/lib/datastore.supabase.ts` fulfilling the T006 interface (reads, validated mutations, `getFileUrl` → 300 s signed URL with FILE_MISSING detection, `ping` → trivial select); registered in the T006 factory under `DATA_BACKEND=supabase`
+- [x] T059 [P] Seed script `scripts/seed.ts` (`npm run seed`): loads `server/src/data/placeholder-data.json` into Supabase, idempotent upserts, FK-safe order
+- [x] T060 [P] File upload script `scripts/seed-files.ts` (`npm run seed:files`): uploads blobs from `public/<storage_path>` to the bucket at the matching key (upsert)
+- [x] T061 Seeded (`npm run seed`: 1 trip/8 zones/9 steps/30 places/13 tips/3 files; `npm run seed:files`: 3 blobs) and verified against Supabase from a networked server: reads (trip/zone/files), a create→read→delete write cycle, real storage signed URLs, and the full UI rendering (8 map pins + 9 step cards). New diagnostic: `npx tsx scripts/check-supabase.ts`.
+- [x] T062 Deployed to Vercel (GitHub-connected auto-deploy), env vars set for Production. Two deploy issues found + fixed: (a) ERR_MODULE_NOT_FOUND — Vercel's per-file ESM transpile left extensionless relative imports. Final clean fix: explicit `.js` extensions on all relative imports in server/ and api/ (proper Node ESM) — no bundling, no generated files, `api/index.ts` is a plain re-export. (b) routing — a plain `api/index.ts` + rewrite `/api/(.*)` → `/api` funnels every /api/* depth to the one function (the `[...path]` catch-all only matched one segment under the Vite preset). Live at japan-app-eight.vercel.app.
+- [x] T063 Validated live: /api/health 200 (Supabase reachable), gate login (verify POST) works, home + map + slider render, zone/category/place nested routes and files all return 200 from Supabase in production. (A phone pass by the travelers is the only thing left, at their leisure.)
 
 ---
 
@@ -190,7 +190,7 @@ Per plan.md structure: Vite React SPA at repo root (`src/`), Node/Express backen
 
 - Services before routes; routes before frontend pages that call them
 - Components ([P]) before the pages that integrate them
-- Test tasks are [P] with implementation of *other* files, but run the suite green before the story's checkpoint
+- Test tasks are [P] with implementation of _other_ files, but run the suite green before the story's checkpoint
 
 ### Parallel Opportunities
 
@@ -255,7 +255,6 @@ This is a two-person personal project; the practical split after Phase 2: one pe
 - Commit after each task or logical group
 - Stop at any checkpoint to validate the story on a real phone
 - Total: 63 tasks (Setup 5, Foundational 12, US1 13, US2 3, US3 11, US4 6, Polish 4, Infrastructure 9)
-
 
 ---
 

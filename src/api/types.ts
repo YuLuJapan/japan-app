@@ -3,12 +3,23 @@ export const CATEGORIES = ['hotel', 'attraction', 'food', 'shopping', 'other'] a
 export type Category = (typeof CATEGORIES)[number]
 
 /**
- * One row per place category. `color` is the tinted pill the icon sits in and
- * `dot` the solid mark used where a category has to read at a few pixels — the
- * timeline bullet on a day plan, and the pin on the map. Both come from the
- * redesign's category palette (`stay`/`sight`/`table`/`market` in
- * tailwind.config.ts) rather than stock Tailwind hues, so the four of them sit
- * together in one grid without competing with the coral.
+ * One row per place category, and **every surface reads it**.
+ *
+ * `color` is the tinted pill the icon sits in and `dot` the solid mark used
+ * where a category has to read at a few pixels — the timeline bullet on a day
+ * plan, and on the map the pin, the legend swatch, the filter chip and the
+ * place card's dot. Both come from the redesign's category palette
+ * (`stay`/`sight`/`table`/`market` in tailwind.config.ts) rather than stock
+ * Tailwind hues, so the four of them sit together in one grid without
+ * competing with the coral.
+ *
+ * That single table is why the map needed no colour of its own (spec 004,
+ * research R12). It was built while this palette was reverted, on stock hues,
+ * and its reference renders were drawn against these — so re-landing them
+ * recoloured the pins, the chips, the legend and the cards in one edit, with
+ * no map file touched. Keep it that way: a `MAP_PIN_COLOURS` next door would
+ * be marginally simpler and would guarantee the map drifted out of step with
+ * every other surface that shows a category.
  */
 export const CATEGORY_META: Record<
   Category,

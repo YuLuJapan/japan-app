@@ -379,9 +379,25 @@ No migration — `zones.image_url` has existed since 0001.
 
 Places of one category in a zone, list form (name + summary line, FR-002).
 
-- `category` required, one of `hotel|attraction|food|shopping|other` → else 400 `VALIDATION`.
-- 200: `{"places":[{"id":"…","name":"…","name_ja":"…","category":"food","summary_line":"first ~100 chars of description"}]}` (may be empty — UI renders empty state, FR-012).
-- A member whose view withholds the stays never gets `hotel` places here: `category=hotel` returns `{"places":[]}`, and the all-categories sweep (`category=`, used by the city map) filters them out.
+- `category` is optional and must be one of `hotel|attraction|food|shopping|other`
+  when present → else 400 `VALIDATION`. **An empty `category` means every
+  category**, in one response, which is what the map reads (feature 004): its
+  chips filter client-side, so switching one costs no request.
+- 200: `{"places":[{"id":"…","name":"…","name_ja":"…","category":"food","summary_line":"first ~100 chars of description","image_url":…,"address":…,"lat":…,"lng":…}]}` (may be empty — UI renders empty state, FR-012).
+- **`lat`/`lng` are returned as `null` for a place with no location, never
+  omitted.** The map counts the places it cannot pin (004 FR-019), and an
+  absent key and a null value are not equally easy to count honestly.
+- A member whose view withholds the stays never gets `hotel` places here:
+  `category=hotel` returns `{"places":[]}`, and the all-categories sweep
+  (`category=`, used by the city map) filters them out. This is a **guarantee**
+  rather than an accident of the current code path — it is applied inside
+  `listZonePlaces`, before the response is built, and asserted on the response
+  body in `server/tests/map-pins.test.ts` so a refactor cannot quietly drop it
+  (004 FR-016).
+- The projection is `zonePlaceListItem()` in `server/src/lib/place-view.ts`,
+  driven by a `Record<keyof Place, 'list' | 'omit'>` policy: adding a column to
+  `Place` fails `npm run typecheck` until someone decides whether it belongs on
+  this wire.
 
 ## Itinerary (day-by-day activities)
 
