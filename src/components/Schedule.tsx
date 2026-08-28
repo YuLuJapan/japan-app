@@ -82,10 +82,9 @@ export function Schedule({ steps, items, days, today, mode, zoneId, tripId }: Pr
         {/* On a city page the shared checkout/arrival day is easy to miss — say where
             the day goes, and link the other city so you can flip between the two. */}
         {moving && (
-          <span className="flex flex-wrap items-center gap-2">
-            <span className="chip bg-market-tint text-market" data-testid="moving-day-chip">
-              ✈ Moving day
-            </span>
+          // No "Moving day" badge: the cities either side say it better than a
+          // label does, and the day rail already rings the day dashed.
+          <span className="flex flex-wrap items-center gap-2" data-testid="moving-day-cities">
             {moving.from && (
               <Link
                 to={`/trips/${tripId}/zones/${moving.from.id}`}

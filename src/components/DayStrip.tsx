@@ -55,7 +55,11 @@ export function DayStrip({ days, selected, onSelect, today, isMoving, size = 'md
   return (
     <div
       ref={ref}
-      className="no-scrollbar -mx-5 flex snap-x gap-2.5 overflow-x-auto px-5 py-1"
+      // In the page gutter, not bled to the edge — see the same note in
+      // JourneyStepsSlider. It matters more here: this strip scrolls itself to
+      // the selected day, and a leading padding scrolls out of view with the
+      // content, so the circles ended up flush against the screen edge.
+      className="no-scrollbar flex snap-x gap-2.5 overflow-x-auto py-1"
       data-testid="day-strip"
     >
       {days.map((day, i) => {

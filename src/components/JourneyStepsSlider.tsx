@@ -31,7 +31,13 @@ export function JourneyStepsSlider({
 }) {
   return (
     <div
-      className="no-scrollbar -mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-2"
+      // Inside the page gutter rather than bled to the edge with `-mx-5 px-5`.
+      // Leading padding on a scroller only holds while it is at rest — scroll it
+      // and the first tile runs to the screen edge — so the rail sits in the
+      // gutter instead and clips there. Matches the design, whose journey row is
+      // `padding:0 16px` with no bleed, and keeps the tiles on the same left
+      // edge as "The journey" above them.
+      className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2"
       data-testid="journey-slider"
     >
       {steps.map((step, i) => {

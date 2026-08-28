@@ -95,7 +95,8 @@ describe('moving days on a city page', () => {
     const chip = await screen.findByLabelText('2026-09-25 (moving day)')
     await user.click(chip)
 
-    expect(screen.getByTestId('moving-day-chip')).toBeInTheDocument()
+    // The badge is gone; the cities either side are what says it now.
+    expect(screen.getByTestId('moving-day-cities')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '→ Hakone' })).toHaveAttribute(
       'href',
       '/trips/trip-1/zones/z-hakone'
@@ -109,7 +110,7 @@ describe('moving days on a city page', () => {
     renderZone('z-hakone')
 
     expect(await screen.findByLabelText('2026-09-25 (moving day)')).toBeInTheDocument()
-    expect(screen.getByTestId('moving-day-chip')).toBeInTheDocument()
+    expect(screen.getByTestId('moving-day-cities')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Tokyo →' })).toHaveAttribute(
       'href',
       '/trips/trip-1/zones/z-tokyo'
@@ -124,6 +125,6 @@ describe('moving days on a city page', () => {
     renderZone('z-tokyo')
 
     await user.click(await screen.findByLabelText('2026-09-24'))
-    expect(screen.queryByTestId('moving-day-chip')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('moving-day-cities')).not.toBeInTheDocument()
   })
 })
