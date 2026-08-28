@@ -10,14 +10,9 @@ import {
 } from '../services/itinerary.js'
 
 const list = asyncHandler(async (req, res) => {
-  const view = tripContextOf(req).view
   res.json(
     await listItinerary(await getDataStore(), req.params.tripId, {
-      includeStays: view.stays,
-      // The plan's file tags name a document, so they are gated on the same
-      // flag the documents section is — a withheld attachment must not
-      // announce itself from the day plan instead.
-      includeDocuments: view.documents,
+      includeStays: tripContextOf(req).view.stays,
     })
   )
 })

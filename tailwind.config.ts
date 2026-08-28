@@ -1,13 +1,11 @@
 import type { Config } from 'tailwindcss'
 
-// Palette + type matched to the Onward redesign (Onward Redesign Options.dc.html,
-// options 1e/1f + 1g): rice-paper canvas, nori ink, tuna-coral accent.
-//
-// The display face is Bricolage Grotesque, as the redesign draws it. The
-// previous build deliberately substituted Outfit — lighter headings, capped at
-// bold (700) — but the redesign leans on Bricolage's extrabold (800) for the
-// hero title and the countdown numerals, and Outfit has no 800 to give. The
-// substitution went with it.
+// Palette + type matched to the Onward design prototype (design/Onward Trip
+// App.dc.html): rice-paper canvas, nori ink, tuna-coral accent. (Matched to
+// the prototype 2026-08-08 — see chat1.md for the design reasoning.) The
+// display face is Outfit rather than the prototype's Bricolage Grotesque: the
+// headings read lighter, which is also why display text tops out at bold (700)
+// instead of extrabold.
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
@@ -37,36 +35,9 @@ export default {
           DEFAULT: '#157A57',
           600: '#0C5B41',
         },
-        // The redesign's warm neutral ramp, between `line` and `ink`. Named for
-        // what they are rather than where they were first used, because each is
-        // load-bearing in several places: `sand` is the countdown numeral tile
-        // and every quiet pill, `blush` the coral wash behind a highlighted day
-        // or an expanded chevron, `dust` the inactive timeline dot, `stone` the
-        // ring on an unselected day chip, `faint` the small-caps label under it.
-        sand: '#F1EDE6',
-        blush: '#FDECE8',
-        stone: '#E7E1D7',
-        dust: '#DDD6CA',
-        faint: '#A29C90',
-        hush: '#C9C2B6',
-        // Two body weights below `ink`: `slate` for a paragraph, `graphite` for
-        // a numeral or a value that should still read as content, not chrome.
-        slate: '#57534B',
-        graphite: '#3D3931',
-        // One colour pair per place category, replacing the stock Tailwind
-        // violet/sky/amber/pink. `DEFAULT` is the map pin and the timeline dot;
-        // `tint` is the tile behind the icon and the tag pill. Muted and warm so
-        // four of them can sit in one 2×2 grid without competing with the coral,
-        // which stays reserved for "now" and for actions.
-        stay: { DEFAULT: '#4C6273', tint: '#EAEEF0' },
-        // `do` would be a reserved word in the `do:` shorthand Tailwind
-        // generates, so the attraction colour keeps the entity's own name.
-        sight: { DEFAULT: '#6E8248', tint: '#EDF1E7' },
-        table: { DEFAULT: '#B07A62', tint: '#F5EAE5' },
-        market: { DEFAULT: '#C9A15A', tint: '#F3EEE3' },
       },
       fontFamily: {
-        display: ['"Bricolage Grotesque"', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        display: ['Outfit', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
         body: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
