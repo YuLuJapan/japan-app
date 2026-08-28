@@ -19,7 +19,7 @@ import {
   useDeleteItineraryItem,
   useUpdateItineraryItem,
 } from '../api/mutations'
-import { CATEGORY_META, type ItineraryItem } from '../api/types'
+import { CATEGORY_META, TAGGABLE_CATEGORIES, type Category, type ItineraryItem } from '../api/types'
 import { saveErrorMessage } from '../lib/errors'
 import { fmtDayLong } from '../lib/schedule'
 import { useCanEdit } from '../lib/session'
@@ -89,8 +89,12 @@ export function DayPlan({ day, items, zoneId = null, tripId }: Props) {
             aria-hidden
             className="absolute bottom-[5px] left-[3px] top-[5px] w-[1.5px] rounded bg-line"
           />
-          {items.map((item, i) =>
-            editingId === item.id ? (
+          {items.map((item, i) => {
+            // The traveller's own tag wins over the one derived from a linked
+            // place: if they typed one, they meant it. A withheld stay leaves
+            // both null, so this cannot put back what the view took away.
+            const tag = item.category ?? item.place_category ?? null
+            return editingId === item.id ? (
               <li key={item.id} className="mb-2 rounded-2xl border border-line bg-white p-3">
                 <ItemForm
                   initial={item}
@@ -140,16 +144,13 @@ export function DayPlan({ day, items, zoneId = null, tripId }: Props) {
                   {/* Boolean, not the raw length: `null || 0` is `0`, and React
                       renders a bare 0 as text — an untagged activity printed a
                       stray "0" under its title. */}
-                  {!!(item.place_category || item.place_files?.length) && (
+                  {!!(tag || item.place_files?.length) && (
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                      {item.place_category && (
+                      {tag && (
                         <span
-                          className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                            CATEGORY_META[item.place_category].color
-                          }`}
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${CATEGORY_META[tag].color}`}
                         >
-                          {CATEGORY_META[item.place_category].icon}{' '}
-                          {CATEGORY_META[item.place_category].label}
+                          {CATEGORY_META[tag].icon} {CATEGORY_META[tag].label}
                         </span>
                       )}
                       {item.place_files?.map((name) => (
@@ -193,7 +194,7 @@ export function DayPlan({ day, items, zoneId = null, tripId }: Props) {
                 </div>
               </li>
             )
-          )}
+          })}
         </ol>
       )}
 
@@ -233,6 +234,7 @@ interface FormValues {
   title: string
   start_time: string | null
   note: string | null
+  category: Category | null
   /** Only sent when editing moved the activity to another day. */
   day?: string
 }
@@ -262,6 +264,7 @@ function ItemForm({
   const [time, setTime] = useState(initial?.start_time ?? '')
   const [note, setNote] = useState(initial?.note ?? '')
   const [date, setDate] = useState(initial?.day ?? day ?? '')
+  const [category, setCategory] = useState<Category | null>(initial?.category ?? null)
 
   // Moving is offered when editing an existing activity, not when adding one to
   // the day you are already looking at.
@@ -273,6 +276,7 @@ function ItemForm({
       title: title.trim(),
       start_time: time || null,
       note: note.trim() || null,
+      category,
       ...(canMove && date && date !== initial.day ? { day: date } : {}),
     })
   }
@@ -303,6 +307,30 @@ function ItemForm({
         onChange={(e) => setNote(e.target.value)}
         aria-label="Note"
       />
+      {/* Toggles, not a select: there are four, they are the colours the plan
+          already speaks, and tapping the chosen one again clears it — which is
+          the only way back to "no tag" once one is set. */}
+      <fieldset>
+        <legend className="label">Tag</legend>
+        <div className="mt-1 flex flex-wrap gap-1.5">
+          {TAGGABLE_CATEGORIES.map((c) => {
+            const on = category === c
+            return (
+              <button
+                key={c}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setCategory(on ? null : c)}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition ${
+                  on ? CATEGORY_META[c].color : 'bg-sand text-slate opacity-70'
+                }`}
+              >
+                {CATEGORY_META[c].icon} {CATEGORY_META[c].label}
+              </button>
+            )
+          })}
+        </div>
+      </fieldset>
       {canMove && (
         <div>
           <label className="label block" htmlFor={`day-${initial.id}`}>

@@ -391,8 +391,10 @@ An item's `day` must fall within its trip's own `start_date`/`end_date` — the 
 
 ### GET /api/itinerary
 
-- 200: `{"items":[{"id":"…","trip_id":"…","zone_id":"…","place_id":"…","day":"YYYY-MM-DD","start_time":"HH:MM"|null,"title":"…","note":"…"|null,"position":0,"highlight":false,"icon":"…"|null,"place_category":"food"|null,"place_files":["Entry ticket.pdf"]}]}`
+- 200: `{"items":[{"id":"…","trip_id":"…","zone_id":"…","place_id":"…","day":"YYYY-MM-DD","start_time":"HH:MM"|null,"title":"…","note":"…"|null,"position":0,"highlight":false,"icon":"…"|null,"category":"food"|null,"place_category":"food"|null,"place_files":["Entry ticket.pdf"]}]}`
 - When the stays are withheld, an item that pointed at a `hotel` place comes back with `place_id: null` — the day still reads the same, it just doesn't link to a page that would answer 403.
+
+**`category` (2026-08-28 addition, spec 009, migration 0022).** The tag the traveller chose for the activity itself — one of `hotel`, `attraction`, `food`, `shopping`, or `null`. Accepted on `POST`/`PATCH`; `null` clears it. Anything else, `other` included, is a 400: `other` has no colour in `CATEGORY_META`, so a pill for it could not be read. Do not confuse it with `place_category` below — this one is **stored**, and it is what lets an activity linked to nothing saved still carry a tag. Where both exist the client shows this one. Classified `'never'` in the export's field policy, so it does not travel into an exported file.
 
 **`place_category` and `place_files` (2026-08-28 addition, redesign option 1g).** Two derived read-only fields describing the place an item links to, so the day plan can tag an activity with its category and with what is attached to it without a second request per item. They are computed per response and are **not** stored columns and **not** accepted on write — `POST`/`PATCH` ignore them, and the export's field policy (`server/src/lib/export-view.ts`) is keyed on the stored row, so neither reaches an exported file.
 

@@ -235,6 +235,7 @@ export function fixture(): MemoryData {
         position: 0,
         highlight: false,
         icon: null,
+        category: null,
       },
       {
         id: 'itin-walk',
@@ -248,6 +249,7 @@ export function fixture(): MemoryData {
         position: 0,
         highlight: false,
         icon: null,
+        category: null,
       },
       // Points at a stay: a caller who cannot see stays keeps the row and loses
       // the link, the way the itinerary service already treats place_id.
@@ -263,6 +265,7 @@ export function fixture(): MemoryData {
         position: 0,
         highlight: false,
         icon: null,
+        category: null,
       },
     ],
     shopping: [

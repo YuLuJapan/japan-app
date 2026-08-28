@@ -544,6 +544,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         position: input.position ?? 0,
         highlight: input.highlight ?? false,
         icon: input.icon ?? null,
+        category: input.category ?? null,
       }
       db.itinerary!.push(item)
       return structuredClone(item)
@@ -561,6 +562,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       if (patch.position !== undefined) item.position = patch.position ?? 0
       if (patch.highlight !== undefined) item.highlight = patch.highlight ?? false
       if (patch.icon !== undefined) item.icon = patch.icon ?? null
+      if (patch.category !== undefined) item.category = patch.category ?? null
       return structuredClone(item)
     },
 

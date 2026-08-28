@@ -14,7 +14,7 @@ npm run dev          # frontend on :3000 (Vite), API on :3001 (Express), run con
 npm run dev:web       # frontend only
 npm run dev:api       # API only (tsx watch server/dev.ts)
 
-npm test              # vitest run — both projects (web + server), 961 tests
+npm test              # vitest run — both projects (web + server), 964 tests
 npm run test:watch    # vitest watch mode
 npx vitest run server/tests/browse.test.ts        # single server test file
 npx vitest run src/tests/browse.test.tsx          # single web test file
@@ -116,7 +116,9 @@ The whole feature sits behind the **`export-trip`** flag, defaulting off, exactl
 - **The countdown opens collapsed.** `CountdownWidget` shows four numerals and one line; the booking reference and every leg are one tap in. The two directions are now **stacked, not swiped** — the old two-pane carousel hid the return flight behind an undiscoverable gesture.
 - **The sushi hero is behind `journey-sushi-hero`, defaulting off**, and still gated on the destination. Default off means local dev, a deploy without analytics and a phone with no signal all get the photo hero; turning the flag on puts the animation back on Japan trips. It is the only thing still rendering `HeroTitle`, so neither is dead code.
 
-**The day plan's tags are derived, never stored.** `listItinerary` adds `place_category` and `place_files` to each item from one sweep of `listAllPlaces`/`listAllFiles`, and only when some item actually links to a place — this is the trip screen's endpoint and it is read more than anything else in the app. They are **view fields, not columns**: the export's field policy is keyed on `keyof ItineraryItem`, so a stored column could not have been added without classifying it, and this way the export keeps projecting the row it already knows. They follow the existing visibility rules rather than adding new ones — `place_category` is null wherever `place_id` was nulled (a withheld stay must not re-announce itself as a category tag), and `place_files` is empty whenever `can_see_documents` is off (a file name is a document). Writes ignore both.
+**An activity carries two kinds of tag, and only one of them is stored.** `itinerary_items.category` (migration **0022 — must be applied to the live project**) is the one the traveller picks on the activity form, from the four the plan can draw — `other` is refused, because `CATEGORY_META` has no colour for it and an unreadable pill is not a tag. It is what lets "Whatever the konbini has", which links to nothing saved, still say it is food. It is classified `'never'` in the export's field policy: promoting it would mean a field on `ExportDayItem` and a rendering decision in all four writers, and the exported plan already names the linked place. The client shows `category ?? place_category`, so a typed tag wins over a derived one.
+
+**The day plan's other tags are derived, never stored.** `listItinerary` adds `place_category` and `place_files` to each item from one sweep of `listAllPlaces`/`listAllFiles`, and only when some item actually links to a place — this is the trip screen's endpoint and it is read more than anything else in the app. They are **view fields, not columns**: the export's field policy is keyed on `keyof ItineraryItem`, so a stored column could not have been added without classifying it, and this way the export keeps projecting the row it already knows. They follow the existing visibility rules rather than adding new ones — `place_category` is null wherever `place_id` was nulled (a withheld stay must not re-announce itself as a category tag), and `place_files` is empty whenever `can_see_documents` is off (a file name is a document). Writes ignore both.
 
 **API contract source of truth:** `specs/001-japan-trip-app/contracts/api.md`. When adding/changing an endpoint, update this file too — it's not just historical documentation, it's referenced by both frontend and backend code comments.
 

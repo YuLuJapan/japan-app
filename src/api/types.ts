@@ -367,6 +367,13 @@ export interface ItineraryItem {
   highlight: boolean // shown as a "featured" banner above the day's plan
   icon: string | null // leading emoji for the banner
   /**
+   * The tag the traveller chose for this activity. Stored, unlike
+   * `place_category` below — it is what lets an activity that links to nothing
+   * saved still carry a coloured pill. Takes precedence when both are set.
+   * Optional so a payload cached before the column existed still parses.
+   */
+  category?: Category | null
+  /**
    * Category of the place this activity links to, for the coloured tag under
    * its title. Derived per request by the server, never stored — and null both
    * when nothing is linked and when the link was cut off a stay this caller
@@ -388,7 +395,11 @@ export interface ItineraryItemInput {
   position?: number
   highlight?: boolean
   icon?: string | null
+  category?: Category | null
 }
+
+/** The categories an activity may be tagged with — every one the plan can draw. */
+export const TAGGABLE_CATEGORIES = ['hotel', 'attraction', 'food', 'shopping'] as const
 
 // Shopping list — things to buy in Japan (photo, where, how much, bought yet).
 export const SHOPPING_CATEGORIES = [

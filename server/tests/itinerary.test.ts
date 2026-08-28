@@ -219,4 +219,42 @@ describe('trip-scoped itinerary routes', () => {
     const res = await auth(request(app).get('/api/trips/nope/itinerary'))
     expect(res.status).toBe(404)
   })
+
+  // The tag a traveller types on the activity, as opposed to place_category,
+  // which is derived from a linked place and never stored.
+  describe('the activity tag', () => {
+    it('saves one of the four, and clears it again', async () => {
+      const created = await auth(request(app).post('/api/trips/trip-1/itinerary')).send({
+        day: '2026-10-05',
+        title: 'Whatever the konbini has',
+        category: 'food',
+      })
+      expect(created.status).toBe(201)
+      expect(created.body.item.category).toBe('food')
+
+      const cleared = await auth(
+        request(app).patch(`/api/trips/trip-1/itinerary/${created.body.item.id}`)
+      ).send({ category: null })
+      expect(cleared.status).toBe(200)
+      expect(cleared.body.item.category).toBeNull()
+    })
+
+    it('defaults to none, and says so on the list', async () => {
+      const res = await auth(request(app).get('/api/trips/trip-1/itinerary'))
+      const walk = res.body.items.find((i: { id: string }) => i.id === 'itin-walk')
+      expect(walk.category).toBeNull()
+    })
+
+    it('refuses a category the plan cannot draw', async () => {
+      for (const category of ['other', 'nonsense']) {
+        const res = await auth(request(app).post('/api/trips/trip-1/itinerary')).send({
+          day: '2026-10-05',
+          title: 'Something',
+          category,
+        })
+        expect(res.status).toBe(400)
+        expect(res.body.error.details.join(' ')).toMatch(/category must be one of/)
+      }
+    })
+  })
 })

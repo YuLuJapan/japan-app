@@ -34,6 +34,9 @@ export interface ItineraryItemView extends ItineraryItem {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
+/** The categories an activity may be tagged with — every one the plan can draw. */
+export const TAGGABLE: readonly Category[] = ['hotel', 'attraction', 'food', 'shopping']
+
 /**
  * `includeStays: false` is a view without the stays: the day-by-day plan still shows
  * "check in at the ryokan", but the link to the stay is cut off the item —
@@ -112,6 +115,11 @@ function collectErrors(input: Partial<ItineraryItemInput>, partial: boolean): st
     errors.push('note must be at most 1000 characters')
   if (has('icon') && input.icon != null && [...input.icon].length > 8)
     errors.push('icon must be at most 8 characters')
+  // The four the day plan can draw a pill for. `other` is deliberately not
+  // offered: CATEGORY_META has no colour for it, so it would render as an
+  // unreadable tag rather than a useful one.
+  if (has('category') && input.category != null && !TAGGABLE.includes(input.category))
+    errors.push(`category must be one of: ${TAGGABLE.join(', ')}`)
   return errors
 }
 
