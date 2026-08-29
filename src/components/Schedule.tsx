@@ -5,7 +5,6 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { ItineraryItem, TripStep } from '../api/types'
 import {
-  type DaySection,
   daySections,
   dayZones,
   fmtDayLong,
@@ -34,14 +33,10 @@ export function Schedule({ steps, items, days, today, mode, zoneId, tripId }: Pr
   )
   const day = days.includes(selected) ? selected : (days[0] ?? today)
 
-  // A city page reads the day in bands — the city you came from, this city, the city
-  // you leave for — so a moving day is readable from both ends of the move instead of
-  // only from the one you arrive in. The trip screen has one band: the whole day.
+  // A city page shows its own city's half of a moving day and nothing else; the trip
+  // screen shows the whole day, banded by city with the travelling in between.
   const dayItems = items.filter((i) => i.day === day)
-  const sections: DaySection[] =
-    mode === 'zone' && zoneId
-      ? daySections(steps, zoneId, day, dayItems)
-      : [{ zone: null, direction: null, items: dayItems }]
+  const sections = daySections(steps, day, dayItems, mode === 'zone' ? zoneId : null)
   const shown = sections.flatMap((s) => s.items)
 
   // Every activity belongs to a city. A city page knows which one — the one you are
