@@ -199,7 +199,7 @@ export function setTripContext(context: TripContextProperties | null) {
 // --- errors ------------------------------------------------------------------
 
 /** Where a failure was noticed. Unhandled crashes arrive on their own. */
-export type ErrorSource = 'query' | 'mutation' | 'push' | 'auth' | 'export'
+export type ErrorSource = 'query' | 'mutation' | 'push' | 'auth' | 'export' | 'chunk'
 
 /**
  * Ids differ per trip and per place, so a path with them in it is a group of

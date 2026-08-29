@@ -152,7 +152,14 @@ export function MapSheet({
           ? 'overflow-hidden pb-24'
           : expanded
             ? 'top-0 overflow-y-auto pb-24'
-            : 'pb-24'
+            : // **Peeking has a ceiling.** Its height is its content's, and the
+              // content grows: expanding a card adds an address, a summary and
+              // two buttons, which took the sheet most of the way up a phone
+              // and left the map — the screen — as a strip along the top. Past
+              // the cap the sheet scrolls instead of growing, so what a tap can
+              // do to the height is bounded and the map is always the larger
+              // half of the screen.
+              'max-h-[55dvh] overflow-y-auto pb-24'
       }`}
     >
       {onExpandedChange ? (

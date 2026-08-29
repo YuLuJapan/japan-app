@@ -3,6 +3,7 @@ import { Navigate, Outlet, createBrowserRouter, useParams } from 'react-router-d
 import { getAccessCode } from './api/client'
 import { useBooleanFlag } from './lib/flags'
 import { setTripContext, tripContext } from './lib/posthog'
+import { ChunkBoundary } from './components/ChunkBoundary'
 import { Layout } from './components/Layout'
 import { useTrip } from './api/hooks'
 import {
@@ -207,10 +208,18 @@ export const router = createBrowserRouter([
                 // No fallback UI: the chunk is small and the screen it would
                 // flash over is the map's own tiles loading in. A spinner here
                 // would be a second loading state for one wait.
+                //
+                // The boundary is not optional the way the fallback is. This is
+                // the only route whose code arrives separately, so it is the
+                // only one that can be asked for by a name the current
+                // deployment no longer serves — and uncaught, React hands that
+                // to the router, which paints a stack trace over the app.
                 element: (
-                  <Suspense fallback={null}>
-                    <TripMap />
-                  </Suspense>
+                  <ChunkBoundary>
+                    <Suspense fallback={null}>
+                      <TripMap />
+                    </Suspense>
+                  </ChunkBoundary>
                 ),
               },
             ],
