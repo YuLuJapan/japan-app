@@ -12,8 +12,18 @@
 // row into the vertical list the traveller can still use, with the explanation
 // above it (research R11). Never a grey square, never a bare spinner, and the
 // answer is a screenful of places rather than an apology in a corner.
+//
+// **It reports *why*, because there are two whys and they are not the same
+// sentence.** Leaflet's engine is one of the few things deliberately kept out
+// of the precache, so it always comes from the network — which means a page
+// left open across a deploy asks for a filename that now 404s, and the map
+// used to answer that by telling a traveller with four bars that they had no
+// connection. A missing chunk is a stale page: it takes the one reload
+// (`lib/chunks.ts`) and comes back. Only what survives that is reported, and
+// only as what it is.
 import { useEffect, useRef, useState } from 'react'
-import type { MapEngine, MapInset, MapView, SelfPosition } from '../../map/engine.types'
+import { recoverFromStaleChunk } from '../../lib/chunks'
+import type { MapEngine, MapInset, MapTrouble, MapView, SelfPosition } from '../../map/engine.types'
 import type { Bounds, MapPin } from '../../map/pins'
 
 export function MapCanvas({
@@ -35,8 +45,11 @@ export function MapCanvas({
   onPinTap: (id: string) => void
   /** Handed the engine once it is mounted, so the page can pan it. */
   onReady?: (engine: MapEngine) => void
-  /** True while the imagery cannot be drawn — the page expands the sheet. */
-  onUnavailable: (unavailable: boolean) => void
+  /**
+   * Why the imagery cannot be drawn, or null once it can — the page expands
+   * the sheet either way and says the matching sentence.
+   */
+  onUnavailable: (trouble: MapTrouble) => void
 }) {
   const host = useRef<HTMLDivElement | null>(null)
   const engine = useRef<MapEngine | null>(null)
@@ -50,13 +63,13 @@ export function MapCanvas({
 
   useEffect(() => {
     let live = true
-    // Offline is decided before the import rather than after it: the chunk may
-    // well be in the service worker's precache while the *tiles* are not, so a
-    // successful import says nothing about whether a map can be drawn.
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      onUnavailable(true)
-      return
-    }
+    // **The import is attempted whatever `navigator.onLine` says.** It used to
+    // be the gate, and it is not trustworthy enough to be one: an installed
+    // iOS PWA reports `false` while perfectly online often enough that the
+    // map simply refused to draw. Nothing is lost by trying — the engine is
+    // not precached, so with no network the import fails by itself and lands
+    // in the same place, one wasted fetch later. `onLine` is still consulted
+    // below, where it only decides the wording.
     import('../../map/engine.leaflet')
       .then(({ createEngine }) => {
         if (!live || !host.current) return
@@ -65,13 +78,16 @@ export function MapCanvas({
         next.onPinTap((id) => tap.current(id))
         engine.current = next
         setDrawn(true)
-        onUnavailable(false)
+        onUnavailable(null)
         onReady?.(next)
       })
-      .catch(() => {
-        // A chunk that will not load is the same story as no network, and the
-        // traveller needs the same answer: the places, and why not the map.
-        if (live) onUnavailable(true)
+      .catch((error: unknown) => {
+        if (!live) return
+        // A file that 404s because this page is a build behind is not a
+        // missing network, and saying so would send a traveller looking for
+        // signal they already have. It is fixed by reloading, once.
+        if (recoverFromStaleChunk(error)) return
+        onUnavailable(navigator.onLine === false ? 'offline' : 'error')
       })
     return () => {
       live = false

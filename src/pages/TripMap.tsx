@@ -23,7 +23,7 @@ import { MissingPlaces } from '../components/map/MissingPlaces'
 import { PlaceCardRow } from '../components/map/PlaceCardRow'
 import { defaultZoneId, tripScope, zoneScope } from '../map/scope'
 import { framedWith } from '../map/pins'
-import type { MapEngine } from '../map/engine.types'
+import type { MapEngine, MapTrouble } from '../map/engine.types'
 import { positionMessage, requestPosition, shouldAsk, type PositionState } from '../lib/geolocation'
 import { capture } from '../lib/posthog'
 import { useCanEdit } from '../lib/session'
@@ -60,7 +60,12 @@ export default function TripMap() {
   // the map has to frame and centre *above*, and what the locate button sits
   // on top of — both of which were being covered by it.
   const [sheetHeight, setSheetHeight] = useState(0)
-  const [offline, setOffline] = useState(false)
+  // Why the map cannot be drawn, or null. Both reasons expand the sheet and
+  // hand the screen to the list; they differ only in what they say, and
+  // telling a traveller with four bars to find a connection is the bug this
+  // stopped being one boolean for.
+  const [trouble, setTrouble] = useState<MapTrouble>(null)
+  const offline = trouble !== null
   const [position, setPosition] = useState<PositionState>({ status: 'idle' })
   const engine = useRef<MapEngine | null>(null)
 
@@ -217,7 +222,7 @@ export default function TripMap() {
         onReady={(next) => {
           engine.current = next
         }}
-        onUnavailable={setOffline}
+        onUnavailable={setTrouble}
       />
       <MapTopBar
         tripId={tripId}
@@ -242,12 +247,15 @@ export default function TripMap() {
         onExpandedChange={offline ? null : setExpanded}
         onPeekHeight={setSheetHeight}
       >
-        {offline && (
+        {trouble && (
           // The one state where the map cannot be the answer, so the list is
-          // (FR-026). Said plainly and above the places, not as an error.
+          // (FR-026). Said plainly and above the places, not as an error — and
+          // said accurately: the second sentence is a different problem with a
+          // different way out of it.
           <p className="px-4 pb-3 text-sm text-muted">
-            The map needs a connection — map imagery is never stored on your phone. Everything you
-            saved here is below.
+            {trouble === 'offline'
+              ? 'The map needs a connection — map imagery is never stored on your phone. Everything you saved here is below.'
+              : 'The map could not be loaded. Closing and reopening the app usually fixes it — everything you saved here is below in the meantime.'}
           </p>
         )}
         <CategoryChips

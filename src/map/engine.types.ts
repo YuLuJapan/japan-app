@@ -15,6 +15,17 @@
 // repo, and it is here because there is a real seam to defend.
 import type { Bounds, MapPin } from './pins'
 
+/**
+ * Why the map cannot be drawn — or null, when it can.
+ *
+ * Two states rather than one boolean, because they are two different things to
+ * tell a traveller: `offline` is about them and resolves when the signal does,
+ * `error` is about the app and is fixed by reopening it. Reporting the second
+ * as the first is how a map with a stale chunk told someone with four bars to
+ * find a connection.
+ */
+export type MapTrouble = 'offline' | 'error' | null
+
 /** Where the map sits when it has nothing better to go on. */
 export interface MapView {
   center: { lat: number; lng: number }
