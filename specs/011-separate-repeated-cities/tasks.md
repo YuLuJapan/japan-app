@@ -49,17 +49,24 @@ Two runtimes in one repo (per plan.md): `server/src/{routes,services,lib}` for t
 
 ---
 
-## Phase 2: Foundational (blocking prerequisites)
+## Phase 2: Foundational (blocking prerequisites) ✅ DONE
 
 **Purpose**: the two pure modules that own the visit rules, plus the fixture every later test builds on. **Blocks every user story.**
 
-- [ ] T008 [P] Create `server/src/lib/visit.ts`: given a trip's zones and steps, resolve a zone's `step_id`, dates, `ordinal` (1-based among `city_key` siblings ordered by `start_date` then `position`), `total`, and `siblings`. Pure — takes rows, returns data. Tolerates a zone with **no** step (`step_id: null`, dates null) per research.md R8. Also export `visitForDay(steps, day)` implementing FR-015a: stop ranges overlap by a day at every handover, so a shared day resolves to the **departing** visit. This is the single owner of that rule — the split script (T026) and the day plan (T042) both call it, or they will disagree about the same day.
-- [ ] T009 [P] Create `src/lib/visit-label.ts`: the only place a visit's wording lives. `total === 1` → empty label (this is FR-003, structurally). Otherwise the step's dates ("19–25 Sep"), falling back to an ordinal ("2nd visit") when two siblings share dates or have none.
-- [ ] T010 [P] Create `server/tests/visit.test.ts` — table-test `visit.ts` over: one visit, two visits, three visits, two visits with identical dates (ordinal fallback), a zone with no step, and a zone with a null `city_key`. Table-test `visitForDay` separately over a handover day (resolves to the departing visit, FR-015a), an interior day, and a day outside every stop.
-- [ ] T011 [P] Create `src/tests/visit-label.test.ts` — table-test the wording for the same cases, including the empty label for a single visit.
-- [ ] T012 Extend `server/tests/fixture.ts` with a trip that visits one city twice (two steps → two sibling zones, places and tips on each) plus a city visited once as the control. Every later server test builds on this.
+- [x] T008 [P] Create `server/src/lib/visit.ts`: given a trip's zones and steps, resolve a zone's `step_id`, dates, `ordinal` (1-based among `city_key` siblings ordered by `start_date` then `position`), `total`, and `siblings`. Pure — takes rows, returns data. Tolerates a zone with **no** step (`step_id: null`, dates null) per research.md R8. Also export `visitForDay(steps, day)` implementing FR-015a by **mirroring `primaryStep` in `src/lib/schedule.ts`** — the step the traveller sleeps in that night, falling back to the latest-ending covering step on the last day. Do not invent a rule here: `Schedule.tsx` already files a new activity by `primaryStep`, so a second definition would link an activity to a different visit from the one it was filed under (research.md R13).
+- [x] T009 [P] Create `src/lib/visit-label.ts`: the only place a visit's wording lives. `total === 1` → empty label (this is FR-003, structurally). Otherwise the step's dates ("19–25 Sep"), falling back to an ordinal ("2nd visit") when two siblings share dates or have none.
+- [x] T010 [P] Create `server/tests/visit.test.ts` — table-test `visit.ts` over: one visit, two visits, three visits, two visits with identical dates (ordinal fallback), a zone with no step, and a zone with a null `city_key`. Table-test `visitForDay` separately over an interior day, a handover day, the trip's last day and a day outside every stop — and, in the `server/tests/ordering.test.ts` idiom, run it and the client's `primaryStep` over the same rows asserting they agree, so the mirrored rule cannot drift (research.md R13).
+- [x] T011 [P] Create `src/tests/visit-label.test.ts` — table-test the wording for the same cases, including the empty label for a single visit.
+- [x] T012 Extend `server/tests/fixture.ts` with a trip that visits one city twice (two steps → two sibling zones, places and tips on each) plus a city visited once as the control. Every later server test builds on this.
 
-**Checkpoint**: the rules exist and are tested; nothing renders them yet.
+**Checkpoint**: the rules exist and are tested; nothing renders them yet. ✅ 1116 tests green, typecheck/lint/format clean.
+
+### Notes on deviations
+
+1. **FR-015a was wrong and is corrected — see research.md R13.** The spec said a handover day belongs to the *departing* visit. `primaryStep` in `src/lib/schedule.ts` has answered this since the day plan was built, and answers the opposite (the **arrival** city — "the step you sleep in that night"), and `Schedule.tsx` already files a newly-added activity by it. Shipping the spec's rule would have filed an activity against one visit and linked it to another. `visitForDay` now mirrors `primaryStep`, and `visit.test.ts` runs both over the same rows — every handover included — in the `ordering.test.ts` idiom.
+2. **The repeated-city fixture is opt-in** (`fixtureWithRepeatedCity()`), not folded into `fixture()`. Adding a third stop to trip-1 would have broken existing expectations (`export.test.ts` asserts 14 steps; `trips.test.ts` asserts the owner has exactly 1 trip). It is also the right shape: every trip in the base fixture visits each city once, which is the case this feature promises to leave untouched — so the default fixture *is* the control group.
+3. **`visit-label.ts` formats month-first** ("Sep 19–25"), not "19–25 Sep". The `en` locale and every other date in the app (`fmtDayLong`, the journey editor's own labels) put the month first; a range that ordered itself the other way would be the only one on screen that did. The spec's "19–25 Sep" was illustrative, not a format requirement.
+4. **`visitTitle` and `formatRange` were added** alongside `visitLabel` — the search result and export heading (T038, T044) need "Tokyo · Sep 19–25" rather than a bare label, and putting that composition anywhere else would be a second place the wording lives.
 
 ---
 
@@ -143,7 +150,7 @@ Two runtimes in one repo (per plan.md): `server/src/{routes,services,lib}` for t
 - [ ] T039 [P] [US4] `src/pages/Search.tsx` — render the labelled subtitles.
 - [ ] T040 [P] [US4] `src/map/scope.ts` — visit labels on the trip-scale chips (FR-017). `tripScope` already builds from steps, so this is labelling only; do not add a `scope.kind` branch (spec 004's rule).
 - [ ] T041 [P] [US4] `src/components/Breadcrumbs.tsx` — name the visit and return to it (FR-019).
-- [ ] T042 [P] [US4] `src/components/Schedule.tsx`, `src/components/DayPlan.tsx`, `src/components/DayHighlights.tsx` — a day's activities link to the visit whose dates contain that day (FR-015), resolving a handover day through the shared rule rather than a local date comparison (FR-015a). Worth checking against the open board item "BUG · A travel day's plan only shows under the city you arrive in" — same ambiguity, and this rule is the answer to both.
+- [ ] T042 [P] [US4] `src/components/Schedule.tsx`, `src/components/DayPlan.tsx`, `src/components/DayHighlights.tsx` — a day's activities link to the visit whose dates contain that day (FR-015), resolving a handover day through `primaryStep` rather than a local date comparison (FR-015a). Note the open board item "BUG · A travel day's plan only shows under the city you arrive in" is this rule working as written, and is a separate question about whether the plan should render under both cities — do not change `primaryStep` here.
 - [ ] T043 [P] [US4] `src/components/JourneyStepsSlider.tsx` and `src/pages/JourneySteps.tsx` — show the visit label on a repeated city's cards.
 - [ ] T044 [US4] Section headings in `server/src/lib/export-view.ts` take the label; classify `city_key` as `'never'` in `ZONE_FIELD_POLICY` (it is plumbing, not trip content) so `npm run typecheck` passes.
 - [ ] T045 [P] [US4] Add per-visit assertions to `server/tests/map-pins.test.ts` and `server/tests/search.test.ts`.

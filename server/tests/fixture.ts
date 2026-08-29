@@ -131,13 +131,21 @@ export function fixture(): MemoryData {
       },
     ],
     zones: [
-      { id: 'zone-tokyo', trip_id: 'trip-1', name: 'Tokyo', name_ja: '東京', summary: 'Big city' },
+      {
+        id: 'zone-tokyo',
+        trip_id: 'trip-1',
+        name: 'Tokyo',
+        name_ja: '東京',
+        summary: 'Big city',
+        city_key: 'tokyo',
+      },
       {
         id: 'zone-kyoto',
         trip_id: 'trip-1',
         name: 'Kyoto',
         name_ja: '京都',
         summary: 'Old capital',
+        city_key: 'kyoto',
       },
       {
         id: 'zone-osaka',
@@ -145,6 +153,7 @@ export function fixture(): MemoryData {
         name: 'Osaka',
         name_ja: '大阪',
         summary: 'Someone else’s city',
+        city_key: 'osaka',
       },
     ],
     places: [
@@ -383,5 +392,43 @@ export function largeFixture(stops = 12, placesPerStop = 10): MemoryData {
       })
     }
   }
+  return data
+}
+
+/**
+ * The same fixture, with trip-1 visiting Tokyo a second time (12–14 Oct).
+ *
+ * Opt-in rather than folded into `fixture()` on purpose. Every trip in the
+ * base fixture visits each city once, which is the case this whole feature
+ * promises to leave untouched (FR-003) — so the default fixture is the control
+ * group, and every existing test goes on asserting what it always did.
+ *
+ * The second visit is deliberately made to share 12 Oct with Kyoto's last day,
+ * because that is the shape that actually occurs: stop ranges overlap by a day
+ * at every handover, so a day can be covered by two steps (FR-015a).
+ *
+ * `zone-tokyo-2` copies Tokyo's identity — name, name_ja, summary and, above
+ * all, `city_key` — which is what makes the two rows siblings. It starts with
+ * no places and no tips: a new visit is empty, and what the first stay
+ * collected stays on the first stay.
+ */
+export function fixtureWithRepeatedCity(): MemoryData {
+  const data = fixture()
+  data.zones.push({
+    id: 'zone-tokyo-2',
+    trip_id: 'trip-1',
+    name: 'Tokyo',
+    name_ja: '東京',
+    summary: 'Big city',
+    city_key: 'tokyo',
+  })
+  data.steps.push({
+    id: 'step-3',
+    trip_id: 'trip-1',
+    zone_id: 'zone-tokyo-2',
+    position: 3,
+    start_date: '2026-10-12',
+    end_date: '2026-10-14',
+  })
   return data
 }

@@ -68,7 +68,7 @@
 
 No place is scheduled inside both visits, so FR-012a does not fire here; it is specified and tested anyway because a later edit can create one. Tokyo's 2 tips carry no date and go to visit 1 (FR-012b). Its 80 itinerary items split by their own `day` and need no rule.
 
-**The handover day** (research note added after checking the seed): stop ranges overlap by a day at **every one of the trip's 9 handovers** — Tokyo ends 25 Sep, Hakone begins 25 Sep — so "the visit whose dates contain this day" is ambiguous once per handover. FR-015a settles it: the day belongs to the **departing** visit, the one whose stay is ending, because a travel morning is spent where the traveller woke up and that is the visit holding the hotel being checked out of. One helper owns the rule so the split script and the day plan cannot disagree about the same day. It does not change the Tokyo split (the two Tokyo visits share no boundary), but it is the difference between a stated rule and an accident of iteration order.
+**The handover day** — corrected during Phase 2, see R13 below. Stop ranges overlap by a day at **every one of the trip's 9 handovers** (Tokyo ends 25 Sep, Hakone begins 25 Sep), so "the visit whose dates contain this day" is ambiguous once per handover. The answer is `primaryStep`'s, which already exists: the city you sleep in that night. It does not change the Tokyo split — the two Tokyo visits share no boundary — but the split script must use that rule rather than a second one.
 
 **The script runs twice**: against `server/src/data/placeholder-data.json` (so the memory backend and every test fixture match production) and against Supabase.
 
@@ -130,3 +130,28 @@ None of these change shape; each renders the R5 label where it already renders a
 ## R12. Ordering
 
 `src/lib/ordering.ts` mirrors the datastore's ordering so a saved row can be put back in place. Zones have no client-side order today and gain none: siblings are ordered by their step's `start_date`, which the trip bundle already returns sorted. Nothing to mirror.
+
+
+## R13. The handover day already had an answer — use it (corrects R4's first note)
+
+**Decision**: `visitForDay` mirrors `primaryStep` (`src/lib/schedule.ts`) exactly — the step the traveller sleeps in that night (`day < end_date`), falling back to the latest-ending covering step on the trip's final day. Not a new rule.
+
+**What was wrong**: the spec originally said a shared day belongs to the *departing* visit, reasoning that a travel morning is spent where you woke up. That was written without noticing `primaryStep`, which has answered this question since the day plan was built and answers it the other way — the **arrival** city:
+
+```ts
+/** The city a day "belongs to": the step you sleep in that night (day < end).
+ *  On a travel day that's the arrival city; on the trip's final day it's the last stay. */
+export function primaryStep(steps: TripStep[], day: string): TripStep | null
+```
+
+**Why the existing answer wins, regardless of which is nicer in the abstract**:
+
+1. It is what `Schedule.tsx` already uses to decide which zone a newly-added activity is filed under. A day plan that *links* by one rule and *files* by another would put an activity on a visit and then link it to the other one — a bug this feature would have introduced into a screen that works today.
+2. It is tested (`src/tests/schedule.test.ts`) and shipped. Changing it is a behaviour change to the day plan, which is out of scope here and is not what the traveller asked for.
+3. Two definitions of "which city is this day" is exactly the drift `lib/ordering.ts` exists to prevent. One imperfect definition beats two defensible ones.
+
+**Consequence for the split**: a place scheduled on a handover day is filed against the visit its day resolves to under that rule. On the Japan trip nothing changes — Tokyo's two visits are 19–25 Sep and 12–16 Oct and share no boundary with each other, so no Tokyo place is ambiguous. The case the rule is actually needed for is two visits of the **same** city placed back to back, which `primaryStep` was never asked about and which this feature makes possible.
+
+**Mirrored, so it cannot drift**: `primaryStep` is client-side and takes the bundle's `TripStep[]`; the split script and the zone service need the same answer server-side over `JourneyStep[]`. That is the `lib/ordering.ts` situation exactly — a rule the server owns and the client mirrors — so it gets the same treatment: `server/tests/visit.test.ts` runs both implementations over the same rows and asserts they agree, the way `server/tests/ordering.test.ts` already does.
+
+**Note on the open bug**: the board carries "BUG · A travel day's plan only shows under the city you arrive in" (009 · Redesign). That is this rule, working as written. Whether the *plan* should appear under both cities is a separate question about `dayZones`/`coveringSteps`, which already return both — it is not a reason to change what a day *belongs* to, and this feature does not touch it.
