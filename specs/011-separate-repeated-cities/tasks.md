@@ -70,7 +70,7 @@ Two runtimes in one repo (per plan.md): `server/src/{routes,services,lib}` for t
 
 ---
 
-## Phase 3: User Story 1 + User Story 2 — separate pages, and new content lands on the visit you are on (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 + User Story 2 — separate pages, and new content lands on the visit you are on (Priority: P1) ✅ DONE
 
 **Goal**: a repeated city opens as two independent pages, each labelled by its dates, and anything added while on one lands on that one.
 
@@ -80,26 +80,34 @@ Two runtimes in one repo (per plan.md): `server/src/{routes,services,lib}` for t
 
 ### The behaviour change
 
-- [ ] T013 [US1] In `server/src/services/steps.ts`, change `resolveZoneId` so a `destination` **always** creates a zone (never finds-or-creates by name), setting `city_key` from the normalised destination name. Replace the "Find-or-create is now per trip" comment with the visit-level reasoning from research.md R1 — the comment is load-bearing documentation of a deliberate decision.
-- [ ] T014 [US1] In the same file, reject a `zone_id` on `POST`/`PATCH /steps` that already belongs to another step: `400 VALIDATION`, `zone_id already belongs to another stop — add a destination to visit it again`. This closes the back door that would recreate a shared zone.
-- [ ] T015 [P] [US1] Create `server/tests/steps-visits.test.ts` — adding a second stop for a city already on the trip creates a **new empty** zone (FR-006); the new zone shares `city_key` with the first; a `zone_id` that already has a step is rejected.
+- [x] T013 [US1] In `server/src/services/steps.ts`, change `resolveZoneId` so a `destination` **always** creates a zone (never finds-or-creates by name), setting `city_key` from the normalised destination name. Replace the "Find-or-create is now per trip" comment with the visit-level reasoning from research.md R1 — the comment is load-bearing documentation of a deliberate decision.
+- [x] T014 [US1] In the same file, reject a `zone_id` on `POST`/`PATCH /steps` that already belongs to another step: `400 VALIDATION`, `zone_id already belongs to another stop — add a destination to visit it again`. This closes the back door that would recreate a shared zone.
+- [x] T015 [P] [US1] Create `server/tests/steps-visits.test.ts` — adding a second stop for a city already on the trip creates a **new empty** zone (FR-006); the new zone shares `city_key` with the first; a `zone_id` that already has a step is rejected.
 
 ### The zone page learns which visit it is
 
-- [ ] T016 [US1] In `server/src/services/zones.ts`, have `getZoneDetail` return the `visit` block (`step_id`, `start_date`, `end_date`, `ordinal`, `total`, `siblings`) using `lib/visit.ts`, per `contracts/api-delta.md` §1. No new route — the block rides on the response the page already fetches.
-- [ ] T017 [P] [US1] Add the `visit` block to the zone-detail response type in `src/api/types.ts` and to its hook in `src/api/hooks.ts`.
-- [ ] T018 [US1] Render the visit label on `src/pages/Zone.tsx` via `src/lib/visit-label.ts`, and render **nothing** when `visit.total === 1`.
-- [ ] T019 [P] [US1] Create `src/tests/zone-visit.test.tsx` — a repeated city's page shows its dates; a single-visit city's page shows no label, no chooser, no move action (FR-003); each visit's counts equal its own lists (SC-001).
-- [ ] T020 [P] [US1] Add to `server/tests/zones.test.ts`: two sibling zones return disjoint places, tips, files and counts (FR-002), and `visit.total` is 2 for each and 1 for a city visited once.
+- [x] T016 [US1] In `server/src/services/zones.ts`, have `getZoneDetail` return the `visit` block (`step_id`, `start_date`, `end_date`, `ordinal`, `total`, `siblings`) using `lib/visit.ts`, per `contracts/api-delta.md` §1. No new route — the block rides on the response the page already fetches.
+- [x] T017 [P] [US1] Add the `visit` block to the zone-detail response type in `src/api/types.ts` and to its hook in `src/api/hooks.ts`.
+- [x] T018 [US1] Render the visit label on `src/pages/Zone.tsx` via `src/lib/visit-label.ts`, and render **nothing** when `visit.total === 1`.
+- [x] T019 [P] [US1] Create `src/tests/zone-visit.test.tsx` — a repeated city's page shows its dates; a single-visit city's page shows no label, no chooser, no move action (FR-003); each visit's counts equal its own lists (SC-001).
+- [x] T020 [P] [US1] Add to `server/tests/zones.test.ts`: two sibling zones return disjoint places, tips, files and counts (FR-002), and `visit.total` is 2 for each and 1 for a city visited once.
 
 ### Adding content, and the export scar
 
-- [ ] T021 [US2] Verify and test that place, tip and file creation file against the open zone with no code change (they already take `zone_id`); add coverage to `server/tests/places.test.ts` and `server/tests/tips.test.ts` that a row created on one sibling is absent from the other (FR-008).
-- [ ] T022 [US2] In `src/components/AddPlaceToDay.tsx`, offer only places belonging to the visit whose dates contain the day being edited (spec US2 scenario 3).
-- [ ] T023 [US1] Delete the `counted` dedup Set and its comment from `server/src/lib/export-view.ts` — with one zone per step nothing can be counted twice (research.md R1). Keep `placesWithoutAddress` correct without it.
-- [ ] T024 [P] [US1] Add to `server/tests/export.test.ts`: a repeated city renders two sections in journey order and no place appears in both (FR-018), at `share` and `full` detail.
+- [x] T021 [US2] Verify and test that place, tip and file creation file against the open zone with no code change (they already take `zone_id`); add coverage to `server/tests/places.test.ts` and `server/tests/tips.test.ts` that a row created on one sibling is absent from the other (FR-008).
+- [x] T022 [US2] In `src/components/AddPlaceToDay.tsx`, offer only places belonging to the visit whose dates contain the day being edited (spec US2 scenario 3).
+- [x] T023 [US1] Delete the `counted` dedup Set and its comment from `server/src/lib/export-view.ts` — with one zone per step nothing can be counted twice (research.md R1). Keep `placesWithoutAddress` correct without it.
+- [x] T024 [P] [US1] Add to `server/tests/export.test.ts`: a repeated city renders two sections in journey order and no place appears in both (FR-018), at `share` and `full` detail.
 
-**Checkpoint**: US1 + US2 delivered for **new** trips. The Japan trip still has one pooled Tokyo until the next phase.
+**Checkpoint**: US1 + US2 delivered for **new** trips. The Japan trip still has one pooled Tokyo until the next phase. ✅ 1136 tests green, typecheck/lint clean.
+
+### Notes on deviations
+
+1. **T022 needed no code.** There is no day→place picker in the app: a place is linked to a day only from the place itself (`AddPlaceToDay`), which already scopes to `zoneDays(steps, place.zone_id)`. With one step per zone that returns exactly one visit's days, so US2 scenario 3 holds by construction. `Schedule.tsx` likewise already files a new item by `primaryStep`. This is the model change paying off rather than a gap.
+2. **`VisitSwitcher` was added** (`src/components/VisitSwitcher.tsx`), which the list did not call for. The page's eyebrow already carried the visit's dates, so a date label would have said nothing new — what was missing is the signal that *another stay exists* and a way to reach it. The FR-003 "render nothing" rule lives inside that one component rather than at each call site, so no screen can forget it.
+3. **A second scar removed.** `Zone.tsx` summed the nights of every stop landing in the city, with a comment explaining that a return leg would otherwise claim every night in between. One zone now means one stop, so the eyebrow reads the visit's own dates and the workaround is gone with the problem.
+4. **`place_count` no longer deduplicates.** `export-view.ts` counted distinct place ids because a repeated city was one zone under two steps. With one step per zone each place is walked once, so it is a plain counter (T023).
+5. **Three existing tests asserted the old pooling** and were rewritten, not deleted: "creates a step for an existing zone" now uses an orphan zone and gains a sibling test for the rejected `zone_id`; "reuses an existing zone when the destination name matches" became "gives a returning destination its own visit"; the ordering test adds its stop by destination, since every fixture zone now belongs to a stop.
 
 ---
 

@@ -294,6 +294,32 @@ export interface FileUploadInput {
   data_base64: string
 }
 
+/** One other visit of the same city — what the move picker offers. */
+export interface VisitSibling {
+  zone_id: string
+  start_date: string | null
+  end_date: string | null
+  ordinal: number
+}
+
+/**
+ * Which visit a zone is. A zone is one *visit* to a city, so a trip that goes
+ * to Tokyo twice has two of these.
+ *
+ * `total: 1` is the ordinary case: a city visited once has no siblings, so
+ * `visitLabel` returns '' and nothing about visits is rendered at all.
+ * Dates are null for a visit no longer on the journey — a stop was deleted and
+ * its content deliberately kept.
+ */
+export interface VisitInfo {
+  step_id: string | null
+  start_date: string | null
+  end_date: string | null
+  ordinal: number
+  total: number
+  siblings: VisitSibling[]
+}
+
 export interface ZoneDetail {
   zone: {
     id: string
@@ -305,6 +331,7 @@ export interface ZoneDetail {
     lng?: number | null
     city_key?: string | null
   }
+  visit: VisitInfo
   tips: Tip[]
   files: FileMeta[]
   place_counts: Record<Category, number>

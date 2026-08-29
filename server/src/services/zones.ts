@@ -2,6 +2,7 @@ import type { Category, DataStore, ZonePatch } from '../lib/datastore.js'
 import { CATEGORIES } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
 import { zonePlaceListItem } from '../lib/place-view.js'
+import { visitOf } from '../lib/visit.js'
 import { hideStayCounts, isStay } from '../lib/trip-view.js'
 
 /**
@@ -24,13 +25,21 @@ export async function getZoneDetail(
 ) {
   const zone = await store.getZone(tripId, zoneId)
   if (!zone) throw notFound('Zone')
-  const [tips, files, place_counts] = await Promise.all([
+  const [tips, files, place_counts, zones, steps] = await Promise.all([
     store.listTips(tripId, { zone_id: zoneId }),
     includeFiles ? store.listFiles(tripId, { zone_id: zoneId }) : [],
     store.countPlacesByCategory(tripId, zoneId),
+    store.listZones(tripId),
+    store.listSteps(tripId),
   ])
   return {
     zone,
+    // Which visit this is, and which other stays of the same city exist
+    // (spec 011). Derived rather than stored, so a stop's date change relabels
+    // the page with no write. `total: 1` is the ordinary case and the whole of
+    // FR-003: a city visited once has no siblings, so the client renders no
+    // label, no chooser and no move action, and the page is what it always was.
+    visit: visitOf(zone, zones, steps),
     tips,
     files: files.map(({ id, display_name, mime_type, size_bytes }) => ({
       id,

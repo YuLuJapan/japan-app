@@ -1,9 +1,10 @@
 // Journey steps: which destinations the trip visits and over what date range.
 // Order is derived from start_date (see datastore listSteps) — there is no
 // manual reordering. A step's destination is either an existing zone_id or a
-// free-text destination (validated as a real place via geocode on the
-// client); a destination reuses an existing zone when the name matches,
-// otherwise a new zone is created on the fly.
+// free-text destination (validated as a real place via geocode on the client);
+// a destination always creates a new zone, because a zone is one *visit* to a
+// city rather than the city itself (spec 011). A trip that returns to Tokyo
+// therefore gets a second, empty Tokyo, tied to the first by `city_key`.
 import type { DataStore } from '../lib/datastore.js'
 import { requireTrip } from '../lib/access.js'
 import { notFound, validation } from '../lib/errors.js'
@@ -71,24 +72,47 @@ function collectStepRangeErrors(startDate: string, endDate: string, trip: DateRa
   ]
 }
 
-/** Resolve a zone_id or free-text destination to a zone id, creating the zone if needed. */
+/**
+ * Resolve a zone_id or free-text destination to a zone id, creating the zone
+ * for a destination.
+ *
+ * A destination **always** creates. It used to find-or-create by name, so a
+ * trip returning to Tokyo reused the first Tokyo and the two stays pooled
+ * their places, tips and counts into one page. A zone is now one *visit*
+ * (spec 011), and this is the line that makes it so.
+ *
+ * It is the same argument the previous comment here made one level up — "two
+ * trips to Tokyo each get their own Tokyo, with their own places and notes,
+ * rather than sharing one" — applied at the next boundary. What still ties the
+ * two rows together is `city_key`, derived by the store (lib/city-key.ts), not
+ * the name: a stay renamed "Tokyo — last days" is still Tokyo.
+ *
+ * `zone_id` keeps meaning "this exact visit", and is refused when that visit
+ * already belongs to another stop. Without that check there would still be one
+ * path that produces a zone reached by two steps — the very thing this
+ * removes.
+ */
 async function resolveZoneId(
   store: DataStore,
   tripId: string,
   zoneId: string | undefined,
-  destination: GeocodeResult | undefined
+  destination: GeocodeResult | undefined,
+  /** The step being edited, so it does not count as its own conflict. */
+  forStepId?: string
 ): Promise<string> {
   if (zoneId) {
     const zone = await store.getZone(tripId, zoneId)
     if (!zone) throw notFound('Zone')
+    const steps = await store.listSteps(tripId)
+    const taken = steps.find((s) => s.zone_id === zone.id && s.id !== forStepId)
+    if (taken) {
+      throw validation([
+        'zone_id already belongs to another stop — add a destination to visit it again',
+      ])
+    }
     return zone.id
   }
-  // Find-or-create is now per trip: two trips to Tokyo each get their own
-  // Tokyo, with their own places and notes, rather than sharing one.
   const name = destination!.name.trim()
-  const zones = await store.listZones(tripId)
-  const existing = zones.find((z) => z.name.trim().toLowerCase() === name.toLowerCase())
-  if (existing) return existing.id
   const created = await store.createZone({
     trip_id: tripId,
     name,
@@ -147,7 +171,7 @@ export async function updateStep(
 
   const zoneId =
     patch.zone_id || patch.destination
-      ? await resolveZoneId(store, tripId, patch.zone_id, patch.destination)
+      ? await resolveZoneId(store, tripId, patch.zone_id, patch.destination, stepId)
       : undefined
 
   const step = await store.updateStep(tripId, stepId, {

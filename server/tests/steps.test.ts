@@ -1,23 +1,29 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
-import { setDataStore } from '../src/lib/datastore.js'
+import { setDataStore, type DataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
 import { fixture } from './fixture.js'
 import { asOwner as auth, useTestTokens } from './auth.js'
 
 const app = createApp()
+let store: DataStore
 
 beforeEach(() => {
-  setDataStore(createMemoryStore(fixture()))
+  store = createMemoryStore(fixture())
+  setDataStore(store)
   useTestTokens()
 })
 
 describe('POST /api/trips/trip-1/steps', () => {
-  it('creates a step for an existing zone', async () => {
+  it('creates a step for a zone no other stop has claimed', async () => {
+    // A zone is one *visit* (spec 011), so `zone_id` means "this exact visit".
+    // zone-kyoto already belongs to step-2, so this uses a zone with no stop —
+    // the shape left behind when a stop is deleted and its content kept.
+    const orphan = await store.createZone({ trip_id: 'trip-1', name: 'Nara' })
     const res = await auth(
       request(app).post('/api/trips/trip-1/steps').send({
-        zone_id: 'zone-kyoto',
+        zone_id: orphan.id,
         start_date: '2026-10-12',
         end_date: '2026-10-14',
       })
@@ -28,9 +34,24 @@ describe('POST /api/trips/trip-1/steps', () => {
     expect(res.body.step).toMatchObject({
       start_date: '2026-10-12',
       end_date: '2026-10-14',
-      zone: expect.objectContaining({ id: 'zone-kyoto', name: 'Kyoto' }),
+      zone: expect.objectContaining({ id: orphan.id, name: 'Nara' }),
     })
     expect(res.body.step.zone.place_counts).toBeDefined()
+  })
+
+  it('refuses a zone_id another stop already holds — that is what pooled two stays', async () => {
+    // Without this there is still one path that produces a zone reached by two
+    // steps, which is the whole bug: one Tokyo page for two separate stays.
+    const res = await auth(
+      request(app).post('/api/trips/trip-1/steps').send({
+        zone_id: 'zone-kyoto',
+        start_date: '2026-10-12',
+        end_date: '2026-10-14',
+      })
+    )
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('VALIDATION')
+    expect(res.body.error.details.join(' ')).toMatch(/already belongs to another stop/i)
   })
 
   it('400 VALIDATION for missing zone_id/destination or bad dates', async () => {
@@ -82,7 +103,10 @@ describe('POST /api/trips/trip-1/steps', () => {
 })
 
 describe('POST /api/steps with a free-text destination', () => {
-  it('reuses an existing zone when the destination name matches (case-insensitive)', async () => {
+  it('gives a returning destination its own visit rather than reusing the first', async () => {
+    // The behaviour change this feature turns on (FR-006). This used to answer
+    // zone-kyoto, which is why a trip that went back to a city showed one page
+    // pooling both stays' places, tips and counts.
     const res = await auth(
       request(app)
         .post('/api/trips/trip-1/steps')
@@ -93,7 +117,15 @@ describe('POST /api/steps with a free-text destination', () => {
         })
     )
     expect(res.status).toBe(201)
-    expect(res.body.step.zone.id).toBe('zone-kyoto')
+    expect(res.body.step.zone.id).not.toBe('zone-kyoto')
+    expect(res.body.step.zone.name).toBe('kyoto')
+    // Tied to the first stay all the same — that is what `city_key` is for,
+    // and it survives one of them later being renamed.
+    const zones = await store.listZones('trip-1')
+    const kyotos = zones.filter((z) => z.city_key === 'kyoto')
+    expect(kyotos).toHaveLength(2)
+    // The new visit starts empty: what the first stay collected stays there.
+    expect(await store.listPlacesInZone('trip-1', res.body.step.zone.id)).toEqual([])
   })
 
   it('creates a new zone for a destination that matches nothing in the catalog', async () => {
@@ -156,12 +188,16 @@ describe('POST /api/steps with a free-text destination', () => {
 describe('step ordering', () => {
   it('orders steps by start_date, not creation order — an earlier destination sorts first', async () => {
     // fixture: step-1 zone-tokyo (2026-10-05→09), step-2 zone-kyoto (2026-10-09→12)
+    // Added by destination rather than zone_id: every zone in the fixture
+    // already belongs to a stop, and a zone is one visit (spec 011).
     const res = await auth(
-      request(app).post('/api/trips/trip-1/steps').send({
-        zone_id: 'zone-kyoto',
-        start_date: '2026-10-01',
-        end_date: '2026-10-05',
-      })
+      request(app)
+        .post('/api/trips/trip-1/steps')
+        .send({
+          destination: { name: 'Nara', address: 'Nara, Japan', lat: 34.6851, lng: 135.8048 },
+          start_date: '2026-10-01',
+          end_date: '2026-10-05',
+        })
     )
     expect(res.status).toBe(201)
 

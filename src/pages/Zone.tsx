@@ -10,6 +10,7 @@ import { Loading } from '../components/Loading'
 import { PhotoHero } from '../components/PhotoHero'
 import { Schedule } from '../components/Schedule'
 import { TipEditor } from '../components/TipEditor'
+import { VisitSwitcher } from '../components/VisitSwitcher'
 import { ZonePhotoEditor } from '../components/ZonePhotoEditor'
 import { enumerateDays, toISODate, zoneDays } from '../lib/schedule'
 import { useCanEdit } from '../lib/session'
@@ -30,7 +31,7 @@ export default function Zone() {
   if (isPending) return <Loading />
   if (isError) return <ErrorState message="Could not load this zone." onRetry={() => refetch()} />
 
-  const { zone, tips, files, place_counts } = data
+  const { zone, visit, tips, files, place_counts } = data
 
   const steps = trip.data?.steps ?? []
   const days = trip.data?.trip
@@ -39,24 +40,26 @@ export default function Zone() {
   // hide empty categories without breaking navigation (FR-012)
   const visible = CATEGORIES.filter((c) => place_counts[c] > 0)
 
-  // "Sep 19 – Sep 25 · 6 nights", from the stops that land in this city. A city
-  // visited twice (out and back) has two stops, so the range spans the whole
-  // visit and the nights are the sum rather than the gap between the ends —
-  // otherwise a return leg would claim every night in between.
-  const here = steps.filter((s) => s.zone?.id === zoneId)
-  const nights = here.reduce(
-    (total, s) =>
-      total +
-      Math.round(
-        (+new Date(`${s.end_date}T00:00:00`) - +new Date(`${s.start_date}T00:00:00`)) / 86_400_000
-      ),
-    0
-  )
-  const eyebrow = here.length
-    ? `${fmt(here[0].start_date)} – ${fmt(here[here.length - 1].end_date)} · ${nights} ${
-        nights === 1 ? 'night' : 'nights'
-      }`
-    : null
+  // "Sep 19 – Sep 25 · 6 nights", for this visit alone.
+  //
+  // This used to sum the nights of every stop that landed in the city, because
+  // a trip returning to Tokyo pointed both stops at one zone and the range
+  // would otherwise have claimed every night in between. A zone is now one
+  // visit (spec 011), so there is one stop and one range, and the workaround
+  // is gone with the problem it worked around.
+  const nights =
+    visit?.start_date && visit.end_date
+      ? Math.round(
+          (+new Date(`${visit.end_date}T00:00:00`) - +new Date(`${visit.start_date}T00:00:00`)) /
+            86_400_000
+        )
+      : 0
+  const eyebrow =
+    visit?.start_date && visit.end_date
+      ? `${fmt(visit.start_date)} – ${fmt(visit.end_date)} · ${nights} ${
+          nights === 1 ? 'night' : 'nights'
+        }`
+      : null
 
   return (
     <div className="space-y-7">
@@ -90,6 +93,8 @@ export default function Zone() {
           ) : null
         }
       />
+
+      <VisitSwitcher tripId={tripId} cityName={zone.name} visit={visit} />
 
       {editingPhoto && (
         <ZonePhotoEditor
