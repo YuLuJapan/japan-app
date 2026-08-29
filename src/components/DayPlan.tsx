@@ -9,9 +9,10 @@
 // day starts" without needing to know anything about the clock.
 //
 // A day two cities share is drawn on the trip screen as one timeline in bands,
-// a city at a time in journey order, with the move between them marked as the
-// break it is. A city page is not banded: it shows its own city's half of the
-// day, which is what the page is for.
+// a city at a time in journey order, each under its own name — which is also
+// what marks the move: "Later that day, in Hakone" is the break. A city page is
+// not banded: it shows its own city's half of the day, which is what the page
+// is for.
 //
 // Every activity belongs to a city. Usually the screen already knows which —
 // a city page pins to itself, the trip screen to the city you sleep in that
@@ -97,8 +98,6 @@ export function DayPlan({ day, sections, zoneId = null, zoneChoices, tripId }: P
     bands.slice(0, i).reduce((n, band) => n + band.items.length, 0)
   )
   const count = bands.reduce((n, band) => n + band.items.length, 0)
-  // Every band but the first named one is reached by travelling to it.
-  const cityBands = bands.filter((band) => band.zone)
 
   // One activity, at its place in the day: `i` counts across every band, so the
   // coral "the day starts here" dot lands on the day's first activity even when
@@ -230,22 +229,11 @@ export function DayPlan({ day, sections, zoneId = null, zoneChoices, tripId }: P
           />
           {bands.map((band, bi) => (
             <Fragment key={band.zone?.id ?? 'here'}>
-              {/* The move itself, between one city's activities and the next's.
-                  A hollow dot: the rail runs on through it, but nothing is
-                  planned at that point in the day. */}
-              {band.zone && band !== cityBands[0] && (
-                <li className="relative pb-4" data-testid="travel-break">
-                  <span
-                    aria-hidden
-                    className="absolute -left-[18px] top-[5px] h-2 w-2 rounded-full border-[1.5px] border-dust bg-canvas"
-                  />
-                  <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-faint">
-                    <span aria-hidden>✈</span> Traveling
-                  </p>
-                </li>
-              )}
+              {/* The heading is the break: "Later that day, in Hakone" already
+                  says the move happened between the two, so a separate marker
+                  for it was a second label saying the same thing. */}
               {band.zone && (
-                <li className="relative pb-2" data-testid="day-band">
+                <li className="relative pb-2 pt-1 first:pt-0" data-testid="day-band">
                   <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-faint">
                     {band.direction === 'before' ? 'Earlier that day, in ' : 'Later that day, in '}
                     {band.zone.name}
