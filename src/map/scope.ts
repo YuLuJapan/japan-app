@@ -108,10 +108,12 @@ const viewOf = (place: { lat?: number | null; lng?: number | null }, zoom: numbe
 /**
  * One city's saved places.
  *
- * The empty message distinguishes the two ways a city map can be blank,
- * because they ask different things of the traveller: an empty zone wants
- * places saved, a zone whose places have no coordinates wants them located
- * (FR-007's fourth scenario).
+ * The empty message distinguishes the ways a city map can be blank, because
+ * they ask different things of the traveller: an empty city wants places
+ * saved, a city whose places have no coordinates wants them located (FR-007's
+ * fourth scenario) — and a city emptied by the chips wants nothing at all,
+ * only to say so, because the traveller did that themselves and the `All` chip
+ * is directly above the line.
  */
 export function zoneScope({
   zone,
@@ -148,11 +150,35 @@ export function zoneScope({
     // member can see in this view` (SC-004), and a filtered view is still a view.
     missing: missingPlaces(shown),
     categories,
-    emptyMessage: shown.length
-      ? `Nothing saved in ${zone.name} has a location yet.`
-      : `Nothing saved in ${zone.name} yet.`,
+    emptyMessage: emptyMessageFor(zone.name, places, shown),
     onPinTap,
   }
+}
+
+/**
+ * Why the city map is blank — four answers, because the traveller's next move
+ * differs in each and a wrong one sends them looking for a bug.
+ *
+ * The filtered cases are the point of the split: `Nothing saved in Tokyo yet`
+ * over a city holding forty places, hidden by a chip the traveller turned off
+ * a moment ago, is the map calling their own filter a missing trip. Read only
+ * when there is no pin on screen.
+ */
+const emptyMessageFor = (
+  name: string,
+  /** Every place saved in the city. */
+  places: PlaceListItem[],
+  /** What survived the chips. */
+  shown: PlaceListItem[]
+): string => {
+  if (!places.length) return `Nothing saved in ${name} yet.`
+  if (!shown.length) return `Nothing in ${name} matches these filters.`
+  // Something is showing and none of it is on the map, so what is wanted is a
+  // location — for the filtered view when the chips are narrowing it, since
+  // claiming it of the whole city would be claiming more than was looked at.
+  return shown.length === places.length
+    ? `Nothing saved in ${name} has a location yet.`
+    : `Nothing matching these filters has a location yet.`
 }
 
 /** A place, as the card row draws it. */
