@@ -106,3 +106,23 @@ describe('Layout reminders badge', () => {
     expect(await screen.findByLabelText('Unread reminder')).toBeInTheDocument()
   })
 })
+
+describe('the map route’s full-bleed frame', () => {
+  // The map's own furniture floats at `z-[500]` to clear Leaflet's panes, and
+  // its sheet reaches the bottom of the screen — which buried the nav on the
+  // one screen that has no other way out of itself.
+  const nav = () => screen.getByRole('navigation')
+
+  it('keeps the tab bar above the map’s overlays', async () => {
+    push.hasUnseenReminder.mockResolvedValue(false)
+    renderLayoutAt('/map')
+    await waitFor(() => expect(nav().className).toContain('z-[600]'))
+  })
+
+  it('leaves every other route at the z-index a dialog can cover', async () => {
+    push.hasUnseenReminder.mockResolvedValue(false)
+    renderLayoutAt('/essentials')
+    await waitFor(() => expect(nav().className).toContain('z-20'))
+    expect(nav().className).not.toContain('z-[600]')
+  })
+})

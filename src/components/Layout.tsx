@@ -290,7 +290,17 @@ export function Layout({ children }: { children: ReactNode }) {
       >
         {children}
       </main>
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-canvas/95 backdrop-blur">
+      {/* The bleed route's own furniture floats at `z-[500]` so it clears
+          Leaflet's panes, and the map's sheet reaches the bottom of the screen
+          — which put the nav underneath it and made the tab bar vanish on the
+          one screen with no other way out. Raised above that layer there, and
+          left at `z-20` everywhere else, where a `z-50` dialog must still be
+          able to cover it. */}
+      <nav
+        className={`fixed inset-x-0 bottom-0 border-t border-line bg-canvas/95 backdrop-blur ${
+          bleed ? 'z-[600]' : 'z-20'
+        }`}
+      >
         <div className="mx-auto flex max-w-app px-4 py-1.5">
           {tabs.map((t) =>
             tab(t.to, t.icon, t.label(labels), t.active, t.icon === 'reminders' && unseenReminder)

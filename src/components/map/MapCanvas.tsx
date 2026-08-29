@@ -13,13 +13,14 @@
 // above it (research R11). Never a grey square, never a bare spinner, and the
 // answer is a screenful of places rather than an apology in a corner.
 import { useEffect, useRef, useState } from 'react'
-import type { MapEngine, MapView, SelfPosition } from '../../map/engine.types'
+import type { MapEngine, MapInset, MapView, SelfPosition } from '../../map/engine.types'
 import type { Bounds, MapPin } from '../../map/pins'
 
 export function MapCanvas({
   view,
   pins,
   bounds,
+  inset,
   self,
   onPinTap,
   onReady,
@@ -28,6 +29,8 @@ export function MapCanvas({
   view: MapView
   pins: MapPin[]
   bounds: Bounds | null
+  /** What the top bar and the sheet cover, so framing aims at what is visible. */
+  inset: MapInset
   self: SelfPosition | null
   onPinTap: (id: string) => void
   /** Handed the engine once it is mounted, so the page can pan it. */
@@ -84,10 +87,18 @@ export function MapCanvas({
     engine.current?.setPins(pins)
   }, [drawn, pins])
 
+  // Before the fit below, and declared before it so it lands first on mount:
+  // a frame computed against the wrong visible window is a frame the traveller
+  // sees being corrected.
+  useEffect(() => {
+    if (!drawn) return
+    engine.current?.setInset(inset)
+  }, [drawn, inset])
+
   useEffect(() => {
     if (!drawn) return
     engine.current?.fitTo(bounds)
-  }, [drawn, bounds])
+  }, [drawn, bounds, inset])
 
   useEffect(() => {
     if (!drawn) return

@@ -184,10 +184,51 @@ describe('tapping a card', () => {
     await tapPin(engine, 'p-ramen')
     await waitFor(() => expect(engine.pans).toEqual([{ lat: 35.69, lng: 139.7, zoom: undefined }]))
   })
+
+  it('tells the map what is covering it, so "centred" means centred on screen', async () => {
+    // The page hands over the point, never a corrected one — the correction is
+    // the engine's, because only it knows the projection. What the page owes it
+    // is the inset: the floating top bar, and the sheet's own height. Without
+    // that, `setView` centres in a container whose lower third is the sheet,
+    // and the place the traveller tapped lands behind it.
+    const engine = await openMap()
+    expect(engine.inset).toEqual({ top: 68, bottom: 0 })
+
+    const sheet = screen.getByRole('region', { name: 'Saved places' })
+    Object.defineProperty(sheet, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ height: 240 }) as DOMRect,
+    })
+    // Any render re-measures; the arrow key is the cheapest one to provoke.
+    fireEvent.keyDown(screen.getByRole('separator'), { key: 'ArrowUp' })
+    fireEvent.keyDown(screen.getByRole('separator'), { key: 'ArrowDown' })
+
+    await waitFor(() => expect(engine.inset).toEqual({ top: 68, bottom: 240 }))
+  })
 })
 
 describe('the sheet', () => {
   const handle = () => screen.getByRole('separator')
+
+  const PEEK = 200
+  const FULL = 700
+
+  // jsdom has no layout: every box measures zero and `offsetParent` is always
+  // null, so the sheet cannot find the two ends it slides between. These are
+  // the measurements a phone would have taken — the peeking sheet, and the map
+  // it sits in — with the sheet's own height following its state, exactly as a
+  // real one does.
+  const size = () => {
+    const sheet = screen.getByRole('region', { name: 'Saved places' })
+    const container = sheet.parentElement as HTMLElement
+    const rect = (height: number) => () => ({ height }) as DOMRect
+    Object.defineProperty(sheet, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => rect(sheet.className.includes('top-0') ? FULL : PEEK)(),
+    })
+    container.getBoundingClientRect = rect(FULL)
+    Object.defineProperty(sheet, 'offsetParent', { configurable: true, get: () => container })
+  }
 
   // jsdom implements no `PointerEvent`, so `fireEvent.pointerMove` falls back
   // to a bare `Event` and drops `clientY` — the one property a drag is made
@@ -206,6 +247,7 @@ describe('the sheet', () => {
 
   it('opens peeking, expands on a drag up and shrinks again on a drag down', async () => {
     await openMap()
+    size()
     // The sheet exists to be peeked over, so full height is never where it starts.
     expect(handle()).toHaveAccessibleName(/drag up/i)
 
@@ -216,10 +258,50 @@ describe('the sheet', () => {
     await waitFor(() => expect(handle()).toHaveAccessibleName(/drag up/i))
   })
 
+  it('follows the finger between the two states before settling on one', async () => {
+    // The point of the rewrite: mid-drag the sheet is neither state. A control
+    // that only flips at a threshold is a switch wearing a handle's clothes.
+    await openMap()
+    size()
+    const sheet = screen.getByRole('region', { name: 'Saved places' })
+
+    fireEvent(handle(), at('pointerdown', 400))
+    fireEvent(handle(), at('pointermove', 300))
+    expect(sheet).toHaveStyle({ height: '300px' })
+    fireEvent(handle(), at('pointermove', 250))
+    expect(sheet).toHaveStyle({ height: '350px' })
+
+    // And it does not slide past its own ends, however far the finger goes.
+    fireEvent(handle(), at('pointermove', -900))
+    expect(sheet).toHaveStyle({ height: `${FULL}px` })
+    fireEvent(handle(), at('pointermove', 2000))
+    expect(sheet).toHaveStyle({ height: `${PEEK}px` })
+
+    fireEvent(handle(), at('pointerup', 2000))
+    // Released, the pixel height is gone: nothing stays pinned to a number a
+    // rotated phone would make wrong.
+    expect(sheet.getAttribute('style')).toBeFalsy()
+  })
+
+  it('changes its mind mid-drag without the finger being lifted', async () => {
+    await openMap()
+    size()
+    const sheet = screen.getByRole('region', { name: 'Saved places' })
+
+    fireEvent(handle(), at('pointerdown', 400))
+    fireEvent(handle(), at('pointermove', 100))
+    expect(sheet).toHaveStyle({ height: '500px' })
+    // Back down past the halfway mark, and it settles peeking after all.
+    fireEvent(handle(), at('pointermove', 480))
+    fireEvent(handle(), at('pointerup', 480))
+    await waitFor(() => expect(handle()).toHaveAccessibleName(/drag up/i))
+  })
+
   it('is not a tap: a press that goes nowhere leaves the sheet where it was', async () => {
     // The bug this replaces — one undifferentiated tap took the sheet to full
     // height, covering the map the traveller opened the screen for.
     await openMap()
+    size()
     await userEvent.click(handle())
     expect(handle()).toHaveAccessibleName(/drag up/i)
 
@@ -230,6 +312,7 @@ describe('the sheet', () => {
 
   it('answers the arrow keys, so the gesture is not the only way', async () => {
     await openMap()
+    size()
     handle().focus()
     fireEvent.keyDown(handle(), { key: 'ArrowUp' })
     await waitFor(() => expect(handle()).toHaveAccessibleName(/drag down/i))
