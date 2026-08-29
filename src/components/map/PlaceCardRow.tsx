@@ -43,12 +43,18 @@ export function PlaceCardRow({
   if (!cards.length) return null
 
   return (
+    // `items-start` is load-bearing, not tidying: a flex row stretches its
+    // children to the tallest by default, so expanding one card into its
+    // address, summary and two buttons made **every** card that tall — a row
+    // of empty boxes, and a sheet that grew by their height and covered the
+    // map. Only the expanded card is tall now.
+    //
     // `py-1`, not `pb-1`: `overflow-x-auto` clips vertically as well as
     // horizontally, so the selected card's `ring-2` — which paints *outside*
     // the card's box — lost its top edge against the container. The padding is
     // the room the ring needs; without it the highlight reads as a card cut
     // off rather than as a card picked out.
-    <div ref={row} className="no-scrollbar flex gap-3 overflow-x-auto px-4 py-1">
+    <div ref={row} className="no-scrollbar flex items-start gap-3 overflow-x-auto px-4 py-1">
       {cards.map((card) => (
         <div
           key={card.id}

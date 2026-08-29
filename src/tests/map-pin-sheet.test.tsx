@@ -207,6 +207,26 @@ describe('tapping a card', () => {
   })
 })
 
+describe('expanding a card', () => {
+  it('does not make every other card as tall as it', async () => {
+    // A flex row stretches its children to the tallest by default, so one
+    // expanded card turned the rest of the row into empty boxes its height —
+    // and the peeking sheet, whose height is its content's, grew by all of it
+    // and covered the map.
+    await openMap()
+    const row = card('p-ramen').parentElement as HTMLElement
+    expect(row.className).toContain('items-start')
+  })
+
+  it('cannot take the screen: the peeking sheet has a ceiling', async () => {
+    await openMap()
+    const sheet = screen.getByRole('region', { name: 'Saved places' })
+    expect(sheet.className).toContain('max-h-[55dvh]')
+    // And what will not fit is reachable rather than cut off.
+    expect(sheet.className).toContain('overflow-y-auto')
+  })
+})
+
 describe('the sheet', () => {
   const handle = () => screen.getByRole('separator')
 
