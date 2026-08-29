@@ -89,12 +89,21 @@ function isMissingProfilesTable(error: { code?: string; message?: string } | nul
   return error.code === '42P01' || /relation .*profiles.* does not exist/i.test(error.message ?? '')
 }
 
-// Columns added in migration 0004. If a deployment ships this code before that
-// migration is applied, Postgres/PostgREST reports an "undefined column" error;
-// we detect it and fall back to the pre-0004 shape so the itinerary still loads
-// (highlights are simply inert until the migration runs).
+// Columns added after the itinerary table existed — `highlight`/`icon` (0004)
+// and `category` (0022). If a deployment ships this code before one of those
+// migrations is applied, Postgres/PostgREST reports an "undefined column"
+// error; we detect it and fall back to a narrower shape so the itinerary still
+// loads (the newer fields are simply inert until the migration runs).
+//
+// Reads use an explicit column list, so **a column added by a migration has to
+// be added here too** — omit it and the write path (which selects everything)
+// answers with the new field while the very next list read hands back a row
+// without it, which looks exactly like the value never saved.
 const ITINERARY_BASE_COLS = 'id,trip_id,zone_id,place_id,day,start_time,title,note,position'
-const ITINERARY_COLS = `${ITINERARY_BASE_COLS},highlight,icon`
+const ITINERARY_HIGHLIGHT_COLS = `${ITINERARY_BASE_COLS},highlight,icon`
+const ITINERARY_COLS = `${ITINERARY_HIGHLIGHT_COLS},category`
+// Widest first: each fallback drops one migration's columns.
+const ITINERARY_COL_TIERS = [ITINERARY_COLS, ITINERARY_HIGHLIGHT_COLS, ITINERARY_BASE_COLS]
 
 // Columns added in migration 0005 (place map coordinates). Same graceful
 // fallback as the itinerary highlight columns: if a deployment ships this code
@@ -188,13 +197,13 @@ function rowToReminder(row: Record<string, unknown>): Reminder {
   }
 }
 
-function isMissingHighlightColumn(error: { code?: string; message?: string } | null): boolean {
+function isMissingItineraryColumn(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false
   // 42703 = undefined_column (select); PGRST204 = column not in schema cache (write)
   return (
     error.code === '42703' ||
     error.code === 'PGRST204' ||
-    /\b(highlight|icon)\b/i.test(error.message ?? '')
+    /\b(highlight|icon|category)\b/i.test(error.message ?? '')
   )
 }
 
@@ -215,6 +224,24 @@ function isMissingCoordColumn(error: { code?: string; message?: string } | null)
  */
 function withHighlightDefaults(row: Record<string, unknown>): ItineraryItem {
   return { highlight: false, icon: null, category: null, ...row } as ItineraryItem
+}
+
+type ItinerarySelect = { data: unknown; error: { code?: string; message?: string } | null }
+
+/**
+ * Run an itinerary read against the widest column list the live schema accepts,
+ * narrowing one migration at a time on an undefined-column error. A tier is
+ * dropped whole, so an unapplied 0022 costs the category and nothing else.
+ */
+async function selectItinerary(
+  run: (cols: string) => PromiseLike<ItinerarySelect>
+): Promise<ItinerarySelect> {
+  let result: ItinerarySelect = { data: null, error: null }
+  for (const cols of ITINERARY_COL_TIERS) {
+    result = await run(cols)
+    if (!result.error || !isMissingItineraryColumn(result.error)) return result
+  }
+  return result
 }
 
 export function createSupabaseStore(): DataStore {
@@ -836,7 +863,7 @@ export function createSupabaseStore(): DataStore {
     },
 
     async listItinerary(tripId) {
-      const run = (cols: string) =>
+      const { data, error } = await selectItinerary((cols) =>
         db
           .from('itinerary_items')
           .select(cols)
@@ -844,19 +871,17 @@ export function createSupabaseStore(): DataStore {
           .order('day', { ascending: true })
           .order('start_time', { ascending: true, nullsFirst: false })
           .order('position', { ascending: true })
-      let { data, error } = await run(ITINERARY_COLS)
-      if (error && isMissingHighlightColumn(error))
-        ({ data, error } = await run(ITINERARY_BASE_COLS))
+      )
       if (error) throw new Error(error.message)
-      return (data ?? []).map((r) => withHighlightDefaults(r as unknown as Record<string, unknown>))
+      return ((data as unknown[]) ?? []).map((r) =>
+        withHighlightDefaults(r as Record<string, unknown>)
+      )
     },
 
     async getItineraryItem(tripId, itemId) {
-      const run = (cols: string) =>
+      const { data, error } = await selectItinerary((cols) =>
         db.from('itinerary_items').select(cols).eq('id', itemId).eq('trip_id', tripId).maybeSingle()
-      let { data, error } = await run(ITINERARY_COLS)
-      if (error && isMissingHighlightColumn(error))
-        ({ data, error } = await run(ITINERARY_BASE_COLS))
+      )
       if (error) throw new Error(error.message)
       return data ? withHighlightDefaults(data as unknown as Record<string, unknown>) : null
     },
@@ -880,7 +905,7 @@ export function createSupabaseStore(): DataStore {
         category: input.category ?? null,
       }
       let { data, error } = await db.from('itinerary_items').insert(row).select().single()
-      if (error && isMissingHighlightColumn(error))
+      if (error && isMissingItineraryColumn(error))
         ({ data, error } = await db.from('itinerary_items').insert(base).select().single())
       if (error) throw new Error(error.message)
       return withHighlightDefaults(data as Record<string, unknown>)
@@ -907,7 +932,7 @@ export function createSupabaseStore(): DataStore {
           .select()
           .maybeSingle()
       let { data, error } = await run(fields)
-      if (error && isMissingHighlightColumn(error)) {
+      if (error && isMissingItineraryColumn(error)) {
         const rest = { ...fields }
         delete rest.highlight
         delete rest.icon
