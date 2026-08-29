@@ -4,7 +4,7 @@ description: 'Task list for: Separate pages for repeated cities'
 
 # Tasks: Separate pages for repeated cities
 
-**Input**: Design documents from `/specs/010-separate-repeated-cities/`
+**Input**: Design documents from `/specs/011-separate-repeated-cities/`
 
 **Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md), [research.md](./research.md), [data-model.md](./data-model.md), [contracts/api-delta.md](./contracts/api-delta.md), [quickstart.md](./quickstart.md)
 

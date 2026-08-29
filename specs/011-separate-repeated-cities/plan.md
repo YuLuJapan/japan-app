@@ -2,7 +2,7 @@
 
 **Branch**: `claude/separate-repeated-cities-hyncd7` | **Date**: 2026-08-29 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Feature specification from `/specs/010-separate-repeated-cities/spec.md`
+**Input**: Feature specification from `/specs/011-separate-repeated-cities/spec.md`
 
 ## Summary
 
@@ -56,7 +56,7 @@ The existing Tokyo content is divided by a journalled, revertible script rather 
 ### Documentation (this feature)
 
 ```text
-specs/010-separate-repeated-cities/
+specs/011-separate-repeated-cities/
 ├── plan.md              # This file
 ├── spec.md              # What and why
 ├── research.md          # Phase 0 — the model decision and its alternatives

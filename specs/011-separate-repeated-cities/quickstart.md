@@ -1,6 +1,6 @@
 # Quickstart: validating separated visits
 
-**Feature**: `specs/010-separate-repeated-cities` | **Date**: 2026-08-29
+**Feature**: `specs/011-separate-repeated-cities` | **Date**: 2026-08-29
 
 How to prove the feature works end to end. See [`data-model.md`](./data-model.md) for the split rules and [`contracts/api-delta.md`](./contracts/api-delta.md) for the response shapes.
 

@@ -1,6 +1,6 @@
 # Phase 0 Research: Separate pages for repeated cities
 
-**Feature**: `specs/010-separate-repeated-cities` | **Date**: 2026-08-29
+**Feature**: `specs/011-separate-repeated-cities` | **Date**: 2026-08-29
 
 ## R1. What is a "visit"? — the one decision everything else follows from
 

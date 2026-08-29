@@ -1,6 +1,6 @@
 # Phase 1 Data Model: Separate pages for repeated cities
 
-**Feature**: `specs/010-separate-repeated-cities` | **Date**: 2026-08-29
+**Feature**: `specs/011-separate-repeated-cities` | **Date**: 2026-08-29
 
 The shape of the data barely moves. What changes is the **meaning of a zone**: it stops being "a city on this trip" and becomes "one visit to a city on this trip". One new column records which visits are the same city.
 
