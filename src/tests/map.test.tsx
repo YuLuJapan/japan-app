@@ -158,6 +158,29 @@ describe('the zone map', () => {
   })
 })
 
+describe('the whole-trip view', () => {
+  // The chips filter places by category and the legend explains the colours
+  // the pins are drawn in. At the trip scale a pin is a *city*: there is
+  // nothing to filter and no category colour on the screen, so both would be
+  // controls for something that is not there.
+  it('offers neither the filters nor the legend, and puts both back on a city', async () => {
+    await openMap()
+    // At the city scale the label is on screen twice — once as a chip, once as
+    // a legend row.
+    await waitFor(() => expect(screen.getAllByText(CATEGORY_META.food.label)).toHaveLength(2))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Trip' }))
+
+    await waitFor(() => expect(screen.queryByRole('button', chip('food'))).toBeNull())
+    expect(screen.queryAllByText(CATEGORY_META.food.label)).toHaveLength(0)
+    expect(screen.queryAllByText(CATEGORY_META.attraction.label)).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: 'All' })).toBeNull()
+
+    await userEvent.click(screen.getByRole('button', { name: 'City' }))
+    await waitFor(() => expect(screen.getAllByText(CATEGORY_META.food.label)).toHaveLength(2))
+  })
+})
+
 describe('with no connection', () => {
   it('lists the places and says why the map is not drawn, rather than showing a grey square', async () => {
     vi.stubGlobal('navigator', { ...navigator, onLine: false })

@@ -28,7 +28,10 @@ export function CategoryChips({
 }) {
   if (present.length < 2) return null
   return (
-    <div className="no-scrollbar flex gap-2 overflow-x-auto px-4">
+    // `py-1` for the same reason as the card row below it: a horizontal
+    // scroller clips in both axes, and a chip's ring and shadow paint outside
+    // its box.
+    <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 py-1">
       <button
         type="button"
         onClick={onAll}

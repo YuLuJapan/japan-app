@@ -6,7 +6,7 @@
 // states — which also means the summary is rendered from the list the screen
 // already fetched rather than from a second request for a place it has.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import TripMap from '../pages/TripMap'
 import { renderAt } from './helpers'
@@ -163,5 +163,77 @@ describe('tapping a card', () => {
     await openMap()
     await userEvent.click(screen.getByRole('button', { name: /teamLab/ }))
     await waitFor(() => expect(within(card('p-teamlab')).getByText('Toyosu')).toBeTruthy())
+  })
+
+  it('centres the map on the place, without reframing it', async () => {
+    // A card scrolled to from the row can be a place the frame does not
+    // contain, and expanding its card says nothing about where it is. The map
+    // moves to it; it does not refit, so the scale the traveller chose stays.
+    const engine = await openMap()
+    const framed = engine.fitted
+
+    await userEvent.click(screen.getByRole('button', { name: /teamLab/ }))
+
+    await waitFor(() => expect(engine.pans).toHaveLength(1))
+    expect(engine.pans[0]).toEqual({ lat: 35.63, lng: 139.79, zoom: undefined })
+    expect(engine.fitted).toEqual(framed)
+  })
+
+  it('centres on a tapped pin too, so both routes to a place agree', async () => {
+    const engine = await openMap()
+    await tapPin(engine, 'p-ramen')
+    await waitFor(() => expect(engine.pans).toEqual([{ lat: 35.69, lng: 139.7, zoom: undefined }]))
+  })
+})
+
+describe('the sheet', () => {
+  const handle = () => screen.getByRole('separator')
+
+  // jsdom implements no `PointerEvent`, so `fireEvent.pointerMove` falls back
+  // to a bare `Event` and drops `clientY` — the one property a drag is made
+  // of. A `MouseEvent` under the pointer event's name carries it, and React
+  // reads the coordinate off the native event either way.
+  const at = (type: string, clientY: number) =>
+    new MouseEvent(type, { bubbles: true, cancelable: true, clientY })
+
+  /** A finger on the handle, travelling `by` pixels (negative is upwards). */
+  const drag = (by: number) => {
+    const grip = handle()
+    fireEvent(grip, at('pointerdown', 400))
+    fireEvent(grip, at('pointermove', 400 + by))
+    fireEvent(grip, at('pointerup', 400 + by))
+  }
+
+  it('opens peeking, expands on a drag up and shrinks again on a drag down', async () => {
+    await openMap()
+    // The sheet exists to be peeked over, so full height is never where it starts.
+    expect(handle()).toHaveAccessibleName(/drag up/i)
+
+    drag(-80)
+    await waitFor(() => expect(handle()).toHaveAccessibleName(/drag down/i))
+
+    drag(80)
+    await waitFor(() => expect(handle()).toHaveAccessibleName(/drag up/i))
+  })
+
+  it('is not a tap: a press that goes nowhere leaves the sheet where it was', async () => {
+    // The bug this replaces — one undifferentiated tap took the sheet to full
+    // height, covering the map the traveller opened the screen for.
+    await openMap()
+    await userEvent.click(handle())
+    expect(handle()).toHaveAccessibleName(/drag up/i)
+
+    // Nor is a jitter a gesture.
+    drag(-6)
+    expect(handle()).toHaveAccessibleName(/drag up/i)
+  })
+
+  it('answers the arrow keys, so the gesture is not the only way', async () => {
+    await openMap()
+    handle().focus()
+    fireEvent.keyDown(handle(), { key: 'ArrowUp' })
+    await waitFor(() => expect(handle()).toHaveAccessibleName(/drag down/i))
+    fireEvent.keyDown(handle(), { key: 'ArrowDown' })
+    await waitFor(() => expect(handle()).toHaveAccessibleName(/drag up/i))
   })
 })

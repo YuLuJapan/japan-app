@@ -142,6 +142,20 @@ describe('the whole-trip view', () => {
     expect(screen.getByText('3 saved')).toBeInTheDocument()
   })
 
+  it('drops into that city’s places when its card is tapped, exactly as its pin does', async () => {
+    // A card and a pin are the same event at both scales. At the trip scale
+    // that event is "open this city" — a card that merely highlighted itself
+    // would be the one tap of the two-tap budget that goes nowhere.
+    const engine = await openMapOn('2026-10-10')
+    await userEvent.click(screen.getByRole('button', { name: 'Trip' }))
+    await waitFor(() => expect(engine.pins).toHaveLength(2))
+
+    await userEvent.click(screen.getByRole('button', { name: /Tokyo/ }))
+
+    await waitFor(() => expect(engine.pins.map((p) => p.id)).toEqual(['p-teamlab']))
+    expect(screen.getByRole('button', { name: 'City' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('drops into that city’s places when a city is tapped (FR-009)', async () => {
     const engine = await openMapOn('2026-10-10')
     await userEvent.click(screen.getByRole('button', { name: 'Trip' }))
