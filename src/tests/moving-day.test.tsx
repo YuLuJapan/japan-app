@@ -188,7 +188,7 @@ describe('the same moving day on the trip screen', () => {
     ])
   }
 
-  it('shows the whole day, a city at a time, with the move between them', () => {
+  it('shows the whole day, a city at a time, each under its own name', () => {
     renderTrip()
 
     // Both halves, each under the city it is in.
@@ -200,23 +200,20 @@ describe('the same moving day on the trip screen', () => {
     expect(screen.getByText('teamLab before the train')).toBeInTheDocument()
     expect(screen.getByText('Onsen on arrival')).toBeInTheDocument()
 
-    // …and one break, between the two of them, saying what happens there.
-    const breaks = screen.getAllByTestId('travel-break')
-    expect(breaks).toHaveLength(1)
-    expect(breaks[0]).toHaveTextContent('Traveling')
-
-    // Order on the page: Tokyo, the flight, Hakone.
-    const rail = screen.getByRole('list')
-    const rows = [...rail.children].map((li) => li.textContent ?? '')
-    expect(rows.findIndex((t) => t.includes('teamLab'))).toBeLessThan(
-      rows.findIndex((t) => t.includes('Traveling'))
-    )
-    expect(rows.findIndex((t) => t.includes('Traveling'))).toBeLessThan(
-      rows.findIndex((t) => t.includes('Onsen'))
-    )
+    // Order on the page: Tokyo and its morning, then Hakone and its afternoon.
+    // The second heading is the only marker the move needs.
+    // `children` leads with the rail's own <span>, so read the order rather than
+    // the indices: each city's heading sits directly above its own activity.
+    const rows = [...screen.getByRole('list').children].map((el) => el.textContent ?? '')
+    const at = (needle: string) => rows.findIndex((t) => t.includes(needle))
+    expect([at('teamLab'), at('Later that day'), at('Onsen')]).toEqual([
+      at('Earlier that day') + 1,
+      at('Earlier that day') + 2,
+      at('Earlier that day') + 3,
+    ])
   })
 
-  it('leaves an ordinary day unbanded and untravelled', () => {
+  it('leaves an ordinary day unbanded', () => {
     mocks.get.mockResolvedValue(TRIP_BUNDLE)
     renderAt('/trips/trip-1', [
       {
@@ -236,6 +233,5 @@ describe('the same moving day on the trip screen', () => {
 
     expect(screen.getByText('teamLab before the train')).toBeInTheDocument()
     expect(screen.queryByTestId('day-band')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('travel-break')).not.toBeInTheDocument()
   })
 })
