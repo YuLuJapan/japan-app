@@ -143,6 +143,23 @@ describe('the zone map', () => {
     expect(screen.queryByRole('button', chip('hotel'))).toBeNull()
   })
 
+  it('says the filters are what emptied it, not the city', async () => {
+    // Turning every chip off is a thing a thumb does on the way to picking
+    // one. Answering it with "Nothing saved in Tokyo yet" over three saved
+    // places reads as lost data rather than as a filter.
+    const engine = await openMap()
+    await waitFor(() => expect(engine.pins).toHaveLength(2))
+
+    await userEvent.click(screen.getByRole('button', chip('food')))
+    await userEvent.click(screen.getByRole('button', chip('attraction')))
+
+    expect(await screen.findByText('Nothing in Tokyo matches these filters.')).toBeInTheDocument()
+    expect(engine.pins).toEqual([])
+    // And `All` is right above the line, so the way back is one tap.
+    await userEvent.click(screen.getByRole('button', { name: 'All' }))
+    await waitFor(() => expect(engine.pins).toHaveLength(2))
+  })
+
   it('says so plainly when nothing in the zone has a location', async () => {
     places = [place('p-nowhere', 'Unlocated Cafe', 'food', null, null)]
     const engine = await openMap()
@@ -155,6 +172,29 @@ describe('the zone map', () => {
     expect(await screen.findByText('Ramen Bar')).toBeInTheDocument()
     expect(screen.getByText('Food spot · Tokyo')).toBeInTheDocument()
     expect(screen.getByText('teamLab')).toBeInTheDocument()
+  })
+})
+
+describe('the whole-trip view', () => {
+  // The chips filter places by category and the legend explains the colours
+  // the pins are drawn in. At the trip scale a pin is a *city*: there is
+  // nothing to filter and no category colour on the screen, so both would be
+  // controls for something that is not there.
+  it('offers neither the filters nor the legend, and puts both back on a city', async () => {
+    await openMap()
+    // At the city scale the label is on screen twice — once as a chip, once as
+    // a legend row.
+    await waitFor(() => expect(screen.getAllByText(CATEGORY_META.food.label)).toHaveLength(2))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Trip' }))
+
+    await waitFor(() => expect(screen.queryByRole('button', chip('food'))).toBeNull())
+    expect(screen.queryAllByText(CATEGORY_META.food.label)).toHaveLength(0)
+    expect(screen.queryAllByText(CATEGORY_META.attraction.label)).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: 'All' })).toBeNull()
+
+    await userEvent.click(screen.getByRole('button', { name: 'City' }))
+    await waitFor(() => expect(screen.getAllByText(CATEGORY_META.food.label)).toHaveLength(2))
   })
 })
 

@@ -43,7 +43,12 @@ export function PlaceCardRow({
   if (!cards.length) return null
 
   return (
-    <div ref={row} className="no-scrollbar flex gap-3 overflow-x-auto px-4 pb-1">
+    // `py-1`, not `pb-1`: `overflow-x-auto` clips vertically as well as
+    // horizontally, so the selected card's `ring-2` — which paints *outside*
+    // the card's box — lost its top edge against the container. The padding is
+    // the room the ring needs; without it the highlight reads as a card cut
+    // off rather than as a card picked out.
+    <div ref={row} className="no-scrollbar flex gap-3 overflow-x-auto px-4 py-1">
       {cards.map((card) => (
         <div
           key={card.id}

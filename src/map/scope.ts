@@ -19,7 +19,13 @@
 import type { Bounds, MapPin } from './pins'
 import { boundsOf, missingPlaces, toPins } from './pins'
 import type { MapView } from './engine.types'
-import { CATEGORY_META, type Category, type PlaceListItem, type TripStep } from '../api/types'
+import {
+  CATEGORIES,
+  CATEGORY_META,
+  type Category,
+  type PlaceListItem,
+  type TripStep,
+} from '../api/types'
 
 /**
  * One row of the sheet's card row, at either scale.
@@ -62,6 +68,16 @@ export interface MapScope {
   /** One card per pin, in the same order. */
   cards: MapCard[]
   /**
+   * The categories this scale can be filtered and legended by, in the app's
+   * own order — and **empty is the answer, not an oversight**. A trip pin is a
+   * city, not a place: it has no category, so a chip row would filter nothing
+   * and a legend would name colours that are not on the screen. Both surfaces
+   * render from this one field, so "the filters belong to the city scale" is a
+   * property of the scale rather than a pair of `scope.kind` checks in the
+   * page (research R6).
+   */
+  categories: Category[]
+  /**
    * Exactly what this scale could not put on the map, for US5's line to state
    * and list (FR-019, FR-020). Empty at the trip scale, where a pin is a city
    * and every stop is either located or not a stop the map claims to show —
@@ -92,21 +108,33 @@ const viewOf = (place: { lat?: number | null; lng?: number | null }, zoom: numbe
 /**
  * One city's saved places.
  *
- * The empty message distinguishes the two ways a city map can be blank,
- * because they ask different things of the traveller: an empty zone wants
- * places saved, a zone whose places have no coordinates wants them located
- * (FR-007's fourth scenario).
+ * The empty message distinguishes the ways a city map can be blank, because
+ * they ask different things of the traveller: an empty city wants places
+ * saved, a city whose places have no coordinates wants them located (FR-007's
+ * fourth scenario) — and a city emptied by the chips wants nothing at all,
+ * only to say so, because the traveller did that themselves and the `All` chip
+ * is directly above the line.
  */
 export function zoneScope({
   zone,
   places,
+  active = null,
   onPinTap,
 }: {
   zone: { name: string; lat?: number | null; lng?: number | null }
+  /** Every place saved in the city, unfiltered — the filter is applied here. */
   places: PlaceListItem[]
+  /** Null means every category — the `All` state, not a full selection. */
+  active?: Set<Category> | null
   onPinTap: (placeId: string) => void
 }): MapScope {
-  const pins = toPins(places)
+  // Only the categories actually present are offered (FR-010), in the app's
+  // own order rather than the order the places happen to arrive in. Read from
+  // the whole city, never from the filtered list — otherwise switching a chip
+  // off would take its own chip away with it.
+  const categories = CATEGORIES.filter((c) => places.some((p) => p.category === c))
+  const shown = active ? places.filter((p) => active.has(p.category)) : places
+  const pins = toPins(shown)
   const located = new Set(pins.map((p) => p.id))
   return {
     kind: 'zone',
@@ -116,13 +144,41 @@ export function zoneScope({
     // Only the located places get a card: a card whose pin is not on the map
     // is a row that scrolls to nothing. The ones without a location are
     // counted and listed by `MissingPlaces` instead (FR-019).
-    cards: places.filter((p) => located.has(p.id)).map((p) => placeCard(p, zone.name)),
-    missing: missingPlaces(places),
-    emptyMessage: places.length
-      ? `Nothing saved in ${zone.name} has a location yet.`
-      : `Nothing saved in ${zone.name} yet.`,
+    cards: shown.filter((p) => located.has(p.id)).map((p) => placeCard(p, zone.name)),
+    // Over the *shown* places, not over every place in the city: the identity
+    // that keeps the count honest is `pins on screen + missing = what this
+    // member can see in this view` (SC-004), and a filtered view is still a view.
+    missing: missingPlaces(shown),
+    categories,
+    emptyMessage: emptyMessageFor(zone.name, places, shown),
     onPinTap,
   }
+}
+
+/**
+ * Why the city map is blank — four answers, because the traveller's next move
+ * differs in each and a wrong one sends them looking for a bug.
+ *
+ * The filtered cases are the point of the split: `Nothing saved in Tokyo yet`
+ * over a city holding forty places, hidden by a chip the traveller turned off
+ * a moment ago, is the map calling their own filter a missing trip. Read only
+ * when there is no pin on screen.
+ */
+const emptyMessageFor = (
+  name: string,
+  /** Every place saved in the city. */
+  places: PlaceListItem[],
+  /** What survived the chips. */
+  shown: PlaceListItem[]
+): string => {
+  if (!places.length) return `Nothing saved in ${name} yet.`
+  if (!shown.length) return `Nothing in ${name} matches these filters.`
+  // Something is showing and none of it is on the map, so what is wanted is a
+  // location — for the filtered view when the chips are narrowing it, since
+  // claiming it of the whole city would be claiming more than was looked at.
+  return shown.length === places.length
+    ? `Nothing saved in ${name} has a location yet.`
+    : `Nothing matching these filters has a location yet.`
 }
 
 /** A place, as the card row draws it. */
@@ -195,6 +251,8 @@ export function tripScope({
     view: viewOf(zones[0] ?? {}, COUNTRY_ZOOM),
     cards: zones.filter((z) => located.has(z.id)).map(cityCard),
     missing: [],
+    // No chips and no legend at this scale: see `MapScope.categories`.
+    categories: [],
     emptyMessage: zones.length
       ? 'None of this trip’s stops has a location yet.'
       : 'This trip has no stops yet.',

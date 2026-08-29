@@ -5,7 +5,7 @@
 // into the page (research R6).
 import { describe, expect, it } from 'vitest'
 import { defaultZoneId, savedIn, tripScope, zoneScope } from '../map/scope'
-import type { PlaceListItem, TripStep } from '../api/types'
+import type { Category, PlaceListItem, TripStep } from '../api/types'
 
 const counts = (n: number) => ({ hotel: n, attraction: 0, food: 0, shopping: 0, other: 0 })
 
@@ -89,6 +89,34 @@ describe('zoneScope', () => {
       zoneScope({ zone: TOKYO, places: [place('b', null, null)], onPinTap: () => undefined })
         .emptyMessage
     ).toBe('Nothing saved in Tokyo has a location yet.')
+  })
+
+  it('blames the chips, not the city, when the filter is what emptied it', () => {
+    // `place()` here is always food, so a filter of anything else hides
+    // everything. Saying "Nothing saved in Tokyo yet" over a city holding four
+    // places is the map calling the traveller's own filter a missing trip.
+    const scope = zoneScope({
+      zone: TOKYO,
+      places: [place('a', 35.69, 139.7), place('b', null, null)],
+      active: new Set<Category>(['hotel']),
+      onPinTap: () => undefined,
+    })
+    expect(scope.pins).toEqual([])
+    expect(scope.emptyMessage).toBe('Nothing in Tokyo matches these filters.')
+    // And the chips themselves still come from the whole city, so the one that
+    // is hiding everything is still there to be turned back on.
+    expect(scope.categories).toEqual(['food'])
+  })
+
+  it('asks for a location for what the filter is showing, not for the whole city', () => {
+    const scope = zoneScope({
+      zone: TOKYO,
+      // Located, and filtered out; unlocated, and shown.
+      places: [{ ...place('a', 35.69, 139.7), category: 'hotel' }, place('b', null, null)],
+      active: new Set<Category>(['food']),
+      onPinTap: () => undefined,
+    })
+    expect(scope.emptyMessage).toBe('Nothing matching these filters has a location yet.')
   })
 
   it('opens on the city itself when there is nothing to frame', () => {

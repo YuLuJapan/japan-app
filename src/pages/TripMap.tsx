@@ -12,7 +12,7 @@
 // scale, and the analytics event that reports which one was chosen.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTrip, useZonePlaces } from '../api/hooks'
-import { CATEGORIES, type Category } from '../api/types'
+import { type Category } from '../api/types'
 import { MapCanvas } from '../components/map/MapCanvas'
 import { MapLegend } from '../components/map/MapLegend'
 import { MapSheet } from '../components/map/MapSheet'
@@ -67,14 +67,6 @@ export default function TripMap() {
   const places = useZonePlaces(zoneId, '' as Category)
   const all = useMemo(() => places.data?.places ?? [], [places.data])
 
-  // Only the categories actually present are offered (FR-010), in the app's own
-  // order rather than the order the places happen to arrive in.
-  const present = useMemo(() => CATEGORIES.filter((c) => all.some((p) => p.category === c)), [all])
-  const shown = useMemo(
-    () => (active === null ? all : all.filter((p) => active.has(p.category))),
-    [all, active]
-  )
-
   // The scope is memoised on the data, and `select` closes over it — so the
   // handler is reached through a ref rather than rebuilding every scope (and
   // with it every pin) whenever a selection changes.
@@ -91,28 +83,43 @@ export default function TripMap() {
         ? tripScope({ steps, onPinTap: (id) => openZoneRef.current(id) })
         : zoneScope({
             zone: zone ?? { name: 'this trip', lat: null, lng: null },
-            places: shown,
+            places: all,
+            active,
             onPinTap: (id) => selectRef.current(id),
           }),
-    [scale, steps, zone, shown]
+    [scale, steps, zone, all, active]
   )
 
   // Tapping a pin and tapping a card are the same event, so they are one
   // function: the card row scrolls to the selection and the pin's card expands,
   // and the two stay in step in both directions.
+  //
+  // It also **centres the map on what was tapped**. A card tapped from the row
+  // may be a place currently off the frame's edge, and expanding a card for a
+  // pin the traveller cannot see says nothing about where it is. `panTo`
+  // without a zoom keeps the scale they chose — this moves the map, it does
+  // not reframe it, which is why the fitted bounds are untouched.
   const select = (id: string) => {
     setSelectedId(id)
     const card = scope.cards.find((c) => c.id === id)
-    if (card?.place) capture('map_pin_opened', { category: card.place.category })
+    if (!card?.place) return
+    capture('map_pin_opened', { category: card.place.category })
+    const { lat, lng } = card.place
+    if (typeof lat === 'number' && typeof lng === 'number') engine.current?.panTo({ lat, lng })
   }
 
   // Tapping a city at the trip scale drops into that city's places, which is
   // the second of the two taps every saved place stays behind (FR-009). No new
   // request: the zone response is already in the query cache for a city the
   // traveller has opened, and one fetch away for one they have not.
+  //
+  // The filters are cleared on the way in: they were chosen against another
+  // city's categories, and arriving in Kyoto with Tokyo's `Food only` still on
+  // looks like a city with nothing in it.
   const openZone = (nextZoneId: string) => {
     setZoneId(nextZoneId)
     setSelectedId(null)
+    setActive(null)
     setScale('zone')
   }
 
@@ -121,12 +128,10 @@ export default function TripMap() {
   selectRef.current = select
   openZoneRef.current = openZone
 
-  // Over the *shown* places, not over every place in the zone: the identity
-  // that makes the number honest is `pins on screen + missing = what this
-  // member can see in this view` (SC-004), and a filtered view is still a view.
-  // The hidden-stay case takes care of itself — a withheld stay was never sent,
-  // so it is in neither half. Both halves come from the scope, built from one
-  // array in one pass, so they cannot drift.
+  // Both halves come from the scope, built from one array in one pass, so the
+  // identity `pins on screen + missing = what this member can see in this
+  // view` (SC-004) cannot drift. The hidden-stay case takes care of itself — a
+  // withheld stay was never sent, so it is in neither half.
   const missing = scope.missing.length
   // Narrowed to what the engine draws, rather than handing the state object
   // over: `status` is the page's business and a marker has no use for it.
@@ -171,12 +176,12 @@ export default function TripMap() {
 
   const toggle = (category: Category) => {
     setActive((current) => {
-      const next = new Set(current ?? present)
+      const next = new Set(current ?? scope.categories)
       if (next.has(category)) next.delete(category)
       else next.add(category)
       // Every category on is the `All` state, not a full selection — otherwise
       // the `All` chip would go dark while nothing was filtered.
-      return next.size === present.length ? null : next
+      return next.size === scope.categories.length ? null : next
     })
   }
 
@@ -193,13 +198,21 @@ export default function TripMap() {
         }}
         onUnavailable={setOffline}
       />
-      <MapTopBar tripId={tripId} scale={scale} onScale={setScale} zoneName={zone?.name ?? null} />
-      {!offline && <MapLegend categories={present} />}
+      <MapTopBar
+        tripId={tripId}
+        scale={scale}
+        onScale={(next) => {
+          setSelectedId(null)
+          setScale(next)
+        }}
+        zoneName={zone?.name ?? null}
+      />
+      {/* Both read `scope.categories`, which the trip scale leaves empty — so
+          neither the legend nor the chip row appears over a map of cities,
+          without this file having to ask which scale it is on. */}
+      {!offline && <MapLegend categories={scope.categories} />}
       {!offline && <LocateButton state={position} onLocate={locate} />}
-      <MapSheet
-        expanded={offline || expanded}
-        onToggle={offline ? null : () => setExpanded((e) => !e)}
-      >
+      <MapSheet expanded={offline || expanded} onExpandedChange={offline ? null : setExpanded}>
         {offline && (
           // The one state where the map cannot be the answer, so the list is
           // (FR-026). Said plainly and above the places, not as an error.
@@ -209,7 +222,7 @@ export default function TripMap() {
           </p>
         )}
         <CategoryChips
-          present={present}
+          present={scope.categories}
           active={active}
           onToggle={toggle}
           onAll={() => setActive(null)}
@@ -224,10 +237,14 @@ export default function TripMap() {
           <p className="px-4 pt-2 text-sm text-muted">{positionMessage(position)}</p>
         )}
         <div className="mt-3">
+          {/* `scope.onPinTap`, not `select`: tapping a card and tapping a pin
+              are the same event at both scales, so a city card drops into that
+              city exactly as its pin does (FR-009) rather than merely
+              highlighting itself. */}
           <PlaceCardRow
             cards={scope.cards}
             selectedId={selectedId}
-            onSelect={select}
+            onSelect={scope.onPinTap}
             tripId={tripId}
             zoneName={zone?.name ?? null}
           />
