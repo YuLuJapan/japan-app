@@ -15,9 +15,12 @@
 //
 // Every activity belongs to a city. Usually the screen already knows which —
 // a city page pins to itself, the trip screen to the city you sleep in that
-// night. On a day two cities share, the trip screen cannot know, so the add
-// form asks rather than guessing: `zoneChoices` are the day's cities, and one
-// of them has to be picked before the activity can be added.
+// night. On a day two cities share, the trip screen cannot know, so the form
+// asks rather than guessing: `zoneChoices` are the day's cities, and one of
+// them has to be picked before the activity can be saved. The edit form asks
+// the same question with the stored city already selected, which is how an
+// activity written before the question existed — every one of them stamped
+// with the city you arrive in — gets moved to the city it is really in.
 //
 // Editing an activity can also move it to another day, so a plan that shifts by
 // a day is a date change rather than a delete-and-retype. The picker is bounded
@@ -111,6 +114,7 @@ export function DayPlan({ day, sections, zoneId = null, zoneChoices, tripId }: P
           initial={item}
           day={day}
           tripRange={tripRange}
+          zoneChoices={zoneChoices}
           pending={update.isPending}
           error={update.error}
           submitLabel="Save"
@@ -314,7 +318,10 @@ function ItemForm({
   day?: string
   /** Bounds for the date picker. Null until the trip loads — the field waits. */
   tripRange?: { start: string; end: string } | null
-  /** Cities to choose between; absent when the screen already knows the city. */
+  /**
+   * Cities to choose between; absent when the screen already knows the city. Adding
+   * starts with none chosen, editing with the city the activity already has.
+   */
   zoneChoices?: ZoneSummary[]
   pending: boolean
   error: unknown
@@ -327,9 +334,10 @@ function ItemForm({
   const [note, setNote] = useState(initial?.note ?? '')
   const [date, setDate] = useState(initial?.day ?? day ?? '')
   const [category, setCategory] = useState<Category | null>(initial?.category ?? null)
-  // Nothing is preselected: a default here is exactly the guess this field exists to
-  // stop, and the traveller would leave it where it was found.
-  const [zone, setZone] = useState<string | null>(null)
+  // Adding starts with nothing preselected: a default there is exactly the guess this
+  // field exists to stop, and the traveller would leave it where it was found. Editing
+  // starts on the stored city, which is a fact rather than a guess.
+  const [zone, setZone] = useState<string | null>(initial?.zone_id ?? null)
 
   // Moving is offered when editing an existing activity, not when adding one to
   // the day you are already looking at.
@@ -345,7 +353,7 @@ function ItemForm({
       note: note.trim() || null,
       category,
       ...(canMove && date && date !== initial.day ? { day: date } : {}),
-      ...(zone ? { zone_id: zone } : {}),
+      ...(zone && zone !== (initial?.zone_id ?? null) ? { zone_id: zone } : {}),
     })
   }
 
@@ -376,8 +384,8 @@ function ItemForm({
         aria-label="Note"
       />
       {/* On a day that belongs to two cities the screen has no basis for picking
-          one, so it asks — and Add stays disabled until it is answered, because a
-          silent default is the guess this replaced. */}
+          one, so it asks — and the button stays disabled until it is answered,
+          because a silent default is the guess this replaced. */}
       {choices.length > 0 && (
         <fieldset>
           <legend className="label">Which city is this in?</legend>
