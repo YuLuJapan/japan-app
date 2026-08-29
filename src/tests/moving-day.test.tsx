@@ -1,6 +1,8 @@
 // A moving day (Tokyo → Hakone on the 25th) belongs to both cities: you're still
-// out in the first one that morning. It must show up — flagged — on both pages.
-import { describe, expect, it, vi } from 'vitest'
+// out in the first one that morning. It must show up — flagged — on both pages, and
+// so must its plan: the whole day is readable from either end of the move, with the
+// other city's half under its own name rather than hidden or silently claimed.
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Zone from '../pages/Zone'
@@ -49,26 +51,33 @@ const TRIP_BUNDLE = {
   flight: null,
 }
 
+const item = (id: string, zoneId: string | null, time: string, title: string) => ({
+  id,
+  trip_id: 'trip-1',
+  zone_id: zoneId,
+  place_id: null,
+  day: '2026-09-25',
+  start_time: time,
+  title,
+  note: null,
+  position: 0,
+  highlight: false,
+  icon: null,
+})
+
 const ITEMS = [
-  {
-    id: 'i1',
-    trip_id: 'trip-1',
-    zone_id: 'z-tokyo',
-    place_id: null,
-    day: '2026-09-25',
-    start_time: '09:00',
-    title: 'teamLab before the train',
-    note: null,
-    position: 0,
-    highlight: false,
-    icon: null,
-  },
+  item('i1', 'z-tokyo', '09:00', 'teamLab before the train'),
+  item('i2', 'z-hakone', '16:00', 'Onsen on arrival'),
 ]
+
+/** The reported case: nothing on the moving day is pinned to the city you leave. */
+let ALL_IN_HAKONE = false
 
 function mockApi(zoneId: string, name: string) {
   mocks.get.mockImplementation((path: string) => {
     if (path === '/trips/trip-1') return Promise.resolve(TRIP_BUNDLE)
-    if (path === '/trips/trip-1/itinerary') return Promise.resolve({ items: ITEMS })
+    if (path === '/trips/trip-1/itinerary')
+      return Promise.resolve({ items: ALL_IN_HAKONE ? [ITEMS[1]] : ITEMS })
     if (path === `/trips/trip-1/zones/${zoneId}`)
       return Promise.resolve({
         zone: { id: zoneId, name, name_ja: null, summary: null },
@@ -86,6 +95,10 @@ const renderZone = (zoneId: string) =>
   ])
 
 describe('moving days on a city page', () => {
+  beforeEach(() => {
+    ALL_IN_HAKONE = false
+  })
+
   it('shows the checkout day on the city being left, flagged with where it goes', async () => {
     mockApi('z-tokyo', 'Tokyo')
     const user = userEvent.setup()
@@ -103,6 +116,9 @@ describe('moving days on a city page', () => {
     )
     // things still planned in Tokyo that morning are listed
     expect(screen.getByText('teamLab before the train')).toBeInTheDocument()
+    // and so is the rest of the day, under the city it is actually in
+    expect(screen.getByText('Onsen on arrival')).toBeInTheDocument()
+    expect(screen.getByTestId('day-band')).toHaveTextContent('Later that day, in Hakone')
   })
 
   it('shows the same day on the arrival city, pointing back where it came from', async () => {
@@ -115,8 +131,11 @@ describe('moving days on a city page', () => {
       'href',
       '/trips/trip-1/zones/z-tokyo'
     )
-    // the Tokyo-pinned morning activity stays out of Hakone's plan
-    expect(screen.queryByText('teamLab before the train')).not.toBeInTheDocument()
+    // Hakone's own afternoon needs no heading
+    expect(screen.getByText('Onsen on arrival')).toBeInTheDocument()
+    // the Tokyo-pinned morning is readable here too, named as Tokyo's
+    expect(screen.getByText('teamLab before the train')).toBeInTheDocument()
+    expect(screen.getByTestId('day-band')).toHaveTextContent('Earlier that day, in Tokyo')
   })
 
   it('leaves a day spent wholly in one city unflagged', async () => {
@@ -126,5 +145,21 @@ describe('moving days on a city page', () => {
 
     await user.click(await screen.findByLabelText('2026-09-24'))
     expect(screen.queryByTestId('moving-day-cities')).not.toBeInTheDocument()
+    // one city, one band, no heading
+    expect(screen.queryByTestId('day-band')).not.toBeInTheDocument()
+  })
+
+  it('is not empty on the city being left when the whole day is pinned to the next one', async () => {
+    // The bug as reported: everything added from the trip screen was stamped with the
+    // arrival city, so Tokyo's last morning read as "nothing planned for this day".
+    ALL_IN_HAKONE = true
+    mockApi('z-tokyo', 'Tokyo')
+    const user = userEvent.setup()
+    renderZone('z-tokyo')
+
+    await user.click(await screen.findByLabelText('2026-09-25 (moving day)'))
+    expect(screen.queryByText('Nothing planned for this day yet.')).not.toBeInTheDocument()
+    expect(screen.getByText('Onsen on arrival')).toBeInTheDocument()
+    expect(screen.getByTestId('day-band')).toHaveTextContent('Later that day, in Hakone')
   })
 })

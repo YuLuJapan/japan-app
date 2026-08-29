@@ -5,7 +5,8 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { ItineraryItem, TripStep } from '../api/types'
 import {
-  coveringSteps,
+  type DaySection,
+  daySections,
   dayZones,
   fmtDayLong,
   isTravelDay,
@@ -33,24 +34,32 @@ export function Schedule({ steps, items, days, today, mode, zoneId, tripId }: Pr
   )
   const day = days.includes(selected) ? selected : (days[0] ?? today)
 
-  // An item pinned to a city belongs to that city; an unpinned one belongs to whichever
-  // city the day touches — so on a moving day it shows on both pages rather than
-  // disappearing from the one you're leaving.
-  const belongsToZone = (i: ItineraryItem, d: string) =>
-    i.zone_id === zoneId ||
-    (i.zone_id == null && coveringSteps(steps, d).some((s) => s.zone?.id === zoneId))
+  // A city page reads the day in bands — the city you came from, this city, the city
+  // you leave for — so a moving day is readable from both ends of the move instead of
+  // only from the one you arrive in. The trip screen has one band: the whole day.
+  const dayItems = items.filter((i) => i.day === day)
+  const sections: DaySection[] =
+    mode === 'zone' && zoneId
+      ? daySections(steps, zoneId, day, dayItems)
+      : [{ zone: null, direction: null, items: dayItems }]
+  const shown = sections.flatMap((s) => s.items)
 
-  const itemsForDay = items.filter((i) =>
-    mode === 'zone' ? i.day === day && belongsToZone(i, day) : i.day === day
-  )
-
+  // Every activity belongs to a city. A city page knows which one — the one you are
+  // looking at, whatever the date. The trip screen infers it from the journey, and
+  // `primaryStep` ("the city you sleep in that night") is right every day but a moving
+  // one, where it would silently stamp the morning you spend leaving with the city you
+  // are flying into. So on a shared day the trip screen stops guessing and asks: it
+  // offers the day's cities and the traveller says which one they mean.
   const newZoneId = mode === 'zone' ? (zoneId ?? null) : (primaryStep(steps, day)?.zone?.id ?? null)
   const zones = dayZones(steps, day)
+  const zoneChoices = mode === 'trip' && isTravelDay(steps, day) ? zones : undefined
   const moving = mode === 'zone' && zoneId ? movingDay(steps, zoneId, day) : null
   const isMovingDay = (d: string) =>
     mode === 'zone' && zoneId ? movingDay(steps, zoneId, d) !== null : isTravelDay(steps, d)
-  const highlights = itemsForDay.filter((i) => i.highlight)
-  const planItems = itemsForDay.filter((i) => !i.highlight)
+  // A featured note flags the whole day, so it stays a banner whichever band it is
+  // pinned to; only the plan is banded.
+  const highlights = shown.filter((i) => i.highlight)
+  const planSections = sections.map((s) => ({ ...s, items: s.items.filter((i) => !i.highlight) }))
 
   return (
     <div className="space-y-4">
@@ -108,7 +117,14 @@ export function Schedule({ steps, items, days, today, mode, zoneId, tripId }: Pr
       <DayHighlights day={day} highlights={highlights} zoneId={newZoneId} tripId={tripId} />
 
       {/* Keyed by day so switching days drops any half-open form or "moved" notice. */}
-      <DayPlan key={day} day={day} items={planItems} zoneId={newZoneId} tripId={tripId} />
+      <DayPlan
+        key={day}
+        day={day}
+        sections={planSections}
+        zoneId={newZoneId}
+        zoneChoices={zoneChoices}
+        tripId={tripId}
+      />
     </div>
   )
 }

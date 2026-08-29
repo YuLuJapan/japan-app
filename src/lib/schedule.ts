@@ -1,7 +1,7 @@
 // Day-by-day helpers. Trip data has no per-day rows — a day's city is derived
 // from the journey steps (hotel stays). Dates are plain ISO strings (YYYY-MM-DD)
 // compared lexically; Date objects are only used for formatting and stepping.
-import type { TripStep, ZoneSummary } from '../api/types'
+import type { ItineraryItem, TripStep, ZoneSummary } from '../api/types'
 
 /** Local calendar date of `d` as YYYY-MM-DD (not UTC — avoids off-by-one). */
 export function toISODate(d: Date): string {
@@ -79,6 +79,66 @@ export function movingDay(
   const after = others.filter((s) => s.position > last)
   if (before.length === 0 && after.length === 0) return null
   return { from: before.at(-1)?.zone ?? null, to: after[0]?.zone ?? null }
+}
+
+/**
+ * One band of a day's plan as it reads on a city page: this city's own half, or the
+ * half pinned to a city the day is shared with.
+ */
+export interface DaySection {
+  /** The other city these activities are pinned to; null for this city's own half. */
+  zone: ZoneSummary | null
+  /** Where that city falls relative to this one on the day; null for our own half. */
+  direction: 'before' | 'after' | null
+  items: ItineraryItem[]
+}
+
+/**
+ * A day's activities split into the bands a city page shows them in, in the order the
+ * day is lived: the city you arrived from, this city, the city you leave for.
+ *
+ * A moving day is planned in both cities — the morning is checkout, breakfast and the
+ * last sight in the one you're leaving; the afternoon belongs to the next. Hiding the
+ * other city's half left the page you were leaving from empty on its own last morning,
+ * and showing it unlabelled would have claimed an afternoon in Hakone as a Tokyo one.
+ * So it is shown, under the name of the city it is actually in.
+ *
+ * `items` must already be filtered to `day`. Bands with nothing in them are dropped,
+ * so an ordinary day is one band and needs no heading.
+ */
+export function daySections(
+  steps: TripStep[],
+  zoneId: string,
+  day: string,
+  items: ItineraryItem[]
+): DaySection[] {
+  const covering = coveringSteps(steps, day)
+  const mineSteps = covering.filter((s) => s.zone?.id === zoneId)
+  // An item pinned to this city belongs to it; an unpinned one belongs to whichever
+  // city the day touches, so it reads from both pages rather than neither.
+  const mine = items.filter(
+    (i) => i.zone_id === zoneId || (i.zone_id == null && mineSteps.length > 0)
+  )
+  const here: DaySection = { zone: null, direction: null, items: mine }
+  if (mineSteps.length === 0) return [here]
+
+  // Order by position, not by date: on a shared date the steps' dates are equal, so
+  // journey order is the only thing that says which city comes first.
+  const first = Math.min(...mineSteps.map((s) => s.position))
+  const last = Math.max(...mineSteps.map((s) => s.position))
+  const before: DaySection[] = []
+  const after: DaySection[] = []
+  const seen = new Set<string>()
+  for (const s of [...covering].sort((a, b) => a.position - b.position)) {
+    const zone = s.zone
+    if (!zone || zone.id === zoneId || seen.has(zone.id)) continue
+    seen.add(zone.id)
+    const theirs = items.filter((i) => i.zone_id === zone.id)
+    if (theirs.length === 0) continue
+    if (s.position < first) before.push({ zone, direction: 'before', items: theirs })
+    else if (s.position > last) after.push({ zone, direction: 'after', items: theirs })
+  }
+  return [...before, here, ...after]
 }
 
 export const weekdayLetter = (iso: string) =>

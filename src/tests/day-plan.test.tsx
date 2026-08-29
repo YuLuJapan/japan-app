@@ -59,7 +59,13 @@ function renderPlan(items = [ITEM]) {
           <Routes>
             <Route
               path="/trips/:tripId"
-              element={<DayPlan day="2027-03-02" items={items} tripId="trip-1" />}
+              element={
+                <DayPlan
+                  day="2027-03-02"
+                  sections={[{ zone: null, direction: null, items }]}
+                  tripId="trip-1"
+                />
+              }
             />
           </Routes>
         </MemoryRouter>
