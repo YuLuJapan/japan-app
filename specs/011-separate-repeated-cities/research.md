@@ -68,6 +68,8 @@
 
 No place is scheduled inside both visits, so FR-012a does not fire here; it is specified and tested anyway because a later edit can create one. Tokyo's 2 tips carry no date and go to visit 1 (FR-012b). Its 80 itinerary items split by their own `day` and need no rule.
 
+**The handover day** (research note added after checking the seed): stop ranges overlap by a day at **every one of the trip's 9 handovers** — Tokyo ends 25 Sep, Hakone begins 25 Sep — so "the visit whose dates contain this day" is ambiguous once per handover. FR-015a settles it: the day belongs to the **departing** visit, the one whose stay is ending, because a travel morning is spent where the traveller woke up and that is the visit holding the hotel being checked out of. One helper owns the rule so the split script and the day plan cannot disagree about the same day. It does not change the Tokyo split (the two Tokyo visits share no boundary), but it is the difference between a stated rule and an accident of iteration order.
+
 **The script runs twice**: against `server/src/data/placeholder-data.json` (so the memory backend and every test fixture match production) and against Supabase.
 
 ## R5. Naming a visit

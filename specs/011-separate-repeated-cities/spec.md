@@ -99,6 +99,7 @@ Wherever the app lists cities — the search results, the map, the exported docu
 - **A city visited three or more times**: nothing about the rules is specific to two. Each visit is independent and labelled by its own dates.
 - **Two visits with the same or overlapping dates** (a data error, or an editing intermediate state): both must still be reachable and distinguishable from each other, falling back to journey order ("first visit", "second visit") when dates cannot tell them apart.
 - **Back-to-back visits** (one ends on the day the next begins): these are two visits, not one, and are not silently merged — a traveller who split a stay deliberately keeps the split.
+- **A travel day belongs to two stops at once.** Stop dates overlap by a day at every handover — on the Japan trip, all 9 of them (Tokyo ends 25 Sep, Hakone begins 25 Sep). So "the visit whose dates contain this day" is ambiguous once per handover, and both the division of existing content and the day-plan link depend on that phrase. It needs a stated tie-break, not a coin toss. This is the same ambiguity behind the known bug where a travel day's plan only shows under the city being arrived in.
 - **A visit is deleted from the journey** while it still holds places, tips or documents: the content must not vanish silently. The trip's existing rule for deletes (a deleted place's documents are reparented to the trip rather than lost) is the precedent to follow.
 - **A trip's dates change** so that a stop moves or is clipped: the visit keeps its content; only its dates change.
 - **A stop's city is changed** to a different city on an existing visit: the traveller is told what content moves with it before it happens.
@@ -131,7 +132,7 @@ Wherever the app lists cities — the search results, the map, the exported docu
 
 **Existing trips**
 
-- **FR-012**: Content already collected on a repeated city before this feature MUST be divided between its visits **by what the day plan already schedules**: a place linked to an activity whose date falls inside a visit MUST be filed against that visit.
+- **FR-012**: Content already collected on a repeated city before this feature MUST be divided between its visits **by what the day plan already schedules**: a place linked to an activity whose date falls inside a visit MUST be filed against that visit, resolving a shared handover day by FR-015a.
 - **FR-012a**: A place scheduled inside more than one visit MUST be filed against the earliest such visit, and the traveller MUST be able to find it there. (This does not arise on the Japan trip, where the day plan resolves every scheduled Tokyo place to exactly one stay.)
 - **FR-012b**: Anything the day plan cannot place — a place linked to no activity, and every tip and document, which carry no date — MUST be filed against the **first** visit of that city, so that it stays visible somewhere the traveller will look rather than being hidden on a later stay.
 - **FR-012c**: The division MUST be reportable: it MUST be possible to say, before and after it runs, exactly which items moved to which visit, so a wrong filing can be found and corrected rather than discovered months later on the trip.
@@ -142,6 +143,7 @@ Wherever the app lists cities — the search results, the map, the exported docu
 **The rest of the app**
 
 - **FR-015**: A day-plan activity MUST resolve to the visit its date falls inside, and MUST link through to that visit.
+- **FR-015a**: Where a day falls inside two visits because a stop's last day is the next stop's first — every handover on the Japan trip — the day MUST resolve to the **departing** visit, the one whose stay is ending. A travel morning is spent where the traveller woke up, and that is the visit whose page holds the hotel being checked out of. The rule MUST be stated once and used by both the day plan and the division of existing content (FR-012), so the two cannot disagree about the same day.
 - **FR-016**: Search results MUST name which visit a matching place belongs to and MUST open that visit.
 - **FR-017**: The map MUST offer each visit separately at trip scale and plot only that visit's places at city scale.
 - **FR-018**: An exported trip MUST render each visit as its own section in journey order, and MUST NOT repeat one visit's content under another. Whatever a member is not allowed to see stays withheld per visit, exactly as it is withheld per city today.
@@ -181,4 +183,4 @@ Wherever the app lists cities — the search results, the map, the exported docu
 - **The shopping list, the flight and the trip's documents stay trip-level.** None of them belongs to a city today, so none of them is divided.
 - **Reminders are unaffected** — they are attached to a moment, not a city.
 - **The Japan trip is the trip that has this problem**, and its live data is the migration that matters. Any division of existing content has to be right on it the first time; there is no undo, so a division that keeps everything reachable is required (FR-013) even where it is imperfectly filed.
-- **The day plan's dates are trustworthy** as a signal of which visit an activity belongs to, since every stop's dates sit inside the trip's dates and stops do not overlap in ordinary use.
+- **The day plan's dates are trustworthy** as a signal of which visit an activity belongs to, since every stop's dates sit inside the trip's dates. Stops *do* overlap by one day at each handover, which is why FR-015a exists; beyond that single shared day a date names exactly one visit.

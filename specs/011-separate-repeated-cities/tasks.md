@@ -41,9 +41,9 @@ Two runtimes in one repo (per plan.md): `server/src/{routes,services,lib}` for t
 
 **Purpose**: the two pure modules that own the visit rules, plus the fixture every later test builds on. **Blocks every user story.**
 
-- [ ] T008 [P] Create `server/src/lib/visit.ts`: given a trip's zones and steps, resolve a zone's `step_id`, dates, `ordinal` (1-based among `city_key` siblings ordered by `start_date` then `position`), `total`, and `siblings`. Pure — takes rows, returns data. Tolerates a zone with **no** step (`step_id: null`, dates null) per research.md R8.
+- [ ] T008 [P] Create `server/src/lib/visit.ts`: given a trip's zones and steps, resolve a zone's `step_id`, dates, `ordinal` (1-based among `city_key` siblings ordered by `start_date` then `position`), `total`, and `siblings`. Pure — takes rows, returns data. Tolerates a zone with **no** step (`step_id: null`, dates null) per research.md R8. Also export `visitForDay(steps, day)` implementing FR-015a: stop ranges overlap by a day at every handover, so a shared day resolves to the **departing** visit. This is the single owner of that rule — the split script (T026) and the day plan (T042) both call it, or they will disagree about the same day.
 - [ ] T009 [P] Create `src/lib/visit-label.ts`: the only place a visit's wording lives. `total === 1` → empty label (this is FR-003, structurally). Otherwise the step's dates ("19–25 Sep"), falling back to an ordinal ("2nd visit") when two siblings share dates or have none.
-- [ ] T010 [P] Create `server/tests/visit.test.ts` — table-test `visit.ts` over: one visit, two visits, three visits, two visits with identical dates (ordinal fallback), a zone with no step, and a zone with a null `city_key`.
+- [ ] T010 [P] Create `server/tests/visit.test.ts` — table-test `visit.ts` over: one visit, two visits, three visits, two visits with identical dates (ordinal fallback), a zone with no step, and a zone with a null `city_key`. Table-test `visitForDay` separately over a handover day (resolves to the departing visit, FR-015a), an interior day, and a day outside every stop.
 - [ ] T011 [P] Create `src/tests/visit-label.test.ts` — table-test the wording for the same cases, including the empty label for a single visit.
 - [ ] T012 Extend `server/tests/fixture.ts` with a trip that visits one city twice (two steps → two sibling zones, places and tips on each) plus a city visited once as the control. Every later server test builds on this.
 
@@ -131,7 +131,7 @@ Two runtimes in one repo (per plan.md): `server/src/{routes,services,lib}` for t
 - [ ] T039 [P] [US4] `src/pages/Search.tsx` — render the labelled subtitles.
 - [ ] T040 [P] [US4] `src/map/scope.ts` — visit labels on the trip-scale chips (FR-017). `tripScope` already builds from steps, so this is labelling only; do not add a `scope.kind` branch (spec 004's rule).
 - [ ] T041 [P] [US4] `src/components/Breadcrumbs.tsx` — name the visit and return to it (FR-019).
-- [ ] T042 [P] [US4] `src/components/Schedule.tsx`, `src/components/DayPlan.tsx`, `src/components/DayHighlights.tsx` — a day's activities link to the visit whose dates contain that day (FR-015).
+- [ ] T042 [P] [US4] `src/components/Schedule.tsx`, `src/components/DayPlan.tsx`, `src/components/DayHighlights.tsx` — a day's activities link to the visit whose dates contain that day (FR-015), resolving a handover day through the shared rule rather than a local date comparison (FR-015a). Worth checking against the open board item "BUG · A travel day's plan only shows under the city you arrive in" — same ambiguity, and this rule is the answer to both.
 - [ ] T043 [P] [US4] `src/components/JourneyStepsSlider.tsx` and `src/pages/JourneySteps.tsx` — show the visit label on a repeated city's cards.
 - [ ] T044 [US4] Section headings in `server/src/lib/export-view.ts` take the label; classify `city_key` as `'never'` in `ZONE_FIELD_POLICY` (it is plumbing, not trip content) so `npm run typecheck` passes.
 - [ ] T045 [P] [US4] Add per-visit assertions to `server/tests/map-pins.test.ts` and `server/tests/search.test.ts`.
@@ -208,5 +208,6 @@ Stop after Phase 4 and the feature is real but manual to correct — a mis-filed
 | FR-012/012a/012b/012c (the split) | T025, T028 |
 | FR-013 (nothing lost) | T025 |
 | FR-014/014a (identity, siblings) | T010, T015 |
-| FR-015–019 (other surfaces) | T045, T053 |
+| FR-015 / FR-015a (handover day) | T010, T042 |
+| FR-016–019 (other surfaces) | T045, T053 |
 | FR-020 / SC-007 (visibility) | T048 |
