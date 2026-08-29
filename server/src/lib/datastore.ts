@@ -203,6 +203,16 @@ export interface Zone {
   image_url?: string | null
   lat?: number | null
   lng?: number | null
+  /**
+   * Which visits are the same city (spec 011, migration 0023).
+   *
+   * A zone is one *visit* to a city, so a trip that goes to Tokyo twice holds
+   * two zone rows; this is what still ties them together. Derived once at
+   * creation by `lib/city-key.ts` and never rewritten — a rename changes what
+   * a visit is called, not which city it is. Null means "no siblings", which
+   * is how a city visited once already behaves.
+   */
+  city_key?: string | null
 }
 
 export interface ZoneInput {
@@ -213,6 +223,8 @@ export interface ZoneInput {
   image_url?: string | null
   lat?: number | null
   lng?: number | null
+  /** Omit and the store derives it from `name` — see lib/city-key.ts. */
+  city_key?: string | null
 }
 
 /** What may be changed on an existing zone. Absent means "leave it alone". */
@@ -503,8 +515,12 @@ export interface DataStore {
   deleteStep(tripId: string, stepId: string): Promise<boolean>
 
   /**
-   * Every zone belonging to this trip (used to find-or-create a zone for a
-   * free-text destination).
+   * Every zone belonging to this trip (used to create a zone for a free-text
+   * destination, and to render the journey).
+   *
+   * Also the sibling source: `city_key` groups the visits of one city, and a
+   * trip holds few enough zones that asking for all of them beats a second
+   * query for a subset of the rows this one already returned.
    *
    * Since 0013 a zone belongs to exactly one trip. That is what lets every
    * method below take the trip id as its first argument: scope lives in the

@@ -90,6 +90,11 @@ export const ZONE_FIELD_POLICY: Record<keyof Zone, ExportLevel> = {
   summary: 'full',
   id: 'never', // the document expresses structure by nesting, not by id
   trip_id: 'never',
+  // Plumbing, not trip content: which visits are the same city (spec 011).
+  // A reader sees the two stays as two sections with their own dates, which
+  // is the whole of what the key exists to arrange — the key itself says
+  // nothing a traveller would want in a document.
+  city_key: 'never',
   name_ja: 'never',
   image_url: 'never',
   lat: 'never',

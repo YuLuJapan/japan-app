@@ -23,17 +23,29 @@ Two runtimes in one repo (per plan.md): `server/src/{routes,services,lib}` for t
 
 ---
 
-## Phase 1: Setup
+## Phase 1: Setup ✅ DONE
 
 **Purpose**: the column every later phase reads. No behaviour change — after this phase the app is byte-for-byte what it was.
 
-- [ ] T001 Create `supabase/migrations/0023_zone_city_key.sql`: `ALTER TABLE zones ADD COLUMN city_key text` (nullable), backfill `city_key = lower(trim(name))` for existing rows, and add an index on `(trip_id, city_key)`. Confirm 0023 is still free on `main` before naming it — parallel branches otherwise claim the same number (CLAUDE.md).
-- [ ] T002 [P] Add `city_key?: string | null` to `Zone` and `ZoneInput` in `server/src/lib/datastore.ts`, and add `listZoneSiblings(tripId, cityKey)` to the `DataStore` interface.
-- [ ] T003 [P] Add `city_key` to `Zone` in `src/api/types.ts` (mirrors the server type; keeps the two runtimes' shapes in step).
-- [ ] T004 Implement `listZoneSiblings` and carry `city_key` through create/read in `server/src/lib/datastore.memory.ts`.
-- [ ] T005 Implement `listZoneSiblings` and carry `city_key` through create/read in `server/src/lib/datastore.supabase.ts`, selecting the new column everywhere `zones` is read.
-- [ ] T006 Add `city_key` to every zone in `server/src/data/placeholder-data.json` (`lower(trim(name))`), so the memory backend matches what the migration leaves in Postgres.
-- [ ] T007 Run `npm run typecheck && npm test` — expect green with zero behaviour change. This is the checkpoint that the column is inert.
+- [x] T001 Create `supabase/migrations/0023_zone_city_key.sql`: `ALTER TABLE zones ADD COLUMN city_key text` (nullable), backfill for existing rows, and add an index on `(trip_id, city_key)`. Confirm 0023 is still free on `main` before naming it — parallel branches otherwise claim the same number (CLAUDE.md).
+- [x] T002 [P] Add `city_key?: string | null` to `Zone` and `ZoneInput` in `server/src/lib/datastore.ts`. ~~and add `listZoneSiblings(tripId, cityKey)` to the `DataStore` interface~~ — **dropped, see note 1**.
+- [x] T003 [P] Add `city_key` to `ZoneSummary` and `ZoneDetail` in `src/api/types.ts` (mirrors the server type; keeps the two runtimes' shapes in step).
+- [x] T004 Carry `city_key` through create/read in `server/src/lib/datastore.memory.ts`.
+- [x] T005 Carry `city_key` through create/read in `server/src/lib/datastore.supabase.ts`, adding it to `ZONE_COLS` so it is selected everywhere `zones` is read.
+- [x] T006 Add `city_key` to every zone in `server/src/data/placeholder-data.json`, so the memory backend matches what the migration leaves in Postgres.
+- [x] T007 Run `npm run typecheck && npm test` — green, 1074 tests, zero behaviour change. The column is inert.
+
+### What was added beyond the list
+
+- **T001a** `server/src/lib/city-key.ts` — `cityKeyFor(name)`, the single derivation of the key (trim, collapse internal whitespace, lower-case; empty → null). Was implicit in T013, but the seed (T006) and the migration backfill (T001) both need the same rule *now*, and two independent copies of it would drift silently.
+- **T001b** `server/tests/city-key.test.ts` — table-tested in the `trip-title.test.ts` idiom, including one test asserting every seeded zone's stored key equals `cityKeyFor(name)`, which is what pins the migration's SQL expression and the TypeScript to the same answer.
+- **T044 (part)** `city_key: 'never'` in `ZONE_FIELD_POLICY` (`server/src/lib/export-view.ts`) — pulled forward from Phase 6 because `npm run typecheck` refused the build without it. That is the guard doing its job: a new `Zone` column cannot reach an exported file until someone classifies it.
+
+### Notes on deviations
+
+1. **`listZoneSiblings` was not added.** `plan.md` specifies `visit.ts` as pure — it takes zones and steps and returns data — and `listZones(tripId)` already returns every zone on the trip. A dedicated sibling method would have been a second query for a subset of rows its only caller has already loaded, implemented twice (memory + Supabase). The `listZones` doc comment now names it as the sibling source.
+2. **The migration is written but NOT applied.** It must not be, until T054's ordering. Nothing in Phase 1 depends on it: the memory store is what dev and tests use.
+3. **The backfill expression and `cityKeyFor` must stay in step.** SQL uses `lower(regexp_replace(btrim(name), '\s+', ' ', 'g'))` — chosen over `lower(trim(name))` so it collapses internal whitespace exactly as the TypeScript does. T001b is the test that catches a drift.
 
 ---
 

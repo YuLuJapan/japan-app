@@ -141,6 +141,12 @@ export interface ZoneSummary {
   image_url?: string | null
   lat?: number | null
   lng?: number | null
+  /**
+   * Which visits are the same city. A zone is one *visit*, so a trip that goes
+   * to Tokyo twice holds two of them; this is what groups the siblings for the
+   * visit label and the move picker. Null means "visited once".
+   */
+  city_key?: string | null
   place_counts: Record<Category, number>
 }
 
@@ -273,7 +279,9 @@ export interface FileMeta {
 }
 
 export type FileParent =
-  { kind: 'trip' } | { kind: 'zone'; id: string } | { kind: 'place'; id: string }
+  | { kind: 'trip' }
+  | { kind: 'zone'; id: string }
+  | { kind: 'place'; id: string }
 
 export interface TripDocument extends FileMeta {
   attached_to: { kind: 'trip' | 'zone' | 'place'; id: string; name: string }
@@ -295,6 +303,7 @@ export interface ZoneDetail {
     image_url?: string | null
     lat?: number | null
     lng?: number | null
+    city_key?: string | null
   }
   tips: Tip[]
   files: FileMeta[]
