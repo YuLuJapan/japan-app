@@ -29,9 +29,28 @@ export interface SelfPosition {
   accuracy?: number
 }
 
+/**
+ * How much of the map is covered by something else, in CSS pixels.
+ *
+ * The map is full-bleed: the top bar floats over it and the sheet covers the
+ * bottom, so the container's centre is **not** the centre of what can be seen.
+ * Told this, the engine frames and centres against the visible window instead
+ * — otherwise `fitTo` tucks the southern pins under the sheet and `panTo`
+ * puts the place it was asked to centre behind it.
+ *
+ * It is a property of the screen, not of a scale, which is why it is set once
+ * rather than passed to every call.
+ */
+export interface MapInset {
+  top: number
+  bottom: number
+}
+
 export interface MapEngine {
   /** Attach to a container that already has a size. Called once. */
   mount(container: HTMLElement, view: MapView): void
+  /** What is covering the map, so framing and centring aim at what is visible. */
+  setInset(inset: MapInset): void
   /** Replace every pin. The engine owns the markers; the caller owns the list. */
   setPins(pins: MapPin[]): void
   /** Frame a box, or leave the view alone when there is nothing to frame. */

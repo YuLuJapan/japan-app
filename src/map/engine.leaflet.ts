@@ -8,13 +8,13 @@
 // module that needs it, it arrives with the chunk instead of with the app.
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import type { CreateMapEngine, MapEngine, MapView, SelfPosition } from './engine.types'
+import type { CreateMapEngine, MapEngine, MapInset, MapView, SelfPosition } from './engine.types'
 import type { Bounds, MapPin } from './pins'
 import { categoryStyle, clusterSize } from './pins'
 import { MAX_TILE_ZOOM, TILE_ATTRIBUTION, TILE_ATTRIBUTION_URL, TILE_URL } from './tiles'
 
 /** Room around the outermost pins, so none of them sits on the screen edge. */
-const FIT_PADDING: L.PointExpression = [40, 40]
+const FIT_MARGIN = 40
 
 /** As far in as `fitTo` will go for a single pin — a street, not a doorway. */
 const MAX_FIT_ZOOM = 16
@@ -90,6 +90,9 @@ export const createEngine: CreateMapEngine = (): MapEngine => {
   let self: L.Marker | null = null
   let halo: L.Circle | null = null
   let handler: (id: string) => void = () => undefined
+  // What the top bar and the sheet are covering. Zero until the screen says
+  // otherwise, which is exactly the old behaviour for a map nothing overlaps.
+  let inset: MapInset = { top: 0, bottom: 0 }
 
   return {
     mount(container: HTMLElement, view: MapView) {
@@ -112,6 +115,10 @@ export const createEngine: CreateMapEngine = (): MapEngine => {
       layer = L.layerGroup().addTo(map)
     },
 
+    setInset(next: MapInset) {
+      inset = next
+    },
+
     setPins(pins: MapPin[]) {
       if (!map || !layer) return
       layer.clearLayers()
@@ -129,7 +136,14 @@ export const createEngine: CreateMapEngine = (): MapEngine => {
 
     fitTo(bounds: Bounds | null) {
       if (!map || !bounds) return
-      map.fitBounds(toLatLngBounds(bounds), { padding: FIT_PADDING, maxZoom: MAX_FIT_ZOOM })
+      // Asymmetric on purpose: the covered strips are added to the margin, so
+      // the box lands in the gap between the top bar and the sheet rather than
+      // in the middle of a container whose lower third cannot be seen.
+      map.fitBounds(toLatLngBounds(bounds), {
+        paddingTopLeft: [FIT_MARGIN, FIT_MARGIN + inset.top],
+        paddingBottomRight: [FIT_MARGIN, FIT_MARGIN + inset.bottom],
+        maxZoom: MAX_FIT_ZOOM,
+      })
     },
 
     setSelfMarker(position: SelfPosition | null) {
@@ -151,7 +165,16 @@ export const createEngine: CreateMapEngine = (): MapEngine => {
     },
 
     panTo(point: { lat: number; lng: number }, zoom?: number) {
-      map?.setView([point.lat, point.lng], zoom ?? map.getZoom())
+      if (!map) return
+      const at = zoom ?? map.getZoom()
+      // `setView` puts the point at the *container's* centre, which on this
+      // screen is behind the sheet. The visible window sits `(top - bottom) / 2`
+      // above that, so the view centre is moved the same distance the other
+      // way — south, in projected pixels — and the point lands in the middle
+      // of the map the traveller can actually see.
+      const lift = (inset.bottom - inset.top) / 2
+      const centre = map.project([point.lat, point.lng], at).add([0, lift])
+      map.setView(map.unproject(centre, at), at)
     },
 
     onPinTap(next: (id: string) => void) {

@@ -7,7 +7,7 @@
 //
 // jsdom has no layout, so a real map cannot mount in one. That is not a
 // limitation being worked around here — it is the reason the port exists.
-import type { CreateMapEngine, MapEngine, MapView, SelfPosition } from './engine.types'
+import type { CreateMapEngine, MapEngine, MapInset, MapView, SelfPosition } from './engine.types'
 import type { Bounds, MapPin } from './pins'
 
 /** Everything the fake saw, in the order it saw it. */
@@ -15,6 +15,7 @@ export interface FakeMapEngine extends MapEngine {
   mounted: boolean
   view: MapView | null
   pins: MapPin[]
+  inset: MapInset | null
   fitted: Bounds | null
   self: SelfPosition | null
   pans: { lat: number; lng: number; zoom?: number }[]
@@ -29,6 +30,7 @@ export const createFakeEngine = (): FakeMapEngine => {
     mounted: false,
     view: null,
     pins: [],
+    inset: null,
     fitted: null,
     self: null,
     pans: [],
@@ -39,6 +41,9 @@ export const createFakeEngine = (): FakeMapEngine => {
     },
     setPins(pins) {
       engine.pins = pins
+    },
+    setInset(inset) {
+      engine.inset = inset
     },
     fitTo(bounds) {
       engine.fitted = bounds

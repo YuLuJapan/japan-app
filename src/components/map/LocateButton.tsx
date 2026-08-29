@@ -9,7 +9,20 @@
 // the control exists at all rather than the map simply knowing.
 import type { PositionState } from '../../lib/geolocation'
 
-export function LocateButton({ state, onLocate }: { state: PositionState; onLocate: () => void }) {
+export function LocateButton({
+  state,
+  onLocate,
+  bottom,
+}: {
+  state: PositionState
+  onLocate: () => void
+  /**
+   * How far above the map's bottom edge to float, in CSS pixels — the sheet's
+   * own height plus a gap. A fixed offset put this behind the sheet, which is
+   * taller than any constant worth writing and changes with the card row.
+   */
+  bottom: number
+}) {
   const asking = state.status === 'asking'
   return (
     <button
@@ -17,7 +30,8 @@ export function LocateButton({ state, onLocate }: { state: PositionState; onLoca
       onClick={onLocate}
       disabled={asking}
       aria-label={state.status === 'granted' ? 'Go to my position' : 'Show my position'}
-      className="absolute bottom-2 right-3 z-[500] flex h-11 w-11 items-center justify-center rounded-full bg-white text-ink shadow-card active:scale-95 disabled:opacity-60"
+      style={{ bottom }}
+      className="absolute right-3 z-[500] flex h-11 w-11 items-center justify-center rounded-full bg-white text-ink shadow-card active:scale-95 disabled:opacity-60"
     >
       <svg
         width="20"

@@ -34,6 +34,12 @@ import { useTripId } from '../lib/trip'
  * phone's own zone rather than UTC — a traveller in Tokyo at 8am is not still
  * on yesterday's step.
  */
+/**
+ * The floating top bar's height, in CSS pixels: `p-3` either side of a
+ * `min-h-11` control. Part of what the map is not free to draw into.
+ */
+const TOP_BAR_PX = 68
+
 const today = () => {
   const now = new Date()
   return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
@@ -50,6 +56,10 @@ export default function TripMap() {
   const [active, setActive] = useState<Set<Category> | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
+  // How tall the sheet is at rest, reported by the sheet itself. It is what
+  // the map has to frame and centre *above*, and what the locate button sits
+  // on top of — both of which were being covered by it.
+  const [sheetHeight, setSheetHeight] = useState(0)
   const [offline, setOffline] = useState(false)
   const [position, setPosition] = useState<PositionState>({ status: 'idle' })
   const engine = useRef<MapEngine | null>(null)
@@ -140,6 +150,16 @@ export default function TripMap() {
       ? { lat: position.lat, lng: position.lng, accuracy: position.accuracy }
       : null
 
+  // What is covering the map, so the engine frames and centres against the gap
+  // between the two rather than against the container's own middle — a place
+  // centred in a container whose lower third is the sheet is a place behind
+  // the sheet. The top bar's height is a constant of the render; the sheet's
+  // is not, so it is measured.
+  const inset = useMemo(
+    () => ({ top: TOP_BAR_PX, bottom: expanded ? 0 : sheetHeight }),
+    [expanded, sheetHeight]
+  )
+
   // FR-025's rule is arithmetic and lives in `pins.ts`: a position near the
   // saved places widens the frame to include it, a distant one leaves the
   // frame alone. The button below is how the traveller goes to themselves
@@ -191,6 +211,7 @@ export default function TripMap() {
         view={scope.view}
         pins={scope.pins}
         bounds={bounds}
+        inset={inset}
         self={self}
         onPinTap={scope.onPinTap}
         onReady={(next) => {
@@ -211,8 +232,16 @@ export default function TripMap() {
           neither the legend nor the chip row appears over a map of cities,
           without this file having to ask which scale it is on. */}
       {!offline && <MapLegend categories={scope.categories} />}
-      {!offline && <LocateButton state={position} onLocate={locate} />}
-      <MapSheet expanded={offline || expanded} onExpandedChange={offline ? null : setExpanded}>
+      {/* Above the sheet rather than behind it, and gone once the sheet is
+          full height: there is no map left to go to a position on. */}
+      {!offline && !expanded && (
+        <LocateButton state={position} onLocate={locate} bottom={sheetHeight + 8} />
+      )}
+      <MapSheet
+        expanded={offline || expanded}
+        onExpandedChange={offline ? null : setExpanded}
+        onPeekHeight={setSheetHeight}
+      >
         {offline && (
           // The one state where the map cannot be the answer, so the list is
           // (FR-026). Said plainly and above the places, not as an error.
