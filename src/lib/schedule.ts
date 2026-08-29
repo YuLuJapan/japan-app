@@ -85,60 +85,72 @@ export function movingDay(
  * One band of a day's plan as it reads on a city page: this city's own half, or the
  * half pinned to a city the day is shared with.
  */
+/**
+ * One band of a day's plan: a stretch of it spent in one city. An ordinary day is a
+ * single unnamed band; a moving day on the trip screen is one band per city.
+ */
 export interface DaySection {
-  /** The other city these activities are pinned to; null for this city's own half. */
+  /** The city these activities are in, or null for a band that needs no name. */
   zone: ZoneSummary | null
-  /** Where that city falls relative to this one on the day; null for our own half. */
+  /** Where the band falls in the day: the city you start in, or one you move on to. */
   direction: 'before' | 'after' | null
   items: ItineraryItem[]
 }
 
 /**
- * A day's activities split into the bands a city page shows them in, in the order the
- * day is lived: the city you arrived from, this city, the city you leave for.
+ * A day's activities split into the bands the screen shows them in. `items` must
+ * already be filtered to `day`.
  *
- * A moving day is planned in both cities — the morning is checkout, breakfast and the
- * last sight in the one you're leaving; the afternoon belongs to the next. Hiding the
- * other city's half left the page you were leaving from empty on its own last morning,
- * and showing it unlabelled would have claimed an afternoon in Hakone as a Tokyo one.
- * So it is shown, under the name of the city it is actually in.
+ * The two screens ask different questions of a moving day, so they get different
+ * answers. A **city page** (`zoneId` given) asks "what am I doing in Tokyo?" — so it
+ * gets Tokyo's activities and nothing else, in one unnamed band: the afternoon you
+ * spend in Kyoto is not Tokyo's business, and the from/to chips above the plan already
+ * say the day moves. The **trip screen** (no `zoneId`) asks "what am I doing today?" —
+ * so it gets the whole day, banded by city in journey order and named, with the
+ * travelling between them drawn as the break it is.
  *
- * `items` must already be filtered to `day`. Bands with nothing in them are dropped,
- * so an ordinary day is one band and needs no heading.
+ * An activity pinned to no city at all predates the rule that every activity has one;
+ * it shows on any city page the day touches, and in a leading unnamed band on the trip
+ * screen, rather than being lost from both.
  */
 export function daySections(
   steps: TripStep[],
-  zoneId: string,
   day: string,
-  items: ItineraryItem[]
+  items: ItineraryItem[],
+  zoneId?: string | null
 ): DaySection[] {
   const covering = coveringSteps(steps, day)
-  const mineSteps = covering.filter((s) => s.zone?.id === zoneId)
-  // An item pinned to this city belongs to it; an unpinned one belongs to whichever
-  // city the day touches, so it reads from both pages rather than neither.
-  const mine = items.filter(
-    (i) => i.zone_id === zoneId || (i.zone_id == null && mineSteps.length > 0)
-  )
-  const here: DaySection = { zone: null, direction: null, items: mine }
-  if (mineSteps.length === 0) return [here]
+
+  if (zoneId) {
+    const here = covering.some((s) => s.zone?.id === zoneId)
+    return [
+      {
+        zone: null,
+        direction: null,
+        items: items.filter((i) => i.zone_id === zoneId || (i.zone_id == null && here)),
+      },
+    ]
+  }
 
   // Order by position, not by date: on a shared date the steps' dates are equal, so
   // journey order is the only thing that says which city comes first.
-  const first = Math.min(...mineSteps.map((s) => s.position))
-  const last = Math.max(...mineSteps.map((s) => s.position))
-  const before: DaySection[] = []
-  const after: DaySection[] = []
+  const cities: ZoneSummary[] = []
   const seen = new Set<string>()
   for (const s of [...covering].sort((a, b) => a.position - b.position)) {
-    const zone = s.zone
-    if (!zone || zone.id === zoneId || seen.has(zone.id)) continue
-    seen.add(zone.id)
-    const theirs = items.filter((i) => i.zone_id === zone.id)
-    if (theirs.length === 0) continue
-    if (s.position < first) before.push({ zone, direction: 'before', items: theirs })
-    else if (s.position > last) after.push({ zone, direction: 'after', items: theirs })
+    if (s.zone && !seen.has(s.zone.id)) {
+      seen.add(s.zone.id)
+      cities.push(s.zone)
+    }
   }
-  return [...before, here, ...after]
+  if (cities.length < 2) return [{ zone: null, direction: null, items }]
+
+  const loose = items.filter((i) => i.zone_id == null || !seen.has(i.zone_id))
+  const bands: DaySection[] = cities.map((zone, i) => ({
+    zone,
+    direction: i === 0 ? 'before' : 'after',
+    items: items.filter((item) => item.zone_id === zone.id),
+  }))
+  return loose.length > 0 ? [{ zone: null, direction: null, items: loose }, ...bands] : bands
 }
 
 export const weekdayLetter = (iso: string) =>

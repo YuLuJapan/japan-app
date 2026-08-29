@@ -121,44 +121,51 @@ describe('schedule helpers', () => {
     })
   })
 
-  it('daySections bands a moving day by city, in the order the day is lived', () => {
+  it('daySections gives a city page its own city and nothing else', () => {
     const morning = itemOn('z-tokyo', 'Last coffee')
     const afternoon = itemOn('z-kyoto', 'Fushimi Inari')
     const items = [morning, afternoon]
 
-    // From Tokyo: our morning, then Kyoto's afternoon under Kyoto's name.
-    expect(daySections(steps, 'z-tokyo', '2026-10-09', items)).toEqual([
+    // One unnamed band each way: what you are doing in Kyoto is not Tokyo's business.
+    expect(daySections(steps, '2026-10-09', items, 'z-tokyo')).toEqual([
       { zone: null, direction: null, items: [morning] },
-      { zone: steps[1].zone, direction: 'after', items: [afternoon] },
     ])
-    // From Kyoto the same day reads the other way round.
-    expect(daySections(steps, 'z-kyoto', '2026-10-09', items)).toEqual([
-      { zone: steps[0].zone, direction: 'before', items: [morning] },
+    expect(daySections(steps, '2026-10-09', items, 'z-kyoto')).toEqual([
       { zone: null, direction: null, items: [afternoon] },
     ])
   })
 
-  it('daySections keeps the city being left readable when every item is pinned to the next', () => {
-    // The reported bug: the trip screen stamped the arrival city on everything, so
-    // Tokyo's own last morning had no band of its own at all.
-    const items = [itemOn('z-kyoto', 'Onsen on arrival')]
-    expect(daySections(steps, 'z-tokyo', '2026-10-09', items)).toEqual([
-      { zone: null, direction: null, items: [] },
-      { zone: steps[1].zone, direction: 'after', items },
+  it('daySections bands a moving day by city on the trip screen, in journey order', () => {
+    const morning = itemOn('z-tokyo', 'Last coffee')
+    const afternoon = itemOn('z-kyoto', 'Fushimi Inari')
+
+    expect(daySections(steps, '2026-10-09', [afternoon, morning])).toEqual([
+      { zone: steps[0].zone, direction: 'before', items: [morning] },
+      { zone: steps[1].zone, direction: 'after', items: [afternoon] },
     ])
   })
 
-  it('daySections gives an unpinned activity to both cities, and an ordinary day one band', () => {
+  it('daySections leaves an ordinary day unbanded on either screen', () => {
+    const solo = { ...itemOn('z-tokyo', 'Tsukiji'), day: '2026-10-06' }
+    const unbanded = [{ zone: null, direction: null, items: [solo] }]
+    expect(daySections(steps, '2026-10-06', [solo])).toEqual(unbanded)
+    expect(daySections(steps, '2026-10-06', [solo], 'z-tokyo')).toEqual(unbanded)
+  })
+
+  it('daySections keeps an activity pinned to no city at all', () => {
+    // Rows written before every activity had a city. On a city page it belongs to
+    // whichever city the day touches; on the trip screen it leads, unnamed.
     const loose = itemOn(null, 'Somewhere on the way')
+    const pinned = itemOn('z-kyoto', 'Fushimi Inari')
     for (const id of ['z-tokyo', 'z-kyoto']) {
-      expect(daySections(steps, id, '2026-10-09', [loose])).toEqual([
+      expect(daySections(steps, '2026-10-09', [loose], id)).toEqual([
         { zone: null, direction: null, items: [loose] },
       ])
     }
-    // A day spent wholly in Tokyo has nothing to band.
-    const solo = { ...itemOn('z-tokyo', 'Tsukiji'), day: '2026-10-06' }
-    expect(daySections(steps, 'z-tokyo', '2026-10-06', [solo])).toEqual([
-      { zone: null, direction: null, items: [solo] },
+    expect(daySections(steps, '2026-10-09', [loose, pinned])).toEqual([
+      { zone: null, direction: null, items: [loose] },
+      { zone: steps[0].zone, direction: 'before', items: [] },
+      { zone: steps[1].zone, direction: 'after', items: [pinned] },
     ])
   })
 
