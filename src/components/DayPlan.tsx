@@ -12,6 +12,12 @@
 // from, this city, the city you leave for — so the whole day is readable from
 // either city's page, with the half planned in the other one under its name.
 //
+// Every activity belongs to a city. Usually the screen already knows which —
+// a city page pins to itself, the trip screen to the city you sleep in that
+// night. On a day two cities share, the trip screen cannot know, so the add
+// form asks rather than guessing: `zoneChoices` are the day's cities, and one
+// of them has to be picked before the activity can be added.
+//
 // Editing an activity can also move it to another day, so a plan that shifts by
 // a day is a date change rather than a delete-and-retype. The picker is bounded
 // by the trip's own dates — the same rule the API enforces.
@@ -23,7 +29,13 @@ import {
   useDeleteItineraryItem,
   useUpdateItineraryItem,
 } from '../api/mutations'
-import { CATEGORY_META, TAGGABLE_CATEGORIES, type Category, type ItineraryItem } from '../api/types'
+import {
+  CATEGORY_META,
+  TAGGABLE_CATEGORIES,
+  type Category,
+  type ItineraryItem,
+  type ZoneSummary,
+} from '../api/types'
 import { saveErrorMessage } from '../lib/errors'
 import { type DaySection, fmtDayLong } from '../lib/schedule'
 import { useCanEdit } from '../lib/session'
@@ -49,10 +61,16 @@ interface Props {
   sections: DaySection[]
   /** City this day belongs to; new items are tagged with it. */
   zoneId?: string | null
+  /**
+   * The cities to choose between when the screen cannot tell which one a new activity
+   * belongs to — the trip screen on a day two cities share. Empty or absent everywhere
+   * else, where `zoneId` already answers it.
+   */
+  zoneChoices?: ZoneSummary[]
   tripId: string
 }
 
-export function DayPlan({ day, sections, zoneId = null, tripId }: Props) {
+export function DayPlan({ day, sections, zoneId = null, zoneChoices, tripId }: Props) {
   const canEdit = useCanEdit()
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -228,13 +246,14 @@ export function DayPlan({ day, sections, zoneId = null, tripId }: Props) {
       {adding && (
         <div className="mt-2 rounded-2xl border border-line bg-white p-3">
           <ItemForm
+            zoneChoices={zoneChoices}
             pending={create.isPending}
             error={create.error}
             submitLabel="Add"
             onCancel={() => setAdding(false)}
-            onSubmit={(input) =>
+            onSubmit={({ zone_id, ...input }) =>
               create.mutate(
-                { ...input, day, zone_id: zoneId },
+                { ...input, day, zone_id: zone_id ?? zoneId },
                 { onSuccess: () => setAdding(false) }
               )
             }
@@ -264,12 +283,15 @@ interface FormValues {
   category: Category | null
   /** Only sent when editing moved the activity to another day. */
   day?: string
+  /** The city picked on a day the screen could not pick one for. */
+  zone_id?: string
 }
 
 function ItemForm({
   initial,
   day,
   tripRange,
+  zoneChoices,
   pending,
   error,
   submitLabel,
@@ -281,6 +303,8 @@ function ItemForm({
   day?: string
   /** Bounds for the date picker. Null until the trip loads — the field waits. */
   tripRange?: { start: string; end: string } | null
+  /** Cities to choose between; absent when the screen already knows the city. */
+  zoneChoices?: ZoneSummary[]
   pending: boolean
   error: unknown
   submitLabel: string
@@ -292,19 +316,25 @@ function ItemForm({
   const [note, setNote] = useState(initial?.note ?? '')
   const [date, setDate] = useState(initial?.day ?? day ?? '')
   const [category, setCategory] = useState<Category | null>(initial?.category ?? null)
+  // Nothing is preselected: a default here is exactly the guess this field exists to
+  // stop, and the traveller would leave it where it was found.
+  const [zone, setZone] = useState<string | null>(null)
 
   // Moving is offered when editing an existing activity, not when adding one to
   // the day you are already looking at.
   const canMove = !!initial && !!tripRange
+  const choices = zoneChoices ?? []
+  const needsZone = choices.length > 0 && !zone
 
   const submit = () => {
-    if (!title.trim()) return
+    if (!title.trim() || needsZone) return
     onSubmit({
       title: title.trim(),
       start_time: time || null,
       note: note.trim() || null,
       category,
       ...(canMove && date && date !== initial.day ? { day: date } : {}),
+      ...(zone ? { zone_id: zone } : {}),
     })
   }
 
@@ -334,6 +364,33 @@ function ItemForm({
         onChange={(e) => setNote(e.target.value)}
         aria-label="Note"
       />
+      {/* On a day that belongs to two cities the screen has no basis for picking
+          one, so it asks — and Add stays disabled until it is answered, because a
+          silent default is the guess this replaced. */}
+      {choices.length > 0 && (
+        <fieldset>
+          <legend className="label">Which city is this in?</legend>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {choices.map((z) => {
+              const on = zone === z.id
+              return (
+                <button
+                  key={z.id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => setZone(z.id)}
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition ${
+                    on ? 'bg-brand text-white' : 'bg-sand text-slate opacity-70'
+                  }`}
+                >
+                  {z.name}
+                </button>
+              )
+            })}
+          </div>
+        </fieldset>
+      )}
+
       {/* Toggles, not a select: there are four, they are the colours the plan
           already speaks, and tapping the chosen one again clears it — which is
           the only way back to "no tag" once one is set. */}
@@ -384,7 +441,12 @@ function ItemForm({
         </p>
       )}
       <div className="flex gap-2">
-        <button type="button" className="btn-primary flex-1" onClick={submit} disabled={pending}>
+        <button
+          type="button"
+          className="btn-primary flex-1"
+          onClick={submit}
+          disabled={pending || needsZone}
+        >
           {pending ? 'Saving…' : error ? 'Retry' : submitLabel}
         </button>
         <button type="button" className="btn-ghost" onClick={onCancel}>

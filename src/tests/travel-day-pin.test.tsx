@@ -1,9 +1,10 @@
-// What the trip screen stamps on an activity added to a day two cities share.
+// Which city a new activity is pinned to, and who decides.
 //
-// `primaryStep` answers "the city you sleep in that night", which on a moving day is
-// the one you arrive in — so every activity added from the trip screen was pinned to
-// the arrival city, including the morning you spend leaving the other one. On a shared
-// day the trip screen now pins nothing: an unpinned activity belongs to both cities.
+// Every activity belongs to a city. A city page knows the answer — the city you are
+// looking at, whatever the date. The trip screen infers it from the journey, which
+// works every day but a moving one: `primaryStep` answers "the city you sleep in that
+// night", so the morning you spend leaving was being stamped with the city you were
+// flying into. On a shared day the trip screen therefore asks instead of guessing.
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -61,13 +62,17 @@ const TRIP_BUNDLE = {
   flight: null,
 }
 
-const addOn = async (today: string) => {
+/** Renders the schedule on `today` and opens the add form. */
+const openAddForm = async (
+  today: string,
+  props: { mode: 'trip' | 'zone'; zoneId?: string } = { mode: 'trip' }
+) => {
   renderAt('/trips/trip-1', [
     {
       path: '/trips/:tripId',
       element: (
         <Schedule
-          mode="trip"
+          {...props}
           steps={steps}
           items={[]}
           days={['2026-10-06', '2026-10-09']}
@@ -80,26 +85,57 @@ const addOn = async (today: string) => {
   const user = userEvent.setup()
   await user.click(screen.getByRole('button', { name: '+ Add activity' }))
   await user.type(screen.getByLabelText('Activity'), 'Breakfast')
-  await user.click(screen.getByRole('button', { name: 'Add' }))
+  return user
+}
+
+const posted = async () => {
   await waitFor(() => expect(mocks.post).toHaveBeenCalled())
   return mocks.post.mock.calls[0][1]
 }
 
-describe('adding to a day from the trip screen', () => {
+describe('the city a new activity is pinned to', () => {
   beforeEach(() => {
     mocks.get.mockReset()
     mocks.post.mockReset()
     mocks.get.mockResolvedValue(TRIP_BUNDLE)
     mocks.post.mockResolvedValue({
-      item: { id: 'i1', trip_id: 'trip-1', zone_id: null, day: '2026-10-09' },
+      item: { id: 'i1', trip_id: 'trip-1', zone_id: 'z1', day: '2026-10-09' },
     })
   })
 
-  it('pins an ordinary day to the city it is spent in', async () => {
-    expect(await addOn('2026-10-06')).toMatchObject({ day: '2026-10-06', zone_id: 'z1' })
+  it('is inferred silently from the trip screen on an ordinary day', async () => {
+    const user = await openAddForm('2026-10-06')
+    expect(screen.queryByText('Which city is this in?')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    expect(await posted()).toMatchObject({ day: '2026-10-06', zone_id: 'z1' })
   })
 
-  it('leaves a moving day unpinned, so it reads from both cities', async () => {
-    expect(await addOn('2026-10-09')).toMatchObject({ day: '2026-10-09', zone_id: null })
+  it('is asked for on the trip screen when two cities share the day', async () => {
+    const user = await openAddForm('2026-10-09')
+    expect(screen.getByText('Which city is this in?')).toBeInTheDocument()
+    // Unanswered, there is nothing to save: a default here is the guess this replaced.
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled()
+
+    // Tokyo, the city being left — the answer the old code could never give.
+    await user.click(screen.getByRole('button', { name: 'Tokyo' }))
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    expect(await posted()).toMatchObject({ day: '2026-10-09', zone_id: 'z1' })
+  })
+
+  it('takes the other city just as readily', async () => {
+    const user = await openAddForm('2026-10-09')
+    await user.click(screen.getByRole('button', { name: 'Kyoto' }))
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    expect(await posted()).toMatchObject({ day: '2026-10-09', zone_id: 'z2' })
+  })
+
+  it('is never asked for on a city page — that page is the answer', async () => {
+    // Even on the moving day: you are looking at Tokyo, so it goes in Tokyo.
+    const user = await openAddForm('2026-10-09', { mode: 'zone', zoneId: 'z1' })
+    expect(screen.queryByText('Which city is this in?')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    expect(await posted()).toMatchObject({ day: '2026-10-09', zone_id: 'z1' })
   })
 })

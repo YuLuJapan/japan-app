@@ -44,16 +44,15 @@ export function Schedule({ steps, items, days, today, mode, zoneId, tripId }: Pr
       : [{ zone: null, direction: null, items: dayItems }]
   const shown = sections.flatMap((s) => s.items)
 
-  // On a day two cities share, the trip screen has no business picking one of them:
-  // `primaryStep` would stamp every new activity with the city you arrive in, which is
-  // wrong for the morning you spend leaving. An unpinned activity belongs to both.
-  const newZoneId =
-    mode === 'zone'
-      ? (zoneId ?? null)
-      : isTravelDay(steps, day)
-        ? null
-        : (primaryStep(steps, day)?.zone?.id ?? null)
+  // Every activity belongs to a city. A city page knows which one — the one you are
+  // looking at, whatever the date. The trip screen infers it from the journey, and
+  // `primaryStep` ("the city you sleep in that night") is right every day but a moving
+  // one, where it would silently stamp the morning you spend leaving with the city you
+  // are flying into. So on a shared day the trip screen stops guessing and asks: it
+  // offers the day's cities and the traveller says which one they mean.
+  const newZoneId = mode === 'zone' ? (zoneId ?? null) : (primaryStep(steps, day)?.zone?.id ?? null)
   const zones = dayZones(steps, day)
+  const zoneChoices = mode === 'trip' && isTravelDay(steps, day) ? zones : undefined
   const moving = mode === 'zone' && zoneId ? movingDay(steps, zoneId, day) : null
   const isMovingDay = (d: string) =>
     mode === 'zone' && zoneId ? movingDay(steps, zoneId, d) !== null : isTravelDay(steps, d)
@@ -118,7 +117,14 @@ export function Schedule({ steps, items, days, today, mode, zoneId, tripId }: Pr
       <DayHighlights day={day} highlights={highlights} zoneId={newZoneId} tripId={tripId} />
 
       {/* Keyed by day so switching days drops any half-open form or "moved" notice. */}
-      <DayPlan key={day} day={day} sections={planSections} zoneId={newZoneId} tripId={tripId} />
+      <DayPlan
+        key={day}
+        day={day}
+        sections={planSections}
+        zoneId={newZoneId}
+        zoneChoices={zoneChoices}
+        tripId={tripId}
+      />
     </div>
   )
 }
