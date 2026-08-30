@@ -120,7 +120,7 @@ describe('the export screen', () => {
     await userEvent.click(await screen.findByRole('button', { name: /share with a friend/i }))
     await screen.findByRole('dialog', { name: /your file is ready/i })
 
-    await userEvent.click(screen.getByRole('button', { name: 'Spreadsheet' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Excel' }))
     await waitFor(() => expect(rendered.calls).toEqual(['pdf', 'xlsx']))
     // Still the share version — a format cannot widen the detail level (FR-014).
     expect(await screen.findByText(/test-trip-share\.xlsx/)).toBeInTheDocument()
