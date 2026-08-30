@@ -11,13 +11,24 @@
 // idle slot is always the one loading `cursor + 1` — with two clips that
 // alternates, and with three or more it still only ever holds two files.
 //
-// Everything here is decoration, so every way it can fail is a no-op:
-// autoplay refused (a phone on Low Power Mode), a codec the browser won't
-// take, no connection at all — the poster frame stays up and the screen is
-// unchanged apart from being still. `prefers-reduced-motion` gets that poster
-// deliberately rather than incidentally: full-bleed motion under a sign-in
-// form is exactly what the setting is asking us not to do, and it also saves
-// ~1.7 MB on a metered connection.
+// Everything here is decoration, so every way it can fail is a no-op: a codec
+// the browser won't take, no connection at all — the poster frame stays up and
+// the screen is unchanged apart from being still.
+//
+// Autoplay itself is fought for rather than hoped for, because a still gate is
+// the whole point of this screen missing. Three things are what make it start
+// without a tap: the clips are silent and carry `muted` as an *attribute*
+// (see the ref below — React alone sets only the property, and iOS reads the
+// attribute), `playsInline` keeps iOS from taking the video fullscreen, and a
+// refusal is retried on the reader's first touch anywhere on the screen, which
+// is a gesture and therefore always permitted.
+//
+// `prefers-reduced-motion` is deliberately *not* consulted. It normally would
+// be — full-bleed motion under a sign-in form is what the setting is asking us
+// not to do — but the video is this screen, and it was asked for on devices
+// that have Reduce Motion switched on. The clips are silent, slow and behind a
+// scrim, which is the gentlest version of a decision that is still a
+// trade-off: someone with the setting on gets moving footage anyway.
 //
 // The files are in `public/gate/` — 720×1280, silent, H.264, ~800 KB each.
 // They are not precached (Workbox's glob is js/css/html/png, not mp4): the
@@ -40,31 +51,30 @@ export const GATE_POSTER = '/gate/poster.jpg'
 /** Long enough to read as a dissolve, short enough not to mute both clips. */
 const CROSSFADE_MS = 900
 
-function prefersReducedMotion(): boolean {
-  return !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-}
-
 /**
- * Autoplay is a request, not a command — Safari refuses it outside a gesture
- * whenever Low Power Mode is on, and returns a rejected promise (older engines
- * return nothing at all). Either way there is nothing to do about it but leave
- * the poster up, so the rejection is swallowed rather than reported.
+ * Autoplay is a request, not a command: Safari refuses it outside a gesture
+ * whenever Low Power Mode is on, and answers with a rejected promise (older
+ * engines throw, or return nothing at all). A refusal is reported rather than
+ * swallowed, because there *is* something to do about it — wait for a touch
+ * and ask again.
+ *
+ * `muted` is re-asserted on every attempt. It is the condition the permission
+ * hangs on, and it costs nothing to be sure of it.
  */
-function play(video: HTMLVideoElement | null) {
+function play(video: HTMLVideoElement | null, onRefused: () => void) {
   if (!video) return
+  video.muted = true
   try {
     const started = video.play() as Promise<void> | undefined
-    if (started && typeof started.catch === 'function') started.catch(() => {})
+    if (started && typeof started.catch === 'function') started.catch(onRefused)
   } catch {
-    // ignore — the poster frame is the fallback
+    onRefused()
   }
 }
 
 export function GateBackdrop({ clips = GATE_CLIPS }: { clips?: string[] }) {
-  // Read once, at mount: the answer decides whether there is any video at all,
-  // and a screen that swapped a still for a moving background mid-sign-in
-  // would be a worse answer to the setting than either state on its own.
-  const [still, setStill] = useState(prefersReducedMotion)
+  // The one state that gives up on video entirely: every clip failed to load.
+  const [still, setStill] = useState(false)
   const [cursor, setCursor] = useState(0)
   const slots = useRef<(HTMLVideoElement | null)[]>([null, null])
   // Stepping past a clip that will not load is only a recovery while there is
@@ -77,6 +87,8 @@ export function GateBackdrop({ clips = GATE_CLIPS }: { clips?: string[] }) {
   // `preload="none"` until the clip on screen can actually play, and only then
   // given the rest of that ten seconds to arrive.
   const [armed, setArmed] = useState(false)
+  // Autoplay was refused and we are waiting for a gesture to ask again.
+  const [refused, setRefused] = useState(false)
 
   const active = cursor % 2
   const current = cursor % clips.length
@@ -100,7 +112,7 @@ export function GateBackdrop({ clips = GATE_CLIPS }: { clips?: string[] }) {
     const idle = slots.current[(cursor + 1) % 2]
     if (playing) {
       playing.currentTime = 0
-      play(playing)
+      play(playing, () => setRefused(true))
     }
     // The clip leaving the screen keeps playing under the crossfade and is
     // only stopped once it is invisible; pausing it on the frame the swap
@@ -112,6 +124,22 @@ export function GateBackdrop({ clips = GATE_CLIPS }: { clips?: string[] }) {
     }, CROSSFADE_MS)
     return () => window.clearTimeout(timer)
   }, [cursor, still])
+
+  // A refusal is not the end of it. Any touch, tap or key is a user gesture,
+  // and a gesture is the one thing that unblocks playback — so the first one
+  // anywhere on the page starts the video, whatever it was aimed at. The
+  // listeners are `once` and only exist while a refusal is outstanding, so
+  // nothing here is watching the reader for the rest of the session.
+  useEffect(() => {
+    if (!refused || still) return
+    const retry = () => {
+      setRefused(false)
+      play(slots.current[cursor % 2], () => setRefused(true))
+    }
+    const events = ['pointerdown', 'touchstart', 'keydown'] as const
+    events.forEach((event) => document.addEventListener(event, retry, { once: true }))
+    return () => events.forEach((event) => document.removeEventListener(event, retry))
+  }, [refused, still, cursor])
 
   if (still) {
     return (
@@ -129,6 +157,17 @@ export function GateBackdrop({ clips = GATE_CLIPS }: { clips?: string[] }) {
           key={slot}
           ref={(el) => {
             slots.current[slot] = el
+            // React sets `muted` as a *property* only, and iOS decides whether
+            // an autoplaying video needs a gesture by reading the attribute —
+            // which React never writes. This is the one-line difference
+            // between a gate that plays on an iPhone and one that shows a
+            // still. (Same for `playsinline`, which React does write, but
+            // asserting both here keeps them together.)
+            if (el) {
+              el.muted = true
+              el.setAttribute('muted', '')
+              el.setAttribute('playsinline', '')
+            }
           }}
           src={sources[slot]}
           poster={GATE_POSTER}
@@ -139,7 +178,14 @@ export function GateBackdrop({ clips = GATE_CLIPS }: { clips?: string[] }) {
           autoPlay={slot === 0}
           preload={slot === active || armed ? 'auto' : 'none'}
           // `loop` is deliberately off — ending is the signal to hand over.
-          onCanPlay={() => setArmed(true)}
+          // `canplay` can arrive after the effect above has already tried and
+          // been turned down for having nothing buffered yet; asking again the
+          // moment there is something to play costs a no-op when it is already
+          // running.
+          onCanPlay={(e) => {
+            setArmed(true)
+            if (slot === active) play(e.currentTarget, () => setRefused(true))
+          }}
           onEnded={() => setCursor((c) => c + 1)}
           // A file that will not load must not take the sequence down with it:
           // step past it, and fall back to the still once none is left.

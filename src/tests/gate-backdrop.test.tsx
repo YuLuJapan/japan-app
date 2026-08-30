@@ -1,11 +1,11 @@
-// The sign-in screen's video backdrop. What is asserted here is the handover
-// — which clip is on screen, and which one is loaded behind it — because that
-// is the part with state in it. Playback itself is jsdom's no-op (see
-// tests/setup.ts): there is no decoder to assert against, and the two things
-// that can actually go wrong (a clip that never loads, a reader who has asked
-// for less motion) both end on the same still frame.
+// The sign-in screen's video backdrop. Two things are asserted: the handover —
+// which clip is on screen, and which one is loaded behind it — and that the
+// video is *asked* to play, including after a browser turns the first ask
+// down. jsdom has no decoder (play/pause/load are stubbed in tests/setup.ts),
+// so a spy on `play` is as close to "it is moving" as this level gets; the
+// real sequence was driven in a browser.
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { fireEvent, render } from '@testing-library/react'
+import { fireEvent, render, waitFor } from '@testing-library/react'
 import { GATE_POSTER, GateBackdrop } from '../components/GateBackdrop'
 
 const CLIPS = ['/gate/clip-1.mp4', '/gate/clip-2.mp4']
@@ -58,11 +58,50 @@ describe('GateBackdrop', () => {
     expect(container.querySelector('img')).toHaveAttribute('src', GATE_POSTER)
   })
 
-  it('shows one still frame and loads no video at all for reduced motion', () => {
+  it('plays without waiting to be asked, and keeps playing across the handover', () => {
+    const played = vi.spyOn(HTMLMediaElement.prototype, 'play')
+    const { container } = render(<GateBackdrop clips={CLIPS} />)
+
+    expect(played).toHaveBeenCalled()
+
+    played.mockClear()
+    fireEvent.ended(visible(container)!)
+    expect(played).toHaveBeenCalled()
+  })
+
+  it('carries muted as an attribute, which is what iOS reads before allowing autoplay', () => {
+    const { container } = render(<GateBackdrop clips={CLIPS} />)
+
+    for (const video of videos(container)) {
+      expect(video.muted).toBe(true)
+      expect(video).toHaveAttribute('muted')
+      expect(video).toHaveAttribute('playsinline')
+    }
+  })
+
+  // Low Power Mode refuses autoplay outright. A touch is a gesture and a
+  // gesture is always allowed, so the next one anywhere on the page is what
+  // starts the video — the reader taps nothing in particular and it plays.
+  it('asks again on the first gesture when the browser refuses to autoplay', async () => {
+    const played = vi
+      .spyOn(HTMLMediaElement.prototype, 'play')
+      .mockRejectedValue(new DOMException('NotAllowedError'))
+    render(<GateBackdrop clips={CLIPS} />)
+
+    await waitFor(() => expect(played).toHaveBeenCalled())
+    played.mockClear().mockResolvedValue(undefined)
+
+    fireEvent.pointerDown(document)
+    expect(played).toHaveBeenCalled()
+  })
+
+  // Reduce Motion is on by default on a lot of phones, and this screen *is*
+  // the video: honouring it here would show most people a still gate.
+  it('plays even where the reader has asked for reduced motion', () => {
     vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true } as MediaQueryList)
     const { container } = render(<GateBackdrop clips={CLIPS} />)
 
-    expect(videos(container)).toHaveLength(0)
-    expect(container.querySelector('img')).toHaveAttribute('src', GATE_POSTER)
+    expect(videos(container)).toHaveLength(2)
+    expect(visible(container)).toHaveAttribute('src', CLIPS[0])
   })
 })
