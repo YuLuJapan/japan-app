@@ -93,12 +93,20 @@ function useFileContent(fileId: string): ContentState {
   return state
 }
 
+// `data-replay-block` is read by `session_recording.blockSelector` (lib/posthog.ts):
+// a blocked element is recorded as an empty box rather than as content. This
+// screen is not on session replay's allowlist in the first place, so the
+// attribute is the second lock — text masking would do nothing for an <img> or
+// an <iframe>, and what is in them here is a passport or a booking PDF.
 function Viewer({ doc, url }: { doc: TripDocument; url: string }) {
   const [zoomed, setZoomed] = useState(false)
 
   if (doc.mime_type.startsWith('image/')) {
     return (
-      <div className={`overflow-auto rounded-3xl bg-white shadow-card ${zoomed ? '' : 'p-2'}`}>
+      <div
+        data-replay-block
+        className={`overflow-auto rounded-3xl bg-white shadow-card ${zoomed ? '' : 'p-2'}`}
+      >
         <img
           src={url}
           alt={doc.display_name}
@@ -117,6 +125,7 @@ function Viewer({ doc, url }: { doc: TripDocument; url: string }) {
   if (doc.mime_type === 'application/pdf') {
     return (
       <iframe
+        data-replay-block
         src={url}
         title={doc.display_name}
         className="h-[70vh] w-full rounded-3xl border border-line bg-white shadow-card"

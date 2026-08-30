@@ -14,7 +14,7 @@ npm run dev          # frontend on :3000 (Vite), API on :3001 (Express), run con
 npm run dev:web       # frontend only
 npm run dev:api       # API only (tsx watch server/dev.ts)
 
-npm test              # vitest run — both projects (web + server), 1103 tests
+npm test              # vitest run — both projects (web + server), 1142 tests
 npm run test:watch    # vitest watch mode
 npx vitest run server/tests/browse.test.ts        # single server test file
 npx vitest run src/tests/browse.test.tsx          # single web test file
@@ -60,7 +60,36 @@ Tests override the store via `setDataStore()` (see `server/tests/fixture.ts` and
 
 **Essentials is destination-gated.** The Essentials tab's static content (`src/pages/TripEssentials.tsx`) was written for a Japan trip, and most of it is nonsense anywhere else — Visit Japan Web, Suica, Takkyubin, the 110/119 numbers, the romaji phrasebook. Every tip card, tip line and packing item therefore declares whether it travels: a plain string shows on any trip, `{ japan: '…' }` only on a Japan trip, and `{ text, japan }` swaps the wording between the two (`lineFor`). Cards left with no surviving line are dropped rather than rendered empty, and the phrasebook plus the emergency numbers are shown only for Japan. What counts as Japan is `isJapanTrip(trip.country)` (`src/lib/destination.ts`) — `country` is free text typed on the trip sheet, so it is matched as a whole word against a few spellings; **an unknown country is not Japan**, which also means nothing Japan-specific flashes while the bundle loads. Adding trip advice? Decide which half it belongs to — a bare string is a promise that it holds in Lisbon too.
 
-**Analytics (PostHog):** optional at runtime, exactly like push — with no `VITE_POSTHOG_PROJECT_TOKEN` (or its `VITE_POSTHOG_KEY` alias) the helpers in `src/lib/posthog.ts` are no-ops, `PostHogProvider` is not mounted at all (`src/main.tsx`), and nothing is sent. **Never call `posthog.capture` directly**: go through those helpers, or an unconfigured build calls into an uninitialised client. Two config choices are load-bearing and shouldn't be "tidied away": `defaults: '2026-05-30'` is what makes `capture_pageview` mean `'history_change'` — without it a `createBrowserRouter` SPA reports one `$pageview` per cold start and nothing for the navigation after it; and `autocapture: false` is a privacy decision, not a performance one — autocapture ships the _text_ of whatever was clicked, which here is trip content (a hotel's reservation details, and the shopping list, where an item **is** the secret). Session recording is off for the same reason. `SessionProvider` identifies by the Supabase user id (`src/lib/session.tsx`) and `SignOutButton` calls `reset()`, so the next person on a shared device isn't attributed to the last.
+**Analytics (PostHog):** optional at runtime, exactly like push — with no `VITE_POSTHOG_PROJECT_TOKEN` (or its `VITE_POSTHOG_KEY` alias) the helpers in `src/lib/posthog.ts` are no-ops, `PostHogProvider` is not mounted at all (`src/main.tsx`), and nothing is sent. **Never call `posthog.capture` directly**: go through those helpers, or an unconfigured build calls into an uninitialised client. Two config choices are load-bearing and shouldn't be "tidied away": `defaults: '2026-05-30'` is what makes `capture_pageview` mean `'history_change'` — without it a `createBrowserRouter` SPA reports one `$pageview` per cold start and nothing for the navigation after it; and `autocapture: false` is a privacy decision, not a performance one — autocapture ships the _text_ of whatever was clicked, which here is trip content (a hotel's reservation details, and the shopping list, where an item **is** the secret). Session recording is **off at init and turned on for four screens**, which is the
+subject of `src/lib/session-replay.ts` below. `SessionProvider` identifies by the Supabase user id (`src/lib/session.tsx`) and `SignOutButton` calls `reset()`, so the next person on a shared device isn't attributed to the last.
+
+**Session replay is scoped by an allowlist, and the allowlist is not what makes it safe.**
+PostHog records a session, not a screen — `startSessionRecording()` / `stopSessionRecording()` are
+the only granularity there is — so `src/lib/session-replay.ts` keeps the scope itself: `/trips` (the
+trips list and the add-trip sheet on it, i.e. the create-trip flow), `/terms`, `/privacy` and the
+static `essentials` tab, behind the **`session-replay`** flag defaulting off. Everything else is
+refused **by omission**, so a route added to the router tomorrow is not recorded until somebody
+writes it down. Two exclusions are deliberate rather than incidental: `/gate` and `/invite/:token`
+carry a credential in the location (Supabase hands a magic link back as a `#access_token` fragment
+or a `?code=`, and the invite token _is_ the path), and a replay records the URL, which no masking
+reaches. Everything else under `/trips/:tripId` renders trip content — the trip home alone shows the
+flight's booking reference as text (`CountdownWidget`).
+
+The allowlist has two leaky edges that cannot be closed from there: `startSessionRecording()` takes
+a **full DOM snapshot of whatever is on screen at that moment**, and the stop on the way out runs in
+an effect, i.e. after React has rendered the next screen and rrweb has observed it. What makes both
+survivable is `session_recording` in `posthog.ts`, and it is one mechanism with the allowlist —
+read them together. `maskAllInputs` is posthog-js's own default and is the _smaller_ half: it masks
+what is **typed**, and this app's secrets are mostly **rendered** — the booking reference, a stay's
+reservation details in its description, the shopping list. Only **`maskTextSelector: '*'`** reaches
+a text node, and it applies on the recorded screens too, so a replay here is a wireframe with taps
+on it. That is enough for the question worth asking (where does the trip form stall?) and cannot
+show a word of trip content. `blockSelector: '[data-replay-block]'` drops an element's contents
+outright and sits on the document viewer, where an `<img>`/`<iframe>` holds a passport and text
+masking would do nothing. `recordHeaders`/`recordBody` stay off, or a replay would carry whole API
+responses — and note that **`defaults` does the same thing without anyone editing that block**:
+`'2026-06-25'` and later switch on `session_recording.streamNetworkBody`, so the date is pinned by a
+test. Deleting `maskTextSelector` turns the allowlist into a leak with a delay on it.
 
 **What an event may say** is `src/lib/analytics-events.ts`, and it is enforced twice. `AnalyticsEventProperties` declares every event and the shape of its properties, and `capture` is typed against it — **a new event has to be added there first**, and a missing or misspelled property is a compile error rather than a chart that quietly never fills in (analytics fails silently by nature; the type checker is the only thing that notices). Then `sanitizeProperties` runs on the way out and drops what a property must never be: a key that names free text (`name`, `note`, `address`, `booking_ref`…), a string over 64 chars, an object. **A property is a shape — a category, a count, a flag, a field _name_ — never trip content**, and the guard means a reflexive `{ name: place.name }` never leaves the device. It never throws: a rejected property must not take a save down with it, so the event still goes, minus the value, with a DEV console warning.
 

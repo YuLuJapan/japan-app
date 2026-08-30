@@ -3,6 +3,7 @@ import { Navigate, Outlet, createBrowserRouter, useParams } from 'react-router-d
 import { getAccessCode } from './api/client'
 import { useBooleanFlag } from './lib/flags'
 import { setTripContext, tripContext } from './lib/posthog'
+import { useSessionReplayScope } from './lib/session-replay'
 import { ChunkBoundary } from './components/ChunkBoundary'
 import { Layout } from './components/Layout'
 import { useTrip } from './api/hooks'
@@ -48,6 +49,20 @@ import Zone from './pages/Zone'
  * actually being drawn.
  */
 const TripMap = lazy(() => import('./pages/TripMap'))
+
+/**
+ * Not a guard — the one place session replay is scoped.
+ *
+ * It wraps every route, signed in or not, because the recorder is global: the
+ * screens it may run on (lib/session-replay.ts) include the legal documents,
+ * which are mounted outside `RequireAccess`, and it has to be switched *off*
+ * again on the screens it may not. A pathless layout route is the only spot
+ * that sees every navigation and can still use a hook.
+ */
+function ReplayScope() {
+  useSessionReplayScope()
+  return <Outlet />
+}
 
 /** Route guard: without a signed-in session, everything redirects to the gate. */
 function RequireAccess() {
@@ -162,89 +177,97 @@ function RequireShopping() {
 }
 
 export const router = createBrowserRouter([
-  { path: '/gate', element: <AccessGate /> },
-  // Outside RequireAccess on purpose: someone deciding whether to sign up has
-  // to be able to read these first, and the acceptance screen links to them
-  // while the account has not yet agreed.
-  { path: '/terms', element: <Terms /> },
-  { path: '/privacy', element: <Privacy /> },
-  // The token is the authorization, so this sits outside RequireAccess — the
-  // screen itself sends a signed-out visitor to the gate and back.
-  { path: '/invite/:token', element: <AcceptInvite /> },
   {
-    element: <RequireAccess />,
+    element: <ReplayScope />,
     children: [
-      { path: '/', element: <Navigate to="/trips" replace /> },
-      { path: '/trips', element: <TripsList /> },
+      { path: '/gate', element: <AccessGate /> },
+      // Outside RequireAccess on purpose: someone deciding whether to sign up has
+      // to be able to read these first, and the acceptance screen links to them
+      // while the account has not yet agreed.
+      { path: '/terms', element: <Terms /> },
+      { path: '/privacy', element: <Privacy /> },
+      // The token is the authorization, so this sits outside RequireAccess — the
+      // screen itself sends a signed-out visitor to the gate and back.
+      { path: '/invite/:token', element: <AcceptInvite /> },
       {
-        path: '/trips/:tripId',
-        element: <TripLayout />,
+        element: <RequireAccess />,
         children: [
-          { index: true, element: <Journey /> },
-          { path: 'zones/:zoneId', element: <Zone /> },
-          { path: 'zones/:zoneId/c/:category', element: <CategoryList /> },
-          { path: 'places/:placeId', element: <PlaceDetail /> },
-          { path: 'search', element: <Search /> },
+          { path: '/', element: <Navigate to="/trips" replace /> },
+          { path: '/trips', element: <TripsList /> },
           {
-            element: <RequireShopping />,
+            path: '/trips/:tripId',
+            element: <TripLayout />,
             children: [
-              { path: 'shopping', element: <ShoppingList /> },
-              { path: 'shopping/c/:category', element: <ShoppingCategoryPage /> },
-              { path: 'shopping/:itemId', element: <ShoppingItemDetail /> },
-            ],
-          },
-          { path: 'reminders', element: <Reminders /> },
-          { path: 'essentials', element: <TripEssentials /> },
-          // Every member may export, viewers included (FR-007) — the file is a
-          // subset of what they already see, so this sits outside RequireOwner.
-          { element: <RequireExport />, children: [{ path: 'export', element: <TripExport /> }] },
-          // Behind the flag *and* behind the route guard: with `show-map` off
-          // there is no tab, and a bookmarked /map redirects to the trip.
-          {
-            element: <RequireMap />,
-            children: [
+              { index: true, element: <Journey /> },
+              { path: 'zones/:zoneId', element: <Zone /> },
+              { path: 'zones/:zoneId/c/:category', element: <CategoryList /> },
+              { path: 'places/:placeId', element: <PlaceDetail /> },
+              { path: 'search', element: <Search /> },
               {
-                path: 'map',
-                // No fallback UI: the chunk is small and the screen it would
-                // flash over is the map's own tiles loading in. A spinner here
-                // would be a second loading state for one wait.
-                //
-                // The boundary is not optional the way the fallback is. This is
-                // the only route whose code arrives separately, so it is the
-                // only one that can be asked for by a name the current
-                // deployment no longer serves — and uncaught, React hands that
-                // to the router, which paints a stack trace over the app.
-                element: (
-                  <ChunkBoundary>
-                    <Suspense fallback={null}>
-                      <TripMap />
-                    </Suspense>
-                  </ChunkBoundary>
-                ),
+                element: <RequireShopping />,
+                children: [
+                  { path: 'shopping', element: <ShoppingList /> },
+                  { path: 'shopping/c/:category', element: <ShoppingCategoryPage /> },
+                  { path: 'shopping/:itemId', element: <ShoppingItemDetail /> },
+                ],
               },
-            ],
-          },
+              { path: 'reminders', element: <Reminders /> },
+              { path: 'essentials', element: <TripEssentials /> },
+              // Every member may export, viewers included (FR-007) — the file is a
+              // subset of what they already see, so this sits outside RequireOwner.
+              {
+                element: <RequireExport />,
+                children: [{ path: 'export', element: <TripExport /> }],
+              },
+              // Behind the flag *and* behind the route guard: with `show-map` off
+              // there is no tab, and a bookmarked /map redirects to the trip.
+              {
+                element: <RequireMap />,
+                children: [
+                  {
+                    path: 'map',
+                    // No fallback UI: the chunk is small and the screen it would
+                    // flash over is the map's own tiles loading in. A spinner here
+                    // would be a second loading state for one wait.
+                    //
+                    // The boundary is not optional the way the fallback is. This is
+                    // the only route whose code arrives separately, so it is the
+                    // only one that can be asked for by a name the current
+                    // deployment no longer serves — and uncaught, React hands that
+                    // to the router, which paints a stack trace over the app.
+                    element: (
+                      <ChunkBoundary>
+                        <Suspense fallback={null}>
+                          <TripMap />
+                        </Suspense>
+                      </ChunkBoundary>
+                    ),
+                  },
+                ],
+              },
 
-          // Everyone on the trip can see who else is on it; the screen itself
-          // offers the owner-only controls only to an owner, and a viewer-only
-          // invite button to a partner.
-          { path: 'members', element: <TripMembers /> },
-          {
-            element: <RequireOwner />,
-            children: [
-              { path: 'journey/edit', element: <JourneySteps /> },
-              { path: 'zones/:zoneId/places/new', element: <PlaceForm /> },
-              { path: 'places/:placeId/edit', element: <PlaceForm /> },
-              { path: 'shopping/new', element: <ShoppingForm /> },
-              { path: 'shopping/:itemId/edit', element: <ShoppingForm /> },
-              { path: 'files', element: <TripFiles /> },
-              { path: 'files/:fileId', element: <DocumentPreview /> },
+              // Everyone on the trip can see who else is on it; the screen itself
+              // offers the owner-only controls only to an owner, and a viewer-only
+              // invite button to a partner.
+              { path: 'members', element: <TripMembers /> },
+              {
+                element: <RequireOwner />,
+                children: [
+                  { path: 'journey/edit', element: <JourneySteps /> },
+                  { path: 'zones/:zoneId/places/new', element: <PlaceForm /> },
+                  { path: 'places/:placeId/edit', element: <PlaceForm /> },
+                  { path: 'shopping/new', element: <ShoppingForm /> },
+                  { path: 'shopping/:itemId/edit', element: <ShoppingForm /> },
+                  { path: 'files', element: <TripFiles /> },
+                  { path: 'files/:fileId', element: <DocumentPreview /> },
+                ],
+              },
+              { path: '*', element: <NotFound /> },
             ],
           },
           { path: '*', element: <NotFound /> },
         ],
       },
-      { path: '*', element: <NotFound /> },
     ],
   },
 ])

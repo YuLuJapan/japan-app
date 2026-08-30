@@ -57,7 +57,44 @@ export const posthogOptions: Partial<PostHogConfig> = {
   // (lib/trip-view.ts). The named events this app captures carry ids and shapes,
   // never trip content, and are far easier to read than a wall of $autocapture.
   autocapture: false,
+
+  // Off here, and turned on for a handful of screens by lib/session-replay.ts
+  // — the trips list and the add-trip sheet on it, the legal documents, the
+  // static advice tab. This stays `true` so that the recorder is off on every
+  // path nobody wrote down, including any route added after this comment.
   disable_session_recording: true,
+
+  // The masking is what makes a scoped replay safe, and it applies everywhere
+  // the recorder runs — there is no per-screen version of it.
+  //
+  // `maskAllInputs` is posthog-js's own default and is restated rather than
+  // relied on. It is also the *smaller* half: it masks what is typed, and this
+  // app's secrets are mostly rendered, not typed — the booking reference on the
+  // trip home (components/CountdownWidget.tsx), a stay's reservation details in
+  // its description, the shopping list, where an item is the present. Those are
+  // text nodes, and only `maskTextSelector` reaches them. `'*'` masks all of
+  // them, on the recorded screens too: a replay here is a wireframe with taps
+  // on it, which is what the questions worth asking (where does the trip form
+  // stall?) actually need.
+  //
+  // `blockSelector` drops an element's contents entirely rather than masking
+  // its text; it is on the document viewer (pages/DocumentPreview.tsx), which
+  // renders a passport or a booking PDF into an <img>/<iframe> that no amount
+  // of text masking would touch. That screen is not recordable anyway — this is
+  // for the moment after a navigation away from one that is.
+  //
+  // The two network flags are already PostHog's defaults; they are written down
+  // because turning either on would put API responses — the whole trip, stays
+  // and shopping included — inside a replay. See the note on `defaults` above:
+  // moving that date to '2026-06-25' or later switches on `streamNetworkBody`
+  // and does the same thing without anybody editing this block.
+  session_recording: {
+    maskAllInputs: true,
+    maskTextSelector: '*',
+    blockSelector: '[data-replay-block]',
+    recordHeaders: false,
+    recordBody: false,
+  },
 
   capture_exceptions: {
     capture_unhandled_errors: true,
