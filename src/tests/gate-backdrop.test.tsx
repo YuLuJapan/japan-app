@@ -5,7 +5,7 @@
 // so a spy on `play` is as close to "it is moving" as this level gets; the
 // real sequence was driven in a browser.
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { fireEvent, render, waitFor } from '@testing-library/react'
+import { fireEvent, render } from '@testing-library/react'
 import { GATE_POSTER, GateBackdrop } from '../components/GateBackdrop'
 
 const CLIPS = ['/gate/clip-1.mp4', '/gate/clip-2.mp4']
@@ -79,20 +79,90 @@ describe('GateBackdrop', () => {
     }
   })
 
-  // Low Power Mode refuses autoplay outright. A touch is a gesture and a
-  // gesture is always allowed, so the next one anywhere on the page is what
-  // starts the video — the reader taps nothing in particular and it plays.
-  it('asks again on the first gesture when the browser refuses to autoplay', async () => {
-    const played = vi
-      .spyOn(HTMLMediaElement.prototype, 'play')
-      .mockRejectedValue(new DOMException('NotAllowedError'))
-    render(<GateBackdrop clips={CLIPS} />)
+  // Low Power Mode refuses autoplay outright, and no amount of asking moves
+  // it — only a gesture does. So once the asking has run its course the screen
+  // stops, and the reader's next touch anywhere on the page starts the video,
+  // whatever it was aimed at.
+  it('stops asking eventually, and starts on the first gesture instead', async () => {
+    vi.useFakeTimers()
+    try {
+      const played = vi
+        .spyOn(HTMLMediaElement.prototype, 'play')
+        .mockRejectedValue(new DOMException('NotAllowedError'))
+      render(<GateBackdrop clips={CLIPS} />)
 
-    await waitFor(() => expect(played).toHaveBeenCalled())
-    played.mockClear().mockResolvedValue(undefined)
+      // Long enough to exhaust every retry; `Async` so each refusal is seen.
+      await vi.advanceTimersByTimeAsync(10_000)
+      played.mockClear().mockResolvedValue(undefined)
 
-    fireEvent.pointerDown(document)
-    expect(played).toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(played).not.toHaveBeenCalled()
+
+      fireEvent.pointerDown(document)
+      expect(played).toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // iOS says no to autoplay for reasons that pass — a home-screen PWA still
+  // behind its launch splash, a tab that is not front-most, nothing buffered
+  // yet — so a refusal is chased rather than accepted, and the reader never
+  // has to tap anything for the video they asked to start on its own.
+  it('keeps asking after a refusal, without waiting for a gesture', () => {
+    vi.useFakeTimers()
+    try {
+      const played = vi
+        .spyOn(HTMLMediaElement.prototype, 'play')
+        .mockRejectedValue(new DOMException('NotAllowedError'))
+      render(<GateBackdrop clips={CLIPS} />)
+
+      expect(played).toHaveBeenCalledTimes(1)
+      played.mockClear()
+
+      vi.advanceTimersByTime(1200)
+      expect(played.mock.calls.length).toBeGreaterThan(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('asks again the moment the page becomes the thing on screen', () => {
+    vi.useFakeTimers()
+    try {
+      const played = vi
+        .spyOn(HTMLMediaElement.prototype, 'play')
+        .mockRejectedValue(new DOMException('NotAllowedError'))
+      render(<GateBackdrop clips={CLIPS} />)
+      played.mockClear()
+
+      // No timers advanced: this is the visibility signal alone.
+      document.dispatchEvent(new Event('visibilitychange'))
+      expect(played).toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // A seek is not free on WebKit: asking a fresh element for time zero — which
+  // is where it already is — is enough to lose the autoplay it was about to
+  // perform. This is what made the first clip need a tap on an iPhone.
+  it('does not seek a clip that has not played yet', () => {
+    const seeks: number[] = []
+    const own = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'currentTime')!
+    Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', {
+      configurable: true,
+      get: own.get,
+      set(value: number) {
+        seeks.push(value)
+      },
+    })
+    try {
+      render(<GateBackdrop clips={CLIPS} />)
+      expect(seeks).toEqual([])
+    } finally {
+      Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', own)
+    }
   })
 
   // Reduce Motion is on by default on a lot of phones, and this screen *is*
