@@ -14,28 +14,35 @@ One row per trip. It exists so a conversation has an identity and a lock, not be
 
 | Column            | Type                                             | Notes                                 |
 | ----------------- | ------------------------------------------------ | ------------------------------------- |
-| `id`              | uuid pk                                          |                                       |
-| `trip_id`         | uuid, **unique**, fk → `trips` on delete cascade | the uniqueness constraint _is_ FR-004 |
+| `id`              | text pk                                          |                                       |
+| `trip_id`         | text, **unique**, fk → `trips` on delete cascade | the uniqueness constraint _is_ FR-004 |
 | `turn_started_at` | timestamptz null                                 | the lock (R13). Null when idle        |
 | `created_at`      | timestamptz                                      |                                       |
+| `updated_at`      | timestamptz                                      | `set_updated_at()` trigger, from 0001 |
+
+**Id convention**, matching every table since `0001_init.sql`: `text` primary keys holding an app-generated
+`randomUUID()`. `profiles.id` is the one exception — a real `uuid`, because it comes from Supabase Auth
+rather than from us. So `trip_id` is `text` and `user_id` is `uuid` throughout the tables below.
 
 `turn_started_at` is a timestamp rather than a boolean deliberately: a turn whose function died would hold a boolean forever, and the only recovery would be manual. A timestamp is checked against a staleness window, so an abandoned turn expires on its own.
 
 ### `chat_messages`
 
-| Column       | Type                                       | Notes                                              |
-| ------------ | ------------------------------------------ | -------------------------------------------------- |
-| `id`         | uuid pk                                    |                                                    |
-| `thread_id`  | uuid fk → `chat_threads` on delete cascade |                                                    |
-| `trip_id`    | uuid fk → `trips` on delete cascade        | denormalised so a scoped read never needs the join |
-| `user_id`    | uuid null                                  | who wrote it; **null for the assistant**           |
-| `role`       | text, check in (`user`, `assistant`)       |                                                    |
-| `content`    | text                                       | **neutral shape — see the rule below**             |
-| `created_at` | timestamptz                                | ordering                                           |
+| Column       | Type                                             | Notes                                              |
+| ------------ | ------------------------------------------------ | -------------------------------------------------- |
+| `id`         | text pk                                          |                                                    |
+| `thread_id`  | text fk → `chat_threads` on delete cascade       |                                                    |
+| `trip_id`    | text fk → `trips` on delete cascade              | denormalised so a scoped read never needs the join |
+| `user_id`    | uuid null fk → `profiles` **on delete set null** | who wrote it; **null for the assistant**           |
+| `role`       | text, check in (`user`, `assistant`)             |                                                    |
+| `content`    | text                                             | **neutral shape — see the rule below**             |
+| `created_at` | timestamptz                                      | ordering                                           |
+
+Index on `(trip_id, created_at)` — the transcript is read whole, oldest first, and only ever for one trip.
 
 `user_id` is what makes US3 work, and the model needs it as much as the screen does: without "Yuval asked", a follow-up gets answered for the wrong person.
 
-A removed member's messages stay, still attributed (FR spec US3 scenario 4). Ordinary for a shared conversation — decided rather than discovered.
+**`on delete set null`, not cascade.** A removed member's messages stay in the shared conversation (spec US3 scenario 4) — deleting half a dialogue because someone left would make the remaining half unreadable. The consequence is that their attribution degrades to "someone" rather than surviving as a name, which is the honest outcome once the profile is gone: the app cannot name an account it no longer has. Ordinary for a shared conversation, and decided here rather than discovered.
 
 ### `ai_usage`
 
@@ -43,9 +50,9 @@ The ledger. Named for the capability rather than for chat, because it has to out
 
 | Column       | Type                                      | Notes                                                                           |
 | ------------ | ----------------------------------------- | ------------------------------------------------------------------------------- |
-| `id`         | uuid pk                                   |                                                                                 |
-| `user_id`    | uuid fk → `profiles`                      | the account the spend is charged to                                             |
-| `trip_id`    | uuid null fk → `trips` on delete set null | which trip it happened on; nullable because not every future capability has one |
+| `id`         | text pk                                   |                                                                                 |
+| `user_id`    | uuid fk → `profiles` on delete cascade    | the account the spend is charged to                                             |
+| `trip_id`    | text null fk → `trips` on delete set null | which trip it happened on; nullable because not every future capability has one |
 | `capability` | text                                      | `chat` today; `extract`, `image` later                                          |
 | `vendor`     | text                                      | `anthropic` today                                                               |
 | `model`      | text                                      | the catalogue key, e.g. `anthropic/claude-opus-5`                               |

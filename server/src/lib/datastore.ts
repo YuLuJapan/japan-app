@@ -410,6 +410,94 @@ export interface PushSubscriptionRecord {
   created_at: string
 }
 
+/**
+ * One conversation, shared by a trip's writers (feature 005).
+ *
+ * There is exactly one per trip, enforced by a unique constraint rather than by
+ * a service rule. That is affordable because chat is limited to owners and
+ * partners and writers always get the full view — so everyone who can open it
+ * already sees the whole trip, and a shared transcript can reveal nothing.
+ */
+export interface ChatThread {
+  id: string
+  trip_id: string
+  /**
+   * The turn lock. Null when idle; an instant while a turn is running.
+   *
+   * A timestamp rather than a boolean: a turn whose serverless function died
+   * would hold a boolean forever with no recovery but a manual reset, whereas a
+   * timestamp is compared against a staleness window and expires on its own.
+   */
+  turn_started_at: string | null
+  created_at: string
+}
+
+/**
+ * One message in that conversation.
+ *
+ * `content` is text **in our own shape** — never the provider's content blocks.
+ * That is the whole portability story: persisting vendor blocks would put the
+ * vendor inside the database, where no adapter can reach it, and changing
+ * provider would become a migration over a live conversation.
+ */
+export interface ChatMessage {
+  id: string
+  thread_id: string
+  trip_id: string
+  /** Who wrote it. Null for the assistant, and null again once an author's account is gone. */
+  user_id: string | null
+  role: 'user' | 'assistant'
+  content: string
+  created_at: string
+}
+
+export interface ChatMessageInput {
+  thread_id: string
+  trip_id: string
+  user_id: string | null
+  role: 'user' | 'assistant'
+  content: string
+}
+
+/**
+ * One row of what an AI call cost.
+ *
+ * Named for the capability rather than for chat, because it has to outlive this
+ * feature: extraction (007) and image generation (backlog) share no unit with a
+ * chat turn — tokens with a cache-read discount against whole images priced
+ * orders of magnitude higher. One table with one comparable `cost_cents` column
+ * is what lets the cap ask "what has this account spent this month" once.
+ *
+ * `cost_cents` is priced at **write** time from `lib/ai/models.ts`. Deriving it
+ * on read would mean the cap query had to know every historical price, and a
+ * rate change would retroactively rewrite what last month cost.
+ */
+export interface AiUsageRow {
+  id: string
+  /** The account charged. The cap is per account, so three trips share one budget. */
+  user_id: string
+  trip_id: string | null
+  capability: 'chat'
+  vendor: string
+  /** The catalogue key, namespaced — `anthropic/claude-opus-5`. */
+  model: string
+  unit: 'tokens'
+  quantity: Record<string, number>
+  cost_cents: number
+  created_at: string
+}
+
+export interface AiUsageInput {
+  user_id: string
+  trip_id?: string | null
+  capability: 'chat'
+  vendor: string
+  model: string
+  unit: 'tokens'
+  quantity: Record<string, number>
+  cost_cents: number
+}
+
 export interface PushSubscriptionInput {
   user_id: string
   endpoint: string
@@ -656,6 +744,45 @@ export interface DataStore {
    * another's phone by naming its endpoint.
    */
   deletePushSubscription(userId: string, endpoint: string): Promise<boolean>
+
+  /** The trip's one conversation, or null if nobody has asked anything yet. */
+  getChatThread(tripId: string): Promise<ChatThread | null>
+  /** Idempotent: a trip already holding a thread gets that one back, never a second. */
+  createChatThread(tripId: string): Promise<ChatThread>
+  /**
+   * Atomically take the turn lock, stamping `turn_started_at` in the same
+   * operation, and hand back the thread — or null when a live turn already
+   * holds it.
+   *
+   * Claim-then-run, for the same reason `claimDueReminders` claims before it
+   * sends: a read followed by a write is exactly the race this exists to close,
+   * and two turns against one conversation would answer interleaved histories
+   * and bill for both.
+   *
+   * `staleMs` is what stops a turn whose function died from holding the lock
+   * forever — a stamp older than that is treated as abandoned and taken over.
+   */
+  claimChatTurn(tripId: string, nowIso: string, staleMs: number): Promise<ChatThread | null>
+  /** Release the lock. Called on every exit path, success and failure alike. */
+  releaseChatTurn(tripId: string): Promise<void>
+
+  /** The whole transcript for one trip, oldest first. */
+  listChatMessages(tripId: string): Promise<ChatMessage[]>
+  createChatMessage(input: ChatMessageInput): Promise<ChatMessage>
+
+  /** Append one priced row to the ledger. */
+  recordAiUsage(input: AiUsageInput): Promise<AiUsageRow>
+  /**
+   * What this account has spent since `sinceIso`, in cents. The pre-flight check
+   * on every turn.
+   *
+   * Deliberately not `sumAiUsageForTrip`: the cap is per account (a person with
+   * three trips has one budget), and offering a per-trip sum would invite a
+   * per-trip cap that multiplies the bill by however many trips somebody makes.
+   */
+  sumAiUsageCents(userId: string, sinceIso: string): Promise<number>
+  /** The same sum across every account — the global kill switch. */
+  sumAllAiUsageCents(sinceIso: string): Promise<number>
 }
 
 let store: DataStore | null = null

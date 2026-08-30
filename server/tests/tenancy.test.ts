@@ -10,7 +10,7 @@
 // belongs to the trip named earlier. `/trips/A/places/<place-in-B>` still
 // resolves, because zones are not trip-scoped in the schema until phase 3b.
 // Those cases are `it.todo` below, and 3b is the commit that turns them on.
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import type { Router } from 'express'
 import { createApp, tripScopedRouter } from '../src/app.js'
@@ -18,6 +18,8 @@ import { setDataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
 import { fixture } from './fixture.js'
 import { useTestTokens } from './auth.js'
+import { setAiRuntime } from '../src/lib/ai/runtime.js'
+import { createFakeRuntime } from '../src/lib/ai/adapters/fake.js'
 
 const app = createApp()
 
@@ -65,6 +67,16 @@ const ROUTES = collectRoutes(tripScopedRouter())
 beforeEach(() => {
   setDataStore(createMemoryStore(fixture()))
   useTestTokens()
+  // Chat is the first route here that can 404 a *member* for a reason other
+  // than tenancy: with nothing configured the whole feature is absent. That is
+  // orthogonal to what this file sweeps, so the fake runtime makes it present
+  // and the sweep goes on testing tenancy rather than configuration.
+  // `chat-access.test.ts` owns the unconfigured case.
+  setAiRuntime(createFakeRuntime().runtime)
+})
+
+afterEach(() => {
+  setAiRuntime(null)
 })
 
 const as = (token: string) => ({ Authorization: `Bearer ${token}` })
