@@ -129,10 +129,19 @@ the existing whole-word string match. Table-tested over both paths.
 
 ### Slice D — US3: the trips that came before
 
-Opening a trip whose text names a list entry preselects that entry without writing anything;
-text that matches nothing is shown as typed with a note that it is not a recognised country,
-and survives a save of other fields untouched. Covered by a legacy free-text row in both
-`server/tests/trips.test.ts` and `src/tests/trip-sheet.test.tsx`.
+Opening a trip whose text names a list entry preselects that entry without writing anything.
+Text that matches nothing is shown as typed and **refused on save**, with the message every
+other unrecognised country gets and the two ways out named: choose a country, or empty the
+field. That is a decision taken after Phase 2 landed and it replaces the softer rule this plan
+first carried ("survives a save of other fields untouched"): three live trips hold an
+unrecognised country, and passing one through unremarked preserves a wrong currency guess and
+the wrong Essentials content for as long as nobody notices. Nothing is rewritten without the
+traveller — the trip simply cannot be saved until they say which of the two they meant.
+
+The one case that is neither: **the list has not arrived**. Then nothing can be judged, so
+nothing is said and nothing is written — the save omits both fields and the API leaves them
+alone. Covered by a legacy free-text row in both `server/tests/trips.test.ts` and
+`src/tests/trip-sheet.test.tsx`.
 
 ## The write contract, precisely
 

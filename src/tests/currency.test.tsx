@@ -78,6 +78,7 @@ const TRIP: Trip = {
   id: 'trip-1',
   name: 'Lisbon',
   country: 'Portugal',
+  country_code: 'PT',
   display_title: 'Lisbon',
   start_date: '2027-03-01',
   end_date: '2027-03-08',
@@ -93,9 +94,19 @@ describe('TripSheet currency pickers', () => {
   beforeEach(() => {
     mocks.get.mockReset()
     mocks.post.mockReset()
-    mocks.get.mockImplementation((path: string) =>
-      path === '/currencies' ? Promise.resolve(CATALOGUE) : Promise.resolve({})
-    )
+    mocks.get.mockImplementation((path: string) => {
+      if (path === '/currencies') return Promise.resolve(CATALOGUE)
+      // The country field is a list now (spec 008), so the sheet asks for one.
+      if (path === '/countries')
+        return Promise.resolve({
+          countries: [
+            { code: 'TH', name: 'Thailand' },
+            { code: 'PT', name: 'Portugal' },
+            { code: 'JP', name: 'Japan' },
+          ],
+        })
+      return Promise.resolve({})
+    })
     mocks.post.mockResolvedValue({ trip: TRIP })
   })
 

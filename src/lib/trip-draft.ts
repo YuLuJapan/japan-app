@@ -9,9 +9,12 @@
 //
 // Only the rules the server actually enforces belong here — the client half of
 // collectTripErrors in server/src/services/trips.ts. Anything optional there
-// is optional here: the name, the country, the travellers, the start time and
-// the flight are all allowed to be empty.
-export type TripField = 'start' | 'end' | 'currencies'
+// is optional here: the name, the travellers, the start time and the flight are
+// all allowed to be empty, and so is the country. The country is the one field
+// where empty and wrong are different answers (spec 008): absent is fine,
+// present-but-not-a-country is refused by the API, so it is refused here too —
+// with a message, which is the whole point of this file.
+export type TripField = 'country' | 'start' | 'end' | 'currencies'
 
 /**
  * When a blocker is worth saying out loud.
@@ -34,6 +37,12 @@ export interface TripDraftValues {
   startDate: string
   endDate: string
   homeCurrencies: string[]
+  /**
+   * What is in the country field, and whether it names a country on the list.
+   * `matched` is decided by the caller (src/lib/countries.ts) because the list
+   * arrives from the API; this function stays pure.
+   */
+  country: { text: string; matched: boolean }
 }
 
 export type TripDraftErrors = Partial<Record<TripField, TripDraftError>>
@@ -48,6 +57,16 @@ export type TripDraftErrors = Partial<Record<TripField, TripDraftError>>
  */
 export function collectTripDraftErrors(values: TripDraftValues): TripDraftErrors {
   const errors: TripDraftErrors = {}
+  // Empty is a legitimate answer — the country is optional, and half the trips
+  // in the database have none. A country that is *there and not a country* is
+  // not: it would save as free text, which is what spec 008 exists to stop, and
+  // it silently decides the currency guess and the Essentials content. So it is
+  // said out loud, beside the field, rather than swallowed or corrected.
+  if (values.country.text.trim() && !values.country.matched)
+    errors.country = {
+      message: 'Choose a country from the list, or leave it empty.',
+      when: 'missing',
+    }
   if (!values.startDate)
     errors.start = { message: 'Pick the day, month and year the trip starts.', when: 'missing' }
   if (!values.endDate)
@@ -65,7 +84,7 @@ export function collectTripDraftErrors(values: TripDraftValues): TripDraftErrors
 }
 
 /** The fields that can carry a message, in the order they appear in the form. */
-export const TRIP_FIELD_ORDER: TripField[] = ['start', 'end', 'currencies']
+export const TRIP_FIELD_ORDER: TripField[] = ['country', 'start', 'end', 'currencies']
 
 /**
  * One line for the summary above the button: how much is still in the way.

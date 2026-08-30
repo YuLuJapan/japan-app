@@ -21,6 +21,7 @@ const TRIP: Trip = {
   id: 'trip-1',
   name: 'Lisbon',
   country: 'Japan',
+  country_code: 'JP',
   display_title: 'Lisbon',
   start_date: '2027-03-01',
   end_date: '2027-03-08',
@@ -60,6 +61,26 @@ const IMPACT = {
   ],
 }
 
+// The sheet asks for the country list on open (spec 008) — it is what decides
+// whether what is in the country field is a country, so every GET mock in this
+// file has to answer for it. A list that never arrives is a different case, and
+// has its own test.
+const COUNTRIES = {
+  countries: [
+    { code: 'JP', name: 'Japan' },
+    { code: 'PT', name: 'Portugal' },
+    { code: 'GB', name: 'United Kingdom', aliases: ['UK', 'England'] },
+  ],
+}
+
+/** Everything the sheet fetches: the country list, and whatever a test is about. */
+const getReturns = (rest: unknown) =>
+  mocks.get.mockImplementation((path: string) => {
+    if (path === '/countries') return Promise.resolve(COUNTRIES)
+    if (path === '/currencies') return Promise.resolve({ currencies: [], by_country: {} })
+    return Promise.resolve(rest)
+  })
+
 describe('TripSheet date changes that strand activities', () => {
   beforeEach(() => {
     mocks.get.mockReset()
@@ -69,7 +90,7 @@ describe('TripSheet date changes that strand activities', () => {
 
   it('saves straight through when the new dates strand nothing', async () => {
     const user = userEvent.setup()
-    mocks.get.mockResolvedValue({ ...IMPACT, items: [] })
+    getReturns({ ...IMPACT, items: [] })
     renderSheet({ mode: 'edit', trip: TRIP })
 
     await shortenEndDate(user)
@@ -82,7 +103,7 @@ describe('TripSheet date changes that strand activities', () => {
 
   it('lists the stranded activities and moves them to the first day by default', async () => {
     const user = userEvent.setup()
-    mocks.get.mockResolvedValue(IMPACT)
+    getReturns(IMPACT)
     renderSheet({ mode: 'edit', trip: TRIP })
 
     await shortenEndDate(user)
@@ -109,7 +130,7 @@ describe('TripSheet date changes that strand activities', () => {
 
   it('deletes them instead when that is chosen', async () => {
     const user = userEvent.setup()
-    mocks.get.mockResolvedValue(IMPACT)
+    getReturns(IMPACT)
     renderSheet({ mode: 'edit', trip: TRIP })
 
     await shortenEndDate(user)
@@ -125,7 +146,7 @@ describe('TripSheet date changes that strand activities', () => {
 
   it('brings a stranded stop along instead of dead-ending on it', async () => {
     const user = userEvent.setup()
-    mocks.get.mockResolvedValue({
+    getReturns({
       ...IMPACT,
       steps: [
         {
@@ -160,7 +181,7 @@ describe('TripSheet date changes that strand activities', () => {
 
   it('says a stop is shortened rather than claiming it keeps its length', async () => {
     const user = userEvent.setup()
-    mocks.get.mockResolvedValue({
+    getReturns({
       range: { start_date: '2027-03-01', end_date: '2027-03-02' },
       // A 4-night stay on what is now a 2-day trip: it cannot survive intact.
       steps: [
@@ -187,7 +208,7 @@ describe('TripSheet date changes that strand activities', () => {
 
   it('resolves stops and activities in one save', async () => {
     const user = userEvent.setup()
-    mocks.get.mockResolvedValue({
+    getReturns({
       ...IMPACT,
       steps: [
         {
@@ -228,7 +249,7 @@ describe('TripSheet date changes that strand activities', () => {
       title: `Activity ${i}`,
       highlight: false,
     }))
-    mocks.get.mockResolvedValue({ ...IMPACT, items: many })
+    getReturns({ ...IMPACT, items: many })
     renderSheet({ mode: 'edit', trip: TRIP })
 
     await shortenEndDate(user)
@@ -243,14 +264,14 @@ describe('TripSheet date changes that strand activities', () => {
 
   it('re-checks after the dates are edited again', async () => {
     const user = userEvent.setup()
-    mocks.get.mockResolvedValue(IMPACT)
+    getReturns(IMPACT)
     renderSheet({ mode: 'edit', trip: TRIP })
 
     await shortenEndDate(user)
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
     await screen.findByText(/2 activities fall outside/i)
 
-    mocks.get.mockResolvedValue({ ...IMPACT, items: [] })
+    getReturns({ ...IMPACT, items: [] })
     await user.selectOptions(screen.getByLabelText('End day'), '06')
     expect(screen.queryByText(/activities fall outside/i)).not.toBeInTheDocument()
 
@@ -323,6 +344,7 @@ describe('TripSheet — inviting a traveller', () => {
       if (path === '/trips/trip-1') return Promise.resolve({ trip: withRoster, steps: [], my_role })
       if (path === '/trips/trip-1/members') return Promise.resolve({ members })
       if (path === '/trips/trip-1/invites') return Promise.resolve({ invites })
+      if (path === '/countries') return Promise.resolve(COUNTRIES)
       return Promise.resolve(IMPACT)
     })
   }
@@ -404,12 +426,86 @@ describe('TripSheet — inviting a traveller', () => {
 // after who is going and where". The form said so ("Name it (optional)") while
 // refusing to submit without one, and said nothing about why, because the only
 // signal was a disabled button.
+// Spec 008, US3. Every trip in the database predates the country list, and three
+// of them hold something the list cannot match ('Amsterdam', 'IL',
+// 'Japan & Seoul'). Nothing rewrites them behind the traveller's back — but the
+// moment they open the sheet and save, they are told, because a country that is
+// not a country quietly decides the currency guess and the Essentials content.
+describe('TripSheet — a trip from before the country list', () => {
+  const LEGACY: Trip = { ...TRIP, country: 'Amsterdam', country_code: null }
+
+  beforeEach(() => {
+    mocks.get.mockReset()
+    mocks.patch.mockReset()
+    mocks.patch.mockResolvedValue({ trip: LEGACY })
+    getReturns({ ...IMPACT, items: [] })
+  })
+
+  it('shows the stored text as it was typed', async () => {
+    renderSheet({ mode: 'edit', trip: LEGACY })
+    const field = (await screen.findByLabelText('Country')) as HTMLInputElement
+    expect(field.value).toBe('Amsterdam')
+  })
+
+  it('refuses to save it, and says what to do about it', async () => {
+    const user = userEvent.setup()
+    renderSheet({ mode: 'edit', trip: LEGACY })
+
+    await user.click(await screen.findByRole('button', { name: 'Save changes' }))
+
+    expect(await screen.findByText(/choose a country from the list/i)).toBeInTheDocument()
+    expect(mocks.patch).not.toHaveBeenCalled()
+  })
+
+  it('lets it through once the country is emptied — null is a valid answer', async () => {
+    const user = userEvent.setup()
+    renderSheet({ mode: 'edit', trip: LEGACY })
+
+    await user.clear(await screen.findByLabelText('Country'))
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(mocks.patch).toHaveBeenCalled())
+    expect(mocks.patch.mock.calls[0][1]).toMatchObject({ country_code: null })
+  })
+
+  it('lets it through once a real country is chosen', async () => {
+    const user = userEvent.setup()
+    renderSheet({ mode: 'edit', trip: LEGACY })
+
+    const field = await screen.findByLabelText('Country')
+    await user.clear(field)
+    await user.type(field, 'Portugal')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(mocks.patch).toHaveBeenCalled())
+    expect(mocks.patch.mock.calls[0][1]).toMatchObject({ country_code: 'PT' })
+  })
+
+  // The list is one request, and a cold function or a dead connection can lose
+  // it. Nothing about the country may be judged — or written — without it.
+  it('says nothing, and sends nothing, while the list has not arrived', async () => {
+    const user = userEvent.setup()
+    mocks.get.mockImplementation((path: string) =>
+      path === '/countries' ? new Promise(() => {}) : Promise.resolve({ ...IMPACT, items: [] })
+    )
+    renderSheet({ mode: 'edit', trip: LEGACY })
+
+    await user.click(await screen.findByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(mocks.patch).toHaveBeenCalled())
+    expect(screen.queryByText(/choose a country from the list/i)).not.toBeInTheDocument()
+    // Neither field is mentioned, so the API leaves both columns alone.
+    expect(mocks.patch.mock.calls[0][1]).not.toHaveProperty('country_code')
+    expect(mocks.patch.mock.calls[0][1]).not.toHaveProperty('country')
+  })
+})
+
 describe('TripSheet — creating a trip', () => {
   beforeEach(() => {
     mocks.get.mockReset()
     // The sheet asks for the currency catalogue on open; in add mode there is
     // no trip to fetch, so this is the only GET it makes.
-    mocks.get.mockResolvedValue({ currencies: [], by_country: {} })
+    getReturns({})
     mocks.post.mockReset()
     mocks.post.mockResolvedValue({ trip: TRIP })
   })
@@ -449,7 +545,51 @@ describe('TripSheet — creating a trip', () => {
     await user.click(screen.getByRole('button', { name: 'Create trip' }))
 
     await waitFor(() => expect(mocks.post).toHaveBeenCalled())
-    expect(mocks.post.mock.calls[0][1]).toMatchObject({ name: '', country: '' })
+    // Nothing typed means no country: the code is null and the server clears
+    // the pair. Empty is a legitimate answer, not a blocker.
+    expect(mocks.post.mock.calls[0][1]).toMatchObject({ name: '', country_code: null })
+  })
+
+  // Spec 008. The country stops being free text: something that is not a
+  // country is refused with a message beside the field, rather than saved,
+  // silently emptied, or corrected to the nearest match.
+  it('refuses a country that is not on the list, and says so beside the field', async () => {
+    const user = userEvent.setup()
+    renderSheet()
+
+    await pickDates(user)
+    await user.type(screen.getByLabelText('Country'), 'Jappan')
+    await user.click(screen.getByRole('button', { name: 'Create trip' }))
+
+    expect(await screen.findByText(/choose a country from the list/i)).toBeInTheDocument()
+    expect(mocks.post).not.toHaveBeenCalled()
+    // And what was typed is still there to correct — not cleared under them.
+    expect((screen.getByLabelText('Country') as HTMLInputElement).value).toBe('Jappan')
+  })
+
+  it('takes a country that is on the list, and sends its code', async () => {
+    const user = userEvent.setup()
+    renderSheet()
+
+    await pickDates(user)
+    await user.type(screen.getByLabelText('Country'), 'Japan')
+    await user.click(screen.getByRole('button', { name: 'Create trip' }))
+
+    await waitFor(() => expect(mocks.post).toHaveBeenCalled())
+    expect(mocks.post.mock.calls[0][1]).toMatchObject({ country_code: 'JP' })
+    expect(screen.queryByText(/choose a country from the list/i)).not.toBeInTheDocument()
+  })
+
+  it('matches a name the list knows by another spelling', async () => {
+    const user = userEvent.setup()
+    renderSheet()
+
+    await pickDates(user)
+    await user.type(screen.getByLabelText('Country'), 'england')
+    await user.click(screen.getByRole('button', { name: 'Create trip' }))
+
+    await waitFor(() => expect(mocks.post).toHaveBeenCalled())
+    expect(mocks.post.mock.calls[0][1]).toMatchObject({ country_code: 'GB' })
   })
 
   it('says what is missing instead of going quiet, and does not send', async () => {

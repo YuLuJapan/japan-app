@@ -75,6 +75,12 @@ export interface Trip {
   name: string | null
   country: string | null
   /**
+   * ISO 3166-1 alpha-2, and only ever one picked from the list served by
+   * `GET /api/countries` (migration 0023). Null on every trip written before
+   * the picker existed — text without a code is ordinary, not broken.
+   */
+  country_code: string | null
+  /**
    * What to show. Computed server-side from the name, the travellers and the
    * country, so every client agrees — never build this in the UI.
    */
@@ -513,6 +519,17 @@ export interface CurrencyCatalogue {
   currencies: Currency[]
   /** Lowercased country → the currency it is likely spent in. A hint only. */
   by_country: Record<string, string>
+}
+
+export interface Country {
+  code: string
+  name: string
+  /** Other spellings it answers to. Searched, never shown. */
+  aliases?: string[]
+}
+
+export interface CountryCatalogue {
+  countries: Country[]
 }
 
 export interface Reminder {

@@ -6,6 +6,7 @@ import type {
   Category,
   ExportDetail,
   ExportPayload,
+  CountryCatalogue,
   CurrencyCatalogue,
   GeocodeResult,
   ImageResult,
@@ -124,6 +125,16 @@ export const useCurrencies = () =>
   useQuery({
     queryKey: ['currencies'],
     queryFn: () => api.get<CurrencyCatalogue>('/currencies'),
+    staleTime: Infinity,
+  })
+
+// The countries a trip can be going to. Served rather than bundled for the same
+// reason the currencies are: the list the picker offers is the list the API
+// validates against, so the two cannot drift. Immutable for the session.
+export const useCountries = () =>
+  useQuery({
+    queryKey: ['countries'],
+    queryFn: () => api.get<CountryCatalogue>('/countries'),
     staleTime: Infinity,
   })
 

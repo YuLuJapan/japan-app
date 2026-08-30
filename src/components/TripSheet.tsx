@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   tripDateImpact,
+  useCountries,
   useCurrencies,
   useTrip,
   useTripInvites,
@@ -24,6 +25,7 @@ import { emptyFlight, fromDraft, toDraft, type FlightDraft } from '../lib/flight
 import { commonTimeZones, deviceTimeZone, timeZoneOptions, zoneLabel } from '../lib/flight-time'
 import { AccessPicker, DEFAULT_SHOWS, type InviteRole, type Shows } from './AccessPicker'
 import { collectTripDraftErrors, tripErrorSummary, type TripField } from '../lib/trip-draft'
+import { matchCountry } from '../lib/countries'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -312,6 +314,8 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   // The currencies a trip can be priced in, plus the guess to make from a
   // country. Served rather than bundled so it matches what the API validates.
   const catalogue = useCurrencies()
+  // The countries a trip can be going to — the list the API validates against.
+  const countries = useCountries()
   const members = useTripMembers(tripId)
   const invites = useTripInvites(tripId)
   const createInvite = useCreateInvite(tripId)
@@ -484,6 +488,16 @@ export function TripSheet({ mode, trip, onClose }: Props) {
     if (guess) setLocalCurrency(guess)
   }
 
+  /**
+   * The country the field currently names, or undefined.
+   *
+   * Undefined covers three different things and the form treats them alike on
+   * purpose: nothing typed, something typed that is not a country, and the list
+   * not arrived yet. Only the middle one is an error, and only because the text
+   * is non-empty — see collectTripDraftErrors.
+   */
+  const matched = matchCountry(countries.data?.countries, country)
+
   const zoneList = { common: commonTimeZones(), all: timeZoneOptions() }
   const startDate = joinDate(sy, sm, sd)
   const endDate = joinDate(ey, em, ed)
@@ -492,7 +506,14 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   // empty one means "build it from who is going and where" (the server says so
   // in collectTripErrors, and the label under the field says so too). Requiring
   // it here is what made "Name it (optional)" a lie.
-  const fieldErrors = collectTripDraftErrors({ startDate, endDate, homeCurrencies })
+  const fieldErrors = collectTripDraftErrors({
+    startDate,
+    endDate,
+    homeCurrencies,
+    // While the list is still in flight nothing can be judged not-a-country, so
+    // the field is treated as fine and the server has the last word anyway.
+    country: { text: country, matched: !!matched || !countries.data },
+  })
   const errorSummary = tripErrorSummary(fieldErrors)
   const shownError = (field: TripField): string | undefined => {
     const error = fieldErrors[field]
@@ -519,7 +540,12 @@ export function TripSheet({ mode, trip, onClose }: Props) {
   const save = (found?: TripDateImpact | null) => {
     const input = {
       name: name.trim(),
-      country: country.trim(),
+      // The code is the value: the server writes the name from its own list
+      // entry, so free text cannot be stored even from here. An empty field
+      // clears both columns, which is a legitimate answer — but a list that has
+      // not arrived is not, so that case sends nothing at all and the API
+      // leaves both columns exactly as they were.
+      ...(countries.data ? { country_code: matched?.code ?? null } : {}),
       start_date: startDate,
       end_date: endDate,
       people,
@@ -617,7 +643,10 @@ export function TripSheet({ mode, trip, onClose }: Props) {
           value={country}
           onChange={(e) => onCountry(e.target.value)}
           maxLength={80}
+          aria-invalid={!!shownError('country')}
+          aria-describedby={shownError('country') ? 'trip-country-error' : undefined}
         />
+        <FieldError id="trip-country-error" message={shownError('country')} />
 
         <label className="label mt-4 block" htmlFor="trip-name">
           Name it (optional)

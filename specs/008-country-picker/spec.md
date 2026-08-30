@@ -76,7 +76,7 @@ Someone with a trip already saved opens it, edits the dates, and saves. Nothing 
 **Acceptance Scenarios**:
 
 1. **Given** a trip whose country text names a country on the list, **When** the trip sheet opens, **Then** that country is shown as selected, and saving without touching it changes nothing stored.
-2. **Given** a trip whose country text matches nothing on the list, **When** the trip sheet opens, **Then** the text is shown as it was typed, the traveller is told it is not a recognised country, and saving other fields leaves it untouched.
+2. **Given** a trip whose country text matches nothing on the list, **When** the trip sheet opens, **Then** the text is shown as it was typed, and **When** they save, **Then** the save is refused with a message beside the country field, which they resolve by choosing a country or by emptying the field — empty being a legitimate answer.
 3. **Given** any trip, **When** a change is saved that does not mention the country, **Then** both the country text and its code are left exactly as they were.
 4. **Given** a trip with country text and no code, **When** anything reads the country — the title, the currency guess, the Essentials gating — **Then** it still answers from the text, exactly as it does today.
 
@@ -85,7 +85,7 @@ Someone with a trip already saved opens it, edits the dates, and saves. Nothing 
 ### Edge Cases
 
 - **Typing an exact country name and never opening the list.** Someone types "Japan" in full and moves on, expecting it to have worked. The field treats a complete, case-insensitive match against a single list entry as that country, and shows the flag and name to confirm it. A partial match, or one matching several entries, is not resolved on the traveller's behalf.
-- **Typing something that matches nothing.** "Jappan" narrows the list to empty. The field must neither save the raw text nor quietly clear itself — it says the country has to be chosen from the list, and leaves what was typed on screen.
+- **Typing something that matches nothing.** "Jappan" narrows the list to empty. The field must neither save the raw text nor quietly clear itself — it says the country has to be chosen from the list, and leaves what was typed on screen. A stored country that matches nothing is the same case and gets the same message: three live trips hold one ('Amsterdam', 'IL', 'Japan & Seoul'), and the traveller resolves it by choosing a country or emptying the field.
 - **A trip with no country at all.** The field is optional and stays optional. Everything derived from the country has a defined answer for "none", and it is the generic one — no Japan content, no currency change, no invented default.
 - **A saved change that omits the country.** Leaves both the text and the code untouched. Clearing requires an explicit instruction to clear.
 - **Clearing a country that was already set.** Both the text and the code clear together. A trip must never end up with a code and no name, or a name and no code.
@@ -114,11 +114,11 @@ Someone with a trip already saved opens it, edits the dates, and saves. Nothing 
 - **FR-008**: The system MUST NOT save a country that is not on the list. This MUST be enforced where the trip is saved, not only in the form — the form is a convenience, never the guard.
 - **FR-009**: When what was typed matches no country, the system MUST refuse the save and say so beside the field, and MUST NOT clear the field, substitute a nearest match, or save the raw text.
 - **FR-010**: The system MUST NOT fuzzy-match a typed country to a list entry. A complete, case-insensitive, unambiguous match to one entry MAY resolve to that country; anything less MUST NOT.
-- **FR-011**: The country MUST remain optional. A trip with no country MUST save, and every consumer of the country MUST have a defined behaviour for none.
+- **FR-011**: The country MUST remain optional. A trip with no country MUST save, and every consumer of the country MUST have a defined behaviour for none. **Empty and unrecognised are different answers**: absent is always allowed, present-and-not-a-country never is, and emptying the field is therefore always a way past the error.
 - **FR-012**: Setting a country MUST store its code and its name together; clearing one MUST clear both.
 - **FR-013**: A save that does not mention the country MUST leave both the country and its code untouched.
 - **FR-014**: The field MUST be operable by keyboard alone and MUST be announced to a screen reader: the list's open state, the number of matches as it changes, and the currently highlighted candidate.
-- **FR-015**: The field MUST be usable before or without the list arriving from the network — it MUST NOT sit empty waiting on a fetch, and MUST still show the country the trip already has.
+- **FR-015**: The field MUST be usable before or without the list arriving from the network — it MUST NOT sit empty waiting on a fetch, and MUST still show the country the trip already has. With no list, nothing may be judged unrecognised and **no country may be written**: a save must leave both columns untouched rather than clear them.
 
 #### What follows from the country
 
@@ -133,7 +133,8 @@ Someone with a trip already saved opens it, edits the dates, and saves. Nothing 
 - **FR-021**: The system MUST NOT backfill a code onto an existing trip by guessing from its text. A code is recorded only when a traveller picks one.
 - **FR-022**: Where a trip has country text and no code, every consumer MUST keep answering from the text, with the same matching behaviour it has today.
 - **FR-023**: Opening a trip whose text names a country on the list MUST show that country as selected without storing anything until the traveller saves.
-- **FR-024**: Opening a trip whose text matches nothing MUST show the text as typed and say it is not a recognised country, without discarding it.
+- **FR-024**: Opening a trip whose text matches nothing MUST show the text as typed, without discarding it or rewriting it. Saving that trip MUST be refused with the same message any other unrecognised country gets, offering the two ways out: choose a country, or empty the field.
+- **FR-024a**: An unrecognised country MUST NOT be passed through silently on a save of unrelated fields. It decides the currency guess and the destination-specific content, so carrying it forward unremarked would preserve a wrong answer indefinitely — the point at which someone is editing the trip is the point at which they can fix it.
 - **FR-025**: The trip title's existing fallback chain MUST be unchanged, including its fallback to the country text.
 
 ### Key Entities

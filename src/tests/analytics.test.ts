@@ -38,6 +38,7 @@ const trip = (over: Partial<Trip> = {}): Trip => ({
   id: 'trip-1',
   name: 'Our honeymoon',
   country: 'Japan',
+  country_code: 'JP',
   display_title: 'Japan',
   start_date: '2026-04-01',
   end_date: '2026-04-10',

@@ -69,6 +69,7 @@ const trip: Trip = {
   id: 't1',
   name: 'Japan',
   country: 'Japan',
+  country_code: 'JP',
   display_title: 'Japan',
   start_date: '2026-10-01',
   end_date: '2026-10-14',
