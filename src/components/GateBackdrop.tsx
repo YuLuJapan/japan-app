@@ -51,6 +51,14 @@ export const GATE_POSTER = '/gate/poster.jpg'
 /** Long enough to read as a dissolve, short enough not to mute both clips. */
 const CROSSFADE_MS = 900
 
+// How hard a refusal is chased before the screen settles for waiting on a
+// touch. iOS turns autoplay down for reasons that pass — a PWA still behind
+// its launch splash, a tab that is not front-most yet, a media engine with
+// nothing buffered — so the ask is repeated for a few seconds rather than
+// abandoned on the first no. Roughly six seconds at 400ms.
+const RETRY_MS = 400
+const RETRY_LIMIT = 15
+
 /**
  * Autoplay is a request, not a command: Safari refuses it outside a gesture
  * whenever Low Power Mode is on, and answers with a rejected promise (older
@@ -110,10 +118,47 @@ export function GateBackdrop({ clips = GATE_CLIPS }: { clips?: string[] }) {
     if (still) return
     const playing = slots.current[cursor % 2]
     const idle = slots.current[(cursor + 1) % 2]
-    if (playing) {
-      playing.currentTime = 0
-      play(playing, () => setRefused(true))
+
+    // Rewind only a clip that has actually advanced. A fresh element is at
+    // zero already, and seeking one that has no data yet is not free on
+    // WebKit: the seek puts the element to work and the autoplay it was about
+    // to perform is dropped on the floor. That assignment was why the first
+    // clip needed a tap on an iPhone.
+    if (playing && playing.currentTime > 0) {
+      try {
+        playing.currentTime = 0
+      } catch {
+        // Not seekable yet — which means it is still at the beginning anyway.
+      }
     }
+
+    // Ask, then keep asking. Each `no` from iOS is usually about *now* rather
+    // than about the page — the splash is still up, the tab is not front-most,
+    // nothing is buffered — and the ask that follows a second later is taken.
+    let attempts = 0
+    const ask = () => {
+      if (!playing || !playing.paused) return
+      attempts += 1
+      play(playing, () => {
+        if (attempts >= RETRY_LIMIT) setRefused(true)
+      })
+    }
+    ask()
+    const poll = window.setInterval(() => {
+      if (!playing || !playing.paused || attempts >= RETRY_LIMIT) window.clearInterval(poll)
+      else ask()
+    }, RETRY_MS)
+
+    // The strongest signal there is: the page just became the thing on screen.
+    // A phone unlocking, an app switch back, and — the one that matters here —
+    // a home-screen PWA finally showing the page it launched behind a splash.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') ask()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('pageshow', onVisible)
+    window.addEventListener('focus', onVisible)
+
     // The clip leaving the screen keeps playing under the crossfade and is
     // only stopped once it is invisible; pausing it on the frame the swap
     // starts is a visible freeze at the top of the dissolve.
@@ -122,7 +167,14 @@ export function GateBackdrop({ clips = GATE_CLIPS }: { clips?: string[] }) {
       idle.pause()
       idle.currentTime = 0
     }, CROSSFADE_MS)
-    return () => window.clearTimeout(timer)
+
+    return () => {
+      window.clearTimeout(timer)
+      window.clearInterval(poll)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('pageshow', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
   }, [cursor, still])
 
   // A refusal is not the end of it. Any touch, tap or key is a user gesture,
@@ -167,6 +219,11 @@ export function GateBackdrop({ clips = GATE_CLIPS }: { clips?: string[] }) {
               el.muted = true
               el.setAttribute('muted', '')
               el.setAttribute('playsinline', '')
+              // Old WebKit spelling, still what some iOS versions look for.
+              el.setAttribute('webkit-playsinline', '')
+              // Nothing here is worth an AirPlay route, and being picked up as
+              // one is another way playback ends up somewhere it cannot start.
+              el.setAttribute('disableremoteplayback', '')
             }
           }}
           src={sources[slot]}
@@ -175,7 +232,7 @@ export function GateBackdrop({ clips = GATE_CLIPS }: { clips?: string[] }) {
           // clips carry no audio track in the first place.
           muted
           playsInline
-          autoPlay={slot === 0}
+          autoPlay={slot === active}
           preload={slot === active || armed ? 'auto' : 'none'}
           // `loop` is deliberately off — ending is the signal to hand over.
           // `canplay` can arrive after the effect above has already tried and
