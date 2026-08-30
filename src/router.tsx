@@ -32,6 +32,7 @@ import ShoppingItemDetail from './pages/ShoppingItem'
 import ShoppingList from './pages/ShoppingList'
 import TripEssentials from './pages/TripEssentials'
 import TripExport from './pages/TripExport'
+import TripChat from './pages/TripChat'
 import TripFiles from './pages/TripFiles'
 import TripMembers from './pages/TripMembers'
 import TripsList from './pages/TripsList'
@@ -254,6 +255,12 @@ export const router = createBrowserRouter([
               },
             ],
           },
+
+          // Chat, behind the flag *and* the route guard: with `chat-bot` off
+          // there is no button and a bookmarked /chat redirects to the trip.
+          // Not lazy — unlike the map it pulls in no library of its own, so a
+          // separate chunk would buy nothing and add a way to fail.
+          { element: <RequireChat />, children: [{ path: 'chat', element: <TripChat /> }] },
 
           // Everyone on the trip can see who else is on it; the screen itself
           // offers the owner-only controls only to an owner, and a viewer-only

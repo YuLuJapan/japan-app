@@ -30,6 +30,17 @@ export default function Journey() {
   const itinerary = useItinerary(tripId)
   const canExport = useBooleanFlag('export-trip', false)
   /**
+   * Chat, while it is rolling out. Default off, so with no PostHog answer —
+   * local dev, a deploy without analytics, a phone with no signal — there is no
+   * button, which is the right state for a feature that costs money per use.
+   *
+   * A floating button rather than a seventh nav tab, deliberately: six tabs
+   * already force three labels to shorten (`lib/nav-labels.ts`), and a seventh
+   * would need a label tier existing only when two flags are both on — a second
+   * thing to undo, which is what turning a flag off is supposed to avoid.
+   */
+  const canChat = useBooleanFlag('chat-bot', false) && canEdit
+  /**
    * The scroll-driven sushi hero, kept behind a flag rather than deleted.
    *
    * The redesign replaces it with a photo of where you are actually going, and
@@ -192,6 +203,19 @@ export default function Journey() {
             </Link>
           )}
         </div>
+      )}
+
+      {/* Floating, because chat is a thing you reach for from anywhere on this
+          screen rather than a section of it. Sits above the tab bar, which is
+          fixed, and clear of the right edge. */}
+      {canChat && (
+        <Link
+          to={`/trips/${tripId}/chat`}
+          className="fixed bottom-24 right-5 z-30 inline-flex items-center gap-2 rounded-full bg-ink px-4.5 py-3 text-sm font-bold text-canvas shadow-pop"
+          aria-label="Ask about this trip"
+        >
+          <span aria-hidden>✦</span> Ask
+        </Link>
       )}
     </div>
   )

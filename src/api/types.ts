@@ -625,3 +625,36 @@ export interface ExportPayload {
   days: ExportDay[]
   stats: ExportStats
 }
+
+// --- Chat (feature 005) ------------------------------------------------------
+
+export interface ChatMessageView {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  /** Null for the assistant, and null again once an author's account is gone. */
+  author: { user_id: string; display_name: string } | null
+  created_at: string
+}
+
+/**
+ * What the server says about this month's spending.
+ *
+ * Computed server-side and rendered as given — the client does no arithmetic
+ * over usage rows, so the notice and the enforcement cannot disagree.
+ */
+export interface ChatBudget {
+  spent_cents: number
+  cap_cents: number
+  pct: number
+  blocked: boolean
+  /** ISO date the composer comes back, when blocked. */
+  resumes_on: string | null
+}
+
+export interface ChatView {
+  /** Null until somebody asks the first question — a read never creates one. */
+  thread: { id: string; turn_running: boolean } | null
+  messages: ChatMessageView[]
+  budget: ChatBudget
+}
