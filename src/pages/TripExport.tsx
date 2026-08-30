@@ -21,19 +21,29 @@ import { capture, captureError } from '../lib/posthog'
 import { showToast } from '../lib/toast'
 import { useTripId } from '../lib/trip'
 
+/**
+ * The formats the screen offers.
+ *
+ * The JSON backup is deliberately not one of them: it answers a question
+ * ("keep everything, for a machine") that nobody on this screen is asking, and
+ * a fourth chip made the row read as a list of file types rather than a choice
+ * between three ways of reading the same trip. `ExportFormat` still names it —
+ * it is what `src/export/json.ts` and the field policy's `'json'` level are
+ * written against — so putting the chip back is one line here.
+ */
+type OfferedFormat = Exclude<ExportFormat, 'json'>
+
 /** Every writer, behind a dynamic import — none of this is in the entry bundle. */
-const RENDERERS: Record<ExportFormat, () => Promise<(p: ExportPayload) => Promise<Blob>>> = {
+const RENDERERS: Record<OfferedFormat, () => Promise<(p: ExportPayload) => Promise<Blob>>> = {
   pdf: () => import('../export/pdf').then((m) => m.renderPdf),
   docx: () => import('../export/docx').then((m) => m.renderDocx),
   xlsx: () => import('../export/xlsx').then((m) => m.renderXlsx),
-  json: () => import('../export/json').then((m) => m.renderJson),
 }
 
-const FORMATS: { id: ExportFormat; label: string; hint: string }[] = [
+const FORMATS: { id: OfferedFormat; label: string; hint: string }[] = [
   { id: 'pdf', label: 'PDF', hint: 'Reads and prints anywhere' },
   { id: 'docx', label: 'Word', hint: 'They can edit and add to it' },
-  { id: 'xlsx', label: 'Spreadsheet', hint: 'Places as sortable rows' },
-  { id: 'json', label: 'Data backup', hint: 'Everything, for keeping' },
+  { id: 'xlsx', label: 'Excel', hint: 'Places as sortable rows' },
 ]
 
 const VERSIONS: { id: ExportDetail; label: string; blurb: string }[] = [
@@ -54,7 +64,7 @@ const VERSIONS: { id: ExportDetail; label: string; blurb: string }[] = [
 type Screen =
   | { kind: 'idle' }
   | { kind: 'working'; detail: ExportDetail }
-  | { kind: 'ready'; detail: ExportDetail; format: ExportFormat; file: File }
+  | { kind: 'ready'; detail: ExportDetail; format: OfferedFormat; file: File }
 
 export default function TripExport() {
   const tripId = useTripId()
@@ -67,7 +77,7 @@ export default function TripExport() {
 
   const queryFor = (detail: ExportDetail) => (detail === 'share' ? share : full)
 
-  async function build(detail: ExportDetail, format: ExportFormat) {
+  async function build(detail: ExportDetail, format: OfferedFormat) {
     setScreen({ kind: 'working', detail })
     try {
       const query = queryFor(detail)
@@ -150,9 +160,9 @@ function ResultSheet({
   onClose,
 }: {
   detail: ExportDetail
-  format: ExportFormat
+  format: OfferedFormat
   file: File
-  onFormat: (format: ExportFormat) => void
+  onFormat: (format: OfferedFormat) => void
   onClose: () => void
 }) {
   const label = detail === 'share' ? 'Share with a friend' : 'Full copy'
