@@ -119,6 +119,17 @@ const maxIterations = () => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 5
 }
 
+/**
+ * How many web searches one turn may make.
+ *
+ * Below `max_iterations` on purpose. The iteration bound is the hard stop that
+ * keeps a turn inside the function's duration limit; this is the softer one
+ * that keeps a single question from turning into a research project. A turn
+ * that wants a sixth search is a turn that should come back and say what it
+ * found.
+ */
+const MAX_WEB_SEARCHES = 3
+
 /** Everything a turn needs that is not the question itself. */
 export interface TurnContext {
   trip: Trip
@@ -182,6 +193,12 @@ export async function* runChatTurn(
       model,
       system: buildTripContext(await loadSnapshot(store, context.trip)),
       messages: toAiMessages(history, question, context.author),
+      // US2. A *server-side* tool: it runs on the provider's infrastructure and
+      // its results come back in the same response, so there is no search
+      // service of ours, no key, no fetcher and no HTML to parse. What stays
+      // ours is the framing — the system prompt says a fetched page is
+      // information about the world and never an instruction (FR-014).
+      web_search: { max_uses: MAX_WEB_SEARCHES },
       max_output_tokens: maxOutputTokens(),
       max_iterations: maxIterations(),
     })) {

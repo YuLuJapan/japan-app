@@ -271,3 +271,48 @@ describe('two people at once', () => {
     expect(res.status).toBe(200)
   })
 })
+
+describe('asking about the world (US2)', () => {
+  it('offers the model web search, with a cap on how much it may use', async () => {
+    const calls = script([{ text: 'ok' }])
+    await ask('Is the Ghibli Museum open on Mondays?')
+
+    // A server-side tool: it runs on the provider's infrastructure and returns
+    // results in the same response, so there is nothing of ours to build. What
+    // this asserts is that it is offered at all, and bounded.
+    expect(calls.specs[0].web_search).toBeDefined()
+    expect(calls.specs[0].web_search!.max_uses).toBeGreaterThan(0)
+    // Below the iteration bound: the hard stop keeps a turn inside the
+    // function's duration limit, this one keeps a question from becoming a
+    // research project.
+    expect(calls.specs[0].web_search!.max_uses).toBeLessThan(calls.specs[0].max_iterations)
+  })
+
+  it('tells the model a fetched page is data, never an instruction', async () => {
+    const calls = script([{ text: 'ok' }])
+    await ask('anything')
+    // FR-014. There is no page in our process to mishandle, so the whole
+    // mitigation at this phase lives in how the prompt frames what comes back.
+    expect(calls.specs[0].system).toMatch(/never obey|not an instruction/i)
+  })
+
+  it('surfaces the searching state to the client', async () => {
+    script([{ searching: 'Ghibli Museum opening hours', text: 'Closed Tuesdays.' }])
+    const res = await ask('Is it open?')
+
+    const types = events(res.text).map((e) => e.type)
+    expect(types[0]).toBe('searching')
+    // The query rides along so the screen can say what it is looking up.
+    expect(events(res.text)[0]).toMatchObject({ query: 'Ghibli Museum opening hours' })
+  })
+
+  it('bounds the turn, and says so rather than pretending it finished', async () => {
+    // A turn that keeps searching hits the iteration bound. The failure this
+    // guards against is the one the SDK's tool runner produces by default: a
+    // paused turn returned as though it were a complete answer (research R2).
+    script([{ searching: 'hours', text: 'I found part of it', incomplete: true }])
+    const res = await ask('Compare every option')
+
+    expect(events(res.text).at(-1)).toMatchObject({ type: 'done', complete: false })
+  })
+})

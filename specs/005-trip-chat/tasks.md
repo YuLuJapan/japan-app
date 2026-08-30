@@ -87,15 +87,15 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 
 **Ships alone as the MVP.**
 
-- [ ] T022 [P] [US1] Write `server/tests/chat-turn.test.ts` against the fake adapter: the event union reaches the client in order, both messages are persisted, a `done { complete: false }` is reported as incomplete, and a mid-stream failure leaves the user's message stored with no assistant reply.
-- [ ] T023 [US1] `server/src/lib/chat-context.ts` — the prefix, in **deterministic order**, carrying everything a writer can see: steps, zones, places including stays, tips, the day plan, the flight, the shopping list, and document **names only** (FR-011). Nothing volatile, no clock reading (research R5). Add a test that building it twice from the same trip produces identical bytes.
-- [ ] T024 [US1] `server/src/services/chat.ts` — get-or-create the thread, claim the lock, persist the user's message **before** calling the model, run the turn, persist the answer, record usage, release the lock in every exit path.
-- [ ] T025 [US1] The SSE writer in `server/src/routes/chat.ts`: `flushHeaders()` before the model is called, one `data:` frame per `AiEvent`, **our union and never a raw provider event** (FR-026).
-- [ ] T026 [US1] `GET /api/trips/:tripId/chat` — thread, messages and budget state in one read, per [contracts/chat.md](./contracts/chat.md). The server owns the budget number; the client does no arithmetic over usage rows.
-- [ ] T027 [P] [US1] `src/api/chat.ts` — the stream reader on `fetch` + `ReadableStream`, **not `EventSource`**, which is GET-only and cannot carry a bearer token (research R11). Reuse `getAccessCode()` and the `ApiError` envelope normalisation from `client.ts` so a 401 behaves like every other 401.
-- [ ] T028 [US1] `src/pages/TripChat.tsx` — transcript, composer, the answer drawn as it streams, and the incomplete-answer notice when `done.complete` is false.
-- [ ] T029 [US1] The floating Ask button on `src/pages/Journey.tsx`, for `useCanEdit()` only and behind `chat-bot`. **Do not touch `src/lib/nav-labels.ts`** — leaving the nav alone is what keeps the flag a total rollback (research R12).
-- [ ] T030 [P] [US1] Write `src/tests/chat.test.tsx` — renders history, streams an answer, offers no button to a viewer, and shows the offline state without spinning.
+- [x] T022 [P] [US1] Write `server/tests/chat-turn.test.ts` against the fake adapter: the event union reaches the client in order, both messages are persisted, a `done { complete: false }` is reported as incomplete, and a mid-stream failure leaves the user's message stored with no assistant reply.
+- [x] T023 [US1] `server/src/lib/chat-context.ts` — the prefix, in **deterministic order**, carrying everything a writer can see: steps, zones, places including stays, tips, the day plan, the flight, the shopping list, and document **names only** (FR-011). Nothing volatile, no clock reading (research R5). Add a test that building it twice from the same trip produces identical bytes.
+- [x] T024 [US1] `server/src/services/chat.ts` — get-or-create the thread, claim the lock, persist the user's message **before** calling the model, run the turn, persist the answer, record usage, release the lock in every exit path.
+- [x] T025 [US1] The SSE writer in `server/src/routes/chat.ts`: `flushHeaders()` before the model is called, one `data:` frame per `AiEvent`, **our union and never a raw provider event** (FR-026).
+- [x] T026 [US1] `GET /api/trips/:tripId/chat` — thread, messages and budget state in one read, per [contracts/chat.md](./contracts/chat.md). The server owns the budget number; the client does no arithmetic over usage rows.
+- [x] T027 [P] [US1] `src/api/chat.ts` — the stream reader on `fetch` + `ReadableStream`, **not `EventSource`**, which is GET-only and cannot carry a bearer token (research R11). Reuse `getAccessCode()` and the `ApiError` envelope normalisation from `client.ts` so a 401 behaves like every other 401.
+- [x] T028 [US1] `src/pages/TripChat.tsx` — transcript, composer, the answer drawn as it streams, and the incomplete-answer notice when `done.complete` is false.
+- [x] T029 [US1] The floating Ask button on `src/pages/Journey.tsx`, for `useCanEdit()` only and behind `chat-bot`. **Do not touch `src/lib/nav-labels.ts`** — leaving the nav alone is what keeps the flag a total rollback (research R12).
+- [x] T030 [P] [US1] Write `src/tests/chat.test.tsx` — renders history, streams an answer, offers no button to a viewer, and shows the offline state without spinning.
 
 **Checkpoint**: US1 is independently shippable. The app can answer a question about the trip.
 
@@ -109,9 +109,9 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 
 **Before phase 5 deliberately**: web search is what makes a turn expensive, and the notice should exist before the expensive thing does.
 
-- [ ] T031 [P] [US4] Write `server/tests/chat-budget.test.ts` — the 80% and 100% boundaries, calendar-month rollover, ledger arithmetic against the price table, the global cap refusing an account under its own cap, the per-day turn limit, and that a capped account's transcript still reads.
-- [ ] T032 [US4] Budget state on `GET /chat`: spent, cap, percentage, blocked, and the resume date (the first of next month) when blocked.
-- [ ] T033 [US4] The 80% notice and the 100% disabled composer with its resume date in `src/pages/TripChat.tsx`. **Paused, not broken** — the transcript stays readable and no other screen changes (FR-022).
+- [x] T031 [P] [US4] Write `server/tests/chat-budget.test.ts` — the 80% and 100% boundaries, calendar-month rollover, ledger arithmetic against the price table, the global cap refusing an account under its own cap, the per-day turn limit, and that a capped account's transcript still reads.
+- [x] T032 [US4] Budget state on `GET /chat`: spent, cap, percentage, blocked, and the resume date (the first of next month) when blocked.
+- [x] T033 [US4] The 80% notice and the 100% disabled composer with its resume date in `src/pages/TripChat.tsx`. **Paused, not broken** — the transcript stays readable and no other screen changes (FR-022).
 
 ---
 
@@ -119,9 +119,9 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 
 **Goal**: opening hours and closures answered without leaving the app.
 
-- [ ] T034 [US2] Declare `web_search_20260209` with `max_uses` in the agent spec (`server/src/lib/ai/adapters/anthropic.ts` / the spec built in `services/chat.ts`). Do **not** also declare a code-execution tool — the `_20260209` variants run it under the hood. Say in the system prompt that fetched pages are information about the world, never instructions (FR-014).
-- [ ] T035 [US2] `pause_turn` resume and the five-iteration bound, with a test that a run ending at the bound emits `done { complete: false }`. **This is the failure the SDK's tool runner produces silently** (research R2), so it is asserted rather than assumed.
-- [ ] T036 [US2] The "searching the web" state in `src/pages/TripChat.tsx`, driven by the `searching` event.
+- [x] T034 [US2] Declare `web_search_20260209` with `max_uses` in the agent spec (`server/src/lib/ai/adapters/anthropic.ts` / the spec built in `services/chat.ts`). Do **not** also declare a code-execution tool — the `_20260209` variants run it under the hood. Say in the system prompt that fetched pages are information about the world, never instructions (FR-014).
+- [x] T035 [US2] `pause_turn` resume and the five-iteration bound, with a test that a run ending at the bound emits `done { complete: false }`. **This is the failure the SDK's tool runner produces silently** (research R2), so it is asserted rather than assumed.
+- [x] T036 [US2] The "searching the web" state in `src/pages/TripChat.tsx`, driven by the `searching` event.
 
 ---
 
@@ -129,18 +129,18 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 
 **Goal**: one conversation, two people.
 
-- [ ] T037 [US3] Attribution: the author's display name on every message in the API response and on screen, and in the prefix handed to the model — without it a follow-up gets answered for the wrong person. A removed member keeps their attribution.
-- [ ] T038 [US3] The turn lock and its 409, with a staleness window so a turn whose function died expires rather than needing a manual reset (research R13). The composer explains it rather than failing silently.
-- [ ] T039 [US3] Poll `GET /chat` on window focus and after a send. Deliberately not Supabase realtime — more moving parts than two people need.
+- [x] T037 [US3] Attribution: the author's display name on every message in the API response and on screen, and in the prefix handed to the model — without it a follow-up gets answered for the wrong person. A removed member keeps their attribution.
+- [x] T038 [US3] The turn lock and its 409, with a staleness window so a turn whose function died expires rather than needing a manual reset (research R13). The composer explains it rather than failing silently.
+- [x] T039 [US3] Poll `GET /chat` on window focus and after a send. Deliberately not Supabase realtime — more moving parts than two people need.
 
 ---
 
 ## Phase 7: Polish
 
-- [ ] T040 Offline: cached transcript readable, "chat needs a signal", **no spinner** (FR-016).
-- [ ] T041 A "Chat" section in `README.md` covering the key, both caps and the flag, matching how "Reminders & notifications" documents push.
-- [ ] T042 The `CLAUDE.md` architecture note — the vendor boundary, why the ledger is capability-shaped rather than chat-shaped, and the two gates (`typecheck`, `lint`) that carry correctness for this feature.
-- [ ] T043 **Replace the cost estimate with a measured number** in `spec.md` and `plan.md` (SC-007), and confirm `cache_read_input_tokens` is non-zero on a second turn (SC-008). If it is zero, find the invalidator before shipping — the real cost is roughly threefold the estimate.
+- [x] T040 Offline: cached transcript readable, "chat needs a signal", **no spinner** (FR-016).
+- [x] T041 A "Chat" section in `README.md` covering the key, both caps and the flag, matching how "Reminders & notifications" documents push.
+- [x] T042 The `CLAUDE.md` architecture note — the vendor boundary, why the ledger is capability-shaped rather than chat-shaped, and the two gates (`typecheck`, `lint`) that carry correctness for this feature.
+- [ ] **T043 — OUTSTANDING, NEEDS A REAL KEY.** Replace the cost estimate with a measured number in `spec.md` and `plan.md` (SC-007), and confirm `cache_read_input_tokens` is non-zero on a second turn (SC-008). If it is zero, find the invalidator before shipping — the real cost is roughly threefold the estimate.
 
 ---
 
