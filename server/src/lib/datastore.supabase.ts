@@ -1428,8 +1428,12 @@ export function createSupabaseStore(): DataStore {
         .from('chat_messages')
         .select(CHAT_MESSAGE_COLS)
         .eq('trip_id', tripId)
+        // `created_at` alone, and deliberately no tiebreak. Postgres `now()` is
+        // microsecond-resolution and the question and its answer are written by
+        // separate statements, so they cannot share a timestamp — while a
+        // secondary sort on the random uuid would be worse than nothing, putting
+        // an answer before its question whenever two rows did tie.
         .order('created_at', { ascending: true })
-        .order('id', { ascending: true })
       return ((data as Record<string, unknown>[]) ?? []).map(rowToChatMessage)
     },
 

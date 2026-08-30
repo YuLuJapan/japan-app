@@ -32,12 +32,12 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 
 **Purpose**: the six things every later phase assumes. All independent of each other except T006.
 
-- [ ] T001 [P] Declare `chat_turn_started`, `chat_turn_completed { outcome, iterations, duration_ms }` and `chat_budget_state { pct_bucket }` in `src/lib/analytics-events.ts`, in a commented section beside the export events. Declare them **before** any call site exists — `capture` is typed against this catalogue and will not compile against an undeclared name. No message text, question or answer is ever a property (FR-029).
-- [ ] T002 [P] Add `ANTHROPIC_API_KEY`, `AI_MONTHLY_CAP_CENTS`, `AI_GLOBAL_CAP_CENTS`, `AI_MAX_ITERATIONS` and `AI_DAILY_TURN_LIMIT` to `.env.example`, with the optional-at-runtime note push and PostHog already carry: **no key means the feature is absent, not broken.**
-- [ ] T003 [P] Add a `no-restricted-imports` rule to `eslint.config.js` making `@anthropic-ai/sdk` an error everywhere except `server/src/lib/ai/adapters/**`. Same discipline as `engine.leaflet.ts` (research R8). Verify it fails before it passes.
-- [ ] T004 [P] Add `functions: { "api/index.ts": { "maxDuration": 60 } }` to `vercel.json`. 60s is the Hobby ceiling for a serverless function; the default is far below it, so it must be set rather than assumed (research R10). It applies to the single function and therefore to every route — a ceiling, not a reservation.
-- [ ] T005 [P] Document both chat endpoints in `specs/001-japan-trip-app/contracts/api.md` — the contract source of truth, referenced by code comments on both sides. Include the two pre-handler refusals (404 with no key, 403 for a viewer) and the SSE event union.
-- [ ] T006 Add `@anthropic-ai/sdk` to `package.json` dependencies and install.
+- [x] T001 [P] Declare `chat_turn_started`, `chat_turn_completed { outcome, iterations, duration_ms }` and `chat_budget_state { pct_bucket }` in `src/lib/analytics-events.ts`, in a commented section beside the export events. Declare them **before** any call site exists — `capture` is typed against this catalogue and will not compile against an undeclared name. No message text, question or answer is ever a property (FR-029).
+- [x] T002 [P] Add `ANTHROPIC_API_KEY`, `AI_MONTHLY_CAP_CENTS`, `AI_GLOBAL_CAP_CENTS`, `AI_MAX_ITERATIONS` and `AI_DAILY_TURN_LIMIT` to `.env.example`, with the optional-at-runtime note push and PostHog already carry: **no key means the feature is absent, not broken.**
+- [x] T003 [P] Add a `no-restricted-imports` rule to `eslint.config.js` making `@anthropic-ai/sdk` an error everywhere except `server/src/lib/ai/adapters/**`. Same discipline as `engine.leaflet.ts` (research R8). Verify it fails before it passes.
+- [x] T004 [P] Add `functions: { "api/index.ts": { "maxDuration": 60 } }` to `vercel.json`. 60s is the Hobby ceiling for a serverless function; the default is far below it, so it must be set rather than assumed (research R10). It applies to the single function and therefore to every route — a ceiling, not a reservation.
+- [x] T005 [P] Document both chat endpoints in `specs/001-japan-trip-app/contracts/api.md` — the contract source of truth, referenced by code comments on both sides. Include the two pre-handler refusals (404 with no key, 403 for a viewer) and the SSE event union.
+- [x] T006 Add `@anthropic-ai/sdk` to `package.json` dependencies and install.
 
 **Checkpoint**: nothing user-visible has changed. `npm test`, `npm run typecheck` and `npm run lint` all pass, and T003's rule has been seen to fail on a deliberate bad import.
 
@@ -53,27 +53,27 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 
 ### The database
 
-- [ ] T007 Write `supabase/migrations/0023_chat.sql` — `chat_threads`, `chat_messages`, `ai_usage` per [data-model.md](./data-model.md), RLS enabled with no policies, index on `ai_usage (user_id, created_at)`. **Re-check the highest migration number on `main` first**: 0019 was claimed twice by parallel branches.
-- [ ] T008 **Apply 0023 to the live Supabase project** (SQL editor, or the Supabase MCP `apply_migration`). A separate act from committing it — skip it and every test passes while the deployed feature 500s on its first real request.
-- [ ] T009 [P] Add `ChatThread`, `ChatMessage`, `AiUsageRow` and the nine methods in [data-model.md](./data-model.md) to the `DataStore` interface in `server/src/lib/datastore.ts`. No unscoped list, and no unscoped usage sum by trip — the same discipline as `listPushSubscriptionsForUsers`.
-- [ ] T010 Implement them in `server/src/lib/datastore.memory.ts`. `claimChatTurn` stamps and returns in one operation, like `claimDueReminders` — a read-then-write is the race it exists to close.
-- [ ] T011 Implement them in `server/src/lib/datastore.supabase.ts`, including the monthly sum as one query rather than a fetch-and-add.
+- [x] T007 Write `supabase/migrations/0023_chat.sql` — `chat_threads`, `chat_messages`, `ai_usage` per [data-model.md](./data-model.md), RLS enabled with no policies, index on `ai_usage (user_id, created_at)`. **Re-check the highest migration number on `main` first**: 0019 was claimed twice by parallel branches.
+- [ ] **T008 — OUTSTANDING, OWNED BY THE USER.** Apply 0023 to the live Supabase project (SQL editor, or the Supabase MCP `apply_migration`). A separate act from committing it — skip it and every test passes while the deployed feature 500s on its first real request.
+- [x] T009 [P] Add `ChatThread`, `ChatMessage`, `AiUsageRow` and the nine methods in [data-model.md](./data-model.md) to the `DataStore` interface in `server/src/lib/datastore.ts`. No unscoped list, and no unscoped usage sum by trip — the same discipline as `listPushSubscriptionsForUsers`.
+- [x] T010 Implement them in `server/src/lib/datastore.memory.ts`. `claimChatTurn` stamps and returns in one operation, like `claimDueReminders` — a read-then-write is the race it exists to close.
+- [x] T011 Implement them in `server/src/lib/datastore.supabase.ts`, including the monthly sum as one query rather than a fetch-and-add.
 
 ### The AI layer
 
-- [ ] T012 [P] Write `server/tests/ai-models.test.ts` — every catalogue entry has a vendor, a capability, four prices and a context limit; every `ModelId` resolves to an adapter. Then delete a price and **watch `npm run typecheck` fail**, which is the guard this test cannot see (FR-028).
-- [ ] T013 `server/src/lib/ai/types.ts` — `AiMessage`, `AiEvent`, `AgentSpec`, `AiUsage`. **No vendor type appears in this file**, which is checkable by reading it.
-- [ ] T014 `server/src/lib/ai/models.ts` — `Record<ModelId, ModelMeta>` with `ModelId` **derived from the table**, keys namespaced `anthropic/claude-opus-5`, prices in cents per million tokens including both cache rates. No role aliases (research R9).
-- [ ] T015 `server/src/lib/ai/adapters/fake.ts` — scripted `AiEvent` sequences, including a `done { complete: false }` run and a mid-stream `error`. Every test above the adapter line runs here.
-- [ ] T016 `server/src/lib/ai/adapters/anthropic.ts` — **the only module importing the SDK.** The bounded manual loop, explicit `pause_turn` resume, `cache_control` at `ttl: '1h'`, `output_config: { effort: 'low' }`, translation into `AiEvent`, and `usage` extraction. Server-tool errors arrive as HTTP 200 with an error object in the result block, so branch on that rather than expecting a throw (research R1).
-- [ ] T017 `server/src/lib/ai/budget.ts` — the pre-flight check against `AI_MONTHLY_CAP_CENTS`, the global check against `AI_GLOBAL_CAP_CENTS`, and the priced ledger write from `models.ts`. State the known limitation in a comment: usage is known after a turn and checked before it, so one turn can cross the cap and the per-turn ceiling is what bounds the overshoot.
-- [ ] T018 `server/src/lib/ai/runtime.ts` — `runAgent(spec)` returning `AsyncIterable<AiEvent>`, resolving model → adapter, wrapping budget, telemetry and `ApiError` mapping. `setAiRuntime()` is the test seam, same idiom as `setDataStore`.
+- [x] T012 [P] Write `server/tests/ai-models.test.ts` — every catalogue entry has a vendor, a capability, four prices and a context limit; every `ModelId` resolves to an adapter. Then delete a price and **watch `npm run typecheck` fail**, which is the guard this test cannot see (FR-028).
+- [x] T013 `server/src/lib/ai/types.ts` — `AiMessage`, `AiEvent`, `AgentSpec`, `AiUsage`. **No vendor type appears in this file**, which is checkable by reading it.
+- [x] T014 `server/src/lib/ai/models.ts` — `Record<ModelId, ModelMeta>` with `ModelId` **derived from the table**, keys namespaced `anthropic/claude-opus-5`, prices in cents per million tokens including both cache rates. No role aliases (research R9).
+- [x] T015 `server/src/lib/ai/adapters/fake.ts` — scripted `AiEvent` sequences, including a `done { complete: false }` run and a mid-stream `error`. Every test above the adapter line runs here.
+- [x] T016 `server/src/lib/ai/adapters/anthropic.ts` — **the only module importing the SDK.** The bounded manual loop, explicit `pause_turn` resume, `cache_control` at `ttl: '1h'`, `output_config: { effort: 'low' }`, translation into `AiEvent`, and `usage` extraction. Server-tool errors arrive as HTTP 200 with an error object in the result block, so branch on that rather than expecting a throw (research R1).
+- [x] T017 `server/src/lib/ai/budget.ts` — the pre-flight check against `AI_MONTHLY_CAP_CENTS`, the global check against `AI_GLOBAL_CAP_CENTS`, and the priced ledger write from `models.ts`. State the known limitation in a comment: usage is known after a turn and checked before it, so one turn can cross the cap and the per-turn ceiling is what bounds the overshoot.
+- [x] T018 `server/src/lib/ai/runtime.ts` — `runAgent(spec)` returning `AsyncIterable<AiEvent>`, resolving model → adapter, wrapping budget, telemetry and `ApiError` mapping. `setAiRuntime()` is the test seam, same idiom as `setDataStore`.
 
 ### The door
 
-- [ ] T019 [P] Write `server/tests/chat-access.test.ts` — viewer 403, outsider 404, owner and partner 200, and **404 on every chat route when no key is configured** while another route is unaffected. Also assert a route added under `/chat` inherits the guard.
-- [ ] T020 `server/src/routes/chat.ts` with the `canWrite` + key guard mounted on the path (the `routes/shopping.ts` idiom), wired into `tripScopedRouter()` in `server/src/app.ts`. Handlers stubbed; phase 3 fills them.
-- [ ] T021 [P] `RequireChat` in `src/router.tsx` — `chat-bot` default **off**, gating the route as well as the entry point, modelled line for line on `RequireMap`.
+- [x] T019 [P] Write `server/tests/chat-access.test.ts` — viewer 403, outsider 404, owner and partner 200, and **404 on every chat route when no key is configured** while another route is unaffected. Also assert a route added under `/chat` inherits the guard.
+- [x] T020 `server/src/routes/chat.ts` with the `canWrite` + key guard mounted on the path (the `routes/shopping.ts` idiom), wired into `tripScopedRouter()` in `server/src/app.ts`. Handlers stubbed; phase 3 fills them.
+- [x] T021 [P] `RequireChat` in `src/router.tsx` — `chat-bot` default **off**, gating the route as well as the entry point, modelled line for line on `RequireMap`.
 
 **Checkpoint**: chat is reachable by nobody and the cap is enforceable before a single request goes on the wire. `npm test`, `npm run typecheck`, `npm run lint` pass.
 

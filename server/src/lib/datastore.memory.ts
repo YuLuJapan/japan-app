@@ -895,18 +895,14 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
     },
 
     async listChatMessages(tripId) {
-      return chatMessages
-        .filter((m) => m.trip_id === tripId)
-        .sort((a, b) =>
-          a.created_at === b.created_at
-            ? a.id < b.id
-              ? -1
-              : 1
-            : a.created_at < b.created_at
-              ? -1
-              : 1
-        )
-        .map((m) => ({ ...m }))
+      // Insertion order, not a sort. A conversation is append-only and every
+      // append is later than the last, so the array *is* the order.
+      //
+      // Sorting on `created_at` looks more careful and is worse: the question
+      // and its answer are written milliseconds apart and routinely land on the
+      // same ISO timestamp, at which point any tiebreak on a random uuid puts
+      // the answer before the question about half the time.
+      return chatMessages.filter((m) => m.trip_id === tripId).map((m) => ({ ...m }))
     },
 
     async createChatMessage(input: ChatMessageInput) {

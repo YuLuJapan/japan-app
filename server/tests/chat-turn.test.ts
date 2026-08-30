@@ -1,0 +1,273 @@
+// One turn, end to end, against the fake adapter.
+//
+// What is asserted here is mostly *ordering*, because ordering is what the
+// service exists to guarantee and what a refactor is most likely to lose:
+// the lock before the write, the question before the model, the cost before
+// `done`. None of those show up as a wrong answer — they show up as a
+// conversation that reads oddly, or a budget that lags a turn behind.
+
+import { beforeEach, afterEach, describe, expect, it } from 'vitest'
+import request from 'supertest'
+import { createApp } from '../src/app.js'
+import { setDataStore, type DataStore } from '../src/lib/datastore.js'
+import { createMemoryStore } from '../src/lib/datastore.memory.js'
+import { setAiRuntime } from '../src/lib/ai/runtime.js'
+import { createFakeRuntime, type FakeTurn } from '../src/lib/ai/adapters/fake.js'
+import { fixture, OWNER_USER } from './fixture.js'
+import { asOwner, useTestTokens } from './auth.js'
+
+const app = createApp()
+
+let store: DataStore
+
+/** Installs a script and hands back the specs the runtime was called with. */
+function script(turns: FakeTurn[]) {
+  const { runtime, calls } = createFakeRuntime(turns)
+  setAiRuntime(runtime)
+  return calls
+}
+
+/** Parses an SSE body into the event objects it carried. */
+function events(body: string): Record<string, unknown>[] {
+  return body
+    .split('\n\n')
+    .map((frame) => frame.replace(/^data: /, '').trim())
+    .filter(Boolean)
+    .map((json) => JSON.parse(json) as Record<string, unknown>)
+}
+
+const ask = (content: unknown) =>
+  asOwner(request(app).post('/api/trips/trip-1/chat/messages')).send({ content })
+
+beforeEach(() => {
+  store = createMemoryStore(fixture())
+  setDataStore(store)
+  useTestTokens()
+  script([{ text: 'Thursday is your Hakone day.' }])
+})
+
+afterEach(() => {
+  setAiRuntime(null)
+})
+
+describe('a successful turn', () => {
+  it('streams text, then usage, then done', async () => {
+    const res = await ask('What is the plan Thursday?')
+    expect(res.status).toBe(200)
+    expect(res.headers['content-type']).toContain('text/event-stream')
+
+    const types = events(res.text).map((e) => e.type)
+    expect(types).toEqual(['text', 'text', 'usage', 'done'])
+    expect(events(res.text).at(-1)).toMatchObject({ type: 'done', complete: true })
+  })
+
+  it('carries the answer in fragments the client appends', async () => {
+    // Two `text` events, not one: the screen has to append rather than replace,
+    // and a fixture that sent the answer whole would never catch a client that
+    // replaced.
+    const res = await ask('What is the plan Thursday?')
+    const text = events(res.text)
+      .filter((e) => e.type === 'text')
+      .map((e) => e.text)
+      .join('')
+    expect(text).toBe('Thursday is your Hakone day.')
+  })
+
+  it('persists both messages, question first', async () => {
+    await ask('What is the plan Thursday?')
+    const messages = await store.listChatMessages('trip-1')
+    expect(messages.map((m) => m.role)).toEqual(['user', 'assistant'])
+    expect(messages[0]).toMatchObject({
+      content: 'What is the plan Thursday?',
+      user_id: OWNER_USER.id,
+    })
+    // The assistant has no author — null rather than a synthetic account.
+    expect(messages[1]).toMatchObject({ content: 'Thursday is your Hakone day.', user_id: null })
+  })
+
+  it('creates exactly one thread, however many turns are taken', async () => {
+    await ask('One')
+    await ask('Two')
+    const messages = await store.listChatMessages('trip-1')
+    const threads = new Set(messages.map((m) => m.thread_id))
+    expect(threads.size).toBe(1)
+  })
+
+  it('records what the turn cost before it says done', async () => {
+    await ask('What is the plan Thursday?')
+    // The guarantee is that re-reading immediately after `done` already includes
+    // the turn just watched — otherwise the budget always lags by one.
+    const res = await asOwner(request(app).get('/api/trips/trip-1/chat'))
+    expect(res.body.budget.spent_cents).toBeGreaterThan(0)
+  })
+
+  it('releases the lock so the next question can be asked', async () => {
+    await ask('One')
+    const after = await store.getChatThread('trip-1')
+    expect(after?.turn_started_at).toBeNull()
+
+    const second = await ask('Two')
+    expect(second.status).toBe(200)
+  })
+
+  it('reports the thread as idle once the turn is over', async () => {
+    await ask('One')
+    const res = await asOwner(request(app).get('/api/trips/trip-1/chat'))
+    expect(res.body.thread.turn_running).toBe(false)
+  })
+})
+
+describe('what the model is given', () => {
+  it('is the trip, and the question attributed to whoever asked', async () => {
+    const calls = script([{ text: 'ok' }])
+    await ask('Where are we staying in Tokyo?')
+
+    const spec = calls.specs[0]
+    // The trip prefix, not a summary of it: the point of US1 is that answers
+    // come from real rows.
+    expect(spec.system).toContain('SAVED PLACES')
+    expect(spec.system).toContain('THE JOURNEY')
+    expect(spec.messages.at(-1)).toMatchObject({
+      role: 'user',
+      content: 'Where are we staying in Tokyo?',
+      author: 'Yuval',
+    })
+  })
+
+  it('includes the flight and the shopping list', async () => {
+    // Both are things a *writer* can already see, and refusing to answer "what
+    // time is our flight?" would be a feature that looks broken (FR-011).
+    const calls = script([{ text: 'ok' }])
+    await store.updateTrip('trip-1', {
+      flight: {
+        airline: 'Ethiopian',
+        booking_ref: 'ABC123',
+        // A real leg: `normalizeFlight` drops a direction with none, on the
+        // grounds that a flight number and two airports is the part worth
+        // carrying through an airport.
+        outbound: {
+          depart_at: '2026-10-01T05:00:00Z',
+          depart_tz: 'Asia/Jerusalem',
+          legs: [{ flight_no: 'ET404', from: 'TLV', to: 'NRT' }],
+        },
+      },
+    })
+    await store.createShoppingItem({ trip_id: 'trip-1', name: 'Kit-Kat', category: 'snacks' })
+    await ask('anything')
+
+    expect(calls.specs[0].system).toContain('ABC123')
+    expect(calls.specs[0].system).toContain('Kit-Kat')
+  })
+
+  it('carries the conversation so far, so a follow-up has context', async () => {
+    await ask('First question')
+    const calls = script([{ text: 'ok' }])
+    await ask('And the second?')
+
+    const roles = calls.specs[0].messages.map((m) => m.role)
+    expect(roles).toEqual(['user', 'assistant', 'user'])
+  })
+
+  it('builds the same prefix twice for an unchanged trip', async () => {
+    // Byte-identical, or the cached prefix is invalidated on every turn and the
+    // real cost is roughly threefold the estimate. Nothing else reports this:
+    // the answers stay correct and only the bill changes (research R5).
+    const calls = script([{ text: 'ok' }, { text: 'ok' }])
+    await ask('One')
+    await ask('Two')
+    expect(calls.specs[0].system).toBe(calls.specs[1].system)
+  })
+})
+
+describe('a turn that does not finish cleanly', () => {
+  it('says so when it stops at the iteration bound', async () => {
+    // The failure the SDK's tool runner produces silently: a paused turn
+    // returned as if it were a complete answer (research R2). Here it is a
+    // boolean on the wire.
+    script([{ text: 'I found some of it', incomplete: true }])
+    const res = await ask('Something long')
+    expect(events(res.text).at(-1)).toMatchObject({ type: 'done', complete: false })
+  })
+
+  it('keeps the partial answer when it fails mid-stream', async () => {
+    script([{ text: 'Partly through', error: { code: 'UPSTREAM', message: 'gone' } }])
+    const res = await ask('Something')
+
+    // Status is already 200 — headers were flushed with the first event — so the
+    // failure travels as an event and the text the traveller was reading stays.
+    expect(res.status).toBe(200)
+    const types = events(res.text).map((e) => e.type)
+    expect(types).toEqual(['text', 'text', 'error'])
+
+    const messages = await store.listChatMessages('trip-1')
+    expect(messages.map((m) => m.content)).toEqual(['Something', 'Partly through'])
+  })
+
+  it('leaves the question stored with no answer when nothing came back', async () => {
+    script([{ error: { code: 'UPSTREAM', message: 'gone' } }])
+    await ask('Unanswered')
+
+    // A question with no answer reads honestly. Losing what was typed would not.
+    const messages = await store.listChatMessages('trip-1')
+    expect(messages).toHaveLength(1)
+    expect(messages[0]).toMatchObject({ role: 'user', content: 'Unanswered' })
+  })
+
+  it('releases the lock after a failure', async () => {
+    script([{ error: { code: 'UPSTREAM', message: 'gone' } }])
+    await ask('Unanswered')
+    expect((await store.getChatThread('trip-1'))?.turn_started_at).toBeNull()
+  })
+})
+
+describe('a question that is not one', () => {
+  it.each([
+    ['empty', ''],
+    ['whitespace', '   '],
+    ['missing', undefined],
+    ['not a string', 42],
+  ])('refuses %s with 400 before anything is written', async (_what, content) => {
+    const res = await ask(content)
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('VALIDATION')
+    expect(await store.listChatMessages('trip-1')).toEqual([])
+  })
+
+  it('refuses one that is far too long', async () => {
+    const res = await ask('x'.repeat(5000))
+    expect(res.status).toBe(400)
+  })
+
+  it('leaves no lock behind after a refusal', async () => {
+    await ask('')
+    const thread = await store.getChatThread('trip-1')
+    // Either no thread at all, or one that is not locked. What must not happen
+    // is a rejected question holding the conversation shut.
+    expect(thread?.turn_started_at ?? null).toBeNull()
+  })
+})
+
+describe('two people at once', () => {
+  it('refuses a second turn while one is running', async () => {
+    // Simulated by taking the lock directly: driving two real requests into a
+    // race would be timing-dependent and would pass on a fast machine.
+    await store.createChatThread('trip-1')
+    await store.claimChatTurn('trip-1', new Date().toISOString(), 60_000)
+
+    const res = await ask('Me too')
+    expect(res.status).toBe(409)
+    // A 409 writes nothing at all: the lock is claimed before the question.
+    expect(await store.listChatMessages('trip-1')).toEqual([])
+  })
+
+  it('takes over a lock left behind by a turn that died', async () => {
+    await store.createChatThread('trip-1')
+    const longAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+    await store.claimChatTurn('trip-1', longAgo, 60_000)
+
+    // Otherwise a serverless function that timed out mid-turn would shut the
+    // conversation for both travellers with no way back but a manual reset.
+    const res = await ask('Still working?')
+    expect(res.status).toBe(200)
+  })
+})
