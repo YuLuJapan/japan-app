@@ -20,6 +20,7 @@ import {
 import { useCreateInvite, useCreateTrip, useDeleteTrip, useUpdateTrip } from '../api/mutations'
 import type { StrandedResolution, Traveller, Trip, TripDateImpact } from '../api/types'
 import { saveErrorMessage } from '../lib/errors'
+import { CountryPicker } from './CountryPicker'
 import { FlightFields } from './FlightFields'
 import { emptyFlight, fromDraft, toDraft, type FlightDraft } from '../lib/flight-draft'
 import { commonTimeZones, deviceTimeZone, timeZoneOptions, zoneLabel } from '../lib/flight-time'
@@ -636,15 +637,14 @@ export function TripSheet({ mode, trip, onClose }: Props) {
         <label className="label mt-4 block" htmlFor="trip-country">
           Country
         </label>
-        <input
+        <CountryPicker
           id="trip-country"
-          className="field mt-1"
-          placeholder="Japan"
           value={country}
-          onChange={(e) => onCountry(e.target.value)}
-          maxLength={80}
-          aria-invalid={!!shownError('country')}
-          aria-describedby={shownError('country') ? 'trip-country-error' : undefined}
+          onChange={onCountry}
+          countries={countries.data?.countries}
+          selected={matched}
+          invalid={!!shownError('country')}
+          describedBy={shownError('country') ? 'trip-country-error' : undefined}
         />
         <FieldError id="trip-country-error" message={shownError('country')} />
 
