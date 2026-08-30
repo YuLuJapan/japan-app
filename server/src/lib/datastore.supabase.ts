@@ -121,9 +121,9 @@ const SHOPPING_COLS =
 // not-yet-migrated database gets trips back with people defaulted to [],
 // rather than a hard 500.
 const TRIP_BASE_COLS = 'id,name,start_date,end_date,description'
-// country arrives in 0015, flight in 0017, the start time in 0020; `people` in
-// 0009. All of them degrade the same way.
-const TRIP_COLS = `${TRIP_BASE_COLS},people,country,flight,local_currency,home_currencies,start_time,start_tz`
+// country arrives in 0015, flight in 0017, the start time in 0020, the country
+// code in 0023; `people` in 0009. All of them degrade the same way.
+const TRIP_COLS = `${TRIP_BASE_COLS},people,country,country_code,flight,local_currency,home_currencies,start_time,start_tz`
 
 /** Postgres/PostgREST for "that column isn't there" — a migration not yet run. */
 function isMissingColumn(error: { code?: string } | null): boolean {
@@ -164,6 +164,9 @@ function withPeopleDefault(row: Record<string, unknown>): Trip {
     ...row,
     people,
     country: (row.country as string | null) ?? null,
+    // 0023. Absent until that migration runs, and absent is exactly what every
+    // trip written before the picker carries anyway — the text still answers.
+    country_code: (row.country_code as string | null) ?? null,
     flight: normalizeFlight(row.flight),
     // 0010/0019. Same story again: a row from before the currency pickers (or
     // a database that hasn't run 0019) still gets a working calculator.
@@ -539,6 +542,7 @@ export function createSupabaseStore(): DataStore {
         ...base,
         people: input.people ?? [],
         country: input.country ?? null,
+        country_code: input.country_code ?? null,
         local_currency: input.local_currency ?? DEFAULT_LOCAL_CURRENCY,
         home_currencies: input.home_currencies ?? [...DEFAULT_HOME_CURRENCIES],
         flight: input.flight ?? null,
@@ -556,6 +560,7 @@ export function createSupabaseStore(): DataStore {
       const fields: Record<string, unknown> = {}
       if (patch.name !== undefined) fields.name = patch.name
       if (patch.country !== undefined) fields.country = patch.country ?? null
+      if (patch.country_code !== undefined) fields.country_code = patch.country_code ?? null
       if (patch.start_date !== undefined) fields.start_date = patch.start_date
       if (patch.end_date !== undefined) fields.end_date = patch.end_date
       if (patch.description !== undefined) fields.description = patch.description ?? null
@@ -572,6 +577,7 @@ export function createSupabaseStore(): DataStore {
         const rest = { ...fields }
         delete rest.people
         delete rest.country
+        delete rest.country_code
         delete rest.local_currency
         delete rest.home_currencies
         delete rest.flight

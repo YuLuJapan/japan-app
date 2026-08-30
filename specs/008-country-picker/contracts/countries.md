@@ -21,11 +21,22 @@ list filling the trip sheet's picker is the same one that validates what it save
 - **200**:
 
   ```json
-  { "countries": [ { "code": "AF", "name": "Afghanistan" }, { "code": "JP", "name": "Japan" } ] }
+  {
+    "countries": [
+      { "code": "JP", "name": "Japan" },
+      { "code": "GB", "name": "United Kingdom", "aliases": ["UK", "Great Britain", "England"] }
+    ]
+  }
   ```
 
-  Ordered by `name`. Codes are ISO-3166-1 alpha-2, uppercase. **No flag field** — it is derived
-  from the code on the device (`src/lib/country-flag.ts`).
+  243 entries — ISO-3166-1 alpha-2, officially assigned, minus the five with no resident
+  population (AQ, BV, HM, TF, UM) — ordered by `name`. Codes are uppercase. **No flag field**:
+  it is derived from the code on the device (`src/lib/country-flag.ts`).
+
+  `aliases` is optional and **searched, never shown**. It is what lets the picker find the
+  United Kingdom from "UK" and Czechia from "Czech Republic", and what keeps all 76 keys of
+  `CURRENCY_BY_COUNTRY` — several of them alias spellings from the free-text days — resolvable
+  to a country on this list.
 
 - **401** `UNAUTHORIZED` with no valid bearer token, like every other endpoint.
 - Immutable for the life of a deployment; the client caches it with `staleTime: Infinity`.
@@ -38,9 +49,9 @@ The existing response gains one field. Nothing is removed, so an older client is
 
 ```json
 {
-  "currencies": [ { "code": "USD", "name": "US Dollar" } ],
+  "currencies": [{ "code": "USD", "name": "US Dollar" }],
   "by_country": { "japan": "JPY", "czechia": "CZK", "czech republic": "CZK" },
-  "by_code":    { "JP": "JPY", "CZ": "CZK" }
+  "by_code": { "JP": "JPY", "CZ": "CZK" }
 }
 ```
 
@@ -60,24 +71,24 @@ this is the guard.
 
 ### Fields
 
-| Field | Type | Notes |
-| --- | --- | --- |
-| `country_code` | `string \| null` | ISO-3166 alpha-2, any case on the wire, uppercased on the way in. The field a client sets. |
-| `country` | `string \| null` | Still accepted, but only as an exact name (see below). The server writes it from the list entry, so a client never chooses the stored name. |
+| Field          | Type             | Notes                                                                                                                                       |
+| -------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `country_code` | `string \| null` | ISO-3166 alpha-2, any case on the wire, uppercased on the way in. The field a client sets.                                                  |
+| `country`      | `string \| null` | Still accepted, but only as an exact name (see below). The server writes it from the list entry, so a client never chooses the stored name. |
 
 ### Rules
 
-| Sent | Result |
-| --- | --- |
-| `country_code: "JP"` | `country_code = 'JP'`, `country = 'Japan'` — the name comes from the list. |
-| `country_code: "jp"` | Same. Uppercased on the way in. |
-| `country_code: "XX"` | **400 `VALIDATION`** — `country_code must be a country from the list`. |
-| `country: "Japan"` | Resolves to the entry: `country_code = 'JP'`, `country = 'Japan'`. Exact, trimmed, case-insensitive, and only when it matches one entry. |
-| `country: "Jappan"` / `"Tokyo"` / `"JP "` as a name | **400 `VALIDATION`** — `country must be chosen from the list`. No fuzzy match, no nearest neighbour. |
-| `country_code: "JP", country: "Portugal"` | **400 `VALIDATION`** — the two disagree. Not a silent winner. |
-| `country: null` **or** `country_code: null` | Both columns clear. They are one answer in two places. |
-| Neither field present | Both untouched — the existing PATCH rule, and what the flight field already relies on. |
-| `country_code` absent, `country` absent, trip has legacy text | Untouched. Nothing is backfilled, ever. |
+| Sent                                                          | Result                                                                                                                                   |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `country_code: "JP"`                                          | `country_code = 'JP'`, `country = 'Japan'` — the name comes from the list.                                                               |
+| `country_code: "jp"`                                          | Same. Uppercased on the way in.                                                                                                          |
+| `country_code: "XX"`                                          | **400 `VALIDATION`** — `country_code must be a country from the list`.                                                                   |
+| `country: "Japan"`                                            | Resolves to the entry: `country_code = 'JP'`, `country = 'Japan'`. Exact, trimmed, case-insensitive, and only when it matches one entry. |
+| `country: "Jappan"` / `"Tokyo"` / `"JP "` as a name           | **400 `VALIDATION`** — `country must be chosen from the list`. No fuzzy match, no nearest neighbour.                                     |
+| `country_code: "JP", country: "Portugal"`                     | **400 `VALIDATION`** — the two disagree. Not a silent winner.                                                                            |
+| `country: null` **or** `country_code: null`                   | Both columns clear. They are one answer in two places.                                                                                   |
+| Neither field present                                         | Both untouched — the existing PATCH rule, and what the flight field already relies on.                                                   |
+| `country_code` absent, `country` absent, trip has legacy text | Untouched. Nothing is backfilled, ever.                                                                                                  |
 
 Errors join `collectTripErrors`'s array rather than throwing on the first bad field, so a bad
 country and a bad date arrive in one `details` list, as everywhere else.

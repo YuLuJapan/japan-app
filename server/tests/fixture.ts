@@ -59,6 +59,7 @@ export function fixture(): MemoryData {
         id: 'trip-1',
         name: 'Test Trip',
         country: 'Japan',
+        country_code: 'JP',
         start_date: '2026-10-01',
         end_date: '2026-10-14',
         description: null,
@@ -90,6 +91,8 @@ export function fixture(): MemoryData {
         id: 'trip-2',
         name: 'Someone Else’s Trip',
         country: 'Italy',
+        // Deliberately code-less: the row every trip looked like before 008.
+        country_code: null,
         start_date: '2026-11-01',
         end_date: '2026-11-10',
         description: null,

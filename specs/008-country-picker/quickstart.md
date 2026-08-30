@@ -24,7 +24,7 @@ npx vitest run server/tests/trips.test.ts
 npm run typecheck
 ```
 
-Expect: the endpoint answers ~200 entries ordered by name, each with a two-letter uppercase code;
+Expect: the endpoint answers 243 entries ordered by name, each with a two-letter uppercase code;
 every key of `CURRENCY_BY_COUNTRY` resolves to a country on the list (the guard against a
 currency guess disappearing); a trip saves with `country_code: 'JP'` and reads back with
 `country: 'Japan'`; `country_code: 'XX'` is a 400 with `details`.

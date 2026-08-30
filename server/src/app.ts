@@ -2,6 +2,7 @@ import express, { Router } from 'express'
 import { authMiddleware } from './lib/auth.js'
 import { errorMiddleware, notFound } from './lib/errors.js'
 import { requireTripAccess } from './lib/trip-context.js'
+import { countriesRouter } from './routes/countries.js'
 import { exportTripRouter } from './routes/export.js'
 import { filesTripRouter } from './routes/files.js'
 import { geocodeRouter } from './routes/geocode.js'
@@ -101,6 +102,7 @@ export function createApp() {
   app.use('/api', tripRouter)
 
   app.use('/api', ratesRouter)
+  app.use('/api', countriesRouter)
   app.use('/api', geocodeRouter)
   app.use('/api', imagesRouter)
   app.use('/api', productUrlRouter)

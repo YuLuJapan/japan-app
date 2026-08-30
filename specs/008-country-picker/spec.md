@@ -18,7 +18,7 @@ The second is somewhere to put the answer. The trip already has a free-text coun
 
 **Why this priority**: Not a story a traveller can be shown, and every story below is untestable without it. It is also the only part carrying a schema change, which has to reach the live database before any of this works there.
 
-**Independent Test**: Ask the app for the country list and confirm it answers with roughly 200 entries, each with a code, a name and a flag, and that a country the currency map already knows (Japan, Portugal, Czechia) is present exactly once. Save a trip with a country code and confirm both the code and its name are stored; read back a trip written before this existed and confirm its text is unchanged and its code is empty.
+**Independent Test**: Ask the app for the country list and confirm it answers with 243 entries, each with a code, a name and a flag, and that a country the currency map already knows (Japan, Portugal, Czechia) is present exactly once. Save a trip with a country code and confirm both the code and its name are stored; read back a trip written before this existed and confirm its text is unchanged and its code is empty.
 
 **Acceptance Scenarios**:
 
@@ -91,7 +91,7 @@ Someone with a trip already saved opens it, edits the dates, and saves. Nothing 
 - **Clearing a country that was already set.** Both the text and the code clear together. A trip must never end up with a code and no name, or a name and no code.
 - **The list has not arrived yet.** A cold start or no signal must not leave the field empty and unusable; the list is small enough to be held on the device, and a country already on the trip is shown whether or not the list has loaded.
 - **A currency the traveller already chose.** Picking a country from a list is a stronger signal than typing one, but it is still not licence to overwrite a currency the traveller set by hand.
-- **Countries the currency guess does not know.** It covers 77 keys; the list has roughly 200 entries. Picking one of the remaining ~123 leaves the currency alone rather than blanking it.
+- **Countries the currency guess does not know.** It covers 76 keys; the list has 243 entries. Picking one of the remaining ~167 leaves the currency alone rather than blanking it.
 - **Names that disagree with what someone typed.** "UK" against "United Kingdom", "Czechia" against "Czech Republic". The list's own name wins for a newly picked country; old text is never rewritten to match it.
 - **Two people editing the same trip.** Last save wins, as everywhere else. Nothing here introduces a merge.
 
@@ -109,7 +109,7 @@ Someone with a trip already saved opens it, edits the dates, and saves. Nothing 
 
 #### Picking a country
 
-- **FR-006**: The trip form MUST offer the country as a filter-as-you-type list rather than a plain text box or an unfiltered list of ~200 rows, showing each candidate's flag and name.
+- **FR-006**: The trip form MUST offer the country as a filter-as-you-type list rather than a plain text box or an unfiltered list of 243 rows, showing each candidate's flag and name.
 - **FR-007**: Typing MUST filter the list and MUST NOT itself become the saved value.
 - **FR-008**: The system MUST NOT save a country that is not on the list. This MUST be enforced where the trip is saved, not only in the form — the form is a convenience, never the guard.
 - **FR-009**: When what was typed matches no country, the system MUST refuse the save and say so beside the field, and MUST NOT clear the field, substitute a nearest match, or save the raw text.

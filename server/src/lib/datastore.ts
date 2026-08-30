@@ -124,6 +124,13 @@ export interface Trip {
   /** An override, not the title — see lib/trip-title.ts. Null means "build one". */
   name: string | null
   country: string | null
+  /**
+   * ISO 3166-1 alpha-2, and only ever one the traveller picked from the list
+   * (migration 0023, lib/countries.ts). Null for every trip written before the
+   * picker existed — text without a code is the ordinary legacy state, not a
+   * broken row, and nothing is backfilled by guessing at the text.
+   */
+  country_code: string | null
   start_date: string
   end_date: string
   description: string | null
@@ -150,7 +157,10 @@ export interface Trip {
 
 export interface TripInput {
   name?: string | null
+  /** Written by the server from the picked country's list entry, never freely. */
   country?: string | null
+  /** The country the traveller picked. Null clears it and the name with it. */
+  country_code?: string | null
   start_date: string
   end_date: string
   description?: string | null

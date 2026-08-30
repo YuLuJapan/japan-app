@@ -7,7 +7,7 @@
 ## Summary
 
 The trip sheet's `Country` text input becomes a filter-as-you-type combobox over one
-server-served list of ~200 countries, and the trip gains a `country_code` column beside the
+server-served list of 243 countries, and the trip gains a `country_code` column beside the
 free text it already has. Typing filters; only a list entry saves; the server derives the
 stored name from the code so the pair can never disagree. Everything that reads the country
 — the currency guess, the Essentials gating, the analytics grouping — prefers the code where
@@ -47,30 +47,30 @@ with the fixture store) and `src/tests/*.test.tsx` (React Testing Library). Plus
 **Project Type**: Web application — one Express app with two entry points, one React client.
 
 **Performance Goals**: The country list is one ~6 KB response cached for the session
-(`staleTime: Infinity`, the `useCurrencies` pattern). Filtering ~200 rows is a substring scan
+(`staleTime: Infinity`, the `useCurrencies` pattern). Filtering 243 rows is a substring scan
 per keystroke; no debounce, no virtual list, no index.
 
 **Constraints**: Free tiers only — static data, no geocoding, no API key. Offline-tolerant: the
 field shows the trip's own country without the list, and the service worker's `NetworkFirst`
 rule already covers `/api`. Nothing new goes to analytics.
 
-**Scale/Scope**: ~200 countries, one form field, one endpoint, one column, one migration.
+**Scale/Scope**: 243 countries, one form field, one endpoint, one column, one migration.
 
 ## Constitution Check
 
 `.specify/memory/constitution.md` is the unfilled Spec Kit template — there are no ratified
 principles to gate against. The standing rules this plan is checked against are `CLAUDE.md`'s:
 
-| Rule | How this plan satisfies it |
-| --- | --- |
-| Services take the store; never import a concrete backend | Country validation lives in `services/trips.ts` against a pure list module; no store import changes. |
-| Reference data is served, not duplicated | `GET /api/countries` serves the same module that validates the write. |
-| A route is access-checked by construction | The endpoint mounts beside `ratesRouter` — under `authMiddleware`, outside `tripScopedRouter()`. It is not trip content and must not imply it is. |
-| Committing a migration is not deploying it | `0023_trip_country_code.sql` has to be run against the live project; the plan carries that as its own task and the store tolerates the column's absence in neither direction — see Risks. |
-| Validation collects all errors | The new checks join `collectTripErrors`'s array rather than throwing on the first. |
-| A write answers with the row its list renders | `country_code` joins the trip payload every `GET` already returns; no new shape. |
-| Analytics carries shapes, never content | No new property. `trip_country` and `trip_destination` keep their meaning; the second is computed from the code where there is one. |
-| Budget | Static table. No service, no key, no cost. |
+| Rule                                                     | How this plan satisfies it                                                                                                                                                                |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Services take the store; never import a concrete backend | Country validation lives in `services/trips.ts` against a pure list module; no store import changes.                                                                                      |
+| Reference data is served, not duplicated                 | `GET /api/countries` serves the same module that validates the write.                                                                                                                     |
+| A route is access-checked by construction                | The endpoint mounts beside `ratesRouter` — under `authMiddleware`, outside `tripScopedRouter()`. It is not trip content and must not imply it is.                                         |
+| Committing a migration is not deploying it               | `0023_trip_country_code.sql` has to be run against the live project; the plan carries that as its own task and the store tolerates the column's absence in neither direction — see Risks. |
+| Validation collects all errors                           | The new checks join `collectTripErrors`'s array rather than throwing on the first.                                                                                                        |
+| A write answers with the row its list renders            | `country_code` joins the trip payload every `GET` already returns; no new shape.                                                                                                          |
+| Analytics carries shapes, never content                  | No new property. `trip_country` and `trip_destination` keep their meaning; the second is computed from the code where there is one.                                                       |
+| Budget                                                   | Static table. No service, no key, no cost.                                                                                                                                                |
 
 ## What this touches, and what it deliberately does not
 
@@ -97,7 +97,7 @@ Each slice is releasable on its own and leaves the app working.
 
 ### Slice A — Foundational: one list, one column
 
-`server/src/lib/countries.ts` (~200 entries: alpha-2 code + English name, plus `findCountry`
+`server/src/lib/countries.ts` (243 entries: alpha-2 code + English name, plus `findCountry`
 and `COUNTRY_BY_CODE`), `GET /api/countries` on a new `countriesRouter` mounted beside
 `ratesRouter`, migration `0023_trip_country_code.sql`, `country_code` through
 `DataStore`/`Trip`/both backends, and `collectTripErrors` learning the code. A guard test
@@ -239,13 +239,13 @@ boundary of the kind `src/map/` has.
 
 ## Risks
 
-| Risk | Mitigation |
-| --- | --- |
-| **The migration is committed but not run.** Production is Supabase; the deployed app would 500 on the first trip write that mentions the column while every test passes on the memory store. | Slice A ships and is applied before Slice B. The Supabase MCP `apply_migration` or the SQL editor runs it; the task list says so explicitly. |
-| **The migration number collides** with spec 005's chat tables if that lands first. | `0022` is `itinerary_category` on main today, so `0023` is free. Re-check `main` immediately before merging and renumber if 005 got there first. |
-| **A country the currency map knows falls off the list**, silently losing a currency guess. | The guard test in `server/tests/countries.test.ts` fails the build if any `CURRENCY_BY_COUNTRY` key stops resolving. |
-| **The list is unreachable** (cold function, no signal) and the field renders empty. | The value shown comes from the trip, not the list; the list is only needed to filter. The picker renders its current selection and says the list is still loading rather than blanking. |
-| **Flags render as letter pairs** on some desktop platforms. | Known and accepted (Assumptions in the spec). The name is always shown beside the flag, so nothing depends on the glyph. |
+| Risk                                                                                                                                                                                         | Mitigation                                                                                                                                                                              |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **The migration is committed but not run.** Production is Supabase; the deployed app would 500 on the first trip write that mentions the column while every test passes on the memory store. | Slice A ships and is applied before Slice B. The Supabase MCP `apply_migration` or the SQL editor runs it; the task list says so explicitly.                                            |
+| **The migration number collides** with spec 005's chat tables if that lands first.                                                                                                           | `0022` is `itinerary_category` on main today, so `0023` is free. Re-check `main` immediately before merging and renumber if 005 got there first.                                        |
+| **A country the currency map knows falls off the list**, silently losing a currency guess.                                                                                                   | The guard test in `server/tests/countries.test.ts` fails the build if any `CURRENCY_BY_COUNTRY` key stops resolving.                                                                    |
+| **The list is unreachable** (cold function, no signal) and the field renders empty.                                                                                                          | The value shown comes from the trip, not the list; the list is only needed to filter. The picker renders its current selection and says the list is still loading rather than blanking. |
+| **Flags render as letter pairs** on some desktop platforms.                                                                                                                                  | Known and accepted (Assumptions in the spec). The name is always shown beside the flag, so nothing depends on the glyph.                                                                |
 
 ## Complexity Tracking
 

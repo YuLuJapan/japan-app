@@ -9,15 +9,17 @@ that already exists.
 
 `server/src/lib/countries.ts`. Immutable, served by `GET /api/countries`, never written.
 
-| Field | Type | Notes |
-| --- | --- | --- |
-| `code` | `string` | ISO-3166-1 alpha-2, uppercase. The identity. |
-| `name` | `string` | English name, as shown and as stored on the trip. |
+| Field     | Type        | Notes                                                 |
+| --------- | ----------- | ----------------------------------------------------- |
+| `code`    | `string`    | ISO-3166-1 alpha-2, uppercase. The identity.          |
+| `name`    | `string`    | English name, as shown and as stored on the trip.     |
+| `aliases` | `string[]?` | Other spellings it answers to. Searched, never shown. |
 
 ```ts
 export interface Country {
   code: string
   name: string
+  aliases?: string[]
 }
 
 /** Every country a trip may name, ordered by name. */
@@ -40,18 +42,21 @@ derivable fact into a second source of truth.
 **Invariants**
 
 - Codes are unique and uppercase; names are unique.
-- Every key of `CURRENCY_BY_COUNTRY` resolves to exactly one entry by name (aliases included) —
-  asserted by a test, so no country can lose its currency guess when the list changes.
+- Every one of `CURRENCY_BY_COUNTRY`'s 76 keys resolves to exactly one entry by name or alias —
+  asserted by a test, so no country can lose its currency guess when the list changes. Three of
+  those keys ('england', 'scotland', 'uk') are not countries in ISO-3166 at all; they resolve to
+  the United Kingdom through its aliases, which is also what a traveller typing "England"
+  expects the picker to offer.
 - The list is ordered by name for display; nothing depends on the order.
 
 ---
 
 ## Trip (existing row, two columns for one answer)
 
-| Column | Type | Existing? | Notes |
-| --- | --- | --- | --- |
-| `country` | `text`, nullable, ≤ 80 chars | yes (0015) | The name. Free text for every row written before this feature; the list's own name for every row written after it. Read by the trip title's fallback chain, the legacy currency guess and the legacy Essentials gating. |
-| `country_code` | `text`, nullable, 2 uppercase letters | **new (0023)** | ISO-3166 alpha-2. Present only where a traveller picked from the list. Never backfilled. |
+| Column         | Type                                  | Existing?      | Notes                                                                                                                                                                                                                   |
+| -------------- | ------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `country`      | `text`, nullable, ≤ 80 chars          | yes (0015)     | The name. Free text for every row written before this feature; the list's own name for every row written after it. Read by the trip title's fallback chain, the legacy currency guess and the legacy Essentials gating. |
+| `country_code` | `text`, nullable, 2 uppercase letters | **new (0023)** | ISO-3166 alpha-2. Present only where a traveller picked from the list. Never backfilled.                                                                                                                                |
 
 ```sql
 alter table trips
@@ -61,11 +66,11 @@ alter table trips
 
 ### The three legitimate states
 
-| `country` | `country_code` | Meaning |
-| --- | --- | --- |
-| `null` | `null` | No country. Everything country-derived answers the generic answer. |
-| `'Japan'` | `'JP'` | Picked from the list. The code decides everything. |
-| `'Tokyo'`, `'japan '`, `'Jappan'` | `null` | Written before the picker. The string paths still answer, exactly as today. |
+| `country`                         | `country_code` | Meaning                                                                     |
+| --------------------------------- | -------------- | --------------------------------------------------------------------------- |
+| `null`                            | `null`         | No country. Everything country-derived answers the generic answer.          |
+| `'Japan'`                         | `'JP'`         | Picked from the list. The code decides everything.                          |
+| `'Tokyo'`, `'japan '`, `'Jappan'` | `null`         | Written before the picker. The string paths still answer, exactly as today. |
 
 A code with no name, or a name that disagrees with its code, is **not** a legitimate state, and
 the write rules below are what make it unreachable rather than merely unlikely.
@@ -92,11 +97,11 @@ not booking metadata, so no `TripView` flag withholds it.
 
 ### Consumers, and what changes for each
 
-| Consumer | Before | After |
-| --- | --- | --- |
-| `lib/trip-title.ts` fallback chain | `name → country → …` | unchanged |
-| `CURRENCY_BY_COUNTRY` guess | lowercased name | code where present (`CURRENCY_BY_CODE`), name otherwise |
-| `src/lib/destination.ts` `isJapanTrip` | whole-word string match | code where present, string match otherwise |
-| `src/lib/posthog.ts` `trip_country` | lowercased name | unchanged — the grouping is still the name |
-| `src/lib/posthog.ts` `trip_destination` | from `isJapanTrip(country)` | from `isJapanTrip(country, code)` |
-| `src/export/` field policy | `country: 'share'` (or as classified) | `country_code` must be classified too — adding it to `Trip` is a **compile error** until it is, which is the guard working as designed |
+| Consumer                                | Before                                | After                                                                                                                                  |
+| --------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/trip-title.ts` fallback chain      | `name → country → …`                  | unchanged                                                                                                                              |
+| `CURRENCY_BY_COUNTRY` guess             | lowercased name                       | code where present (`CURRENCY_BY_CODE`), name otherwise                                                                                |
+| `src/lib/destination.ts` `isJapanTrip`  | whole-word string match               | code where present, string match otherwise                                                                                             |
+| `src/lib/posthog.ts` `trip_country`     | lowercased name                       | unchanged — the grouping is still the name                                                                                             |
+| `src/lib/posthog.ts` `trip_destination` | from `isJapanTrip(country)`           | from `isJapanTrip(country, code)`                                                                                                      |
+| `src/export/` field policy              | `country: 'share'` (or as classified) | `country_code` must be classified too — adding it to `Trip` is a **compile error** until it is, which is the guard working as designed |

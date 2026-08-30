@@ -15,6 +15,7 @@
         }
       ],
       "country": "Japan",
+      "country_code": null,
       "flight": {
         "airline": "Ethiopian Airlines",
         "booking_ref": "ABC123",

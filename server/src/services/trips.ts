@@ -12,6 +12,7 @@ import {
   MAX_HOME_CURRENCIES,
   normalizeCurrency,
 } from '../lib/currencies.js'
+import { findCountryByCode, findCountryByName } from '../lib/countries.js'
 import { normalizeFlight, type FlightInfo, type FlightItinerary } from '../lib/flight.js'
 import { displayTitle } from '../lib/trip-title.js'
 import { stepView } from '../lib/step-view.js'
@@ -22,7 +23,6 @@ import { addDays, daysBetween, rangeLabel, withinRange } from '../lib/trip-dates
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const NAME_MAX = 120
-const COUNTRY_MAX = 80
 const PERSON_MAX = 60
 const PEOPLE_MAX = 12
 
@@ -231,6 +231,67 @@ function cleanFlight(value: FlightInfo | null | undefined): FlightInfo | null | 
   })
 }
 
+/**
+ * What a write is asking to do to the trip's country — or why it cannot.
+ *
+ * The country is one answer held in two columns: `country_code` (what the
+ * traveller picked) and `country` (its name, so the trip still reads as a
+ * sentence and so every row written before the picker still works). Keeping
+ * them in step is this function's whole job.
+ *
+ * `country_code` is the field a client sets, and the name is written from our
+ * own list entry — a client never chooses the stored text, which is what makes
+ * "only a country from the list can be saved" structural rather than a promise
+ * the form makes. `country` may still be sent, but only as a complete name;
+ * anything else is refused rather than corrected, because guessing that
+ * "Jappan" means Japan is how the wrong country gets stored with confidence.
+ */
+type CountryResolution =
+  | { kind: 'unchanged' }
+  | { kind: 'clear' }
+  | { kind: 'set'; country: string; country_code: string }
+  | { kind: 'error'; errors: string[] }
+
+function resolveCountry(input: Partial<TripInput>): CountryResolution {
+  const sentCode = input.country_code !== undefined
+  const sentName = input.country !== undefined
+  // The existing rule every field relies on: absent means "leave it alone".
+  if (!sentCode && !sentName) return { kind: 'unchanged' }
+
+  const code = input.country_code?.trim() || null
+  const name = input.country?.trim() || null
+  const errors: string[] = []
+
+  const byCode = code ? findCountryByCode(code) : undefined
+  if (code && !byCode) errors.push('country_code must be a country from the list')
+  const byName = name ? findCountryByName(name) : undefined
+  if (name && !byName) errors.push('country must be chosen from the list')
+  if (errors.length) return { kind: 'error', errors }
+
+  // Two fields sent, disagreeing — an emptied one included. Refused rather than
+  // resolved: picking a winner here would silently store a country nobody asked
+  // for, which is the failure this whole feature exists to stop.
+  const wishes = [
+    ...(sentCode ? [byCode?.code ?? null] : []),
+    ...(sentName ? [byName?.code ?? null] : []),
+  ]
+  if (wishes.length === 2 && wishes[0] !== wishes[1])
+    return { kind: 'error', errors: ['country and country_code must name the same country'] }
+
+  const picked = byCode ?? byName
+  if (!picked) return { kind: 'clear' }
+  return { kind: 'set', country: picked.name, country_code: picked.code }
+}
+
+/** The pair to write, or nothing when the write did not mention the country. */
+function countryFields(input: Partial<TripInput>): Partial<TripInput> {
+  const resolved = resolveCountry(input)
+  if (resolved.kind === 'unchanged') return {}
+  if (resolved.kind === 'clear') return { country: null, country_code: null }
+  if (resolved.kind === 'error') return {}
+  return { country: resolved.country, country_code: resolved.country_code }
+}
+
 function collectTripErrors(input: Partial<TripInput>, partial: boolean): string[] {
   const errors: string[] = []
   const has = (k: keyof TripInput) => input[k] !== undefined
@@ -241,11 +302,11 @@ function collectTripErrors(input: Partial<TripInput>, partial: boolean): string[
     const name = input.name.trim()
     if (name.length > NAME_MAX) errors.push(`name must be at most ${NAME_MAX} characters`)
   }
-  if (has('country') && input.country != null) {
-    const country = input.country.trim()
-    if (country.length > COUNTRY_MAX)
-      errors.push(`country must be at most ${COUNTRY_MAX} characters`)
-  }
+  // The column's 80-character cap (migration 0015) is no longer reachable from
+  // here: a name is only ever written from our own list, and the longest entry
+  // on it is 44 characters. The check went with the free text it guarded.
+  const country = resolveCountry(input)
+  if (country.kind === 'error') errors.push(...country.errors)
   if (!partial || has('start_date')) {
     if (!input.start_date || !DATE_RE.test(input.start_date))
       errors.push('start_date must be an ISO date (YYYY-MM-DD)')
@@ -438,7 +499,9 @@ export async function createTrip(
   if (errors.length) throw validation(errors)
   const trip = await store.createTrip({
     name: input.name?.trim() || null,
-    country: input.country?.trim() || null,
+    country: null,
+    country_code: null,
+    ...countryFields(input),
     start_date: input.start_date!,
     end_date: input.end_date!,
     description: input.description?.trim() || null,
@@ -517,7 +580,11 @@ export async function updateTrip(
   const clean: Partial<TripInput> = { ...fields }
   // An emptied field clears the override rather than storing "".
   if (clean.name !== undefined) clean.name = clean.name?.trim() || null
-  if (clean.country !== undefined) clean.country = clean.country?.trim() || null
+  // Both columns move together or not at all — countryFields() is the only
+  // thing that writes either, so a trip can never hold a code with no name.
+  delete clean.country
+  delete clean.country_code
+  Object.assign(clean, countryFields(fields))
   if (clean.description !== undefined) clean.description = clean.description?.trim() || null
   if (clean.people !== undefined) clean.people = cleanPeople(clean.people)
   if (clean.local_currency !== undefined)

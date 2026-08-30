@@ -13,7 +13,7 @@ English name — served by `GET /api/countries`, with no client-side copy.
 
 **Rationale**: This is exactly the shape `server/src/lib/currencies.ts` already has, and for the
 same reason stated in its own header comment: the list that fills the picker must be the list
-that validates the write, or the two drift and a picker offers something the API refuses. ~200
+that validates the write, or the two drift and a picker offers something the API refuses. 243
 rows of `{ code, name }` is about 6 KB — one cached response, not a payload worth engineering
 around.
 
@@ -43,7 +43,7 @@ adding a country is a row rather than a row plus an image.
 two letters (`JP`), not a flag. The app is mobile-first and both phone platforms render them
 properly; the name is always shown beside the flag, so nothing is lost when the glyph is not.
 
-**Alternatives considered**: an SVG sprite or flag-icon CSS (~200 assets or a webfont for
+**Alternatives considered**: an SVG sprite or flag-icon CSS (~240 assets or a webfont for
 decoration on one form field — rejected on weight); shipping a flag string per row from the API
 (rejected: it is derivable, so it would be a second source of truth for the same fact).
 
@@ -102,7 +102,7 @@ and a value and emits a selection is ~120 lines.
 
 **Alternatives considered**:
 
-- **A native `<select>`** with ~200 options. Rejected in the brief: unfiltered, it is worse on a
+- **A native `<select>`** with 243 options. Rejected in the brief: unfiltered, it is worse on a
   phone than the text box it replaces.
 - **`<input list>` + `<datalist>`.** Tempting for being free, and rejected: rendering is
   inconsistent across browsers, the value is still free text (so the guard would be entirely
@@ -132,7 +132,7 @@ opposite error — it stores the wrong country with confidence — so the line i
 `GET /api/currencies`. The trip sheet guesses from the code. Re-keying the whole map on ISO
 codes, and dropping its alias rows, is a separate task done after the picker works.
 
-**Rationale**: The map has 77 keys, several of them aliases (`czechia` and `czech republic` both
+**Rationale**: The map has 76 keys, several of them aliases (`czechia` and `czech republic` both
 → `CZK`) that exist precisely because the input was free text. Codes make the aliases redundant,
 but deleting them in the same change as the picker means a currency regression would hide inside
 the feature that caused it. A guard test asserts every existing key still resolves to a country
@@ -180,5 +180,5 @@ persistence beyond what the service worker's `NetworkFirst` rule for `/api` alre
 **Rationale**: The list is immutable for the life of a session and small. Offline, the field
 still shows the country the trip carries — that value comes from the trip, not the list — and
 the picker says the list is still loading rather than rendering as an empty box. The only thing
-lost with no list and no cache is the ability to *change* the country while offline, which is
+lost with no list and no cache is the ability to _change_ the country while offline, which is
 acceptable for a field nobody edits on a train.

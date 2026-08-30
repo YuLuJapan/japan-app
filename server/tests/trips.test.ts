@@ -480,3 +480,95 @@ describe('trips', () => {
     expect(outsider.status).toBe(404)
   })
 })
+
+// The country stopped being free text in spec 008: `country_code` is what a
+// client sets, and the name is written from the server's own list entry. These
+// are the rules that make "only a country from the list can be saved" a
+// property of the API rather than a promise the form makes.
+describe('the trip country', () => {
+  const dates = { start_date: '2027-02-06', end_date: '2027-02-14' }
+
+  it('writes the name from the code, whatever case the code arrives in', async () => {
+    const res = await request(app)
+      .post('/api/trips')
+      .set(OWNER_BEARER)
+      .send({ country_code: 'jp', ...dates })
+    expect(res.status).toBe(201)
+    expect(res.body.trip).toMatchObject({ country: 'Japan', country_code: 'JP' })
+  })
+
+  it('refuses a code that is not a country', async () => {
+    const res = await request(app)
+      .post('/api/trips')
+      .set(OWNER_BEARER)
+      .send({ country_code: 'XX', ...dates })
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('VALIDATION')
+    expect(res.body.error.details.join(' ')).toContain('country_code must be a country')
+  })
+
+  it('accepts a complete name and resolves it to its code', async () => {
+    const res = await request(app)
+      .post('/api/trips')
+      .set(OWNER_BEARER)
+      .send({ country: ' japan ', ...dates })
+    expect(res.status).toBe(201)
+    expect(res.body.trip).toMatchObject({ country: 'Japan', country_code: 'JP' })
+  })
+
+  it('refuses free text rather than correcting it', async () => {
+    for (const country of ['Jappan', 'Tokyo', 'Jap']) {
+      const res = await request(app)
+        .post('/api/trips')
+        .set(OWNER_BEARER)
+        .send({ country, ...dates })
+      expect(res.status).toBe(400)
+      expect(res.body.error.details.join(' ')).toContain('country must be chosen from the list')
+    }
+  })
+
+  it('refuses a name and a code that disagree, rather than picking a winner', async () => {
+    const res = await request(app)
+      .post('/api/trips')
+      .set(OWNER_BEARER)
+      .send({ country: 'Portugal', country_code: 'JP', ...dates })
+    expect(res.status).toBe(400)
+    expect(res.body.error.details.join(' ')).toContain('must name the same country')
+  })
+
+  it('clears both columns together', async () => {
+    const res = await request(app)
+      .patch('/api/trips/trip-1')
+      .set(OWNER_BEARER)
+      .send({ country: null })
+    expect(res.status).toBe(200)
+    expect(res.body.trip.country).toBeNull()
+    expect(res.body.trip.country_code).toBeNull()
+  })
+
+  it('leaves both alone when a patch does not mention the country', async () => {
+    const res = await request(app)
+      .patch('/api/trips/trip-1')
+      .set(OWNER_BEARER)
+      .send({ description: 'Unrelated edit' })
+    expect(res.status).toBe(200)
+    expect(res.body.trip).toMatchObject({ country: 'Japan', country_code: 'JP' })
+  })
+
+  // trip-2 is the shape every trip had before the picker: text, no code. It has
+  // to keep working untouched — nothing here writes a code onto it by guessing.
+  it('leaves a trip that predates the picker exactly as it is', async () => {
+    const store = createMemoryStore(fixture())
+    setDataStore(store)
+    await store.upsertTripMember({ trip_id: 'trip-2', user_id: VIEWER_USER.id, role: 'owner' })
+
+    const before = await asViewer(request(app).get('/api/trips/trip-2'))
+    expect(before.body.trip).toMatchObject({ country: 'Italy', country_code: null })
+
+    const patched = await asViewer(request(app).patch('/api/trips/trip-2')).send({
+      description: 'Still the same country',
+    })
+    expect(patched.status).toBe(200)
+    expect(patched.body.trip).toMatchObject({ country: 'Italy', country_code: null })
+  })
+})

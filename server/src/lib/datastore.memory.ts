@@ -318,6 +318,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         id: randomUUID(),
         name: input.name ?? null,
         country: input.country ?? null,
+        country_code: input.country_code ?? null,
         start_date: input.start_date,
         end_date: input.end_date,
         description: input.description ?? null,
@@ -343,6 +344,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       if (patch.description !== undefined) trip.description = patch.description ?? null
       if (patch.people !== undefined) trip.people = patch.people ?? []
       if (patch.country !== undefined) trip.country = patch.country ?? null
+      if (patch.country_code !== undefined) trip.country_code = patch.country_code ?? null
       if (patch.local_currency !== undefined) trip.local_currency = patch.local_currency
       if (patch.home_currencies !== undefined) trip.home_currencies = patch.home_currencies
       if (patch.flight !== undefined) trip.flight = normalizeFlight(patch.flight)

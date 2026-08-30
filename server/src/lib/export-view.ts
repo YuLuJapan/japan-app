@@ -106,6 +106,10 @@ export const TRIP_FIELD_POLICY: Record<keyof Trip | 'title', ExportLevel> = {
   start_date: 'share',
   end_date: 'share',
   country: 'share',
+  // The name already says where the trip is; a code adds nothing a reader
+  // can use, and promoting it would mean a field on the outline and a
+  // rendering decision in all four writers.
+  country_code: 'never',
   description: 'full',
   name: 'never', // reaches the file only through `title`
   flight: 'never', // FR-004a — out of *both* versions, for an owner too
