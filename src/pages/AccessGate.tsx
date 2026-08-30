@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import type { Session } from '@supabase/supabase-js'
 import { api, clearAccessCode, getAccessCode, setAccessCode } from '../api/client'
 import { RingMark } from '../components/RingMark'
+import { readLoginArrival, type LoginArrival, type LoginLink } from '../lib/login-arrival'
 import { capture } from '../lib/posthog'
 import { getSupabaseClient } from '../lib/supabaseClient'
 
@@ -11,28 +13,39 @@ type Mode = 'signin' | 'signup'
 /**
  * Is a sign-in already in flight as this screen mounts?
  *
- * Google and the magic link both leave the page and come back to /gate with
- * the session in the URL — `?code=` for the PKCE flow supabase-js uses now,
- * `#access_token=` for the implicit one. Reading the URL takes supabase-js a
- * moment and proving the token against /me takes a round trip, and for that
- * second or two this screen used to render its full set of sign-in buttons:
- * someone who had just authenticated with Google was shown "Continue with
- * Google" again, as if it had not worked, and then bounced to the trips list
- * mid-tap.
+ * Google and every emailed link leave the page and come back to /gate with the
+ * session in the URL (lib/login-arrival.ts reads which). Reading the URL takes
+ * supabase-js a moment and proving the token against /me takes a round trip,
+ * and for that second or two this screen used to render its full set of
+ * sign-in buttons: someone who had just authenticated with Google was shown
+ * "Continue with Google" again, as if it had not worked, and then bounced to
+ * the trips list mid-tap.
  *
  * A stored token counts too — it means the last session is being restored
  * rather than started, which ends in the same navigation.
  */
-function resumingSignIn(): boolean {
-  const params = new URLSearchParams(window.location.search)
-  const hash = window.location.hash
-  const fragment = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash)
-  return (
-    params.has('code') ||
-    fragment.has('access_token') ||
-    fragment.has('refresh_token') ||
-    !!getAccessCode()
-  )
+function resumingSignIn(arrival: LoginArrival): boolean {
+  return arrival.redirect || !!getAccessCode()
+}
+
+/** What proved this caller, as far as the URL and the session are willing to say. */
+interface SignInFacts {
+  /** 'password' | 'magic_link' | 'email_link' | the provider of an OAuth session. */
+  method: string
+  /** The emailed link that carried it, so the click can be counted as one. */
+  link: LoginLink | null
+}
+
+/**
+ * Which credential a redirect arrived on.
+ *
+ * The URL is asked first and the session second: `app_metadata.provider` says
+ * 'email' for a magic link, a confirmation link and a password alike, so it
+ * can name Google and nothing finer.
+ */
+function redirectMethod(arrival: LoginArrival, session: Session): string {
+  if (arrival.link) return arrival.link === 'magic_link' ? 'magic_link' : 'email_link'
+  return session.user?.app_metadata?.provider ?? 'unknown'
 }
 
 /**
@@ -42,10 +55,25 @@ function resumingSignIn(): boolean {
  * project could be misconfigured, or the API unreachable — and landing on a
  * trips list that immediately bounces back here is a worse first second than
  * an error on the gate.
+ *
+ * It is also where the sign-in is *reported*, because this is the one place
+ * that knows a sign-in just happened and that both sides said yes. The auth
+ * listener cannot: supabase-js emits `SIGNED_IN` for a session merely restored
+ * from storage, on every load and every return to the tab (see lib/session.tsx).
+ * `signIn` is null when nothing was proved — arriving at /gate with a live
+ * session is a restore, not a sign-in.
  */
-async function completeSignIn(token: string, navigate: (path: string, opts?: object) => void) {
+async function completeSignIn(
+  token: string,
+  navigate: (path: string, opts?: object) => void,
+  signIn: SignInFacts | null
+) {
   setAccessCode(token)
   await api.get<{ user: { id: string } }>('/me')
+  if (signIn) {
+    capture('user_signed_in', { method: signIn.method })
+    if (signIn.link) capture('login_link_opened', { link_type: signIn.link, outcome: 'signed_in' })
+  }
   navigate('/trips', { replace: true })
 }
 
@@ -61,10 +89,12 @@ function readableAuthError(message: string): string {
 }
 
 export default function AccessGate() {
-  // Resolved once, at mount: the URL still carries the redirect's payload
-  // here, and supabase-js strips it as soon as it has read it.
+  // Both resolved once, at mount, and in this order: the URL still carries the
+  // redirect's payload here, and supabase-js strips it the moment the client is
+  // created — which is what `getSupabaseClient()` on the next line does.
+  const [arrival] = useState(readLoginArrival)
   const [screen, setScreen] = useState<Screen>(() =>
-    getSupabaseClient() && resumingSignIn() ? 'resolving' : 'choose'
+    getSupabaseClient() && resumingSignIn(arrival) ? 'resolving' : 'choose'
   )
   const [mode, setMode] = useState<Mode>('signin')
   const [email, setEmail] = useState('')
@@ -74,23 +104,44 @@ export default function AccessGate() {
   const navigate = useNavigate()
   const supabase = getSupabaseClient()
 
-  // Landing back here after tapping the magic link or returning from Google:
+  // Landing back here after tapping an emailed link or returning from Google:
   // Supabase has already parsed the session out of the URL by the time this runs.
+  //
+  // Each of the three ways this can end reports the tapped link, and every one
+  // of those captures goes *before* the mount check: the link was opened
+  // whether or not this screen is still on the page a moment later.
   useEffect(() => {
     if (!supabase) return
     let cancelled = false
+    const linkFailed = (outcome: 'no_session' | 'refused') => {
+      if (!arrival.link) return
+      capture('login_link_opened', {
+        link_type: arrival.link,
+        outcome,
+        error_code: arrival.errorCode ?? undefined,
+      })
+    }
     supabase.auth
       .getSession()
       .then(({ data }) => {
-        if (cancelled) return
         if (!data.session) {
           // Nothing came back — a cancelled Google prompt, a link that had
-          // already been used. Whatever the guess at mount was, there is
-          // nobody to sign in, so offer the ways in again.
+          // already been used or expired. Whatever the guess at mount was,
+          // there is nobody to sign in, so offer the ways in again.
+          linkFailed('no_session')
+          if (cancelled) return
           setScreen((current) => (current === 'resolving' ? 'choose' : current))
           return
         }
-        return completeSignIn(data.session.access_token, navigate).catch(() => {
+        if (cancelled) return
+        return completeSignIn(
+          data.session.access_token,
+          navigate,
+          arrival.redirect
+            ? { method: redirectMethod(arrival, data.session), link: arrival.link }
+            : null
+        ).catch(() => {
+          linkFailed('refused')
           if (cancelled) return
           clearAccessCode()
           supabase.auth.signOut()
@@ -99,6 +150,7 @@ export default function AccessGate() {
         })
       })
       .catch(() => {
+        linkFailed('refused')
         if (cancelled) return
         setError('Could not check your sign-in — try again.')
         setScreen('choose')
@@ -106,7 +158,7 @@ export default function AccessGate() {
     return () => {
       cancelled = true
     }
-  }, [supabase, navigate])
+  }, [supabase, navigate, arrival])
 
   async function signInWithGoogle() {
     if (!supabase || busy) return
@@ -143,17 +195,21 @@ export default function AccessGate() {
           : await supabase.auth.signInWithPassword(credentials)
       if (authError) throw authError
       // Sign-up with email confirmation on returns no session — the account
-      // exists but cannot be used until the link is tapped.
+      // exists but cannot be used until the link is tapped. That link is one of
+      // the emailed ways in, so it is counted as one.
       if (!data.session) {
+        if (mode === 'signup') capture('login_link_sent', { link_type: 'signup' })
         setScreen('sent')
         return
       }
-      // Only the *account creation* is reported here — this is the one place
-      // that knows it was a sign-up rather than a sign-in. The session that
-      // follows is reported by SessionProvider, which sees every path (Google
-      // and the magic link never come back through this handler).
+      // Two events, not one: this is the only place that knows the account was
+      // just *created* rather than merely opened, and the sign-in that follows
+      // is reported by `completeSignIn` along with every other way in.
       if (mode === 'signup') capture('user_signed_up', { method: 'password' })
-      await completeSignIn(data.session.access_token, navigate)
+      await completeSignIn(data.session.access_token, navigate, {
+        method: 'password',
+        link: null,
+      })
     } catch (err) {
       clearAccessCode()
       setError(
@@ -176,6 +232,7 @@ export default function AccessGate() {
         options: { emailRedirectTo: `${window.location.origin}/gate` },
       })
       if (sendError) throw sendError
+      capture('login_link_sent', { link_type: 'magic_link' })
       setScreen('sent')
     } catch {
       setError('Could not send the link — try again.')

@@ -13,6 +13,7 @@
 //    trusted, and the offending value never leaves the device.
 import type { Category, ExportDetail, ExportFormat, ShoppingCategory, TripRole } from '../api/types'
 import type { InstallOutcome, InstallPlatform } from './install'
+import type { LoginLink } from './login-arrival'
 
 /**
  * What a trip is, minus everything that identifies it.
@@ -148,9 +149,28 @@ export interface AnalyticsEventProperties {
   invitation_declined: undefined
 
   // Account
+  /**
+   * A sign-in that just happened, reported from the gate rather than from the
+   * auth listener — see the note in lib/session.tsx for why a `SIGNED_IN` event
+   * is not one. `method` is the credential: 'password', 'magic_link',
+   * 'email_link' (a confirmation or invitation link), or the provider Supabase
+   * names for an OAuth session ('google').
+   */
   user_signed_in: { method: string }
   /** Only the account's creation; the session that follows is a sign-in. */
   user_signed_up: { method: string }
+
+  // Emailed sign-in links. Two events, because the interesting half of a link
+  // is the half no other event can see: one that was tapped and did *not* end
+  // in a session — expired, already used — looks exactly like a link nobody
+  // opened. `error_code` is the provider's own short code, a shape rather than
+  // content; the address the link was sent to never leaves the device.
+  login_link_sent: { link_type: 'magic_link' | 'signup' }
+  login_link_opened: {
+    link_type: LoginLink
+    outcome: 'signed_in' | 'no_session' | 'refused'
+    error_code?: string
+  }
   user_signed_out: undefined
   terms_accepted: undefined
 

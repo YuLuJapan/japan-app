@@ -14,7 +14,7 @@ import { createContext, useContext, useEffect, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { clearAccessCode, setAccessCode } from '../api/client'
 import type { TripRole, TripShows } from '../api/types'
-import { capture, identify } from './posthog'
+import { identify } from './posthog'
 import { getSupabaseClient } from './supabaseClient'
 
 /**
@@ -93,18 +93,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
       if (session) {
         setAccessCode(session.access_token)
-        // 'SIGNED_IN' is the one event that means *this* sign-in just happened:
-        // a restored session arrives as 'INITIAL_SESSION' and a rotated token as
-        // 'TOKEN_REFRESHED'. That distinction is why the sign-in event belongs
-        // here and not on the gate — Google and the magic link both leave the
-        // page and come back, so the gate's own submit handler never sees them,
-        // and the effect that finishes those redirects cannot tell a fresh
-        // sign-in from someone merely re-opening the app with a live session.
-        if (event === 'SIGNED_IN') {
-          identifySessionUser(session)
-          // 'google' | 'email' — Supabase records which credential was used.
-          capture('user_signed_in', { method: session.user.app_metadata.provider ?? 'unknown' })
-        }
+        // Note what 'SIGNED_IN' does *not* mean: supabase-js emits it from
+        // `_recoverAndRefresh` for any valid session found in storage, which it
+        // runs at start-up and again on every hidden → visible transition. So a
+        // sign-in event reported from here counted app opens and tab switches,
+        // and never the sign-in itself: that one is emitted while /gate is
+        // still on screen, before this provider — which lives inside
+        // RequireAccess — has mounted to hear it. `user_signed_in` is captured
+        // by the gate instead, which knows both which credential was used and
+        // that the API accepted it.
+        //
+        // Identifying on it is right either way: the id is the same whether the
+        // session was just started or merely restored, and it must be
+        // established before any protected screen reports anything.
+        if (event === 'SIGNED_IN') identifySessionUser(session)
       }
     })
     return () => {

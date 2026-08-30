@@ -25,6 +25,7 @@ import {
   type TripFacts,
 } from './analytics-events'
 import { isJapanTrip } from './destination'
+import { isStandalone } from './push'
 
 /**
  * The public project token, or null when analytics is switched off.
@@ -39,6 +40,19 @@ export const posthogKey =
 
 /** True when `posthog.init` has actually run, so calls are worth making. */
 export const analyticsEnabled = Boolean(posthogKey)
+
+/** Which shell the app is running in: installed to the Home Screen, or a tab. */
+export type DisplayMode = 'standalone' | 'browser'
+
+/**
+ * Installed app or browser tab, as the display mode reports it.
+ *
+ * The same question lib/push.ts asks — an installed app is the only place iOS
+ * allows web push — so it is the same answer, from `isStandalone()`, rather
+ * than a second sniff that can drift from it. There is no third state: a
+ * browser that hides its chrome without being installed is still a browser.
+ */
+export const displayMode = (): DisplayMode => (isStandalone() ? 'standalone' : 'browser')
 
 export const posthogOptions: Partial<PostHogConfig> = {
   api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
@@ -63,6 +77,19 @@ export const posthogOptions: Partial<PostHogConfig> = {
     capture_unhandled_errors: true,
     capture_unhandled_rejections: true,
     capture_console_errors: false,
+  },
+
+  // Registered as a super property rather than passed per call, for the reason
+  // the trip context is: an event that had to remember to say which shell it
+  // happened in would forget, and `$pageview` — sent by PostHog itself — could
+  // never say it at all. It answers the question the install nudge exists for,
+  // which is not "how many installed?" but "is the installed app used
+  // differently?", and it can only be answered if *every* event carries it.
+  //
+  // On `loaded` rather than at module scope because registering needs an
+  // initialised client, and this is the callback that says there is one.
+  loaded: (client) => {
+    client.register({ display_mode: displayMode() })
   },
 }
 
@@ -125,6 +152,11 @@ export function identify(distinctId: string, personProperties?: Record<string, u
 export function reset() {
   if (!analyticsEnabled) return
   posthog.reset()
+  // `reset` clears the super properties along with the identity, and the shell
+  // the app is running in is a property of the device rather than of the person
+  // who was signed in — without this, everything the next person does on a
+  // Home Screen app is reported as if it happened in a browser tab.
+  posthog.register({ display_mode: displayMode() })
 }
 
 // --- trip context ------------------------------------------------------------

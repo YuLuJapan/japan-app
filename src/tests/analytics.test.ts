@@ -341,3 +341,33 @@ describe('error reporting', () => {
     )
   })
 })
+
+// Installed app or browser tab. Registered rather than passed, so that it is on
+// every event — including the $pageviews PostHog sends itself, which is where
+// "is the Home Screen app used differently?" is actually answered.
+describe('which shell the app is running in', () => {
+  it('reports a browser tab as one', async () => {
+    const { displayMode } = await loadWith('phc_test')
+    expect(displayMode()).toBe('browser')
+  })
+
+  it('reports the installed app from the same signal push already asks for', async () => {
+    const spy = vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true } as MediaQueryList)
+    const { displayMode } = await loadWith('phc_test')
+    expect(displayMode()).toBe('standalone')
+    spy.mockRestore()
+  })
+
+  it('registers it as soon as there is a client to register it on', async () => {
+    const { posthogOptions } = await loadWith('phc_test')
+    posthogOptions.loaded?.(mocks as never)
+    expect(mocks.register).toHaveBeenCalledWith({ display_mode: 'browser' })
+  })
+
+  it('puts it back after a sign-out, which clears the super properties with the identity', async () => {
+    const { reset } = await loadWith('phc_test')
+    reset()
+    expect(mocks.reset).toHaveBeenCalled()
+    expect(mocks.register).toHaveBeenCalledWith({ display_mode: 'browser' })
+  })
+})
