@@ -10,7 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { ChunkBoundary, isChunkLoadError } from '../components/ChunkBoundary'
+import { ChunkBoundary } from '../components/ChunkBoundary'
+import { isChunkLoadError } from '../lib/chunks'
 
 const reload = vi.hoisted(() => vi.fn())
 vi.mock('../lib/reload', () => ({ reloadPage: reload }))

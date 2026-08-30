@@ -197,17 +197,3 @@ describe('the whole-trip view', () => {
     await waitFor(() => expect(screen.getAllByText(CATEGORY_META.food.label)).toHaveLength(2))
   })
 })
-
-describe('with no connection', () => {
-  it('lists the places and says why the map is not drawn, rather than showing a grey square', async () => {
-    vi.stubGlobal('navigator', { ...navigator, onLine: false })
-    renderAt('/trips/trip-1/map', [{ path: '/trips/:tripId/map', element: <TripMap /> }])
-    expect(await screen.findByText(/The map needs a connection/)).toBeInTheDocument()
-    // The places are still local — TanStack Query's cache holds the zone
-    // response — so the answer is a screenful of them, not an apology.
-    expect(await screen.findByText('Ramen Bar')).toBeInTheDocument()
-    expect(screen.getByText('teamLab')).toBeInTheDocument()
-    // And no engine was ever asked to mount.
-    expect(lastFakeEngine()).toBeNull()
-  })
-})

@@ -30,50 +30,9 @@
 // repeat.
 import { Component, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { canRecoverFromStaleChunk, isChunkLoadError, recoverFromStaleChunk } from '../lib/chunks'
 import { captureError } from '../lib/posthog'
 import { reloadPage } from '../lib/reload'
-
-const MARK = 'onward:chunk-reload'
-
-/**
- * How long a reload counts as "just tried". Long enough that a boot which
- * fails the same way lands inside it, short enough that the next deploy in a
- * long-lived tab is a fresh chance rather than a screen that refuses to retry.
- */
-const RECENT_MS = 10_000
-
-/**
- * Whether the browser is telling us a module would not load, in the words each
- * engine happens to use for it. Matched on the message because there is no
- * error type to check: a failed dynamic import is a plain `TypeError`.
- */
-export function isChunkLoadError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error ?? '')
-  return /importing a module script failed|failed to fetch dynamically imported module|error loading dynamically imported module|unable to preload/i.test(
-    message
-  )
-}
-
-// Both guarded: a browser set to block site data throws on the accessor
-// itself, and a boundary that cannot read its own mark should still show the
-// message rather than take the whole screen down with a second error.
-const reloadedRecently = () => {
-  try {
-    return Date.now() - Number(sessionStorage.getItem(MARK) ?? 0) < RECENT_MS
-  } catch {
-    // No memory of a reload means no protection from looping, so the safe
-    // reading is that one has just happened.
-    return true
-  }
-}
-
-const rememberReload = () => {
-  try {
-    sessionStorage.setItem(MARK, String(Date.now()))
-  } catch {
-    /* private browsing; `reloadedRecently` has already refused the reload */
-  }
-}
 
 interface State {
   /** What went wrong, or nothing. A missing chunk is worth its own message. */
@@ -86,19 +45,18 @@ export class ChunkBoundary extends Component<{ children: ReactNode }, State> {
   state: State = { failure: 'none', reloading: false }
 
   static getDerivedStateFromError(error: unknown): State {
-    const chunk = isChunkLoadError(error)
-    return { failure: chunk ? 'chunk' : 'other', reloading: chunk && !reloadedRecently() }
+    return {
+      failure: isChunkLoadError(error) ? 'chunk' : 'other',
+      reloading: canRecoverFromStaleChunk(error),
+    }
   }
 
   componentDidCatch(error: unknown) {
-    const chunk = isChunkLoadError(error)
     // Reported either way: a chunk that will not load is invisible from the
     // outside precisely because the recovery works, and "how often does the
     // app have to restart itself" is the number worth having.
-    captureError(error, 'chunk', { recovered: chunk && !reloadedRecently() })
-    if (!chunk || reloadedRecently()) return
-    rememberReload()
-    reloadPage()
+    captureError(error, 'chunk', { recovered: canRecoverFromStaleChunk(error) })
+    recoverFromStaleChunk(error)
   }
 
   render() {
