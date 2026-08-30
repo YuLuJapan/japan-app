@@ -1,6 +1,15 @@
+// The sign-in screen, rebuilt on the 2026-08-30 design: the app's own travel
+// footage full-bleed behind the mark, the name and the two ways in, with
+// everything readable sitting on the scrim rather than on a coral panel.
+//
+// The Apple button went with the rebuild. It had been disabled since it was
+// added — there are no Apple credentials — and the design draws two buttons,
+// not three greyed-out promises. Nothing was wired to it, so nothing but the
+// row is gone; add it back next to Google when the credentials exist.
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, clearAccessCode, getAccessCode, setAccessCode } from '../api/client'
+import { GateBackdrop } from '../components/GateBackdrop'
 import { RingMark } from '../components/RingMark'
 import { capture } from '../lib/posthog'
 import { getSupabaseClient } from '../lib/supabaseClient'
@@ -185,160 +194,162 @@ export default function AccessGate() {
   }
 
   return (
-    <div
-      className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-6"
-      style={{
-        background: 'linear-gradient(150deg,#F9873F 0%,#F1543F 55%,#E3402F 100%)',
-      }}
-    >
-      <div className="absolute -left-16 top-10 h-56 w-56 rounded-full bg-white/15 blur-2xl" />
-      <div className="absolute -right-10 bottom-24 h-64 w-64 rounded-full bg-black/10 blur-2xl" />
-      <div className="relative w-full max-w-app text-center">
-        <div className="mx-auto w-fit">
-          <RingMark size={88} />
+    <div className="relative flex min-h-dvh flex-col overflow-hidden bg-ink">
+      <GateBackdrop />
+
+      <div className="relative z-10 mx-auto flex w-full max-w-app flex-1 flex-col px-6 pt-16 pb-[max(2.25rem,env(safe-area-inset-bottom))]">
+        {/* The mark and the name float in the middle of the picture; every way
+            in sits at the bottom, under the thickest part of the scrim and
+            within reach of a thumb. */}
+        <div className="flex flex-1 flex-col items-center justify-center pb-10 text-center">
+          <RingMark size={76} />
+          <h1 className="on-photo mt-7 font-display text-[2.75rem] font-extrabold leading-none tracking-tight text-white">
+            Onward
+          </h1>
+          <p className="on-photo mt-3 text-[15px] font-medium text-white/85">
+            Every trip, one pocket
+          </p>
         </div>
-        <h1 className="mt-6 font-display text-4xl font-bold tracking-tight text-white">Onward</h1>
-        <p className="mt-2 text-white/85">Your trip companion</p>
 
-        {screen === 'resolving' && (
-          <div className="mt-10 flex flex-col items-center gap-3" role="status">
-            <span className="h-8 w-8 animate-spin rounded-full border-[3px] border-white/35 border-t-white" />
-            <p className="text-sm font-semibold text-white">Signing you in…</p>
-          </div>
-        )}
+        <div className="w-full">
+          {screen === 'resolving' && (
+            <div className="flex flex-col items-center gap-3 py-6" role="status">
+              <span className="h-8 w-8 animate-spin rounded-full border-[3px] border-white/35 border-t-white" />
+              <p className="on-photo text-sm font-semibold text-white">Signing you in…</p>
+            </div>
+          )}
 
-        {screen === 'sent' && (
-          <div className="mt-10 flex flex-col gap-3 text-left">
-            <p className="text-center text-sm font-semibold text-white">
-              Check your email — we sent a sign-in link to {email.trim()}.
-            </p>
-            <button
-              type="button"
-              onClick={() => setScreen('choose')}
-              className="text-center text-sm text-white/85 underline underline-offset-2"
-            >
-              Use a different way in
-            </button>
-          </div>
-        )}
+          {screen === 'sent' && (
+            <div className="flex flex-col gap-3">
+              <p className="on-photo text-center text-sm font-semibold text-white">
+                Check your email — we sent a sign-in link to {email.trim()}.
+              </p>
+              <button
+                type="button"
+                onClick={() => setScreen('choose')}
+                className="on-photo text-center text-sm text-white/85 underline underline-offset-2"
+              >
+                Use a different way in
+              </button>
+            </div>
+          )}
 
-        {screen === 'email' && (
-          <form onSubmit={submitPassword} className="mt-10 flex w-full flex-col gap-3 text-left">
-            <input
-              type="email"
-              inputMode="email"
-              autoComplete="email"
-              autoFocus
-              className="field border-transparent text-center shadow-pop"
-              placeholder="you@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              aria-label="Email"
-            />
-            <input
-              type="password"
-              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-              className="field border-transparent text-center shadow-pop"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              aria-label="Password"
-            />
-            {error && <p className="text-center text-sm font-semibold text-white">{error}</p>}
-            <button
-              type="submit"
-              className="btn min-h-12 bg-ink text-white shadow-pop hover:bg-ink/90"
-              disabled={busy}
-            >
-              {busy ? 'Working…' : mode === 'signup' ? 'Create account' : 'Sign in'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setError(null)
-                setMode(mode === 'signup' ? 'signin' : 'signup')
-              }}
-              className="py-1 text-center text-sm text-white/85 underline underline-offset-2"
-            >
-              {mode === 'signup' ? 'I already have an account' : 'Create an account'}
-            </button>
-            <button
-              type="button"
-              onClick={sendMagicLink}
-              disabled={busy}
-              className="py-1 text-center text-sm text-white/85 underline underline-offset-2"
-            >
-              Email me a sign-in link instead
-            </button>
-            <button
-              type="button"
-              onClick={() => setScreen('choose')}
-              className="py-1.5 text-center text-sm text-white/85"
-            >
-              Other ways to sign in
-            </button>
-          </form>
-        )}
-
-        {screen === 'choose' && (
-          <div className="mt-10 flex w-full flex-col gap-2.5">
-            <button
-              type="button"
-              disabled={!supabase || busy}
-              title={supabase ? undefined : 'Google sign-in isn’t set up on this deployment yet'}
-              onClick={signInWithGoogle}
-              className={`btn min-h-12 justify-start gap-3 px-5 shadow-pop ${
-                supabase
-                  ? 'bg-white text-ink hover:bg-white/90'
-                  : 'cursor-not-allowed bg-white/70 text-ink/50'
-              }`}
-            >
-              <span
-                className={`h-5 w-5 rounded-full ${supabase ? '' : 'opacity-60'}`}
-                style={{
-                  background: 'conic-gradient(#EA4335 0 25%,#FBBC05 0 50%,#34A853 0 75%,#4285F4 0)',
-                }}
-                aria-hidden
+          {screen === 'email' && (
+            <form onSubmit={submitPassword} className="flex w-full flex-col gap-3 text-left">
+              <input
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                autoFocus
+                className="field border-transparent text-center shadow-pop"
+                placeholder="you@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                aria-label="Email"
               />
-              Continue with Google
-            </button>
-            <button
-              type="button"
-              disabled
-              title="Coming soon — needs Apple sign-in set up"
-              className="btn min-h-12 cursor-not-allowed justify-start gap-3 bg-ink/70 px-5 text-white/60"
-            >
-              <span className="h-4 w-4 rounded-full bg-white/60" aria-hidden />
-              Continue with Apple ID
-            </button>
-            <button
-              type="button"
-              disabled={!supabase}
-              title={supabase ? undefined : 'Email sign-in isn’t set up on this deployment yet'}
-              onClick={() => {
-                setError(null)
-                setMode('signin')
-                setScreen('email')
-              }}
-              className={`btn min-h-12 border-[1.5px] ${
-                supabase
-                  ? 'border-white/55 bg-transparent text-white hover:bg-white/10'
-                  : 'cursor-not-allowed border-white/25 bg-transparent text-white/50'
-              }`}
-            >
-              Continue with email
-            </button>
+              <input
+                type="password"
+                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                className="field border-transparent text-center shadow-pop"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                aria-label="Password"
+              />
+              {error && (
+                <p className="on-photo text-center text-sm font-semibold text-white">{error}</p>
+              )}
+              <button
+                type="submit"
+                className="btn min-h-[3.25rem] bg-white text-ink shadow-pop hover:bg-white/90"
+                disabled={busy}
+              >
+                {busy ? 'Working…' : mode === 'signup' ? 'Create account' : 'Sign in'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null)
+                  setMode(mode === 'signup' ? 'signin' : 'signup')
+                }}
+                className="on-photo py-1 text-center text-sm text-white/85 underline underline-offset-2"
+              >
+                {mode === 'signup' ? 'I already have an account' : 'Create an account'}
+              </button>
+              <button
+                type="button"
+                onClick={sendMagicLink}
+                disabled={busy}
+                className="on-photo py-1 text-center text-sm text-white/85 underline underline-offset-2"
+              >
+                Email me a sign-in link instead
+              </button>
+              <button
+                type="button"
+                onClick={() => setScreen('choose')}
+                className="on-photo py-1.5 text-center text-sm text-white/85"
+              >
+                Other ways to sign in
+              </button>
+            </form>
+          )}
 
-            {error && <p className="mt-1 text-center text-sm font-semibold text-white">{error}</p>}
-          </div>
-        )}
+          {screen === 'choose' && (
+            <div className="flex w-full flex-col gap-3">
+              <button
+                type="button"
+                disabled={!supabase || busy}
+                title={supabase ? undefined : 'Google sign-in isn’t set up on this deployment yet'}
+                onClick={signInWithGoogle}
+                className={`btn min-h-[3.25rem] gap-3 px-5 text-[15px] shadow-pop ${
+                  supabase
+                    ? 'bg-white text-ink hover:bg-white/90'
+                    : 'cursor-not-allowed bg-white/70 text-ink/50'
+                }`}
+              >
+                <span
+                  className={`h-5 w-5 rounded-full ${supabase ? '' : 'opacity-60'}`}
+                  style={{
+                    background:
+                      'conic-gradient(#EA4335 0 25%,#FBBC05 0 50%,#34A853 0 75%,#4285F4 0)',
+                  }}
+                  aria-hidden
+                />
+                Continue with Google
+              </button>
+              <button
+                type="button"
+                disabled={!supabase}
+                title={supabase ? undefined : 'Email sign-in isn’t set up on this deployment yet'}
+                onClick={() => {
+                  setError(null)
+                  setMode('signin')
+                  setScreen('email')
+                }}
+                className={`btn min-h-[3.25rem] border-[1.5px] text-[15px] backdrop-blur-[2px] ${
+                  supabase
+                    ? 'border-white/60 bg-white/5 text-white hover:bg-white/15'
+                    : 'cursor-not-allowed border-white/25 bg-transparent text-white/50'
+                }`}
+              >
+                Continue with email
+              </button>
+
+              {error && (
+                <p className="on-photo mt-1 text-center text-sm font-semibold text-white">
+                  {error}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* This used to make the same promise with nothing behind it — no
             terms existed and nothing recorded an agreement. The documents are
             real now, and agreeing is an explicit step after sign-in
             (components/TermsGate.tsx), so this is a signpost rather than a
             claim that continuing binds you to something unread. */}
-        <p className="mt-6 text-center text-[11px] leading-relaxed text-white/70">
+        <p className="on-photo mt-6 text-center text-[11px] leading-relaxed text-white/75">
           <Link className="underline" to="/terms">
             Terms of use
           </Link>{' '}

@@ -38,3 +38,13 @@ Blob.prototype.text ??= function (this: Blob) {
     reader.readAsText(this)
   })
 }
+
+// jsdom implements no media playback at all: HTMLMediaElement's play/pause/load
+// exist but report "not implemented" to the virtual console, and play() returns
+// undefined rather than a promise. The gate's video backdrop drives all three
+// (src/components/GateBackdrop.tsx), so they are stubbed into no-ops here —
+// what those tests assert is which clip is on screen, which is an attribute
+// and a style, not playback.
+HTMLMediaElement.prototype.play = () => Promise.resolve()
+HTMLMediaElement.prototype.pause = () => {}
+HTMLMediaElement.prototype.load = () => {}
