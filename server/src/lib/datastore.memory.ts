@@ -37,6 +37,7 @@ import type {
   ZoneInput,
 } from './datastore.js'
 import { CATEGORIES } from './datastore.js'
+import { cityKeyFor } from './city-key.js'
 import { normalizeFlight } from './flight.js'
 import { DEFAULT_HOME_CURRENCIES, DEFAULT_LOCAL_CURRENCY, normalizeCurrency } from './currencies.js'
 
@@ -424,6 +425,9 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         image_url: input.image_url ?? null,
         lat: input.lat ?? null,
         lng: input.lng ?? null,
+        // Derived here rather than by the caller so every zone has one, and
+        // never rewritten afterwards — see lib/city-key.ts.
+        city_key: input.city_key ?? cityKeyFor(input.name),
       }
       db.zones.push(zone)
       return structuredClone(zone)

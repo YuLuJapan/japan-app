@@ -141,6 +141,12 @@ export interface ZoneSummary {
   image_url?: string | null
   lat?: number | null
   lng?: number | null
+  /**
+   * Which visits are the same city. A zone is one *visit*, so a trip that goes
+   * to Tokyo twice holds two of them; this is what groups the siblings for the
+   * visit label and the move picker. Null means "visited once".
+   */
+  city_key?: string | null
   place_counts: Record<Category, number>
 }
 
@@ -273,7 +279,9 @@ export interface FileMeta {
 }
 
 export type FileParent =
-  { kind: 'trip' } | { kind: 'zone'; id: string } | { kind: 'place'; id: string }
+  | { kind: 'trip' }
+  | { kind: 'zone'; id: string }
+  | { kind: 'place'; id: string }
 
 export interface TripDocument extends FileMeta {
   attached_to: { kind: 'trip' | 'zone' | 'place'; id: string; name: string }
@@ -286,6 +294,32 @@ export interface FileUploadInput {
   data_base64: string
 }
 
+/** One other visit of the same city — what the move picker offers. */
+export interface VisitSibling {
+  zone_id: string
+  start_date: string | null
+  end_date: string | null
+  ordinal: number
+}
+
+/**
+ * Which visit a zone is. A zone is one *visit* to a city, so a trip that goes
+ * to Tokyo twice has two of these.
+ *
+ * `total: 1` is the ordinary case: a city visited once has no siblings, so
+ * `visitLabel` returns '' and nothing about visits is rendered at all.
+ * Dates are null for a visit no longer on the journey — a stop was deleted and
+ * its content deliberately kept.
+ */
+export interface VisitInfo {
+  step_id: string | null
+  start_date: string | null
+  end_date: string | null
+  ordinal: number
+  total: number
+  siblings: VisitSibling[]
+}
+
 export interface ZoneDetail {
   zone: {
     id: string
@@ -295,7 +329,9 @@ export interface ZoneDetail {
     image_url?: string | null
     lat?: number | null
     lng?: number | null
+    city_key?: string | null
   }
+  visit: VisitInfo
   tips: Tip[]
   files: FileMeta[]
   place_counts: Record<Category, number>

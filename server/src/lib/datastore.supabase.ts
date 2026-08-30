@@ -33,6 +33,7 @@ import type {
   ZoneInput,
 } from './datastore.js'
 import { CATEGORIES, normalizeTraveller } from './datastore.js'
+import { cityKeyFor } from './city-key.js'
 import { normalizeFlight } from './flight.js'
 import { DEFAULT_HOME_CURRENCIES, DEFAULT_LOCAL_CURRENCY, normalizeCurrency } from './currencies.js'
 import { FILES_BUCKET, getSupabase } from './supabase.js'
@@ -42,7 +43,7 @@ const SIGNED_URL_TTL = 300 // seconds
 // zones.trip_id (migration 0013). Every zone belongs to exactly one trip, which
 // is what lets the trip-scoped queries below filter in SQL rather than in JS:
 // a place, tip or file is in the trip when its zone is.
-const ZONE_COLS = 'id,trip_id,name,name_ja,summary,image_url,lat,lng'
+const ZONE_COLS = 'id,trip_id,name,name_ja,summary,image_url,lat,lng,city_key'
 
 /** The trip's place ids — how tips and files hanging off a place are scoped. */
 const placeIdsFor = async (
@@ -685,6 +686,9 @@ export function createSupabaseStore(): DataStore {
         image_url: input.image_url ?? null,
         lat: input.lat ?? null,
         lng: input.lng ?? null,
+        // Derived here rather than by the caller so every zone has one, and
+        // never rewritten afterwards — see lib/city-key.ts.
+        city_key: input.city_key ?? cityKeyFor(input.name),
       }
       const { data, error } = await db.from('zones').insert(row).select().single()
       if (error) throw new Error(error.message)

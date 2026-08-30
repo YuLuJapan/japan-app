@@ -90,6 +90,11 @@ export const ZONE_FIELD_POLICY: Record<keyof Zone, ExportLevel> = {
   summary: 'full',
   id: 'never', // the document expresses structure by nesting, not by id
   trip_id: 'never',
+  // Plumbing, not trip content: which visits are the same city (spec 011).
+  // A reader sees the two stays as two sections with their own dates, which
+  // is the whole of what the key exists to arrange — the key itself says
+  // nothing a traveller would want in a document.
+  city_key: 'never',
   name_ja: 'never',
   image_url: 'never',
   lat: 'never',
@@ -312,18 +317,20 @@ export function projectExport(
   }
 
   const steps: ExportStep[] = []
-  // A zone reached by more than one step appears under each — the document
-  // follows the journey, not the map — so the counts deduplicate by id.
-  const counted = new Set<string>()
+  let placeCount = 0
   let placesWithoutAddress = 0
 
+  // One step, one zone, one set of places. This used to deduplicate by place
+  // id, because a city visited twice was a single zone reached by two steps —
+  // so Tokyo's places were rendered under both stays and counted twice. A zone
+  // is now one *visit* (spec 011), which removes the double count along with
+  // the double rendering, and the `counted` Set with it.
   for (const step of source.steps) {
     const zone = zonesById.get(step.zone_id)
     if (!zone) continue
     const zonePlaces = placesByZone.get(zone.id) ?? []
     for (const place of zonePlaces) {
-      if (counted.has(place.id)) continue
-      counted.add(place.id)
+      placeCount++
       if (!place.address?.trim()) placesWithoutAddress++
     }
     steps.push({
@@ -347,7 +354,7 @@ export function projectExport(
     steps,
     days,
     stats: {
-      place_count: counted.size,
+      place_count: placeCount,
       places_without_address: placesWithoutAddress,
       // Days carrying something, not days listed: `days` is now the whole
       // trip, so the two are different numbers and this is the one that

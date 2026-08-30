@@ -144,84 +144,102 @@
   "zones": [
     {
       "id": "zone-hakone",
+      "trip_id": "trip-japan",
       "name": "Hakone",
       "name_ja": "箱根",
       "summary": "Onsen town in the mountains — hot springs, the Hakone loop and (weather permitting) Mt. Fuji views over Lake Ashi.",
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/View_of_Mount_Fuji_from_Lake_Ashi.jpg/3840px-View_of_Mount_Fuji_from_Lake_Ashi.jpg",
       "lat": 35.2324,
-      "lng": 139.1069
+      "lng": 139.1069,
+      "city_key": "hakone"
     },
     {
       "id": "zone-fuji",
+      "trip_id": "trip-japan",
       "name": "Fujikawaguchiko",
       "name_ja": "富士河口湖",
       "summary": "Lake Kawaguchi at the foot of Mt. Fuji — the classic postcard views.",
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/5/50/Fujikawaguchiko_2013-11-13_%2810863157174%29.jpg",
       "lat": 35.5171,
-      "lng": 138.7639
+      "lng": 138.7639,
+      "city_key": "fujikawaguchiko"
     },
     {
       "id": "zone-matsumoto",
+      "trip_id": "trip-japan",
       "name": "Matsumoto",
       "name_ja": "松本",
       "summary": "Castle town in the Japanese Alps — one-night stop between Fuji and Takayama.",
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/d/dd/Matsumoto_Montage.jpg",
       "lat": 36.2381,
-      "lng": 137.972
+      "lng": 137.972,
+      "city_key": "matsumoto"
     },
     {
       "id": "zone-takayama",
+      "trip_id": "trip-japan",
       "name": "Takayama",
       "name_ja": "高山",
       "summary": "Beautifully preserved old town in the Hida mountains — morning markets and Hida beef.",
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/f/f8/Takayama%27s_Early_Winter_Welcome_%28NE%29.jpg",
       "lat": 36.1461,
-      "lng": 137.2522
+      "lng": 137.2522,
+      "city_key": "takayama"
     },
     {
       "id": "zone-kanazawa",
+      "trip_id": "trip-japan",
       "name": "Kanazawa",
       "name_ja": "金沢",
       "summary": "Edo-period districts, one of Japan's top three gardens, and a great food market.",
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/%E6%9C%9B%E6%B9%96%E5%8F%B0%EF%BC%92.jpg/3840px-%E6%9C%9B%E6%B9%96%E5%8F%B0%EF%BC%92.jpg",
       "lat": 36.5613,
-      "lng": 136.6562
+      "lng": 136.6562,
+      "city_key": "kanazawa"
     },
     {
       "id": "zone-kyoto",
+      "trip_id": "trip-japan",
       "name": "Kyoto",
       "name_ja": "京都",
       "summary": "Temples, gardens, geisha districts and old streets — four full days.",
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/3/3c/Kiyomizu.jpg",
       "lat": 35.0116,
-      "lng": 135.7681
+      "lng": 135.7681,
+      "city_key": "kyoto"
     },
     {
       "id": "zone-osaka",
+      "trip_id": "trip-japan",
       "name": "Osaka",
       "name_ja": "大阪",
       "summary": "Japan's kitchen — neon, street food and day-trip base (Nara, Kobe, Himeji).",
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Osaka_Castle_02bs3200.jpg/3840px-Osaka_Castle_02bs3200.jpg",
       "lat": 34.6937,
-      "lng": 135.5023
+      "lng": 135.5023,
+      "city_key": "osaka"
     },
     {
       "id": "zone-tokyo",
+      "trip_id": "trip-japan",
       "name": "Tokyo",
       "name_ja": "東京",
       "summary": "Arrival city and grand finale — Shinjuku, Shibuya, Asakusa and everything in between.",
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/b/b2/Skyscrapers_of_Shinjuku_2009_January.jpg",
       "lat": 35.6895,
-      "lng": 139.6917
+      "lng": 139.6917,
+      "city_key": "tokyo"
     },
     {
       "id": "zone-atami",
+      "trip_id": "trip-japan",
       "name": "Atami",
       "name_ja": "熱海",
       "summary": "Seaside onsen town on the Izu peninsula — ocean-view hot springs, kaiseki dinners and a slow wind-down before the Tokyo finale.",
       "image_url": "https://commons.wikimedia.org/wiki/Special:FilePath/Atami_from_the_mountain_top%2C_Atami%2C_Shizuoka%2C_Japan.JPG?width=1600",
       "lat": 35.0956,
-      "lng": 139.0736
+      "lng": 139.0736,
+      "city_key": "atami"
     }
   ],
   "places": [

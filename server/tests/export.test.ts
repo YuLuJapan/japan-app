@@ -11,7 +11,7 @@ import request from 'supertest'
 import { createApp } from '../src/app.js'
 import { setDataStore, type DataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
-import { VIEWER_USER, fixture, largeFixture } from './fixture.js'
+import { VIEWER_USER, fixture, fixtureWithRepeatedCity, largeFixture } from './fixture.js'
 import { asOutsider, asOwner, asViewer, useTestTokens } from './auth.js'
 
 const app = createApp()
@@ -256,5 +256,55 @@ describe('a trip three times the real size', () => {
     )
     expect(names).toHaveLength(124)
     expect(names).toContain('Place 12-10')
+  })
+})
+
+describe('a city visited twice (spec 011)', () => {
+  beforeEach(() => {
+    store = createMemoryStore(fixtureWithRepeatedCity())
+    setDataStore(store)
+  })
+
+  it.each(['share', 'full'])(
+    'renders each stay as its own section, repeating nothing (%s, FR-018)',
+    async (detail) => {
+      // Before spec 011 a repeated city was one zone reached by two steps, so
+      // the document listed every one of Tokyo's places under *both* stays —
+      // and the stats needed a dedup Set to stop counting them twice. Now each
+      // stop projects its own zone, so neither happens.
+      const res = await asOwner(request(app).get(`/api/trips/trip-1/export?detail=${detail}`))
+      expect(res.status).toBe(200)
+      const payload = res.body.export
+
+      const tokyoSections = payload.steps.filter(
+        (s: { zone: { name: string } }) => s.zone.name === 'Tokyo'
+      )
+      expect(tokyoSections).toHaveLength(2)
+
+      // In journey order, each with its own dates.
+      expect(tokyoSections.map((s: { start_date: string }) => s.start_date)).toEqual([
+        '2026-10-05',
+        '2026-10-12',
+      ])
+
+      // The second stay is empty; nothing from the first is echoed under it.
+      const names = (section: { zone: { places?: { name: string }[] } }) =>
+        (section.zone.places ?? []).map((p) => p.name)
+      expect(names(tokyoSections[0]).length).toBeGreaterThan(0)
+      expect(names(tokyoSections[1])).toEqual([])
+
+      // No place appears in more than one section, anywhere in the document.
+      const all = payload.steps.flatMap(names)
+      expect(new Set(all).size).toBe(all.length)
+    }
+  )
+
+  it('counts each place once without needing to deduplicate', async () => {
+    const res = await asOwner(request(app).get('/api/trips/trip-1/export?detail=full'))
+    const payload = res.body.export
+    const rendered = payload.steps.flatMap(
+      (s: { zone: { places?: unknown[] } }) => s.zone.places ?? []
+    )
+    expect(payload.stats.place_count).toBe(rendered.length)
   })
 })
