@@ -167,4 +167,6 @@ sumAllAiUsageCents(sinceIso)             -> number              // the global ki
 
 `claimChatTurn` stamps and returns in one operation, for the same reason `claimDueReminders` does: two overlapping requests must not both believe they hold the lock. Doing it as a read then a write is the race it exists to close.
 
+**The two sums are computed in application code, in both backends.** A Postgres function was written first and removed: the row count is bounded by the very cap it feeds — an account cannot record more spend than the cap before it is blocked — so reading the window and adding it up stays small by construction, while a SQL implementation would be two more objects to apply to the live project and a second version of the cap that the memory store could drift from unnoticed. The Supabase side **pages** through the window rather than taking one response on trust: PostgREST truncates at `db-max-rows` where one is set, and a short read here does not fail — it returns a total that is too small, so the cap never trips and the only symptom is the bill.
+
 There is deliberately **no unscoped `listChatMessages()`** and no unscoped usage sum by trip — the same discipline as `listPushSubscriptionsForUsers`, where an unscoped list is how every reminder once reached every device.

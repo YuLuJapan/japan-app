@@ -281,6 +281,38 @@ async function selectItinerary(
 export function createSupabaseStore(): DataStore {
   const db = getSupabase()
 
+  /**
+   * Add up `cost_cents` over a window of the ledger.
+   *
+   * Summed here rather than by a Postgres function, deliberately. The row count
+   * is bounded by the very cap this feeds — an account cannot record more spend
+   * than the cap before it is blocked — so "fetch the month and add it up" stays
+   * small by construction, and the alternative would be two more schema objects
+   * to apply to the live project plus a second, untested implementation of the
+   * cap that the memory store could silently drift from.
+   *
+   * **It pages, and that is not defensive habit.** PostgREST caps a response at
+   * `db-max-rows` when one is configured, and a truncated page here would not
+   * fail — it would return a number that is too small, so the cap would never
+   * trip and the only symptom would be the bill. Reading until a short page
+   * arrives is what makes the total independent of that setting.
+   */
+  async function sumUsage(sinceIso: string, userId?: string): Promise<number> {
+    const PAGE = 1000
+    let total = 0
+    for (let from = 0; ; from += PAGE) {
+      const base = db.from('ai_usage').select('cost_cents').gte('created_at', sinceIso)
+      const scoped = userId ? base.eq('user_id', userId) : base
+      const { data, error } = await scoped.range(from, from + PAGE - 1)
+      if (error) throw new Error(error.message)
+      const rows = (data as { cost_cents: number | string }[]) ?? []
+      // numeric(12,4) arrives as a string from PostgREST; `+` on strings would
+      // concatenate, and the cap would compare a very long string to a number.
+      for (const row of rows) total += Number(row.cost_cents)
+      if (rows.length < PAGE) return total
+    }
+  }
+
   /** A file is in the trip when it hangs off the trip, or off one of its zones or places. */
   const fileBelongs = async (tripId: string, file: FileAttachment): Promise<boolean> => {
     if (file.trip_id) return file.trip_id === tripId
@@ -1458,20 +1490,11 @@ export function createSupabaseStore(): DataStore {
     },
 
     async sumAiUsageCents(userId, sinceIso) {
-      // A function rather than fetching the month's rows and adding them here:
-      // this runs before every turn, and the row count grows with use.
-      const { data, error } = await db.rpc('ai_usage_spend_cents', {
-        p_user_id: userId,
-        p_since: sinceIso,
-      })
-      if (error) throw new Error(error.message)
-      return Number(data ?? 0)
+      return sumUsage(sinceIso, userId)
     },
 
     async sumAllAiUsageCents(sinceIso) {
-      const { data, error } = await db.rpc('ai_usage_total_cents', { p_since: sinceIso })
-      if (error) throw new Error(error.message)
-      return Number(data ?? 0)
+      return sumUsage(sinceIso)
     },
 
     async listPushSubscriptionsForUsers(userIds) {

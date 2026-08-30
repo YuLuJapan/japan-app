@@ -57,7 +57,7 @@ Relative imports under `server/` carry explicit `.js` extensions. No semicolons,
 - [ ] **T008 — OUTSTANDING, OWNED BY THE USER.** Apply 0023 to the live Supabase project (SQL editor, or the Supabase MCP `apply_migration`). A separate act from committing it — skip it and every test passes while the deployed feature 500s on its first real request.
 - [x] T009 [P] Add `ChatThread`, `ChatMessage`, `AiUsageRow` and the nine methods in [data-model.md](./data-model.md) to the `DataStore` interface in `server/src/lib/datastore.ts`. No unscoped list, and no unscoped usage sum by trip — the same discipline as `listPushSubscriptionsForUsers`.
 - [x] T010 Implement them in `server/src/lib/datastore.memory.ts`. `claimChatTurn` stamps and returns in one operation, like `claimDueReminders` — a read-then-write is the race it exists to close.
-- [x] T011 Implement them in `server/src/lib/datastore.supabase.ts`, including the monthly sum as one query rather than a fetch-and-add.
+- [x] T011 Implement them in `server/src/lib/datastore.supabase.ts`. The monthly sum reads the window and adds it up here rather than in a Postgres function: the row count is bounded by the cap it feeds, and a second implementation of the cap in SQL would be two more objects to apply and a place the memory store could silently drift from. It **pages** — a truncated PostgREST response would undercount, and an undercounted cap never trips.
 
 ### The AI layer
 
