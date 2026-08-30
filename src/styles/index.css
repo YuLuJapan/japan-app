@@ -42,6 +42,13 @@
   .field[type='time']::-webkit-date-and-time-value {
     @apply m-0 block w-full text-left;
   }
+  /* White type directly on a photograph — the gate's title, its tagline and
+     its plain-text links. The scrim under them handles the average frame; this
+     is what carries the bright ones, where a white noon sky passes under white
+     text and a shadow is the only thing separating them. */
+  .on-photo {
+    text-shadow: 0 1px 10px rgba(0, 0, 0, 0.55);
+  }
   .label {
     @apply mb-1.5 block text-xs font-bold uppercase tracking-wide text-muted;
   }

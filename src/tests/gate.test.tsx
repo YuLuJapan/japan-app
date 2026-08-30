@@ -1,7 +1,6 @@
 // The sign-in screen. Two shapes, decided entirely by whether Supabase Auth is
 // configured: with it, Google and email+password are live; without it there is
-// no way in at all, and the buttons say so rather than failing on tap. Apple
-// stays disabled either way (no credentials yet).
+// no way in at all, and the buttons say so rather than failing on tap.
 //
 // The shared access code used to be the fallback here. It is gone, so an
 // unconfigured deployment is genuinely unusable — which is the honest state,
@@ -60,7 +59,6 @@ describe('AccessGate — Supabase Auth not configured', () => {
     renderAt('/gate', routes)
 
     expect(screen.getByRole('button', { name: /Continue with Google/ })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /Continue with Apple ID/ })).toBeDisabled()
     expect(screen.getByRole('button', { name: /Continue with email/ })).toBeDisabled()
     expect(screen.queryByLabelText('Access code')).not.toBeInTheDocument()
   })

@@ -97,6 +97,29 @@ export default defineConfig({
             },
           },
           {
+            // The sign-in screen's video backdrop (public/gate/): ~1.7 MB of
+            // silent H.264 that must not be in the precache — mp4 is outside
+            // Workbox's glob deliberately, so the install stays small and the
+            // clips are fetched by the one screen that shows them. CacheFirst
+            // is what keeps a second visit from paying for them again.
+            //
+            // Unlike the sushi frames these filenames carry no build hash, so
+            // a replaced clip would be served stale for as long as the entry
+            // lives; the expiry is short enough to make that a day rather than
+            // a month, and re-cutting a clip should change its filename.
+            urlPattern: ({ url }) => url.pathname.startsWith('/gate/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'gate-backdrop',
+              expiration: { maxEntries: 8, maxAgeSeconds: 60 * 60 * 24 },
+              // A video is fetched with a Range header, and Safari's partial
+              // responses come back 206 — uncacheable without this plugin,
+              // which asks for the whole file and caches that instead.
+              cacheableResponse: { statuses: [0, 200] },
+              rangeRequests: true,
+            },
+          },
+          {
             urlPattern: ({ url }) => url.hostname === 'upload.wikimedia.org',
             handler: 'CacheFirst',
             options: {
