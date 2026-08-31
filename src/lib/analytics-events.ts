@@ -133,6 +133,27 @@ export interface AnalyticsEventProperties {
   map_opened: { scope: 'zone' | 'trip'; pin_count: number; missing_coords: number }
   map_pin_opened: { category: Category }
 
+  // Explore, connected to the plan (feature 010). Which category was opened,
+  // from which end of the connection, and how much was planned under it — the
+  // only question worth asking of this feature is whether the connection is
+  // used and from which direction.
+  //
+  // **An activity's title is content and is never sent**, nor is a place name,
+  // a day or a city. `sanitizeProperties` would drop a title anyway; the point
+  // is not to compose one. `planned_count` is the shape of the answer — how
+  // much the traveller found there — and says nothing about what was found.
+  explore_planned_opened: {
+    category: Category
+    /** 'tag' is the pill on the day plan; 'card' is a row in the category list. */
+    source: 'tag' | 'card'
+    /**
+     * How much was planned under that category in that city. Absent from a
+     * `tag` — the day plan knows the activity in front of it and not the city's
+     * whole plan, and a made-up number is worse than a missing one.
+     */
+    planned_count?: number
+  }
+
   // Sharing
   trip_member_invited: {
     role: 'partner' | 'viewer'

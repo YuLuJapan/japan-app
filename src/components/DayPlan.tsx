@@ -42,20 +42,12 @@ import {
   type ZoneSummary,
 } from '../api/types'
 import { saveErrorMessage } from '../lib/errors'
-import { type DaySection, fmtDayLong } from '../lib/schedule'
-import { useCanEdit } from '../lib/session'
+import { hiddenCategories, tagZoneId } from '../lib/explore'
+import { capture } from '../lib/posthog'
+import { type DaySection, fmtDayLong, fmtTime } from '../lib/schedule'
+import { useCanEdit, useTripShows } from '../lib/session'
 import { ConfirmDialog } from './ConfirmDialog'
 import { EmptyState } from './EmptyState'
-
-/** "09:00" → "9:00 AM"; blank when no time. */
-export function fmtTime(hhmm: string | null): string {
-  if (!hhmm) return ''
-  const [h, m] = hhmm.split(':')
-  const H = Number(h)
-  const ap = H < 12 ? 'AM' : 'PM'
-  const h12 = ((H + 11) % 12) + 1
-  return `${h12}:${m} ${ap}`
-}
 
 interface Props {
   day: string
@@ -77,6 +69,7 @@ interface Props {
 
 export function DayPlan({ day, sections, zoneId = null, zoneChoices, tripId }: Props) {
   const canEdit = useCanEdit()
+  const hidden = hiddenCategories(useTripShows())
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -107,6 +100,12 @@ export function DayPlan({ day, sections, zoneId = null, zoneChoices, tripId }: P
     // place: if they typed one, they meant it. A withheld stay leaves
     // both null, so this cannot put back what the view took away.
     const tag = item.category ?? item.place_category ?? null
+    // …and the tag is a way in: it opens that category in the city this
+    // activity is planned in (feature 010). Not always — see `tagZoneId` —
+    // and never for a category this member may not see, which would only
+    // land them on a list that can tell them the stays are private.
+    const tagZone =
+      tag && !hidden.includes(tag) ? tagZoneId(item, zoneId, Boolean(zoneChoices?.length)) : null
     return editingId === item.id ? (
       <li key={item.id} className="mb-2 rounded-2xl border border-line bg-white p-3">
         <ItemForm
@@ -156,13 +155,24 @@ export function DayPlan({ day, sections, zoneId = null, zoneChoices, tripId }: P
                   stray "0" under its title. */}
           {!!(tag || item.place_files?.length) && (
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-              {tag && (
-                <span
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${CATEGORY_META[tag].color}`}
-                >
-                  {CATEGORY_META[tag].icon} {CATEGORY_META[tag].label}
-                </span>
-              )}
+              {tag &&
+                (() => {
+                  const pill = `rounded-full px-2.5 py-1 text-[11px] font-bold ${CATEGORY_META[tag].color}`
+                  const label = `${CATEGORY_META[tag].icon} ${CATEGORY_META[tag].label}`
+                  return tagZone ? (
+                    <Link
+                      to={`/trips/${tripId}/zones/${tagZone}/c/${tag}`}
+                      onClick={() =>
+                        capture('explore_planned_opened', { category: tag, source: 'tag' })
+                      }
+                      className={`${pill} active:scale-95`}
+                    >
+                      {label}
+                    </Link>
+                  ) : (
+                    <span className={pill}>{label}</span>
+                  )
+                })()}
               {item.place_files?.map((name) => (
                 <span
                   key={name}

@@ -161,6 +161,16 @@ export const dayNumber = (iso: string) => String(at(iso).getDate())
 export const fmtDayLong = (iso: string) =>
   at(iso).toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' })
 
+/** "09:00" → "9:00 AM"; blank when no time. */
+export function fmtTime(hhmm: string | null): string {
+  if (!hhmm) return ''
+  const [h, m] = hhmm.split(':')
+  const H = Number(h)
+  const ap = H < 12 ? 'AM' : 'PM'
+  const h12 = ((H + 11) % 12) + 1
+  return `${h12}:${m} ${ap}`
+}
+
 /** True when `b` is the calendar day right after `a` (used to spot gaps in a day list). */
 export function isNextDay(a: string, b: string): boolean {
   const next = at(a)

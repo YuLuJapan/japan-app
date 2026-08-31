@@ -98,6 +98,9 @@ describe('stays', () => {
     expect(ryokan.title).toBe('Check into the ryokan')
     expect(ryokan.place_id).toBeNull()
     expect(ryokan.place_category).toBeNull()
+    // The attachments go with the link too — a file name is a document, and one
+    // hanging off a withheld stay would name it just as well as the tag would.
+    expect(ryokan.place_files).toEqual([])
 
     // An activity pointing at something they may see keeps its tag.
     const ramen = res.body.items.find((i: { id: string }) => i.id === 'itin-ramen')
@@ -109,6 +112,28 @@ describe('stays', () => {
     const res = await request(app).get('/api/trips/trip-1/itinerary').set(viewer)
     const ryokan = res.body.items.find((i: { id: string }) => i.id === 'itin-ryokan')
     expect(ryokan.place_category).toBe('hotel')
+  })
+
+  // The typed tag is deliberately *not* filtered here, and Explore's planned
+  // counts depend on knowing that (feature 010, research R3). It is the
+  // traveller's own word on their own activity, attached to no place: clearing
+  // it would blank a pill the day plan draws today and would conflate "you may
+  // not see the booking" with "you may not know we are sleeping somewhere". So
+  // the client drops hidden categories itself (`hidden` in src/lib/explore.ts),
+  // and this test is what says the server is not doing it for them.
+  it('leaves the traveller’s own typed tag alone', async () => {
+    await request(app)
+      .patch('/api/trips/trip-1/itinerary/itin-walk')
+      .set(owner)
+      .send({ category: 'hotel' })
+    await asViewer({ stays: false })
+    const res = await request(app).get('/api/trips/trip-1/itinerary').set(viewer)
+    const walk = res.body.items.find((i: { id: string }) => i.id === 'itin-walk')
+
+    expect(walk.category).toBe('hotel')
+    // …and it still names no place, which is the part that matters.
+    expect(walk.place_id).toBeNull()
+    expect(walk.place_category).toBeNull()
   })
 })
 

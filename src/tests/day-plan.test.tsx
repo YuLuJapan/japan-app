@@ -6,8 +6,8 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { DayPlan } from '../components/DayPlan'
-import { TripRoleContext } from '../lib/session'
-import type { ItineraryItem } from '../api/types'
+import { TripRoleContext, TripShowsContext } from '../lib/session'
+import type { ItineraryItem, TripShows, ZoneSummary } from '../api/types'
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() }))
 
@@ -150,5 +150,103 @@ describe('DayPlan — moving an activity to another day', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByText(/day must fall within the trip's dates/)).toBeInTheDocument()
+  })
+})
+
+// The other half of feature 010: the tag is a way in, not just a label.
+function renderTagged(
+  item: ItineraryItem,
+  {
+    zoneId = 'zone-1' as string | null,
+    zoneChoices,
+    shows = { stays: true, flight: true, documents: true, shopping: true },
+  }: {
+    zoneId?: string | null
+    zoneChoices?: ZoneSummary[]
+    shows?: TripShows
+  } = {}
+) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <TripRoleContext.Provider value="owner">
+        <TripShowsContext.Provider value={shows}>
+          <MemoryRouter initialEntries={['/trips/trip-1']}>
+            <Routes>
+              <Route
+                path="/trips/:tripId"
+                element={
+                  <DayPlan
+                    day="2027-03-02"
+                    sections={[{ zone: null, direction: null, items: [item] }]}
+                    zoneId={zoneId}
+                    zoneChoices={zoneChoices}
+                    tripId="trip-1"
+                  />
+                }
+              />
+            </Routes>
+          </MemoryRouter>
+        </TripShowsContext.Provider>
+      </TripRoleContext.Provider>
+    </QueryClientProvider>
+  )
+}
+
+const counts = { hotel: 0, attraction: 0, food: 0, shopping: 0, other: 0 }
+const city = (id: string, name: string): ZoneSummary => ({
+  id,
+  name,
+  name_ja: null,
+  summary: null,
+  place_counts: counts,
+})
+
+describe('DayPlan — the category tag opens Explore', () => {
+  beforeEach(() => {
+    mocks.get.mockReset()
+    mocks.get.mockResolvedValue(TRIP_BUNDLE)
+  })
+
+  it('links a tagged activity to that category in its own city', () => {
+    renderTagged({ ...ITEM, zone_id: 'zone-kyoto', category: 'food' })
+    expect(screen.getByRole('link', { name: /Food/ })).toHaveAttribute(
+      'href',
+      '/trips/trip-1/zones/zone-kyoto/c/food'
+    )
+  })
+
+  it('links a derived tag too, to the screen’s city when the activity has none', () => {
+    renderTagged({ ...ITEM, zone_id: null, place_category: 'attraction' })
+    expect(screen.getByRole('link', { name: /Things to do/ })).toHaveAttribute(
+      'href',
+      '/trips/trip-1/zones/zone-1/c/attraction'
+    )
+  })
+
+  it('refuses to guess a city on a day two cities share', () => {
+    // The trip screen offers the choice rather than guessing when it adds an
+    // activity there; a tag on one that predates the question does the same.
+    renderTagged(
+      { ...ITEM, zone_id: null, category: 'food' },
+      { zoneChoices: [city('z1', 'Tokyo'), city('z2', 'Hakone')] }
+    )
+    expect(screen.queryByRole('link', { name: /Food/ })).not.toBeInTheDocument()
+    expect(screen.getByText(/Food/)).toBeInTheDocument()
+  })
+
+  it('adds nothing to an untagged activity', () => {
+    renderTagged(ITEM)
+    expect(screen.queryByRole('link', { name: /Food|Things to do|Stays|Shopping/ })).toBeNull()
+  })
+
+  it('does not lead a member who may not see stays into a stays list', () => {
+    renderTagged(
+      { ...ITEM, zone_id: 'zone-kyoto', category: 'hotel' },
+      { shows: { stays: false, flight: true, documents: true, shopping: true } }
+    )
+    expect(screen.queryByRole('link', { name: /Stays/ })).not.toBeInTheDocument()
   })
 })

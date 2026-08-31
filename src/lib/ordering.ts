@@ -19,8 +19,15 @@ export const compareSteps = (a: TripStep, b: TripStep): number => {
   return a.id < b.id ? -1 : 1
 }
 
+/**
+ * The four fields the day plan's order is made of. Named so a projection of an
+ * activity — the planned rows in `lib/explore.ts` — can be sorted by the same
+ * comparator instead of a second copy of the rule.
+ */
+export type ItineraryOrder = Pick<ItineraryItem, 'day' | 'start_time' | 'position' | 'id'>
+
 /** A day plan: by day, timed items before untimed, then position, then id. */
-export const compareItinerary = (a: ItineraryItem, b: ItineraryItem): number => {
+export const compareItinerary = (a: ItineraryOrder, b: ItineraryOrder): number => {
   if (a.day !== b.day) return a.day < b.day ? -1 : 1
   if (a.start_time !== b.start_time) {
     if (a.start_time === null) return 1

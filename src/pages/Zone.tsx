@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useItinerary, useTrip, useZone } from '../api/hooks'
 import { CATEGORIES, CATEGORY_META } from '../api/types'
@@ -11,8 +11,9 @@ import { PhotoHero } from '../components/PhotoHero'
 import { Schedule } from '../components/Schedule'
 import { TipEditor } from '../components/TipEditor'
 import { ZonePhotoEditor } from '../components/ZonePhotoEditor'
+import { cityPlan, hiddenCategories, plannedCounts } from '../lib/explore'
 import { enumerateDays, toISODate, zoneDays } from '../lib/schedule'
-import { useCanEdit } from '../lib/session'
+import { useCanEdit, useTripShows } from '../lib/session'
 import { useTripId } from '../lib/trip'
 
 const fmt = (iso: string) =>
@@ -21,23 +22,45 @@ const fmt = (iso: string) =>
 export default function Zone() {
   const { zoneId = '' } = useParams()
   const canEdit = useCanEdit()
+  const shows = useTripShows()
   const [editingPhoto, setEditingPhoto] = useState(false)
   const tripId = useTripId()
   const { data, isPending, isError, refetch } = useZone(zoneId)
   const trip = useTrip(tripId)
   const itinerary = useItinerary(tripId)
 
+  const steps = useMemo(() => trip.data?.steps ?? [], [trip.data])
+  const days = useMemo(
+    () =>
+      trip.data?.trip
+        ? zoneDays(steps, zoneId, enumerateDays(trip.data.trip.start_date, trip.data.trip.end_date))
+        : [],
+    [trip.data, steps, zoneId]
+  )
+
+  // What is planned here, per category — the other half of what Explore is
+  // asked. Undefined until the plan lands, so the grid paints its saved counts
+  // straight away and gains the planned half when it arrives, rather than
+  // holding the page or flashing a number that then changes.
+  const planned = useMemo(
+    () =>
+      itinerary.data
+        ? plannedCounts(
+            cityPlan(steps, itinerary.data.items, days, zoneId, hiddenCategories(shows))
+          )
+        : null,
+    [itinerary.data, steps, days, zoneId, shows]
+  )
+
   if (isPending) return <Loading />
   if (isError) return <ErrorState message="Could not load this zone." onRetry={() => refetch()} />
 
   const { zone, tips, files, place_counts } = data
 
-  const steps = trip.data?.steps ?? []
-  const days = trip.data?.trip
-    ? zoneDays(steps, zoneId, enumerateDays(trip.data.trip.start_date, trip.data.trip.end_date))
-    : []
-  // hide empty categories without breaking navigation (FR-012)
-  const visible = CATEGORIES.filter((c) => place_counts[c] > 0)
+  // Hide empty categories without breaking navigation (FR-012) — but a category
+  // with nothing saved and something planned is not empty: it is exactly the
+  // case this feature exists for ("Whatever the konbini has").
+  const visible = CATEGORIES.filter((c) => place_counts[c] > 0 || (planned?.[c] ?? 0) > 0)
 
   // "Sep 19 – Sep 25 · 6 nights", from the stops that land in this city. A city
   // visited twice (out and back) has two stops, so the range spans the whole
@@ -138,6 +161,7 @@ export default function Zone() {
           <div className="grid grid-cols-2 gap-2.5">
             {visible.map((c) => {
               const meta = CATEGORY_META[c]
+              const here = planned?.[c] ?? 0
               return (
                 <Link
                   key={c}
@@ -154,7 +178,12 @@ export default function Zone() {
                     <span className="block truncate text-[13px] font-bold leading-tight text-ink">
                       {meta.label}
                     </span>
-                    <span className="text-[10px] text-faint">{place_counts[c]} saved</span>
+                    {/* The planned half is silent when there is none, so a trip
+                        with no plan yet reads exactly as it did before. */}
+                    <span className="text-[10px] text-faint">
+                      {place_counts[c]} saved
+                      {here > 0 && ` · ${here} planned`}
+                    </span>
                   </span>
                   <span aria-hidden className="text-sm text-hush">
                     ›
