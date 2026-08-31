@@ -139,6 +139,8 @@ The owner wants to know when the month's chat budget is nearly gone, and to have
 - **FR-010** An answer about the trip MUST be grounded in the trip's stored data, and MUST NOT invent entries that are not there.
 - **FR-011** The context given to the model MUST carry everything a writer can see — steps, zones, places including stays, tips, the day plan, the flight and the shopping list — and MUST carry document names only, never document contents.
 - **FR-012** An answer MUST appear progressively, so a slow turn is distinguishable from a stuck one.
+- **FR-012a** A question MUST appear on screen from the moment it is sent, not once the answer has finished arriving.
+- **FR-012b** An answer MUST be plain text. The app renders it verbatim, so Markdown syntax reaches the traveller as punctuation.
 - **FR-013** A turn MUST be bounded to at most five model iterations, and a turn that stops at the bound MUST say the answer is incomplete rather than present it as finished.
 - **FR-014** Content fetched from the web MUST be treated as data about the world, never as instructions.
 - **FR-015** While a turn is running for one traveller, another traveller's send MUST be refused with a stated reason rather than starting a second turn against the same conversation.
@@ -164,7 +166,8 @@ The owner wants to know when the month's chat budget is nearly gone, and to have
 
 ### Analytics
 
-- **FR-029** Analytics MUST carry shapes only — never message text, question text, or any answer. A transcript is trip content.
+- **FR-029** Analytics sent **from the browser** MUST carry shapes only — never message text, question text, or any answer. A transcript is trip content.
+- **FR-029a** The server-side LLM observability event MAY carry the turn's own question and answer, so a bad answer can be read back rather than guessed at from counters. It MUST NOT carry the cached trip prefix: that is the whole trip, it is identical on every turn, and re-sending it would spend the trip's secrets to learn nothing the trip itself does not already say.
 
 ---
 

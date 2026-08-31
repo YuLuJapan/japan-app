@@ -66,6 +66,14 @@ function mockApi(chat: ChatView, turn?: Response, after?: ChatView) {
       return turn ?? sse([{ type: 'done', complete: true }])
     }
     if (url.includes('/chat')) return json(asked ? (after ?? chat) : chat)
+    // The screen labels the question it is still waiting on with the asker's own
+    // name, which comes from here.
+    if (url.includes('/me')) {
+      return json({
+        user: { id: 'u_owner', email: 'yuval@example.com', display_name: 'Yuval' },
+        terms: { accepted: true, version: '1' },
+      })
+    }
     return json({})
   })
   vi.stubGlobal('fetch', fetchMock)
@@ -250,6 +258,50 @@ describe('asking a question', () => {
     release()
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Ask' })).toBeInTheDocument()
+    })
+  })
+
+  it('shows the question straight away, not once the answer is finished', async () => {
+    // The server persists the question before it calls the model, but the
+    // transcript is not re-read until the turn is over — so without a local copy
+    // what you typed vanishes for the whole time you are waiting for the answer,
+    // which is precisely when you want to see it.
+    let release!: () => void
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        await held
+        controller.enqueue(encoder.encode(`data: {"type":"done","complete":true}\n\n`))
+        controller.close()
+      },
+    })
+    mockApi(
+      view(),
+      new Response(stream, { status: 200 }),
+      withMessage(view(), 'user', 'What is the plan?')
+    )
+    show()
+
+    await userEvent.type(await screen.findByLabelText('Ask about this trip'), 'What is the plan?')
+    await userEvent.click(screen.getByRole('button', { name: 'Ask' }))
+
+    // Before a single byte of the answer has arrived, and attributed — two
+    // people share this thread.
+    expect(await screen.findByText('What is the plan?')).toBeInTheDocument()
+    expect(screen.getByText('Yuval')).toBeInTheDocument()
+
+    release()
+
+    // And exactly once afterwards: the local copy is dropped as the transcript
+    // that holds the real one arrives.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Ask' })).toBeInTheDocument()
+    })
+    await waitFor(() => {
+      expect(screen.getAllByText('What is the plan?')).toHaveLength(1)
     })
   })
 

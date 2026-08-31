@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError } from '../api/client'
-import { useChat } from '../api/hooks'
+import { useChat, useMe } from '../api/hooks'
 import type { ChatBudget, ChatMessageView, ChatView } from '../api/types'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
@@ -29,6 +29,7 @@ type Composer =
 export default function TripChat() {
   const tripId = useTripId()
   const chat = useChat(tripId)
+  const me = useMe()
   const online = useOnlineStatus()
   const [draft, setDraft] = useState('')
 
@@ -42,7 +43,7 @@ export default function TripChat() {
   // Keep the newest message in view as the conversation grows.
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages.length, turn.answer])
+  }, [messages.length, turn.question, turn.answer])
 
   const send = async () => {
     const question = draft.trim()
@@ -62,10 +63,24 @@ export default function TripChat() {
       {chat.data && <BudgetNotice budget={chat.data.budget} />}
 
       <div className="mt-5 flex-1 space-y-3">
-        {messages.length === 0 && !turn.answer && <Suggestions onPick={setDraft} />}
+        {messages.length === 0 && turn.question === null && <Suggestions onPick={setDraft} />}
         {messages.map((message) => (
-          <Bubble key={message.id} message={message} />
+          <Bubble
+            key={message.id}
+            role={message.role}
+            author={message.author?.display_name ?? null}
+            content={message.content}
+          />
         ))}
+        {/* The question, drawn from the moment it is sent — the transcript that
+            will hold it is not re-read until the answer is finished. */}
+        {turn.question !== null && (
+          <Bubble
+            role="user"
+            author={me.data?.user.display_name ?? 'You'}
+            content={turn.question}
+          />
+        )}
         {turn.answer !== null && <StreamingBubble text={turn.answer} searching={turn.searching} />}
         {turn.incomplete && <IncompleteNotice />}
         {turn.error && <p className="text-sm text-brand-700">{turn.error}</p>}
@@ -139,8 +154,17 @@ function composerState({
 }
 
 /** A message from a person or from the assistant. */
-function Bubble({ message }: { message: ChatMessageView }) {
-  const mine = message.role === 'user'
+function Bubble({
+  role,
+  author,
+  content,
+}: {
+  role: ChatMessageView['role']
+  /** Null when the author's account is gone — never for a message being sent. */
+  author: string | null
+  content: string
+}) {
+  const mine = role === 'user'
   return (
     <div className={mine ? 'flex justify-end' : 'flex justify-start'}>
       <div
@@ -155,10 +179,10 @@ function Bubble({ message }: { message: ChatMessageView }) {
             rather than inventing a name. */}
         {mine && (
           <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wide text-canvas/60">
-            {message.author?.display_name ?? 'Someone'}
+            {author ?? 'Someone'}
           </p>
         )}
-        <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+        <p className="whitespace-pre-wrap leading-relaxed">{content}</p>
       </div>
     </div>
   )
