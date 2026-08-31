@@ -748,6 +748,68 @@ online, last known when not. No `Cache-Control` beyond the app default and no ET
 and always cheap to rebuild. Offline export therefore depends on the payload having been fetched once, which
 is what the trip home's background prefetch is for.
 
+## Chat (feature 005)
+
+Full contract: `specs/005-trip-chat/contracts/chat.md`. Two endpoints, mounted under `/api/trips/:tripId`
+inside `tripScopedRouter()`, so `requireTripAccess` has already run and a trip that is not yours is 404.
+
+**Two refusals come before any handler**, in this order:
+
+| Condition                         | Status  | Code        | Why                                                                                                                                                                                    |
+| --------------------------------- | ------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No `ANTHROPIC_API_KEY` configured | **404** | `NOT_FOUND` | The feature is _absent_, not broken — the same shape as push with no VAPID keys. **This is the real rollout switch**: the `chat-bot` client flag hides a button and controls no spend. |
+| Caller's role is `viewer`         | **403** | `FORBIDDEN` | Chat is writers-only in whole, not just its writes. They already know the trip exists.                                                                                                 |
+
+**Why writers-only makes the rest simple.** `canWrite` is `owner || partner`, and writers always get the
+full view — the `can_see_*` flags are ignored for them. So everyone who can open chat already sees the whole
+trip, a shared transcript can reveal nothing, and there is **exactly one thread per trip** with no per-user
+threads and no filtering of history.
+
+### GET /api/trips/:tripId/chat
+
+The thread, its messages oldest-first, and the caller's budget state in one read. Polled on window focus and
+after a send — deliberately not a realtime subscription.
+
+- 200: `{"thread":{"id","turn_running"},"messages":[{"id","role","content","author","created_at"}],"budget":{"spent_cents","cap_cents","pct","blocked","resumes_on"}}`
+- `author` is `null` for the assistant, `{user_id, display_name}` for a person. A member since removed keeps
+  their attribution.
+- `budget` is computed server-side. The client does no arithmetic over usage rows, so the notice and the
+  enforcement cannot disagree.
+- A trip with no thread yet returns `thread: null`, `messages: []`. The first send creates it, not a read.
+
+### POST /api/trips/:tripId/chat/messages
+
+Body `{"content": "…"}`. Answers `200` with `Content-Type: text/event-stream`; headers are flushed before the
+model is called, so a slow turn is visibly working rather than silent.
+
+Each frame is one `data:` line carrying one event, and **these are this app's events, never the provider's
+raw stream events** — a vendor change must not reach React:
+
+| `type`      | Carries                  | Means                                                |
+| ----------- | ------------------------ | ---------------------------------------------------- |
+| `text`      | `text`                   | append to the answer being drawn                     |
+| `searching` | `query?`                 | the model is using web search                        |
+| `usage`     | four token counts        | what the turn cost; priced and written to `ai_usage` |
+| `done`      | `message_id`, `complete` | the turn ended                                       |
+| `error`     | `code`, `message`        | it failed mid-stream                                 |
+
+**`done.complete: false`** means the turn stopped at the iteration bound, and the screen must say the answer
+is incomplete rather than present a truncated one as finished.
+
+Refusals arrive as ordinary error envelopes, before the stream opens: 400 `VALIDATION` (empty or oversized
+`content`), 403 `FORBIDDEN` (the account's monthly cap, message naming the resume date; or the global cap),
+409 `VALIDATION` (a turn is already running on this thread), 429 `VALIDATION` (per-day turn limit). Once
+headers are flushed the status is already 200, so a mid-turn failure is an `error` **event** and the client
+keeps the partial text it has been reading.
+
+**Ordering guarantees.** The lock is claimed before the user's message is written, so a 409 writes nothing;
+the message is written before the model is called, so a failed turn reads honestly as a question with no
+answer; `usage` is priced and recorded before `done`, so re-reading `GET /chat` immediately includes the turn
+just watched; the lock is released on every exit path, and expires against a staleness window if a function
+dies holding it.
+
+**No `thread_id` in any path** — one thread per trip means the trip id is the address.
+
 ## Ops
 
 ### GET /api/health

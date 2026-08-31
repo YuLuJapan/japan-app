@@ -7,7 +7,12 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type {
+  AiUsageInput,
+  AiUsageRow,
   Category,
+  ChatMessage,
+  ChatMessageInput,
+  ChatThread,
   DataStore,
   Profile,
   StoredTripInvite,
@@ -126,6 +131,12 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
   // their own last-known rate to fall back on.
   const latestRates = new Map<string, ExchangeRates>()
   const subscriptions: PushSubscriptionRecord[] = []
+  // Chat (005). Not part of MemoryData: a conversation is not seeded content,
+  // and a fixture that shipped one would make every access test start from a
+  // state no real trip begins in.
+  const chatThreads: ChatThread[] = []
+  const chatMessages: ChatMessage[] = []
+  const aiUsage: AiUsageRow[] = []
 
   // Since migration 0013 a zone belongs to exactly one trip, so "is this row
   // in that trip?" is a zone lookup for anything hanging off a zone.
@@ -841,6 +852,100 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       }
       subscriptions.push(record)
       return { ...record }
+    },
+
+    // --- Chat (005) ---------------------------------------------------------
+
+    async getChatThread(tripId) {
+      const thread = chatThreads.find((t) => t.trip_id === tripId)
+      return thread ? { ...thread } : null
+    },
+
+    async createChatThread(tripId) {
+      const existing = chatThreads.find((t) => t.trip_id === tripId)
+      if (existing) return { ...existing }
+      const thread: ChatThread = {
+        id: randomUUID(),
+        trip_id: tripId,
+        turn_started_at: null,
+        created_at: new Date().toISOString(),
+      }
+      chatThreads.push(thread)
+      return { ...thread }
+    },
+
+    async claimChatTurn(tripId, nowIso, staleMs) {
+      const thread = chatThreads.find((t) => t.trip_id === tripId)
+      if (!thread) return null
+      // A held lock only counts while it is fresh. Past the window the turn that
+      // took it is assumed dead — its function timed out or the process went
+      // away — and the lock is taken over rather than left holding the
+      // conversation shut with no way back but a manual reset.
+      if (thread.turn_started_at) {
+        const age = Date.parse(nowIso) - Date.parse(thread.turn_started_at)
+        if (age < staleMs) return null
+      }
+      thread.turn_started_at = nowIso
+      return { ...thread }
+    },
+
+    async releaseChatTurn(tripId) {
+      const thread = chatThreads.find((t) => t.trip_id === tripId)
+      if (thread) thread.turn_started_at = null
+    },
+
+    async listChatMessages(tripId) {
+      // Insertion order, not a sort. A conversation is append-only and every
+      // append is later than the last, so the array *is* the order.
+      //
+      // Sorting on `created_at` looks more careful and is worse: the question
+      // and its answer are written milliseconds apart and routinely land on the
+      // same ISO timestamp, at which point any tiebreak on a random uuid puts
+      // the answer before the question about half the time.
+      return chatMessages.filter((m) => m.trip_id === tripId).map((m) => ({ ...m }))
+    },
+
+    async createChatMessage(input: ChatMessageInput) {
+      const message: ChatMessage = {
+        id: randomUUID(),
+        thread_id: input.thread_id,
+        trip_id: input.trip_id,
+        user_id: input.user_id,
+        role: input.role,
+        content: input.content,
+        created_at: new Date().toISOString(),
+      }
+      chatMessages.push(message)
+      return { ...message }
+    },
+
+    async recordAiUsage(input: AiUsageInput) {
+      const row: AiUsageRow = {
+        id: randomUUID(),
+        user_id: input.user_id,
+        trip_id: input.trip_id ?? null,
+        capability: input.capability,
+        vendor: input.vendor,
+        model: input.model,
+        unit: input.unit,
+        quantity: { ...input.quantity },
+        cost_cents: input.cost_cents,
+        created_at: new Date().toISOString(),
+      }
+      aiUsage.push(row)
+      return { ...row, quantity: { ...row.quantity } }
+    },
+
+    async sumAiUsageCents(userId, sinceIso) {
+      return aiUsage
+        .filter((r) => r.user_id === userId && r.created_at >= sinceIso)
+        .reduce((total, r) => total + r.cost_cents, 0)
+    },
+
+    async sumAllAiUsageCents(sinceIso) {
+      return aiUsage
+        .filter((r) => r.created_at >= sinceIso)
+        .reduce((total, r) => total + r.cost_cents, 0)
     },
 
     async deletePushSubscription(userId, endpoint) {

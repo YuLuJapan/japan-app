@@ -3,7 +3,12 @@
 // code. Column names already match the entity field names (snake_case).
 import { randomUUID } from 'node:crypto'
 import type {
+  AiUsageInput,
+  AiUsageRow,
   Category,
+  ChatMessage,
+  ChatMessageInput,
+  ChatThread,
   DataStore,
   Profile,
   TripInvite,
@@ -179,6 +184,10 @@ function withPeopleDefault(row: Record<string, unknown>): Trip {
 // Tables added in migration 0006 (scheduled reminders + push subscriptions).
 const REMINDER_COLS = 'id,trip_id,title,body,url,remind_at,time_zone,sent_at,created_at'
 const SUBSCRIPTION_COLS = 'id,user_id,endpoint,p256dh,auth,label,created_at'
+const CHAT_THREAD_COLS = 'id,trip_id,turn_started_at,created_at'
+const CHAT_MESSAGE_COLS = 'id,thread_id,trip_id,user_id,role,content,created_at'
+const AI_USAGE_COLS =
+  'id,user_id,trip_id,capability,vendor,model,unit,quantity,cost_cents,created_at'
 
 /** timestamptz comes back with an offset; normalize so the API always emits UTC. */
 function toIsoUtc(value: string | null): string | null {
@@ -194,6 +203,31 @@ function rowToReminder(row: Record<string, unknown>): Reminder {
     remind_at: toIsoUtc(r.remind_at) ?? r.remind_at,
     sent_at: toIsoUtc(r.sent_at),
     created_at: toIsoUtc(r.created_at) ?? r.created_at,
+  }
+}
+
+function rowToChatThread(row: Record<string, unknown>): ChatThread {
+  const t = row as unknown as ChatThread
+  return {
+    ...t,
+    turn_started_at: toIsoUtc(t.turn_started_at),
+    created_at: toIsoUtc(t.created_at) ?? t.created_at,
+  }
+}
+
+function rowToChatMessage(row: Record<string, unknown>): ChatMessage {
+  const m = row as unknown as ChatMessage
+  return { ...m, created_at: toIsoUtc(m.created_at) ?? m.created_at }
+}
+
+function rowToAiUsage(row: Record<string, unknown>): AiUsageRow {
+  const u = row as unknown as AiUsageRow
+  return {
+    ...u,
+    // numeric(12,4) arrives as a string from PostgREST — summing these as
+    // strings would concatenate rather than add, and the cap would never trip.
+    cost_cents: Number(u.cost_cents),
+    created_at: toIsoUtc(u.created_at) ?? u.created_at,
   }
 }
 
@@ -246,6 +280,38 @@ async function selectItinerary(
 
 export function createSupabaseStore(): DataStore {
   const db = getSupabase()
+
+  /**
+   * Add up `cost_cents` over a window of the ledger.
+   *
+   * Summed here rather than by a Postgres function, deliberately. The row count
+   * is bounded by the very cap this feeds — an account cannot record more spend
+   * than the cap before it is blocked — so "fetch the month and add it up" stays
+   * small by construction, and the alternative would be two more schema objects
+   * to apply to the live project plus a second, untested implementation of the
+   * cap that the memory store could silently drift from.
+   *
+   * **It pages, and that is not defensive habit.** PostgREST caps a response at
+   * `db-max-rows` when one is configured, and a truncated page here would not
+   * fail — it would return a number that is too small, so the cap would never
+   * trip and the only symptom would be the bill. Reading until a short page
+   * arrives is what makes the total independent of that setting.
+   */
+  async function sumUsage(sinceIso: string, userId?: string): Promise<number> {
+    const PAGE = 1000
+    let total = 0
+    for (let from = 0; ; from += PAGE) {
+      const base = db.from('ai_usage').select('cost_cents').gte('created_at', sinceIso)
+      const scoped = userId ? base.eq('user_id', userId) : base
+      const { data, error } = await scoped.range(from, from + PAGE - 1)
+      if (error) throw new Error(error.message)
+      const rows = (data as { cost_cents: number | string }[]) ?? []
+      // numeric(12,4) arrives as a string from PostgREST; `+` on strings would
+      // concatenate, and the cap would compare a very long string to a number.
+      for (const row of rows) total += Number(row.cost_cents)
+      if (rows.length < PAGE) return total
+    }
+  }
 
   /** A file is in the trip when it hangs off the trip, or off one of its zones or places. */
   const fileBelongs = async (tripId: string, file: FileAttachment): Promise<boolean> => {
@@ -1335,6 +1401,100 @@ export function createSupabaseStore(): DataStore {
         .select(REMINDER_COLS)
       if (error) throw new Error(error.message)
       return ((data as Record<string, unknown>[]) ?? []).map(rowToReminder)
+    },
+
+    // --- Chat (005) ---------------------------------------------------------
+
+    async getChatThread(tripId) {
+      const { data } = await db
+        .from('chat_threads')
+        .select(CHAT_THREAD_COLS)
+        .eq('trip_id', tripId)
+        .maybeSingle()
+      return data ? rowToChatThread(data as Record<string, unknown>) : null
+    },
+
+    async createChatThread(tripId) {
+      // Upsert on the unique trip_id rather than read-then-insert: two first
+      // sends racing would otherwise both see no thread and both try to create
+      // one, and the second would fail on the constraint. `ignoreDuplicates`
+      // makes the loser a no-op instead of an error.
+      const { error } = await db
+        .from('chat_threads')
+        .upsert(
+          { id: randomUUID(), trip_id: tripId, turn_started_at: null },
+          { onConflict: 'trip_id', ignoreDuplicates: true }
+        )
+      if (error) throw new Error(error.message)
+      const { data } = await db
+        .from('chat_threads')
+        .select(CHAT_THREAD_COLS)
+        .eq('trip_id', tripId)
+        .single()
+      return rowToChatThread(data as Record<string, unknown>)
+    },
+
+    async claimChatTurn(tripId, nowIso, staleMs) {
+      // One statement: the lock is only taken if it is free or stale, and only
+      // the row that was actually updated comes back — so two sends racing
+      // cannot both believe they hold it. Reading then writing is exactly the
+      // race this exists to close.
+      const staleBefore = new Date(Date.parse(nowIso) - staleMs).toISOString()
+      const { data, error } = await db
+        .from('chat_threads')
+        .update({ turn_started_at: nowIso })
+        .eq('trip_id', tripId)
+        .or(`turn_started_at.is.null,turn_started_at.lt.${staleBefore}`)
+        .select(CHAT_THREAD_COLS)
+        .maybeSingle()
+      if (error) throw new Error(error.message)
+      return data ? rowToChatThread(data as Record<string, unknown>) : null
+    },
+
+    async releaseChatTurn(tripId) {
+      await db.from('chat_threads').update({ turn_started_at: null }).eq('trip_id', tripId)
+    },
+
+    async listChatMessages(tripId) {
+      const { data } = await db
+        .from('chat_messages')
+        .select(CHAT_MESSAGE_COLS)
+        .eq('trip_id', tripId)
+        // `created_at` alone, and deliberately no tiebreak. Postgres `now()` is
+        // microsecond-resolution and the question and its answer are written by
+        // separate statements, so they cannot share a timestamp — while a
+        // secondary sort on the random uuid would be worse than nothing, putting
+        // an answer before its question whenever two rows did tie.
+        .order('created_at', { ascending: true })
+      return ((data as Record<string, unknown>[]) ?? []).map(rowToChatMessage)
+    },
+
+    async createChatMessage(input: ChatMessageInput) {
+      const { data, error } = await db
+        .from('chat_messages')
+        .insert({ id: randomUUID(), ...input })
+        .select(CHAT_MESSAGE_COLS)
+        .single()
+      if (error) throw new Error(error.message)
+      return rowToChatMessage(data as Record<string, unknown>)
+    },
+
+    async recordAiUsage(input: AiUsageInput) {
+      const { data, error } = await db
+        .from('ai_usage')
+        .insert({ id: randomUUID(), ...input, trip_id: input.trip_id ?? null })
+        .select(AI_USAGE_COLS)
+        .single()
+      if (error) throw new Error(error.message)
+      return rowToAiUsage(data as Record<string, unknown>)
+    },
+
+    async sumAiUsageCents(userId, sinceIso) {
+      return sumUsage(sinceIso, userId)
+    },
+
+    async sumAllAiUsageCents(sinceIso) {
+      return sumUsage(sinceIso)
     },
 
     async listPushSubscriptionsForUsers(userIds) {

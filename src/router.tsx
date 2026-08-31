@@ -32,6 +32,7 @@ import ShoppingItemDetail from './pages/ShoppingItem'
 import ShoppingList from './pages/ShoppingList'
 import TripEssentials from './pages/TripEssentials'
 import TripExport from './pages/TripExport'
+import TripChat from './pages/TripChat'
 import TripFiles from './pages/TripFiles'
 import TripMembers from './pages/TripMembers'
 import TripsList from './pages/TripsList'
@@ -151,6 +152,36 @@ export function RequireMap() {
 }
 
 /**
+ * Chat, while it is rolling out.
+ *
+ * `chat-bot` defaults **off** and gates the route as well as the entry point,
+ * the same arrangement as `show-map` rather than `export-trip`. Two guards, and
+ * they are not redundant:
+ *
+ * - This one is a *rollout* control. It closes the bookmark, the pasted link
+ *   and the back button into a session where the flag has since gone off.
+ * - The server's key check is the *spend* control, and it is the one that
+ *   matters. A client flag hides a button; it cannot stop a request. With no
+ *   `ANTHROPIC_API_KEY` every chat endpoint answers 404 whatever this says.
+ *
+ * `useCanEdit()` is here too, so a viewer who somehow reaches the URL lands on
+ * the trip rather than on a screen that would 403 on its first read. That is
+ * cosmetic — the API refuses them regardless — and it is why it sits alongside
+ * the flag rather than in place of the server's check.
+ *
+ * Default off means chat is invisible in local dev and on any deploy without
+ * `VITE_POSTHOG_PROJECT_TOKEN`: with no answer the default applies. Flip it here
+ * and in `Journey.tsx` to work on it, and flip it back before committing — the
+ * same dance `export-trip` and `show-map` already need.
+ */
+export function RequireChat() {
+  const { tripId } = useParams<{ tripId: string }>()
+  const enabled = useBooleanFlag('chat-bot', false)
+  const canEdit = useCanEdit()
+  return enabled && canEdit ? <Outlet /> : <Navigate to={`/trips/${tripId}`} replace />
+}
+
+/**
  * The shopping section, when this trip shares it with you. The tab is already
  * gone from the nav; this catches the other ways in — a bookmark, a link
  * somebody pasted — so they land on the journey rather than on an error the
@@ -224,6 +255,12 @@ export const router = createBrowserRouter([
               },
             ],
           },
+
+          // Chat, behind the flag *and* the route guard: with `chat-bot` off
+          // there is no button and a bookmarked /chat redirects to the trip.
+          // Not lazy — unlike the map it pulls in no library of its own, so a
+          // separate chunk would buy nothing and add a way to fail.
+          { element: <RequireChat />, children: [{ path: 'chat', element: <TripChat /> }] },
 
           // Everyone on the trip can see who else is on it; the screen itself
           // offers the owner-only controls only to an owner, and a viewer-only

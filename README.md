@@ -290,6 +290,60 @@ nothing. It does **not** override an actual answer: a flag you have turned off
 reads as off even where the default is `true`, which is what makes a remote
 kill switch work.
 
+## Chat (feature 005)
+
+Ask about the trip — what is planned on Thursday, which restaurants are saved in
+Kyoto, what time the flight leaves — and get an answer from the trip's own data.
+Read-only in this phase: it changes nothing. Writes and file ingest come later.
+
+**Two switches, and only one of them controls spend.**
+
+| Switch              | Where                     | With it off                                                                                                                               |
+| ------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY` | server env                | **Every chat endpoint answers 404.** The feature is absent, not broken — exactly as push is with no VAPID keys. This is the real control. |
+| `chat-bot`          | PostHog flag, default off | No Ask button, no `/chat` route. A rollout control: it hides a button and stops no request.                                               |
+
+**Who can use it.** Owners and partners only — the whole feature, not just its
+writes. A viewer gets 403 and is offered no way in. That restriction is what
+makes the rest simple: writers always get the full view, so everyone who can
+open chat already sees the whole trip, and there is **one shared thread per
+trip** with no per-user threads and no filtering of history.
+
+**What it costs, and what stops it.**
+
+```
+AI_MONTHLY_CAP_CENTS=1000   # per account, per calendar month (default $10)
+AI_GLOBAL_CAP_CENTS=5000    # across every account — the kill switch
+AI_MAX_ITERATIONS=5         # model iterations per turn; each web search pause spends one
+AI_MAX_OUTPUT_TOKENS=2048   # per-turn ceiling
+AI_DAILY_TURN_LIMIT=100     # per account
+```
+
+Spend is counted from **real token usage**, not message count — one runaway loop
+costs what fifty conversations do. At 80% the app says so; at 100% the composer
+disables with a resume date and the transcript stays readable. Both caps are read
+at request time, so raising one is a deploy rather than a code change.
+
+One limitation worth knowing: usage is only known _after_ a turn while the check
+runs _before_ it, so a single turn can cross a cap. `AI_MAX_OUTPUT_TOKENS` is
+what bounds that overshoot to one turn's worth.
+
+**Checking it is actually cheap.** A turn's cost depends almost entirely on
+whether the cached trip prefix was hit. Read `usage.cache_read` on a second
+question in the same session: **non-zero is the pass**. Zero means something is
+invalidating the prefix — a clock reading, an unsorted map — and the real cost is
+roughly threefold. Nothing else reports this: the answers stay correct and only
+the bill changes.
+
+**Migration 0023** (`chat_threads`, `chat_messages`, `ai_usage`) must be run
+against the live Supabase project. Committing it is not deploying it — see
+"Adding a table later" above.
+
+**Changing model provider** would be `server/src/lib/ai/adapters/`, and only
+that: an ESLint rule makes `@anthropic-ai/sdk` an error anywhere else, stored
+messages are plain text rather than vendor content blocks, and the browser
+receives the app's own event union rather than the provider's stream events.
+
 ## Notes
 
 - Authorization is the app's job, not the database's: the API holds Supabase's secret key, and RLS stays deny-all. Every read and write goes through `requireTripAccess`, which resolves the caller's membership on the trip named in the path.

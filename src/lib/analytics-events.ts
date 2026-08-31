@@ -133,6 +133,27 @@ export interface AnalyticsEventProperties {
   map_opened: { scope: 'zone' | 'trip'; pin_count: number; missing_coords: number }
   map_pin_opened: { category: Category }
 
+  // Chat (feature 005). Declared before any call site, like the two above.
+  //
+  // **A transcript is trip content**, and more of it than anything else here:
+  // a question names what someone is planning and an answer quotes the trip
+  // back. So not one of these carries a word of either — not the question, not
+  // the answer, not a search query, not a place name that came up. What is left
+  // is the shape of a turn: did it finish, how hard did it work, what did it
+  // cost in iterations. `sanitizeProperties` would drop message text anyway;
+  // relying on that rather than stating it would be backwards.
+  chat_turn_started: { has_history: boolean }
+  chat_turn_completed: {
+    /** `capped` is the iteration bound, not the spend cap — that refuses before a turn starts. */
+    outcome: 'ok' | 'capped' | 'error'
+    iterations: number
+    duration_ms: number
+    used_web: boolean
+  }
+  /** Bucketed, never the exact figure: this answers "does the cap bite?", and a
+   *  running total per account is closer to a bill than to a shape. */
+  chat_budget_state: { pct_bucket: 'under_80' | 'over_80' | 'blocked' }
+
   // Sharing
   trip_member_invited: {
     role: 'partner' | 'viewer'

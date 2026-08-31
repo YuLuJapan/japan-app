@@ -4,6 +4,7 @@ import { api } from './client'
 import { useTripId, useTripPath } from './tripPath'
 import type {
   Category,
+  ChatView,
   ExportDetail,
   ExportPayload,
   CurrencyCatalogue,
@@ -291,3 +292,21 @@ export function useTripExportPrefetch(tripId: string, enabled = true) {
     }
   }, [client, tripId, enabled])
 }
+
+/**
+ * The trip's one conversation, plus this account's budget.
+ *
+ * One query rather than three: the screen polls it on focus and after every
+ * send, and a screen that needs three round trips to say anything flickers.
+ *
+ * `retry: false` because the interesting failures here are all permanent — no
+ * key configured (404), a viewer (403) — and retrying them three times only
+ * delays the honest message.
+ */
+export const useChat = (tripId: string, enabled = true) =>
+  useQuery({
+    queryKey: ['chat', tripId],
+    queryFn: () => api.get<ChatView>(`/trips/${tripId}/chat`),
+    enabled: enabled && !!tripId,
+    retry: false,
+  })
