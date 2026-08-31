@@ -42,12 +42,31 @@ export async function* streamChatTurn(
   content: string,
   signal?: AbortSignal
 ): AsyncGenerator<ChatEvent> {
-  const token = getAccessCode()
   const path = `/trips/${tripId}/chat/messages`
+  const res = await postTurn(path, content, signal)
+  if (!res) return // aborted before it began — the caller left the screen
 
-  let res: Response
+  if (!res.ok) throw await apiErrorFrom(res, path)
+
+  if (!res.body) {
+    // No stream to read. Say so rather than appearing to succeed with an empty
+    // answer.
+    yield { type: 'error', code: 'INTERNAL', message: 'The answer did not arrive' }
+    return
+  }
+
+  yield* readEvents(res.body)
+}
+
+/** The request itself. `null` when the caller aborted rather than when it failed. */
+async function postTurn(
+  path: string,
+  content: string,
+  signal?: AbortSignal
+): Promise<Response | null> {
+  const token = getAccessCode()
   try {
-    res = await fetch(`/api${path}`, {
+    return await fetch(`/api${path}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -57,8 +76,7 @@ export async function* streamChatTurn(
       signal,
     })
   } catch (err) {
-    // An abort is the caller leaving the screen, not a failure worth reporting.
-    if (err instanceof DOMException && err.name === 'AbortError') return
+    if (isAbort(err)) return null
     throw new ApiError(
       0,
       'NETWORK',
@@ -68,59 +86,70 @@ export async function* streamChatTurn(
       path
     )
   }
+}
 
-  if (!res.ok) {
-    const envelope = (await res.json().catch(() => null))?.error ?? {}
-    if (res.status === 401) {
-      clearAccessCode()
-      window.location.assign('/gate')
-    }
-    throw new ApiError(
-      res.status,
-      envelope.code ?? 'INTERNAL',
-      envelope.message ?? 'Request failed',
-      envelope.details,
-      'POST',
-      path
-    )
+/** A refused turn, normalised into the error every other call in the app throws. */
+async function apiErrorFrom(res: Response, path: string): Promise<ApiError> {
+  const envelope = (await res.json().catch(() => null))?.error ?? {}
+  if (res.status === 401) {
+    clearAccessCode()
+    window.location.assign('/gate')
   }
+  return new ApiError(
+    res.status,
+    envelope.code ?? 'INTERNAL',
+    envelope.message ?? 'Request failed',
+    envelope.details,
+    'POST',
+    path
+  )
+}
 
-  if (!res.body) {
-    // No stream to read. Nothing was said, so say that rather than appearing to
-    // succeed with an empty answer.
-    yield { type: 'error', code: 'INTERNAL', message: 'The answer did not arrive' }
-    return
-  }
-
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
+/** The body, read frame by frame. */
+async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<ChatEvent> {
+  const reader = body.getReader()
+  const frames = frameBuffer()
 
   try {
     for (;;) {
       const { done, value } = await reader.read()
-      if (done) break
-      // `stream: true` matters: a chunk boundary can fall inside a multi-byte
-      // character, and decoding each chunk independently would turn a Japanese
-      // place name into replacement characters at random.
-      buffer += decoder.decode(value, { stream: true })
-
-      // Frames are separated by a blank line. A partial frame stays in the
-      // buffer until the rest of it arrives.
-      let split = buffer.indexOf('\n\n')
-      while (split !== -1) {
-        const frame = buffer.slice(0, split)
-        buffer = buffer.slice(split + 2)
+      if (done) return
+      for (const frame of frames.push(value)) {
         const event = parseFrame(frame)
         if (event) yield event
-        split = buffer.indexOf('\n\n')
       }
     }
   } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') return
+    if (isAbort(err)) return
     yield { type: 'error', code: 'NETWORK', message: 'The connection dropped mid-answer' }
   } finally {
     reader.releaseLock()
+  }
+}
+
+/**
+ * Chunks in, whole frames out.
+ *
+ * Two boundaries have to be respected and neither lines up with a chunk. A
+ * multi-byte character can be split across chunks, which is what `stream: true`
+ * on the decoder is for — decoding each chunk alone would turn a Japanese place
+ * name into replacement characters at random. And a frame ends at a blank line,
+ * which may not have arrived yet, so a partial one waits here for the rest.
+ */
+function frameBuffer() {
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  return {
+    push(chunk: Uint8Array): string[] {
+      buffer += decoder.decode(chunk, { stream: true })
+      const frames: string[] = []
+      for (let split = buffer.indexOf('\n\n'); split !== -1; split = buffer.indexOf('\n\n')) {
+        frames.push(buffer.slice(0, split))
+        buffer = buffer.slice(split + 2)
+      }
+      return frames
+    },
   }
 }
 
@@ -135,3 +164,6 @@ function parseFrame(frame: string): ChatEvent | null {
     return null
   }
 }
+
+/** The caller left the screen. Not a failure worth reporting. */
+const isAbort = (err: unknown) => err instanceof DOMException && err.name === 'AbortError'

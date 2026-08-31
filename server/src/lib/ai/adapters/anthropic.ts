@@ -39,121 +39,177 @@ function getClient(): Anthropic {
   return client
 }
 
-const emptyUsage = (): AiUsage => ({ input: 0, output: 0, cache_write: 0, cache_read: 0 })
-
 /**
  * One turn, as a stream of our events.
  *
- * The loop exists for server-side tools: web search runs on Anthropic's
- * infrastructure and a turn using it can stop at `pause_turn` with more to do,
- * which is resumed by handing the paused assistant turn back. Every iteration —
- * including a resume — spends one of `max_iterations`, so a search that keeps
- * finding more to read cannot run away.
+ * The loop body runs more than once for exactly one reason: a turn that stopped
+ * at `pause_turn` and can be continued. Everything else returns on the first
+ * pass. Each resume spends one attempt, so a web search that keeps finding more
+ * to read cannot run away or outlive the function's duration limit.
  */
 export async function* runAnthropicTurn(spec: AgentSpec): AsyncIterable<AiEvent> {
-  const anthropic = getClient()
+  const messages = toProviderMessages(spec.messages)
   const total = emptyUsage()
 
-  const messages: Anthropic.MessageParam[] = spec.messages.map((m) => ({
-    role: m.role,
-    // Attribution goes into the text rather than into a field the API has no
-    // place for: two travellers share one conversation, and without knowing who
-    // asked what, a follow-up gets answered for the wrong person.
-    content: m.role === 'user' && m.author ? `${m.author} asked: ${m.content}` : m.content,
-  }))
-
-  const tools = spec.web_search
-    ? [
-        {
-          type: 'web_search_20260209' as const,
-          name: 'web_search' as const,
-          max_uses: spec.web_search.max_uses,
-        },
-      ]
-    : undefined
-
-  let complete = false
-
-  for (let iteration = 0; iteration < spec.max_iterations; iteration += 1) {
-    const stream = anthropic.messages.stream({
-      model: providerModelId(spec.model),
-      max_tokens: spec.max_output_tokens,
-      // Trip Q&A is retrieval, not reasoning. Output is the expensive half of a
-      // turn, and low effort is a larger cost lever here than any model swap.
-      output_config: { effort: 'low' },
-      system: [
-        {
-          type: 'text',
-          text: spec.system,
-          // The breakpoint. Everything before it is the trip — 8–15K tokens,
-          // identical turn to turn — and is billed at a tenth of input price on
-          // a hit. An hour rather than the 5-minute default because two people
-          // planning across an evening should still be warm after dinner; that
-          // difference is roughly threefold on the bill.
-          //
-          // Nothing volatile may appear above this line. A clock reading or an
-          // unsorted map here invalidates the whole prefix and nothing fails —
-          // the answers stay correct and only the cost changes (research R5).
-          cache_control: { type: 'ephemeral', ttl: '1h' },
-        },
-      ],
-      messages,
-      ...(tools ? { tools } : {}),
-    })
-
-    for await (const event of stream) {
-      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-        yield { type: 'text', text: event.delta.text }
-      } else if (
-        event.type === 'content_block_start' &&
-        event.content_block.type === 'server_tool_use' &&
-        event.content_block.name === 'web_search'
-      ) {
-        // The query arrives as streamed JSON fragments afterwards, so it is not
-        // available yet. Saying "searching" without saying what for is honest
-        // and is what the screen needs; waiting for the query would delay the
-        // only signal the traveller gets that the turn is doing something slow.
-        yield { type: 'searching' }
-      }
-    }
+  for (let attempt = 0; attempt < spec.max_iterations; attempt += 1) {
+    const stream = getClient().messages.stream(requestFor(spec, messages))
+    yield* ourEventsFrom(stream)
 
     const message = await stream.finalMessage()
     addUsage(total, message.usage)
 
-    if (message.stop_reason === 'pause_turn') {
-      // The turn ran long and can be continued. Hand the partial assistant turn
-      // back and go round again — this is the case the SDK's runner drops.
+    const outcome = outcomeOf(message.stop_reason)
+    if (outcome.kind === 'resume') {
+      // Hand the partial assistant turn back and go round again — the case the
+      // SDK's runner drops.
       messages.push({ role: 'assistant', content: message.content })
       continue
     }
 
-    if (message.stop_reason === 'refusal') {
-      yield { type: 'usage', usage: total }
-      yield {
-        type: 'error',
-        code: 'REFUSED',
-        message: 'The model declined to answer that.',
-      }
-      return
-    }
-
-    // `end_turn`, `max_tokens`, `stop_sequence` — all of them mean this turn is
-    // over. `max_tokens` is a truncated answer rather than a paused one, and is
-    // reported as incomplete for the same reason a paused turn is.
-    complete = message.stop_reason !== 'max_tokens'
     yield { type: 'usage', usage: total }
-    yield { type: 'done', complete }
+    yield outcome.kind === 'refused' ? REFUSAL : { type: 'done', complete: outcome.complete }
     return
   }
 
-  // Fell out of the loop still paused: the iteration bound stopped it, not the
-  // model. Report what it cost and say plainly that the answer is unfinished
-  // (FR-013) rather than let a partial answer read as a whole one.
+  // Fell out of the loop still paused: the bound stopped this turn, not the
+  // model. Say plainly that the answer is unfinished (FR-013) rather than let a
+  // partial answer read as a whole one.
   yield { type: 'usage', usage: total }
   yield { type: 'done', complete: false }
 }
 
-/** Usage accumulates across iterations — a paused turn bills for each leg. */
+// --- what the turn did ------------------------------------------------------
+
+/** Why a turn stopped, in the three shapes the caller acts on. */
+type Outcome = { kind: 'resume' } | { kind: 'refused' } | { kind: 'finished'; complete: boolean }
+
+/**
+ * `stop_reason` → what to do about it.
+ *
+ * Pure, so the one rule worth getting right is readable on its own:
+ * **`max_tokens` is not a complete answer.** It is a truncated one, and is
+ * reported as incomplete for the same reason a paused turn is — the traveller
+ * has to be able to tell "that's the answer" from "that's where it stopped".
+ */
+function outcomeOf(stopReason: Anthropic.Message['stop_reason']): Outcome {
+  if (stopReason === 'pause_turn') return { kind: 'resume' }
+  if (stopReason === 'refusal') return { kind: 'refused' }
+  return { kind: 'finished', complete: stopReason !== 'max_tokens' }
+}
+
+const REFUSAL = {
+  type: 'error',
+  code: 'REFUSED',
+  message: 'The model declined to answer that.',
+} as const satisfies AiEvent
+
+// --- provider in ------------------------------------------------------------
+
+function toProviderMessages(messages: AgentSpec['messages']): Anthropic.MessageParam[] {
+  return messages.map((m) => ({ role: m.role, content: contentOf(m) }))
+}
+
+/**
+ * Attribution goes into the text rather than into a field, because the API has
+ * no place for one: two travellers share a conversation, and without knowing who
+ * asked, a follow-up gets answered for the wrong person.
+ */
+function contentOf(message: AgentSpec['messages'][number]): string {
+  return message.role === 'user' && message.author
+    ? `${message.author} asked: ${message.content}`
+    : message.content
+}
+
+function requestFor(spec: AgentSpec, messages: Anthropic.MessageParam[]) {
+  return {
+    model: providerModelId(spec.model),
+    max_tokens: spec.max_output_tokens,
+    // Trip Q&A is retrieval, not reasoning. Output is the expensive half of a
+    // turn, and low effort is a larger cost lever here than any model swap.
+    output_config: { effort: 'low' as const },
+    system: [cachedPrefix(spec.system)],
+    messages,
+    ...webSearchTools(spec),
+  }
+}
+
+/**
+ * The trip, above the cache breakpoint.
+ *
+ * An hour rather than the 5-minute default, because two people planning across
+ * an evening should still be warm after dinner; that difference is roughly
+ * threefold on the bill.
+ *
+ * **Nothing volatile may appear in here.** A clock reading or an unsorted map
+ * invalidates the whole prefix and nothing fails — the answers stay correct and
+ * only the cost changes (research R5).
+ */
+function cachedPrefix(system: string): Anthropic.TextBlockParam {
+  return {
+    type: 'text',
+    text: system,
+    cache_control: { type: 'ephemeral', ttl: '1h' },
+  }
+}
+
+/** Spread into the request: `{}` when the turn may not search. */
+function webSearchTools(spec: AgentSpec) {
+  if (!spec.web_search) return {}
+  return {
+    tools: [
+      {
+        type: 'web_search_20260209' as const,
+        name: 'web_search' as const,
+        max_uses: spec.web_search.max_uses,
+      },
+    ],
+  }
+}
+
+// --- provider out -----------------------------------------------------------
+
+/** The provider's stream, translated into ours. Everything else is dropped. */
+async function* ourEventsFrom(
+  stream: AsyncIterable<Anthropic.MessageStreamEvent>
+): AsyncIterable<AiEvent> {
+  for await (const event of stream) {
+    const text = textOf(event)
+    if (text !== null) {
+      yield { type: 'text', text }
+      continue
+    }
+    if (startsWebSearch(event)) yield { type: 'searching' }
+  }
+}
+
+/** The text a delta carries, or null when the event is something else. */
+function textOf(event: Anthropic.MessageStreamEvent): string | null {
+  return event.type === 'content_block_delta' && event.delta.type === 'text_delta'
+    ? event.delta.text
+    : null
+}
+
+/**
+ * The model reaching for the web.
+ *
+ * The query arrives as streamed JSON fragments afterwards, so it is not
+ * available yet — and saying "searching" without saying what for is what the
+ * screen needs. Waiting for the query would delay the only signal the traveller
+ * gets that the turn is doing something slow.
+ */
+function startsWebSearch(event: Anthropic.MessageStreamEvent): boolean {
+  return (
+    event.type === 'content_block_start' &&
+    event.content_block.type === 'server_tool_use' &&
+    event.content_block.name === 'web_search'
+  )
+}
+
+// --- usage ------------------------------------------------------------------
+
+const emptyUsage = (): AiUsage => ({ input: 0, output: 0, cache_write: 0, cache_read: 0 })
+
+/** Usage accumulates across attempts — a paused turn bills for each leg. */
 function addUsage(total: AiUsage, usage: Anthropic.Usage): void {
   total.input += usage.input_tokens ?? 0
   total.output += usage.output_tokens ?? 0

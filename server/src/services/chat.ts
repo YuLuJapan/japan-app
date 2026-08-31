@@ -15,11 +15,11 @@ import {
   recordTurn,
   type BudgetState,
 } from '../lib/ai/budget.js'
-import { DEFAULT_CHAT_MODEL, modelMeta } from '../lib/ai/models.js'
+import { DEFAULT_CHAT_MODEL, modelMeta, type ModelId } from '../lib/ai/models.js'
 import { runAgent } from '../lib/ai/runtime.js'
-import type { AiEvent, AiMessage } from '../lib/ai/types.js'
+import type { AgentSpec, AiEvent, AiMessage } from '../lib/ai/types.js'
 import { buildTripContext } from '../lib/chat-context.js'
-import type { ChatMessage, DataStore, Trip } from '../lib/datastore.js'
+import type { ChatMessage, ChatThread, DataStore, Trip } from '../lib/datastore.js'
 import { ApiError, validation } from '../lib/errors.js'
 
 export interface ChatMessageView {
@@ -149,9 +149,8 @@ export interface TurnContext {
  *  3. Persist the question — so a turn that dies leaves a conversation that
  *     reads honestly, a question with no answer, rather than losing what was
  *     typed.
- *  4. Run the model, streaming as it goes.
- *  5. Record the cost and the answer, then release the lock — on every path,
- *     including failure.
+ *  4. Run the model, recording each event's consequence *before* forwarding it.
+ *  5. Release the lock, on every path including failure.
  *
  * Steps 1 and 2 in that order matter: reversed, a capped account would take the
  * lock and then be refused, shutting the conversation for everyone until it went
@@ -164,75 +163,106 @@ export async function* runChatTurn(
 ): AsyncIterable<AiEvent> {
   const question = validateQuestion(content)
   const tripId = context.trip.id
-
-  // The thread has to exist before it can be locked. Idempotent, so two first
-  // sends racing produce one thread rather than an error.
-  await store.createChatThread(tripId)
-
-  const claimed = await store.claimChatTurn(tripId, new Date().toISOString(), TURN_STALE_MS)
-  if (!claimed) {
-    throw new ApiError(409, 'VALIDATION', 'Someone else on this trip is asking something')
-  }
+  const thread = await claimTurn(store, tripId)
 
   try {
     await assertWithinBudget(store, context.userId)
 
     const history = await store.listChatMessages(tripId)
-    await store.createChatMessage({
-      thread_id: claimed.id,
-      trip_id: tripId,
-      user_id: context.userId,
-      role: 'user',
-      content: question,
+    await saveQuestion(store, thread.id, context, question)
+
+    const recorder = turnRecorder(store, {
+      threadId: thread.id,
+      tripId,
+      userId: context.userId,
+      model: DEFAULT_CHAT_MODEL,
     })
 
-    const model = DEFAULT_CHAT_MODEL
-    const answer: string[] = []
-
-    for await (const event of runAgent({
-      model,
-      system: buildTripContext(await loadSnapshot(store, context.trip)),
-      messages: toAiMessages(history, question, context.author),
-      // US2. A *server-side* tool: it runs on the provider's infrastructure and
-      // its results come back in the same response, so there is no search
-      // service of ours, no key, no fetcher and no HTML to parse. What stays
-      // ours is the framing — the system prompt says a fetched page is
-      // information about the world and never an instruction (FR-014).
-      web_search: { max_uses: MAX_WEB_SEARCHES },
-      max_output_tokens: maxOutputTokens(),
-      max_iterations: maxIterations(),
-    })) {
-      if (event.type === 'text') {
-        answer.push(event.text)
-        yield event
-      } else if (event.type === 'usage') {
-        // Priced and recorded *before* `done` is emitted, so a client that sees
-        // `done` and immediately re-reads the conversation gets a budget that
-        // already includes the turn it just watched.
-        await recordTurn(store, {
-          userId: context.userId,
-          tripId,
-          model,
-          vendor: modelMeta(model).vendor,
-          usage: event.usage,
-        })
-        yield event
-      } else if (event.type === 'done') {
-        // The answer is stored before `done` reaches the browser, for the same
-        // reason: the next read must not be missing what was just watched.
-        await persistAnswer(store, claimed.id, tripId, answer.join(''))
-        yield event
-      } else {
-        // `searching` and `error` pass straight through. An error ends the turn
-        // with whatever text arrived already persisted below.
-        if (event.type === 'error') await persistAnswer(store, claimed.id, tripId, answer.join(''))
-        yield event
-      }
+    for await (const event of runAgent(await specFor(store, context, history, question))) {
+      await recorder.record(event)
+      yield event
     }
   } finally {
     // Every exit path, success and failure alike. A lock left held would shut
     // the conversation for both travellers until it went stale.
     await store.releaseChatTurn(tripId)
+  }
+}
+
+/** Take the lock, or refuse. Creating the thread first is idempotent. */
+async function claimTurn(store: DataStore, tripId: string): Promise<ChatThread> {
+  await store.createChatThread(tripId)
+  const claimed = await store.claimChatTurn(tripId, new Date().toISOString(), TURN_STALE_MS)
+  if (!claimed) {
+    throw new ApiError(409, 'VALIDATION', 'Someone else on this trip is asking something')
+  }
+  return claimed
+}
+
+const saveQuestion = (store: DataStore, threadId: string, context: TurnContext, content: string) =>
+  store.createChatMessage({
+    thread_id: threadId,
+    trip_id: context.trip.id,
+    user_id: context.userId,
+    role: 'user',
+    content,
+  })
+
+/** Everything the model is given for this turn. */
+async function specFor(
+  store: DataStore,
+  context: TurnContext,
+  history: ChatMessage[],
+  question: string
+): Promise<AgentSpec> {
+  return {
+    model: DEFAULT_CHAT_MODEL,
+    system: buildTripContext(await loadSnapshot(store, context.trip)),
+    messages: toAiMessages(history, question, context.author),
+    // US2. A *server-side* tool: it runs on the provider's infrastructure and
+    // its results come back in the same response, so there is no search service
+    // of ours, no key, no fetcher and no HTML to parse. What stays ours is the
+    // framing — the system prompt says a fetched page is information about the
+    // world and never an instruction (FR-014).
+    web_search: { max_uses: MAX_WEB_SEARCHES },
+    max_output_tokens: maxOutputTokens(),
+    max_iterations: maxIterations(),
+  }
+}
+
+/**
+ * Collects the answer as it streams, and performs each event's consequence.
+ *
+ * Separate from the loop so the ordering guarantee is one readable rule:
+ * `record` runs to completion *before* its event is forwarded, so a client that
+ * re-reads the moment it sees `done` gets a conversation and a budget that both
+ * already include the turn it just watched.
+ *
+ * `searching` matches nothing here, which is correct — it has no consequence
+ * beyond reaching the screen.
+ */
+function turnRecorder(
+  store: DataStore,
+  turn: { threadId: string; tripId: string; userId: string; model: ModelId }
+) {
+  const parts: string[] = []
+
+  return {
+    async record(event: AiEvent): Promise<void> {
+      if (event.type === 'text') {
+        parts.push(event.text)
+      } else if (event.type === 'usage') {
+        await recordTurn(store, {
+          userId: turn.userId,
+          tripId: turn.tripId,
+          model: turn.model,
+          vendor: modelMeta(turn.model).vendor,
+          usage: event.usage,
+        })
+      } else if (event.type === 'done' || event.type === 'error') {
+        await persistAnswer(store, turn.threadId, turn.tripId, parts.join(''))
+      }
+    },
   }
 }
 
@@ -272,10 +302,9 @@ function toAiMessages(
   question: string,
   author: string | null
 ): AiMessage[] {
-  const recent = history.slice(-HISTORY_LIMIT).map((m): AiMessage => ({
-    role: m.role,
-    content: m.content,
-  }))
+  const recent = history
+    .slice(-HISTORY_LIMIT)
+    .map((m): AiMessage => ({ role: m.role, content: m.content }))
   return [...recent, { role: 'user', content: question, ...(author ? { author } : {}) }]
 }
 
