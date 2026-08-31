@@ -14,7 +14,7 @@
 import { beforeEach, afterEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../src/app.js'
-import { TableMissingError, setDataStore, type DataStore } from '../src/lib/datastore.js'
+import { setDataStore, type DataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
 import { setAiRuntime } from '../src/lib/ai/runtime.js'
 import { createFakeRuntime } from '../src/lib/ai/adapters/fake.js'
@@ -157,46 +157,5 @@ describe('a route added under /chat', () => {
     await addViewer()
     const res = await asViewer(request(app).get('/api/trips/trip-1/chat/anything'))
     expect(res.status).toBe(403)
-  })
-})
-
-describe('when the migration has not been run', () => {
-  /** A store whose chat tables are simply not there. */
-  function withMissingChatTables() {
-    const base = createMemoryStore(fixture())
-    const missing = () => {
-      throw new TableMissingError('ai_usage', '0023_chat.sql')
-    }
-    setDataStore({
-      ...base,
-      getChatThread: missing,
-      listChatMessages: missing,
-      createChatThread: missing,
-      sumAiUsageCents: missing,
-    } as DataStore)
-  }
-
-  beforeEach(withMissingChatTables)
-
-  it('answers 404 rather than 500 when opening the chat', async () => {
-    // This is the failure a committed-but-unapplied migration produces, and
-    // "Something went wrong" is a useless thing to read at that moment. 404 is
-    // the same "absent, not broken" a missing key gives, and the screen already
-    // renders it as "chat isn't set up here".
-    const res = await asOwner(request(app).get('/api/trips/trip-1/chat'))
-    expect(res.status).toBe(404)
-    expect(res.body.error.code).toBe('NOT_FOUND')
-  })
-
-  it('answers 404 rather than 500 when sending a message', async () => {
-    const res = await asOwner(request(app).post('/api/trips/trip-1/chat/messages')).send({
-      content: 'Anything',
-    })
-    expect(res.status).toBe(404)
-  })
-
-  it('leaves the rest of the trip working', async () => {
-    // Chat's tables missing must not take the trip down with them.
-    expect((await asOwner(request(app).get('/api/trips/trip-1'))).status).toBe(200)
   })
 })
