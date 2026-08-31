@@ -8,15 +8,9 @@
 //
 // Phase 3 adds the turn itself. This is the read half.
 
-import {
-  assertWithinBudget,
-  budgetState,
-  maxOutputTokens,
-  recordTurn,
-  type BudgetState,
-} from '../lib/ai/budget.js'
-import { DEFAULT_CHAT_MODEL, modelMeta, type ModelId } from '../lib/ai/models.js'
-import { runAgent } from '../lib/ai/runtime.js'
+import { budgetState, maxOutputTokens, type BudgetState } from '../lib/ai/budget.js'
+import { openMeter } from '../lib/ai/metering.js'
+import { DEFAULT_CHAT_MODEL } from '../lib/ai/models.js'
 import type { AgentSpec, AiEvent, AiMessage } from '../lib/ai/types.js'
 import { buildTripContext } from '../lib/chat-context.js'
 import type { ChatMessage, ChatThread, DataStore, Trip } from '../lib/datastore.js'
@@ -166,20 +160,21 @@ export async function* runChatTurn(
   const thread = await claimTurn(store, tripId)
 
   try {
-    await assertWithinBudget(store, context.userId)
+    // Opening the meter is the budget gate: it throws before anything below
+    // runs, so a capped account's question is never written.
+    const meter = await openMeter(store, {
+      userId: context.userId,
+      tripId,
+      capability: 'chat',
+    })
 
     const history = await store.listChatMessages(tripId)
     await saveQuestion(store, thread.id, context, question)
 
-    const recorder = turnRecorder(store, {
-      threadId: thread.id,
-      tripId,
-      userId: context.userId,
-      model: DEFAULT_CHAT_MODEL,
-    })
+    const answer = answerCollector(store, thread.id, tripId)
 
-    for await (const event of runAgent(await specFor(store, context, history, question))) {
-      await recorder.record(event)
+    for await (const event of meter.run(await specFor(store, context, history, question))) {
+      await answer.record(event)
       yield event
     }
   } finally {
@@ -231,36 +226,26 @@ async function specFor(
 }
 
 /**
- * Collects the answer as it streams, and performs each event's consequence.
+ * Builds the answer as it streams, and stores it once the turn ends.
  *
  * Separate from the loop so the ordering guarantee is one readable rule:
  * `record` runs to completion *before* its event is forwarded, so a client that
- * re-reads the moment it sees `done` gets a conversation and a budget that both
- * already include the turn it just watched.
+ * re-reads the moment it sees `done` gets a conversation that already includes
+ * the answer it just watched arrive.
  *
- * `searching` matches nothing here, which is correct — it has no consequence
- * beyond reaching the screen.
+ * `searching` and `usage` match nothing here, which is correct — the first has
+ * no consequence beyond reaching the screen, and the second belongs to the
+ * meter.
  */
-function turnRecorder(
-  store: DataStore,
-  turn: { threadId: string; tripId: string; userId: string; model: ModelId }
-) {
+function answerCollector(store: DataStore, threadId: string, tripId: string) {
   const parts: string[] = []
 
   return {
     async record(event: AiEvent): Promise<void> {
       if (event.type === 'text') {
         parts.push(event.text)
-      } else if (event.type === 'usage') {
-        await recordTurn(store, {
-          userId: turn.userId,
-          tripId: turn.tripId,
-          model: turn.model,
-          vendor: modelMeta(turn.model).vendor,
-          usage: event.usage,
-        })
       } else if (event.type === 'done' || event.type === 'error') {
-        await persistAnswer(store, turn.threadId, turn.tripId, parts.join(''))
+        await persistAnswer(store, threadId, tripId, parts.join(''))
       }
     },
   }

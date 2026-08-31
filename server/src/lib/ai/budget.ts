@@ -24,7 +24,7 @@
 import type { DataStore } from '../datastore.js'
 import { forbidden } from '../errors.js'
 import { priceUsage, type ModelId } from './models.js'
-import type { AiUsage } from './types.js'
+import type { AiCapability, AiUsage } from './types.js'
 
 /** $10 a month per account, and $50 across everyone, unless the env says otherwise. */
 const DEFAULT_MONTHLY_CAP_CENTS = 1000
@@ -140,7 +140,9 @@ export async function recordTurn(
   store: DataStore,
   args: {
     userId: string
-    tripId: string
+    /** Null for a capability that has no trip — the cap is per account either way. */
+    tripId: string | null
+    capability: AiCapability
     model: ModelId
     vendor: string
     usage: AiUsage
@@ -150,7 +152,7 @@ export async function recordTurn(
   await store.recordAiUsage({
     user_id: args.userId,
     trip_id: args.tripId,
-    capability: 'chat',
+    capability: args.capability,
     vendor: args.vendor,
     model: args.model,
     unit: 'tokens',

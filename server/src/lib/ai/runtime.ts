@@ -46,11 +46,14 @@ export function aiConfigured(): boolean {
  * would put a silence in front of every answer for no gain.
  *
  * Note what this does **not** do: it does not check the budget and it does not
- * write the ledger. Those belong to `services/chat.ts`, which owns the ordering
- * — claim the lock, check the budget, persist the question, run the turn, record
- * what it cost — and can therefore guarantee that ordering. A runtime that
- * quietly did some of it would leave the service unable to reason about the
- * rest.
+ * write the ledger. **Most callers should not use it directly** — `openMeter`
+ * in metering.ts wraps it so a run cannot happen without being paid for, and
+ * that is the entry point a capability wants.
+ *
+ * This one stays exported and unmetered for the two cases that genuinely are
+ * not billable: a test driving the fake adapter, and any future caller that has
+ * already accounted for its own spend. Keeping the seams apart is also what lets
+ * the meter be tested against a fake runtime rather than against a real bill.
  */
 export function runAgent(spec: AgentSpec): AsyncIterable<AiEvent> {
   if (override) return override(spec)
