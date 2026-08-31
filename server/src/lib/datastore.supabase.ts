@@ -1406,11 +1406,12 @@ export function createSupabaseStore(): DataStore {
     // --- Chat (005) ---------------------------------------------------------
 
     async getChatThread(tripId) {
-      const { data } = await db
+      const { data, error } = await db
         .from('chat_threads')
         .select(CHAT_THREAD_COLS)
         .eq('trip_id', tripId)
         .maybeSingle()
+      if (error) throw new Error(error.message)
       return data ? rowToChatThread(data as Record<string, unknown>) : null
     },
 
@@ -1456,7 +1457,7 @@ export function createSupabaseStore(): DataStore {
     },
 
     async listChatMessages(tripId) {
-      const { data } = await db
+      const { data, error } = await db
         .from('chat_messages')
         .select(CHAT_MESSAGE_COLS)
         .eq('trip_id', tripId)
@@ -1466,6 +1467,7 @@ export function createSupabaseStore(): DataStore {
         // secondary sort on the random uuid would be worse than nothing, putting
         // an answer before its question whenever two rows did tie.
         .order('created_at', { ascending: true })
+      if (error) throw new Error(error.message)
       return ((data as Record<string, unknown>[]) ?? []).map(rowToChatMessage)
     },
 
