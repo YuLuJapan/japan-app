@@ -118,20 +118,92 @@ describe('a successful turn', () => {
 })
 
 describe('what the model is given', () => {
-  it('is the trip, and the question attributed to whoever asked', async () => {
+  it('is a listing and a grep tool, and the question attributed to whoever asked', async () => {
     const calls = script([{ text: 'ok' }])
     await ask('Where are we staying in Tokyo?')
 
     const spec = calls.specs[0]
-    // The trip prefix, not a summary of it: the point of US1 is that answers
-    // come from real rows.
-    expect(spec.system).toContain('SAVED PLACES')
-    expect(spec.system).toContain('THE JOURNEY')
+    // The trip's front matter and the paths — not the trip. What is *in* a file
+    // arrives only if the model opens one.
+    expect(spec.system).toContain('/trip/places.json')
+    expect(spec.system).toContain('Country: Japan')
+    expect(spec.tools?.map((t) => t.name)).toEqual(['grep'])
     expect(spec.messages.at(-1)).toMatchObject({
       role: 'user',
       content: 'Where are we staying in Tokyo?',
       author: 'Yuval',
     })
+  })
+
+  it('leaves the trip itself out of the prefix', async () => {
+    // The whole point, asserted as an absence. `Ramen Bar` is a fixture place,
+    // so finding it here would mean the eager prefix had come back — which is
+    // not a wrong answer, just a bill nobody agreed to.
+    const calls = script([{ text: 'ok' }])
+    await ask('anything')
+
+    expect(calls.specs[0].system).not.toContain('Ramen Bar')
+    expect(calls.specs[0].system).not.toContain('SAVED PLACES')
+    // Small enough to state as a number: a few hundred tokens against 8–15K.
+    expect(calls.specs[0].system.length).toBeLessThan(3000)
+  })
+
+  it('carries the conversation so far, so a follow-up has context', async () => {
+    await ask('First question')
+    const calls = script([{ text: 'ok' }])
+    await ask('And the second?')
+
+    const roles = calls.specs[0].messages.map((m) => m.role)
+    expect(roles).toEqual(['user', 'assistant', 'user'])
+  })
+
+  it('builds the same prefix twice for an unchanged trip', async () => {
+    // Byte-identical, or the cached prefix is invalidated on every turn and the
+    // real cost is roughly threefold the estimate. Nothing else reports this:
+    // the answers stay correct and only the bill changes (research R5).
+    const calls = script([{ text: 'ok' }, { text: 'ok' }])
+    await ask('One')
+    await ask('Two')
+    expect(calls.specs[0].system).toBe(calls.specs[1].system)
+  })
+
+  it('declares the same tool twice, byte for byte', async () => {
+    // Tool definitions sit above the system block in the cached prefix, so a
+    // description that mentioned the trip would re-bill the whole thing on every
+    // turn — and, like every other cache failure, would look like nothing at all.
+    const calls = script([{ text: 'ok' }, { text: 'ok' }])
+    await ask('One')
+    await ask('Two')
+    expect(JSON.stringify(toolShapes(calls.specs[0]))).toBe(
+      JSON.stringify(toolShapes(calls.specs[1]))
+    )
+  })
+})
+
+/** A tool as the provider is told about it — `run` is ours and is not sent. */
+const toolShapes = (spec: { tools?: { name: string; description: string }[] }) =>
+  (spec.tools ?? []).map((t) => ({ name: t.name, description: t.description }))
+
+describe('rolling back to the eager prefix', () => {
+  // `ai-chat-context=eager` is the lever for a model that reads badly in front
+  // of real travellers. These are 005's own assertions, kept: what they protect
+  // is that the rollback still *works*, not that anyone expects to need it.
+  beforeEach(() => {
+    process.env.AI_CHAT_CONTEXT = 'eager'
+  })
+  afterEach(() => {
+    delete process.env.AI_CHAT_CONTEXT
+  })
+
+  it('writes the whole trip out, and declares no tools', async () => {
+    const calls = script([{ text: 'ok' }])
+    await ask('Where are we staying in Tokyo?')
+
+    expect(calls.specs[0].system).toContain('SAVED PLACES')
+    expect(calls.specs[0].system).toContain('THE JOURNEY')
+    // No `grep` over a prefix that already holds the trip: that would pay for
+    // both.
+    expect(calls.specs[0].tools).toEqual([])
   })
 
   it('includes the flight and the shopping list', async () => {
@@ -157,25 +229,6 @@ describe('what the model is given', () => {
 
     expect(calls.specs[0].system).toContain('ABC123')
     expect(calls.specs[0].system).toContain('Kit-Kat')
-  })
-
-  it('carries the conversation so far, so a follow-up has context', async () => {
-    await ask('First question')
-    const calls = script([{ text: 'ok' }])
-    await ask('And the second?')
-
-    const roles = calls.specs[0].messages.map((m) => m.role)
-    expect(roles).toEqual(['user', 'assistant', 'user'])
-  })
-
-  it('builds the same prefix twice for an unchanged trip', async () => {
-    // Byte-identical, or the cached prefix is invalidated on every turn and the
-    // real cost is roughly threefold the estimate. Nothing else reports this:
-    // the answers stay correct and only the bill changes (research R5).
-    const calls = script([{ text: 'ok' }, { text: 'ok' }])
-    await ask('One')
-    await ask('Two')
-    expect(calls.specs[0].system).toBe(calls.specs[1].system)
   })
 })
 

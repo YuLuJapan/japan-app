@@ -49,6 +49,7 @@ describe('with no PostHog configured', () => {
     expect(await aiSettings('user-1')).toEqual({
       model: DEFAULT_CHAT_MODEL,
       monthlyCapCents: 2500,
+      contextMode: 'lazy',
     })
   })
 
@@ -129,6 +130,7 @@ describe('when PostHog is unreachable', () => {
     expect(await aiSettings('user-1')).toEqual({
       model: DEFAULT_CHAT_MODEL,
       monthlyCapCents: 1500,
+      contextMode: 'lazy',
     })
   })
 })

@@ -149,6 +149,16 @@ export interface AnalyticsEventProperties {
     iterations: number
     duration_ms: number
     used_web: boolean
+    /**
+     * How many of the trip's files the turn opened (006).
+     *
+     * A count, never the paths: which file was opened says what the question was
+     * about, and a question is trip content. This is the number that says whether
+     * the lazy prefix is working — zero every turn means the model is answering
+     * without reading, seven means it has rebuilt the eager prefix at a worse
+     * price, and neither shows up as a wrong answer.
+     */
+    files_read: number
   }
   /** Bucketed, never the exact figure: this answers "does the cap bite?", and a
    *  running total per account is closer to a bill than to a shape. */

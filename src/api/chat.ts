@@ -24,6 +24,8 @@ import { ApiError, clearAccessCode, getAccessCode } from './client'
 export type ChatEvent =
   | { type: 'text'; text: string }
   | { type: 'searching'; query?: string }
+  /** The model is opening one of the trip's files. `path` is for telemetry, not the screen. */
+  | { type: 'reading'; path?: string }
   | { type: 'usage'; usage: Record<string, number> }
   | { type: 'done'; complete: boolean }
   | { type: 'error'; code: string; message: string }

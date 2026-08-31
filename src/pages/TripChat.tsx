@@ -14,7 +14,7 @@ import { useChat, useMe } from '../api/hooks'
 import type { ChatBudget, ChatMessageView, ChatView } from '../api/types'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
-import { useChatTurn } from '../lib/chat-turn'
+import { useChatTurn, type TurnActivity } from '../lib/chat-turn'
 import { useOnlineStatus } from '../lib/online'
 import { useTripId } from '../lib/trip'
 
@@ -81,7 +81,7 @@ export default function TripChat() {
             content={turn.question}
           />
         )}
-        {turn.answer !== null && <StreamingBubble text={turn.answer} searching={turn.searching} />}
+        {turn.answer !== null && <StreamingBubble text={turn.answer} activity={turn.activity} />}
         {turn.incomplete && <IncompleteNotice />}
         {turn.error && <p className="text-sm text-brand-700">{turn.error}</p>}
         {/* `scroll-mb` is what keeps "scroll to the newest message" from
@@ -193,16 +193,29 @@ function Bubble({
   )
 }
 
+/**
+ * What a turn is doing while it has nothing to show yet.
+ *
+ * Specific rather than a spinner, because the two are genuinely different waits
+ * and one of them is much longer: a web search takes seconds, opening a file
+ * takes a moment. "Thinking…" for both would make the short one feel broken and
+ * the long one feel stuck.
+ */
+const ACTIVITY_LINES: Record<TurnActivity, string> = {
+  searching: 'Searching the web…',
+  reading: 'Reading your trip…',
+}
+
 /** The answer being drawn right now. */
-function StreamingBubble({ text, searching }: { text: string; searching: boolean }) {
+function StreamingBubble({ text, activity }: { text: string; activity: TurnActivity | null }) {
   return (
     <div className="flex justify-start">
       <div className="max-w-[85%] rounded-[20px] rounded-bl-md bg-white px-4 py-2.5 text-sm shadow-card">
-        {searching && <p className="mb-1 text-xs text-muted">Searching the web…</p>}
+        {activity && <p className="mb-1 text-xs text-muted">{ACTIVITY_LINES[activity]}</p>}
         {text ? (
           <p className="whitespace-pre-wrap leading-relaxed">{text}</p>
         ) : (
-          !searching && <p className="text-muted">Thinking…</p>
+          !activity && <p className="text-muted">Thinking…</p>
         )}
       </div>
     </div>

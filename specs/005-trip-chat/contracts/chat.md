@@ -94,6 +94,7 @@ data: {"type":"done","message_id":"cm_2","complete":true}
 | ----------- | ------------------------ | ---------------------------------------------------- |
 | `text`      | `text`                   | append to the answer being drawn                     |
 | `searching` | `query?`                 | the model is using web search — show it (US2)        |
+| `reading`   | `path?`                  | the model is opening a trip file — show it (006)     |
 | `usage`     | four token counts        | what the turn cost; priced and written to `ai_usage` |
 | `done`      | `message_id`, `complete` | the turn ended                                       |
 | `error`     | `code`, `message`        | it failed mid-stream                                 |
