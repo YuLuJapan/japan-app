@@ -82,9 +82,10 @@ export interface BudgetState {
 export async function budgetState(
   store: DataStore,
   userId: string,
-  now = new Date()
+  now = new Date(),
+  /** The resolved cap. Defaults to the env var, which is the flag's fallback. */
+  cap = monthlyCapCents()
 ): Promise<BudgetState> {
-  const cap = monthlyCapCents()
   const spent = await store.sumAiUsageCents(userId, monthStart(now))
   const blocked = spent >= cap
   return {
@@ -107,9 +108,10 @@ export async function budgetState(
 export async function assertWithinBudget(
   store: DataStore,
   userId: string,
-  now = new Date()
+  now = new Date(),
+  cap = monthlyCapCents()
 ): Promise<BudgetState> {
-  const state = await budgetState(store, userId, now)
+  const state = await budgetState(store, userId, now, cap)
   if (state.blocked) {
     throw forbidden(
       `Chat is paused until ${formatResumeDate(state.resumes_on)} — this month's budget is used up`

@@ -1,9 +1,9 @@
-// Running a model, and making sure it is paid for.
+// Running a model, and making sure it is paid for and accounted for.
 //
-// Every AI capability needs the same two things around it: refuse the call if
-// the account is over a cap, and write what it cost to the ledger afterwards.
-// Three capabilities are planned (chat 005/006, extraction 007, image
-// generation), and three copies of that pairing is how one of them ends up
+// Every AI capability needs the same three things around it: refuse the call if
+// the account is over a cap, write what it cost to the ledger, and report it to
+// observability. Three capabilities are planned (chat 005/006, extraction 007,
+// image generation), and three copies of that is how one of them ends up
 // missing the cap — the one control this whole area exists to keep.
 //
 // WHY TWO PHASES AND NOT ONE WRAPPER
@@ -21,9 +21,10 @@
 
 import type { DataStore } from '../datastore.js'
 import { assertWithinBudget, recordTurn } from './budget.js'
-import { modelMeta } from './models.js'
+import { modelMeta, priceUsage } from './models.js'
+import { captureGeneration, newTraceId } from './observability.js'
 import { runAgent } from './runtime.js'
-import type { AgentSpec, AiCapability, AiEvent } from './types.js'
+import type { AgentSpec, AiCapability, AiEvent, AiUsage } from './types.js'
 
 /** Who is charged, and for what. */
 export interface MeterSubject {
@@ -32,6 +33,14 @@ export interface MeterSubject {
   /** Which trip it happened on, where the capability has one. */
   tripId?: string | null
   capability: AiCapability
+  /**
+   * The cap to enforce, in cents. Omit to use the environment's.
+   *
+   * Passed in rather than read here because it is a feature flag now
+   * (`lib/ai/settings.ts`), and the value the gate enforces must be the same one
+   * the screen was told about — resolved once per turn, not twice.
+   */
+  capCents?: number
 }
 
 export interface Meter {
@@ -53,7 +62,7 @@ export interface Meter {
  * charged when it throws.
  */
 export async function openMeter(store: DataStore, subject: MeterSubject): Promise<Meter> {
-  await assertWithinBudget(store, subject.userId)
+  await assertWithinBudget(store, subject.userId, new Date(), subject.capCents)
 
   return {
     run: (spec) => meteredRun(store, subject, spec),
@@ -65,8 +74,13 @@ async function* meteredRun(
   subject: MeterSubject,
   spec: AgentSpec
 ): AsyncIterable<AiEvent> {
+  const started = Date.now()
+  const traceId = newTraceId()
+  let usage: AiUsage | null = null
+
   for await (const event of runAgent(spec)) {
     if (event.type === 'usage') {
+      usage = event.usage
       await recordTurn(store, {
         userId: subject.userId,
         tripId: subject.tripId ?? null,
@@ -76,6 +90,46 @@ async function* meteredRun(
         usage: event.usage,
       })
     }
+
+    // Reported once the turn has resolved, so the event carries how it ended
+    // rather than being sent optimistically the moment usage arrived.
+    if (event.type === 'done' || event.type === 'error') {
+      report(subject, spec, {
+        traceId,
+        usage,
+        started,
+        stopReason: event.type === 'done' ? (event.complete ? 'end_turn' : 'max_iterations') : null,
+        isError: event.type === 'error',
+      })
+    }
+
     yield event
   }
+}
+
+function report(
+  subject: MeterSubject,
+  spec: AgentSpec,
+  turn: {
+    traceId: string
+    usage: AiUsage | null
+    started: number
+    stopReason: string | null
+    isError: boolean
+  }
+): void {
+  // A turn that died before the model answered has nothing to report but the
+  // failure itself; zeroes are the honest counters for it.
+  const usage = turn.usage ?? { input: 0, output: 0, cache_write: 0, cache_read: 0 }
+  captureGeneration({
+    userId: subject.userId,
+    traceId: turn.traceId,
+    capability: subject.capability,
+    model: spec.model,
+    usage,
+    costCents: priceUsage(spec.model, usage),
+    latencySeconds: (Date.now() - turn.started) / 1000,
+    stopReason: turn.stopReason,
+    isError: turn.isError,
+  })
 }

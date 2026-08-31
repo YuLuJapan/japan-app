@@ -10,7 +10,8 @@
 
 import { budgetState, maxOutputTokens, type BudgetState } from '../lib/ai/budget.js'
 import { openMeter } from '../lib/ai/metering.js'
-import { DEFAULT_CHAT_MODEL } from '../lib/ai/models.js'
+import type { ModelId } from '../lib/ai/models.js'
+import { aiSettings } from '../lib/ai/settings.js'
 import type { AgentSpec, AiEvent, AiMessage } from '../lib/ai/types.js'
 import { buildTripContext } from '../lib/chat-context.js'
 import type { ChatMessage, ChatThread, DataStore, Trip } from '../lib/datastore.js'
@@ -52,10 +53,14 @@ export interface ChatView {
  * had room while the server refused them.
  */
 export async function getChat(store: DataStore, tripId: string, userId: string): Promise<ChatView> {
+  // The cap is a flag, so the figure the screen is told must come from the same
+  // resolver the gate enforces — otherwise the notice and the refusal can
+  // disagree, which is the one thing computing it server-side was meant to stop.
+  const settings = await aiSettings(userId)
   const [thread, messages, budget] = await Promise.all([
     store.getChatThread(tripId),
     store.listChatMessages(tripId),
-    budgetState(store, userId),
+    budgetState(store, userId, new Date(), settings.monthlyCapCents),
   ])
 
   return {
@@ -161,12 +166,17 @@ export async function* runChatTurn(
   const thread = await claimTurn(store, tripId)
 
   try {
+    // Resolved once: the same values gate the spend and choose the model, so a
+    // flag changing mid-turn cannot split them.
+    const settings = await aiSettings(context.userId)
+
     // Opening the meter is the budget gate: it throws before anything below
     // runs, so a capped account's question is never written.
     const meter = await openMeter(store, {
       userId: context.userId,
       tripId,
       capability: 'chat',
+      capCents: settings.monthlyCapCents,
     })
 
     const history = await store.listChatMessages(tripId)
@@ -174,7 +184,8 @@ export async function* runChatTurn(
 
     const answer = answerCollector(store, thread.id, tripId)
 
-    for await (const event of meter.run(await specFor(store, context, history, question))) {
+    const spec = await specFor(store, context, history, question, settings.model)
+    for await (const event of meter.run(spec)) {
       await answer.record(event)
       yield event
     }
@@ -209,10 +220,11 @@ async function specFor(
   store: DataStore,
   context: TurnContext,
   history: ChatMessage[],
-  question: string
+  question: string,
+  model: ModelId
 ): Promise<AgentSpec> {
   return {
-    model: DEFAULT_CHAT_MODEL,
+    model,
     system: buildTripContext(await loadSnapshot(store, context.trip)),
     messages: toAiMessages(history, question, context.author),
     // US2. A *server-side* tool: it runs on the provider's infrastructure and
