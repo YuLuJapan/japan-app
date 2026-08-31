@@ -22,8 +22,15 @@ export interface ChatTurn {
   question: string | null
   /** The answer being drawn, or null when no turn is in flight. */
   answer: string | null
-  /** The model is on the web. Ends the moment the first text arrives. */
-  searching: boolean
+  /**
+   * What the turn is doing while it has nothing to show yet, or null.
+   *
+   * One field rather than a boolean per tool: the screen has room for one line,
+   * only one thing is happening at a time, and a pair of booleans would let
+   * "Searching the web…" and "Reading your trip…" both be true and neither be
+   * chosen. Ends the moment the first text arrives.
+   */
+  activity: TurnActivity | null
   /** The turn stopped at its bound with more to say. */
   incomplete: boolean
   error: string | null
@@ -50,10 +57,18 @@ interface Options {
   refresh: () => Promise<unknown>
 }
 
+/**
+ * What a quiet turn is busy with.
+ *
+ * The server decides which of these a turn is in — the client never maps a tool
+ * name to a sentence, because nothing here knows what a tool does.
+ */
+export type TurnActivity = 'searching' | 'reading'
+
 export function useChatTurn(tripId: string, { hasHistory, refresh }: Options): ChatTurn {
   const [question, setQuestion] = useState<string | null>(null)
   const [answer, setAnswer] = useState<string | null>(null)
-  const [searching, setSearching] = useState(false)
+  const [activity, setActivity] = useState<TurnActivity | null>(null)
   const [incomplete, setIncomplete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
@@ -70,7 +85,7 @@ export function useChatTurn(tripId: string, { hasHistory, refresh }: Options): C
       setAnswer('')
       setError(null)
       setIncomplete(false)
-      setSearching(false)
+      setActivity(null)
       setSending(true)
       capture('chat_turn_started', { has_history: hasHistory })
 
@@ -83,9 +98,11 @@ export function useChatTurn(tripId: string, { hasHistory, refresh }: Options): C
         if (event.type === 'text') {
           // Append, never replace: the answer arrives in fragments.
           setAnswer((prev) => (prev ?? '') + event.text)
-          setSearching(false)
+          setActivity(null)
         } else if (event.type === 'searching') {
-          setSearching(true)
+          setActivity('searching')
+        } else if (event.type === 'reading') {
+          setActivity('reading')
         } else if (event.type === 'done') {
           setIncomplete(!event.complete)
         } else if (event.type === 'error') {
@@ -119,7 +136,7 @@ export function useChatTurn(tripId: string, { hasHistory, refresh }: Options): C
     [hasHistory, refresh, tripId]
   )
 
-  return { question, answer, searching, incomplete, error, sending, ask }
+  return { question, answer, activity, incomplete, error, sending, ask }
 }
 
 /**
@@ -132,12 +149,20 @@ function turnReport() {
   const started = Date.now()
   let iterations = 1
   let usedWeb = false
+  // A count, never the paths. Which file was opened is a fact about the
+  // question, and a question is trip content — the same reason the search query
+  // is not reported either.
+  let filesRead = 0
   let outcome: 'ok' | 'capped' | 'error' = 'ok'
 
   return {
     saw(event: ChatEvent) {
       if (event.type === 'searching') {
         usedWeb = true
+        iterations += 1
+      }
+      if (event.type === 'reading') {
+        filesRead += 1
         iterations += 1
       }
       if (event.type === 'done' && !event.complete) outcome = 'capped'
@@ -147,7 +172,13 @@ function turnReport() {
       outcome = 'error'
     },
     finish() {
-      return { outcome, iterations, duration_ms: Date.now() - started, used_web: usedWeb }
+      return {
+        outcome,
+        iterations,
+        duration_ms: Date.now() - started,
+        used_web: usedWeb,
+        files_read: filesRead,
+      }
     },
   }
 }

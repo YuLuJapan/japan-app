@@ -785,13 +785,27 @@ model is called, so a slow turn is visibly working rather than silent.
 Each frame is one `data:` line carrying one event, and **these are this app's events, never the provider's
 raw stream events** — a vendor change must not reach React:
 
-| `type`      | Carries                  | Means                                                |
-| ----------- | ------------------------ | ---------------------------------------------------- |
-| `text`      | `text`                   | append to the answer being drawn                     |
-| `searching` | `query?`                 | the model is using web search                        |
-| `usage`     | four token counts        | what the turn cost; priced and written to `ai_usage` |
-| `done`      | `message_id`, `complete` | the turn ended                                       |
-| `error`     | `code`, `message`        | it failed mid-stream                                 |
+| `type`      | Carries                  | Means                                                      |
+| ----------- | ------------------------ | ---------------------------------------------------------- |
+| `text`      | `text`                   | append to the answer being drawn                           |
+| `searching` | `query?`                 | the model is using web search                              |
+| `reading`   | `path?`                  | the model is opening one of the trip's files (feature 006) |
+| `usage`     | four token counts        | what the turn cost; priced and written to `ai_usage`       |
+| `done`      | `message_id`, `complete` | the turn ended                                             |
+| `error`     | `code`, `message`        | it failed mid-stream                                       |
+
+**`reading.path` is telemetry, not copy.** The screen says "Reading your trip…" and never the
+path: which file was opened says what the question was about, and a question is trip content.
+
+**How the trip reaches the model** (feature 006, `specs/006-lazy-trip-context/`). The system
+prefix is the trip's front matter plus a **listing** of read-only files — `/trip/cities.json`,
+`/trip/flight.json`, `/trip/places.json`, `/trip/itinerary.json`, `/trip/tips.json`,
+`/trip/shopping.json`, `/trip/documents.json` — and one `grep` tool that searches or reads
+them. Building the prefix performs no content reads at all; a file is projected from the
+datastore only if the model opens it. Nothing about _what_ a caller may see changed: the files
+hold exactly what the eager prefix held, and chat is writers-only, who get the full view.
+The `ai-chat-context` flag (`lazy` | `eager`, server-side, default `lazy`) rolls back to
+005's whole-trip prefix.
 
 **`done.complete: false`** means the turn stopped at the iteration bound, and the screen must say the answer
 is incomplete rather than present a truncated one as finished.

@@ -40,6 +40,20 @@ export type AiEvent =
   | { type: 'text'; text: string }
   /** The model is searching the web. `query` is absent when the provider does not say. */
   | { type: 'searching'; query?: string }
+  /**
+   * The model is opening one of the trip's files (`lib/chat-files.ts`).
+   *
+   * A sibling of `searching` rather than one general "using a tool" event, and
+   * deliberately so: the screen has to say something true and specific while a
+   * turn is quiet, and "reading your trip" is a different sentence from
+   * "searching the web". A write tool later is a third verb and gets a third
+   * variant — widening this one into `{ tool, args }` would push the wording
+   * decision into React, where nothing knows what a tool does.
+   *
+   * `path` is whatever the model asked for and is not validated here; it exists
+   * for the turn's own telemetry, not for the screen to render.
+   */
+  | { type: 'reading'; path?: string }
   /** What the turn cost. Priced by budget.ts and written to `ai_usage`. */
   | { type: 'usage'; usage: AiUsage }
   /**
@@ -72,7 +86,22 @@ export interface AiUsage {
   cache_read: number
 }
 
-/** A tool the model may call. None are declared in 005 (research R4); 006 adds them. */
+/**
+ * A tool the model may call, and the function that answers it.
+ *
+ * Declared in 005 and unused; 006 wires it up for the trip's virtual file
+ * system. Two properties the adapter relies on:
+ *
+ * **The declaration must not vary per request.** Tool definitions sit above the
+ * system block in the cached prefix, so a description that interpolated
+ * anything about the trip would invalidate the cache on every turn — the same
+ * silent failure as a clock reading in the prompt.
+ *
+ * **`run` should not throw.** A tool that throws takes the turn with it, and the
+ * model can neither see why nor try something else; a failure it can read is an
+ * answer it can act on. The adapter catches anyway, because "should not" is not
+ * "cannot".
+ */
 export interface AiTool {
   name: string
   description: string
@@ -92,7 +121,12 @@ export interface AgentSpec {
   model: import('./models.js').ModelId
   system: string
   messages: AiMessage[]
-  /** Client-side tools. Empty in 005. */
+  /**
+   * Client-side tools: ours to run, and each round trip spends one iteration.
+   *
+   * Empty in 005. 006 passes exactly one — `grep` over the trip's files — which
+   * is what lets the prefix above be a listing rather than the whole trip.
+   */
   tools?: AiTool[]
   /** Let the model search the web (US2). A server-side tool — nothing to run here. */
   web_search?: { max_uses: number }

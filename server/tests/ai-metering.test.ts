@@ -135,6 +135,13 @@ describe('running through the meter', () => {
     // The limitation stated rather than hidden: usage is known only *after* a
     // run while the gate is *before* it, so one run can cross. What must hold is
     // that it cannot compound — the next `openMeter` sees the recorded row.
+    //
+    // The run is scripted expensive rather than left on the fixture's default
+    // usage, because the default costs a fraction of a cent and whether that
+    // crosses a whole-cent boundary depends on the price of whichever model is
+    // default — so the assertion used to break every time that changed, saying
+    // nothing about the meter.
+    setAiRuntime(createFakeRuntime([{ text: 'expensive', usage: { output: 200_000 } }]).runtime)
     await seed(OWNER_USER.id, 999)
     const meter = await openMeter(store, subject)
     await drain(meter.run(spec))

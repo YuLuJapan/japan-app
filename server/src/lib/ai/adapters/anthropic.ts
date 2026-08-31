@@ -23,8 +23,11 @@
 //     exists to prevent, arriving by default.
 //
 // Handling it explicitly costs about thirty lines and drops both a beta surface
-// and a `zod` dependency. `AgentSpec` still carries tools, so 006 adds client
-// tools without reshaping anything.
+// and a `zod` dependency. That bet paid: 006 declares a real client tool — the
+// `grep` over the trip's virtual files — and it drops into the same loop as one
+// more reason to go round again, beside `pause_turn`. Reason (1) is spent;
+// reason (2) is not, and would have been a silently truncated answer on any
+// turn that both searched and read a file.
 
 import Anthropic from '@anthropic-ai/sdk'
 import { providerModelId } from '../models.js'
@@ -42,10 +45,12 @@ function getClient(): Anthropic {
 /**
  * One turn, as a stream of our events.
  *
- * The loop body runs more than once for exactly one reason: a turn that stopped
- * at `pause_turn` and can be continued. Everything else returns on the first
- * pass. Each resume spends one attempt, so a web search that keeps finding more
- * to read cannot run away or outlive the function's duration limit.
+ * The loop body runs more than once for two reasons and no others: a turn that
+ * stopped at `pause_turn` and can be continued, and a turn that asked to use one
+ * of our tools. Everything else returns on the first pass. Each round spends one
+ * attempt, so neither a web search that keeps finding more to read nor a model
+ * that keeps opening files can run away or outlive the function's duration
+ * limit.
  */
 export async function* runAnthropicTurn(spec: AgentSpec): AsyncIterable<AiEvent> {
   const messages = toProviderMessages(spec.messages)
@@ -66,22 +71,112 @@ export async function* runAnthropicTurn(spec: AgentSpec): AsyncIterable<AiEvent>
       continue
     }
 
+    if (outcome.kind === 'tools') {
+      // The model asked to read something. Run every call it made, hand all the
+      // results back in one user message — the API requires one `tool_result`
+      // per `tool_use`, in the same turn — and go round again.
+      messages.push({ role: 'assistant', content: message.content })
+      const calls = toolCallsIn(message.content)
+      yield* announce(calls)
+      messages.push({ role: 'user', content: await runTools(spec, calls) })
+      continue
+    }
+
     yield { type: 'usage', usage: total }
     yield outcome.kind === 'refused' ? REFUSAL : { type: 'done', complete: outcome.complete }
     return
   }
 
-  // Fell out of the loop still paused: the bound stopped this turn, not the
+  // Fell out of the loop still working: the bound stopped this turn, not the
   // model. Say plainly that the answer is unfinished (FR-013) rather than let a
-  // partial answer read as a whole one.
+  // partial answer read as a whole one. This is a likelier ending now than it
+  // was in 005 — a turn that reads two files and searches the web has spent four
+  // iterations before writing a word — which is why the default bound went up
+  // with the tool loop rather than after somebody hit it.
   yield { type: 'usage', usage: total }
   yield { type: 'done', complete: false }
 }
 
+// --- client tools -----------------------------------------------------------
+
+/**
+ * Run every tool the model called, in the order it called them.
+ *
+ * Sequential rather than parallel, deliberately. The tools here read a shared
+ * memoised file system, so two calls landing together would race to build the
+ * same file and the second would win nothing; and a model that asked for three
+ * files usually wants the third *because* of the first. The calls are cheap —
+ * in-process reads, not network — so ordering costs nothing worth having.
+ *
+ * **Nothing here throws.** A tool that fails comes back as an error result the
+ * model can read and work around; a thrown one would end the turn with no
+ * answer and no explanation.
+ */
+async function runTools(
+  spec: AgentSpec,
+  calls: Anthropic.ToolUseBlock[]
+): Promise<Anthropic.ToolResultBlockParam[]> {
+  const byName = new Map((spec.tools ?? []).map((tool) => [tool.name, tool]))
+  const results: Anthropic.ToolResultBlockParam[] = []
+
+  for (const call of calls) {
+    const tool = byName.get(call.name)
+    if (!tool) {
+      results.push(errorResult(call, `There is no tool called "${call.name}".`))
+      continue
+    }
+    try {
+      results.push({
+        type: 'tool_result',
+        tool_use_id: call.id,
+        content: await tool.run(call.input),
+      })
+    } catch (err) {
+      console.error(`[ai] tool ${call.name} threw`, err)
+      results.push(errorResult(call, 'That tool failed. Try a different approach.'))
+    }
+  }
+
+  return results
+}
+
+const errorResult = (
+  call: Anthropic.ToolUseBlock,
+  message: string
+): Anthropic.ToolResultBlockParam => ({
+  type: 'tool_result',
+  tool_use_id: call.id,
+  content: message,
+  is_error: true,
+})
+
+const toolCallsIn = (content: Anthropic.ContentBlock[]): Anthropic.ToolUseBlock[] =>
+  content.filter((block): block is Anthropic.ToolUseBlock => block.type === 'tool_use')
+
+/**
+ * Tell the screen a file is being opened.
+ *
+ * Emitted here rather than from `content_block_start`, where the web-search
+ * signal comes from, because a tool call's input arrives as streamed JSON
+ * fragments *after* the block starts — at that moment there is a tool call but
+ * no path, and "reading something" is a worse line than a slightly later
+ * "reading this". The delay is the tail of one message.
+ */
+function* announce(calls: Anthropic.ToolUseBlock[]): Generator<AiEvent> {
+  for (const call of calls) {
+    const path = (call.input as { path?: unknown } | null)?.path
+    yield { type: 'reading', ...(typeof path === 'string' ? { path } : {}) }
+  }
+}
+
 // --- what the turn did ------------------------------------------------------
 
-/** Why a turn stopped, in the three shapes the caller acts on. */
-type Outcome = { kind: 'resume' } | { kind: 'refused' } | { kind: 'finished'; complete: boolean }
+/** Why a turn stopped, in the four shapes the caller acts on. */
+type Outcome =
+  | { kind: 'resume' }
+  | { kind: 'tools' }
+  | { kind: 'refused' }
+  | { kind: 'finished'; complete: boolean }
 
 /**
  * `stop_reason` → what to do about it.
@@ -91,8 +186,9 @@ type Outcome = { kind: 'resume' } | { kind: 'refused' } | { kind: 'finished'; co
  * reported as incomplete for the same reason a paused turn is — the traveller
  * has to be able to tell "that's the answer" from "that's where it stopped".
  */
-function outcomeOf(stopReason: Anthropic.Message['stop_reason']): Outcome {
+export function outcomeOf(stopReason: Anthropic.Message['stop_reason']): Outcome {
   if (stopReason === 'pause_turn') return { kind: 'resume' }
+  if (stopReason === 'tool_use') return { kind: 'tools' }
   if (stopReason === 'refusal') return { kind: 'refused' }
   return { kind: 'finished', complete: stopReason !== 'max_tokens' }
 }
@@ -129,9 +225,32 @@ function requestFor(spec: AgentSpec, messages: Anthropic.MessageParam[]) {
     output_config: { effort: 'low' as const },
     system: [cachedPrefix(spec.system)],
     messages,
-    ...webSearchTools(spec),
+    ...toolsFor(spec),
   }
 }
+
+/**
+ * Every tool the turn may use: ours, then the provider's own.
+ *
+ * One key or none — the API rejects an empty `tools` array, and 005 ran with no
+ * tools at all, so the absence has to stay expressible.
+ *
+ * **These are cached along with the system prompt.** The cache prefix runs tools
+ * → system → messages, and the breakpoint sits on the system block, so every
+ * declaration below is inside it. That is free while they are static, and it is
+ * why `AiTool` says a description must never mention the trip.
+ */
+function toolsFor(spec: AgentSpec) {
+  const tools = [...clientTools(spec), ...webSearchTools(spec)]
+  return tools.length ? { tools } : {}
+}
+
+const clientTools = (spec: AgentSpec): Anthropic.ToolUnion[] =>
+  (spec.tools ?? []).map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    input_schema: tool.input_schema as Anthropic.Tool.InputSchema,
+  }))
 
 /**
  * The trip, above the cache breakpoint.
@@ -152,18 +271,16 @@ function cachedPrefix(system: string): Anthropic.TextBlockParam {
   }
 }
 
-/** Spread into the request: `{}` when the turn may not search. */
-function webSearchTools(spec: AgentSpec) {
-  if (!spec.web_search) return {}
-  return {
-    tools: [
-      {
-        type: 'web_search_20260209' as const,
-        name: 'web_search' as const,
-        max_uses: spec.web_search.max_uses,
-      },
-    ],
-  }
+/** The provider's own search tool, or nothing. Runs on their infrastructure, not ours. */
+function webSearchTools(spec: AgentSpec): Anthropic.ToolUnion[] {
+  if (!spec.web_search) return []
+  return [
+    {
+      type: 'web_search_20260209' as const,
+      name: 'web_search' as const,
+      max_uses: spec.web_search.max_uses,
+    },
+  ]
 }
 
 // --- provider out -----------------------------------------------------------

@@ -6,14 +6,19 @@
 // it. A runtime that quietly took the budget check would leave this file unable
 // to guarantee the rest.
 //
-// Phase 3 adds the turn itself. This is the read half.
+// It also owns *how the trip reaches the model*, which is one decision with two
+// answers (`contextFor`): a listing plus a `grep` tool, or the whole trip
+// written out. That belongs here rather than in `chat-context.ts` because the
+// prefix and the tool list have to be chosen together — a `grep` tool over a
+// prefix that already holds the whole trip is paying for both.
 
 import { budgetState, maxOutputTokens, type BudgetState } from '../lib/ai/budget.js'
 import { openMeter } from '../lib/ai/metering.js'
-import type { ModelId } from '../lib/ai/models.js'
-import { aiSettings } from '../lib/ai/settings.js'
-import type { AgentSpec, AiEvent, AiMessage } from '../lib/ai/types.js'
-import { buildTripContext } from '../lib/chat-context.js'
+import { aiSettings, type AiSettings } from '../lib/ai/settings.js'
+import { grepTool } from '../lib/ai/vfs.js'
+import type { AgentSpec, AiEvent, AiMessage, AiTool } from '../lib/ai/types.js'
+import { buildLazyContext, buildTripContext } from '../lib/chat-context.js'
+import { tripFileSystem } from '../lib/chat-files.js'
 import type { ChatMessage, ChatThread, DataStore, Trip } from '../lib/datastore.js'
 import { ApiError, validation } from '../lib/errors.js'
 
@@ -113,9 +118,19 @@ const MAX_QUESTION_CHARS = 2000
  */
 const HISTORY_LIMIT = 20
 
+/**
+ * The hard bound on model iterations in one turn.
+ *
+ * Eight rather than 005's five, because a turn now spends iterations on reading.
+ * The worst ordinary case is: open a file, open a second, search the web, and
+ * answer — four, before anything has gone unusually. Five left no room for a
+ * turn that also paused mid-search, and the ending it produced is the honest but
+ * useless one: "that's where it stopped". The bound is still what keeps a turn
+ * inside the function's duration limit, so it is raised rather than removed.
+ */
 const maxIterations = () => {
   const parsed = Number.parseInt(process.env.AI_MAX_ITERATIONS ?? '', 10)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 5
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 8
 }
 
 /**
@@ -184,7 +199,7 @@ export async function* runChatTurn(
 
     const answer = answerCollector(store, thread.id, tripId)
 
-    const spec = await specFor(store, context, history, question, settings.model)
+    const spec = await specFor(store, context, history, question, settings)
     for await (const event of meter.run(spec)) {
       await answer.record(event)
       yield event
@@ -221,11 +236,14 @@ async function specFor(
   context: TurnContext,
   history: ChatMessage[],
   question: string,
-  model: ModelId
+  settings: AiSettings
 ): Promise<AgentSpec> {
+  const { system, tools } = await contextFor(store, context.trip, settings.contextMode)
+
   return {
-    model,
-    system: buildTripContext(await loadSnapshot(store, context.trip)),
+    model: settings.model,
+    system,
+    tools,
     messages: toAiMessages(history, question, context.author),
     // US2. A *server-side* tool: it runs on the provider's infrastructure and
     // its results come back in the same response, so there is no search service
@@ -239,6 +257,32 @@ async function specFor(
 }
 
 /**
+ * How the model reaches the trip — the prefix, and the tools that go with it.
+ *
+ * The two modes are a strategy, not a branch that leaks: each returns the same
+ * pair, and nothing downstream asks which one it got. The tool list is part of
+ * that pair rather than a separate decision, because declaring `grep` over a
+ * prefix that already contains the whole trip is how a model ends up paying for
+ * both.
+ *
+ * **Lazy reads nothing.** The trip row is already in hand from
+ * `requireTripAccess` and the listing is a fixed table, so the seven datastore
+ * reads that used to happen before every turn now happen only for the files the
+ * model actually opens — usually one, often none.
+ */
+async function contextFor(
+  store: DataStore,
+  trip: Trip,
+  mode: AiSettings['contextMode']
+): Promise<{ system: string; tools: AiTool[] }> {
+  if (mode === 'eager') {
+    return { system: buildTripContext(await loadSnapshot(store, trip)), tools: [] }
+  }
+  const files = tripFileSystem(store, trip)
+  return { system: buildLazyContext(trip, files.manifest()), tools: [grepTool(files)] }
+}
+
+/**
  * Builds the answer as it streams, and stores it once the turn ends.
  *
  * Separate from the loop so the ordering guarantee is one readable rule:
@@ -246,9 +290,9 @@ async function specFor(
  * re-reads the moment it sees `done` gets a conversation that already includes
  * the answer it just watched arrive.
  *
- * `searching` and `usage` match nothing here, which is correct — the first has
- * no consequence beyond reaching the screen, and the second belongs to the
- * meter.
+ * `searching`, `reading` and `usage` match nothing here, which is correct — the
+ * first two have no consequence beyond reaching the screen, and the third
+ * belongs to the meter.
  */
 function answerCollector(store: DataStore, threadId: string, tripId: string) {
   const parts: string[] = []
@@ -306,7 +350,13 @@ function toAiMessages(
   return [...recent, { role: 'user', content: question, ...(author ? { author } : {}) }]
 }
 
-/** One sweep of everything the prefix names. */
+/**
+ * One sweep of everything the eager prefix names.
+ *
+ * Seven reads before a word is asked, which is the cost the lazy prefix exists
+ * to remove — so this now runs only when the `ai-chat-context` flag has rolled
+ * back to `eager`.
+ */
 async function loadSnapshot(store: DataStore, trip: Trip) {
   const [steps, zones, places, tips, itinerary, shopping, files] = await Promise.all([
     store.listSteps(trip.id),

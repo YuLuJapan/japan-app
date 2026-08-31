@@ -261,6 +261,45 @@ describe('asking a question', () => {
     })
   })
 
+  it('says it is reading the trip while the model opens a file', async () => {
+    // The lazy prefix's own quiet moment (006). Held open for the same reason as
+    // the search above: the state ends the instant the first text arrives, so a
+    // stream that closed would assert on a frame that has already gone.
+    let release!: () => void
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        controller.enqueue(
+          encoder.encode(`data: {"type":"reading","path":"/trip/flight.json"}\n\n`)
+        )
+        await held
+        controller.enqueue(encoder.encode(`data: {"type":"done","complete":true}\n\n`))
+        controller.close()
+      },
+    })
+    mockApi(view(), new Response(stream, { status: 200 }))
+    show()
+
+    await userEvent.type(
+      await screen.findByLabelText('Ask about this trip'),
+      'What time do we fly?'
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Ask' }))
+
+    expect(await screen.findByText('Reading your trip…')).toBeInTheDocument()
+    // The path is telemetry, not something to put in front of someone standing
+    // in a station.
+    expect(screen.queryByText(/trip\/flight\.json/)).not.toBeInTheDocument()
+
+    release()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Ask' })).toBeInTheDocument()
+    })
+  })
+
   it('shows the question straight away, not once the answer is finished', async () => {
     // The server persists the question before it calls the model, but the
     // transcript is not re-read until the turn is over — so without a local copy

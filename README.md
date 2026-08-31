@@ -314,7 +314,7 @@ trip** with no per-user threads and no filtering of history.
 ```
 AI_MONTHLY_CAP_CENTS=1000   # per account, per calendar month (default $10)
 AI_GLOBAL_CAP_CENTS=5000    # across every account — the kill switch
-AI_MAX_ITERATIONS=5         # model iterations per turn; each web search pause spends one
+AI_MAX_ITERATIONS=8         # model iterations per turn; a web-search pause or a file read spends one
 AI_MAX_OUTPUT_TOKENS=2048   # per-turn ceiling
 AI_DAILY_TURN_LIMIT=100     # per account
 ```
@@ -327,6 +327,16 @@ at request time, so raising one is a deploy rather than a code change.
 One limitation worth knowing: usage is only known _after_ a turn while the check
 runs _before_ it, so a single turn can cross a cap. `AI_MAX_OUTPUT_TOKENS` is
 what bounds that overshoot to one turn's worth.
+
+**How the model reads the trip.** It does not get the trip in the prompt. It gets
+the trip's front matter and a listing of read-only files — `/trip/flight.json`,
+`/trip/places.json`, `/trip/itinerary.json` and four more — plus one `grep` tool
+that searches them or reads one whole. Building the prompt runs **no queries at
+all**, and a file is assembled only if the model opens it. Nothing about what a
+caller may see changed: the files hold exactly what the old prompt held.
+`AI_CHAT_CONTEXT=eager` (or the `ai-chat-context` flag) puts the whole trip back
+in the prompt, which is the rollback if the model starts answering without
+reading. See `specs/006-lazy-trip-context/`.
 
 **Checking it is actually cheap.** A turn's cost depends almost entirely on
 whether the cached trip prefix was hit. Read `usage.cache_read` on a second

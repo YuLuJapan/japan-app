@@ -19,6 +19,21 @@ export interface FakeTurn {
   text?: string
   /** Emit a `searching` event before the text, as a web-search turn would. */
   searching?: string
+  /**
+   * Tools to call, before answering, as a model reading the trip's files would.
+   *
+   * **The tools are really run**, against the real `AgentSpec.tools` the caller
+   * passed — so a test that scripts `{ tool: 'grep', input: { path } }` exercises
+   * the whole lazy-context path end to end: the file system, the loaders, the
+   * grep engine and the result the model would have read. Only the model's
+   * judgement is faked, which is the one part a test cannot assert on anyway.
+   *
+   * What this cannot cover is the provider translation — `tool_use` blocks in,
+   * `tool_result` blocks out — because that lives below this boundary by
+   * construction. `chat-tools.test.ts` covers that half with the adapter's own
+   * pure functions.
+   */
+  tools?: { tool: string; input?: unknown }[]
   /** Token counts to report. Defaults to a plausible warm turn. */
   usage?: Partial<AiUsage>
   /** End at the iteration bound with more to do (research R2). */
@@ -39,6 +54,8 @@ const DEFAULT_USAGE: AiUsage = {
 /** Every spec the fake was asked to run, in order — what assertions read. */
 export interface FakeRuntimeCalls {
   specs: AgentSpec[]
+  /** What each scripted tool call returned, in order. Assertions read the text the model saw. */
+  toolResults: { tool: string; result: string }[]
 }
 
 /**
@@ -52,20 +69,34 @@ export function createFakeRuntime(script: FakeTurn[] = [{ text: 'A fake answer.'
   runtime: AiRuntime
   calls: FakeRuntimeCalls
 } {
-  const calls: FakeRuntimeCalls = { specs: [] }
+  const calls: FakeRuntimeCalls = { specs: [], toolResults: [] }
   let index = 0
 
   const runtime: AiRuntime = (spec) => {
     calls.specs.push(spec)
     const turn = script[Math.min(index, script.length - 1)] ?? {}
     index += 1
-    return replay(turn)
+    return replay(turn, spec, calls)
   }
 
   return { runtime, calls }
 }
 
-async function* replay(turn: FakeTurn): AsyncIterable<AiEvent> {
+async function* replay(
+  turn: FakeTurn,
+  spec: AgentSpec,
+  calls: FakeRuntimeCalls
+): AsyncIterable<AiEvent> {
+  for (const call of turn.tools ?? []) {
+    const tool = (spec.tools ?? []).find((t) => t.name === call.tool)
+    const path = (call.input as { path?: unknown } | null)?.path
+    yield { type: 'reading', ...(typeof path === 'string' ? { path } : {}) }
+    calls.toolResults.push({
+      tool: call.tool,
+      result: tool ? await tool.run(call.input ?? {}) : `There is no tool called "${call.tool}".`,
+    })
+  }
+
   if (turn.searching !== undefined) {
     yield { type: 'searching', query: turn.searching }
   }
