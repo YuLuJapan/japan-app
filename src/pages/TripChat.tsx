@@ -84,7 +84,12 @@ export default function TripChat() {
         {turn.answer !== null && <StreamingBubble text={turn.answer} searching={turn.searching} />}
         {turn.incomplete && <IncompleteNotice />}
         {turn.error && <p className="text-sm text-brand-700">{turn.error}</p>}
-        <div ref={bottom} />
+        {/* `scroll-mb` is what keeps "scroll to the newest message" from
+            scrolling it to where the composer is. Without it the browser puts
+            this marker at the bottom of the viewport, which is precisely the
+            strip the composer bar is pinned over, so the newest message lands
+            underneath it. */}
+        <div ref={bottom} className="scroll-mb-48" />
       </div>
 
       <Composer
@@ -267,7 +272,21 @@ function Composer({
 }) {
   const disabled = composer.state !== 'ready'
   return (
-    <div className="sticky bottom-24 mt-4 space-y-1.5">
+    /* A bar, not a floating card. It is pinned over the conversation, so it
+       needs a ground of its own: transparent, the messages scrolled through the
+       page padding either side of it and through the strip between it and the
+       tab bar. Hence the full-width bleed (`-mx-5 px-5`, the same idiom
+       PhotoHero uses to cancel `<main>`'s padding) and an opaque `bg-canvas`
+       reaching from the rule at its top to the bottom of the screen.
+
+       `bottom-0` with `pb-24` rather than `bottom-24`: the two put the box in
+       the same place, but this way the box *extends* to the screen's edge
+       instead of stopping short of it and leaving a live strip of conversation
+       showing beneath. `-mb-28` gives that padding back to `<main>`'s own
+       `pb-28`, so the page does not grow a screenful of dead space at the end.
+       The rule and `mt-6` are the separation between the conversation and the
+       box you type in. */
+    <div className="sticky bottom-0 -mx-5 -mb-28 mt-6 border-t border-line bg-canvas px-5 pb-24 pt-3 space-y-1.5">
       {composer.state === 'offline' && (
         <p className="text-xs text-muted">Chat needs a signal. Everything above is still here.</p>
       )}
@@ -289,7 +308,11 @@ function Composer({
           rows={1}
           disabled={composer.state === 'blocked' || composer.state === 'offline'}
           placeholder={placeholderFor(composer)}
-          className="max-h-32 min-h-[2.5rem] flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none disabled:text-muted"
+          /* 16px, not 14: Safari on iOS zooms the whole page in when a field
+             smaller than that takes focus, and then leaves it zoomed. Every
+             other field in the app is `text-base` for the same reason (the
+             `.input` class in styles/index.css) — this one was the exception. */
+          className="max-h-32 min-h-[2.5rem] flex-1 resize-none bg-transparent px-2 py-2 text-base outline-none disabled:text-muted"
           aria-label="Ask about this trip"
         />
         <button
