@@ -71,7 +71,7 @@ export const isModelId = (value: unknown): value is ModelId =>
   typeof value === 'string' && value in MODELS
 
 /** What chat runs on unless `AI_CHAT_MODEL` names something else. */
-export const DEFAULT_CHAT_MODEL: ModelId = 'anthropic/claude-opus-5'
+export const DEFAULT_CHAT_MODEL: ModelId = 'anthropic/claude-sonnet-5'
 
 /**
  * The model id the provider itself expects — our key without the vendor prefix.
