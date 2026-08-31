@@ -12,14 +12,12 @@
 //    silently capturing nothing, or worse, by disturbing the stream the
 //    traveller is reading.
 //
-// 2. **Its headline feature is one we are required to switch off.** The wrapper
-//    exists mostly to capture `$ai_input` and `$ai_output_choices` — the prompt
-//    and the completion. Our prompt is the whole trip, including the flight's
-//    booking reference and the shopping list, and FR-029 says analytics carries
-//    shapes only. We would be taking a dependency and a version conflict to
-//    enable a feature we must immediately disable.
+// 2. **It would capture more than we want captured.** Its `$ai_input` is the
+//    whole prompt, which here means the entire trip prefix — every booking
+//    reference and the shopping list — re-sent on every single turn. What we
+//    want is narrower and is spelled out at `$ai_input` below.
 //
-// What is left — model, tokens, cost, latency — the meter already has, and
+// Everything else — model, tokens, cost, latency — the meter already has, and
 // prices from our own catalogue rather than from a table PostHog maintains. So
 // the event is emitted directly, using the property names the wrapper uses so
 // the data lands in the same dashboards.
@@ -44,6 +42,10 @@ export interface GenerationReport {
   /** `end_turn`, `max_tokens`, `pause_turn`… or null when the turn failed. */
   stopReason: string | null
   isError?: boolean
+  /** The question as it was asked. See `$ai_input` below for what this is not. */
+  question?: string | null
+  /** The answer as it was given, or null when the turn died before one. */
+  answer?: string | null
 }
 
 export const newTraceId = (): string => randomUUID()
@@ -83,15 +85,24 @@ export function captureGeneration(report: GenerationReport): void {
         $ai_latency: report.latencySeconds,
         $ai_stop_reason: report.stopReason,
         $ai_is_error: report.isError ?? false,
+        // The turn itself: what was asked, and what came back. Without these a
+        // wrong answer can only be counted, never read, and the trace says a
+        // turn happened without saying whether it was any good.
+        //
+        // NOT the cached prefix, and not the earlier conversation. The prefix is
+        // the whole trip — every booking reference and the shopping list — and
+        // it is identical on every turn, so sending it would be the same secrets
+        // over and over to buy nothing a look at the trip would not answer. The
+        // scope is one turn (FR-029a); the client's own analytics stays shapes
+        // only (FR-029).
+        ...(report.question ? { $ai_input: [{ role: 'user', content: report.question }] } : {}),
+        ...(report.answer
+          ? { $ai_output_choices: [{ role: 'assistant', content: report.answer }] }
+          : {}),
         // Ours, not PostHog's: which capability spent this, so chat, 007's
         // extraction and image generation are separable in one dashboard the
         // way they already are in one ledger.
         ai_capability: report.capability,
-
-        // DELIBERATELY ABSENT: `$ai_input` and `$ai_output_choices`. They are
-        // the question and the answer, and the question carries the whole trip
-        // — the flight's booking reference and the shopping list included.
-        // FR-029: analytics carries shapes, never trip content.
       },
     })
   } catch (err) {

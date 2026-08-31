@@ -11,6 +11,15 @@ import { ApiError } from '../api/client'
 import { capture } from './posthog'
 
 export interface ChatTurn {
+  /**
+   * The question being asked right now, or null when no turn is in flight.
+   *
+   * The screen draws it immediately. The server does persist it before calling
+   * the model, but the transcript is not re-read until the turn is over — so
+   * without this, what you typed disappears from the moment you send it until
+   * the answer has finished arriving, which is the whole time you are waiting.
+   */
+  question: string | null
   /** The answer being drawn, or null when no turn is in flight. */
   answer: string | null
   /** The model is on the web. Ends the moment the first text arrives. */
@@ -42,6 +51,7 @@ interface Options {
 }
 
 export function useChatTurn(tripId: string, { hasHistory, refresh }: Options): ChatTurn {
+  const [question, setQuestion] = useState<string | null>(null)
   const [answer, setAnswer] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
   const [incomplete, setIncomplete] = useState(false)
@@ -55,7 +65,8 @@ export function useChatTurn(tripId: string, { hasHistory, refresh }: Options): C
   useEffect(() => () => abort.current?.abort(), [])
 
   const ask = useCallback(
-    async (question: string): Promise<boolean> => {
+    async (asked: string): Promise<boolean> => {
+      setQuestion(asked)
       setAnswer('')
       setError(null)
       setIncomplete(false)
@@ -83,7 +94,7 @@ export function useChatTurn(tripId: string, { hasHistory, refresh }: Options): C
       }
 
       try {
-        for await (const event of streamChatTurn(tripId, question, controller.signal)) {
+        for await (const event of streamChatTurn(tripId, asked, controller.signal)) {
           report.saw(event)
           apply(event)
         }
@@ -95,7 +106,11 @@ export function useChatTurn(tripId: string, { hasHistory, refresh }: Options): C
         setSending(false)
         abort.current = null
         capture('chat_turn_completed', report.finish())
+        // Both are dropped together, and only once the transcript holding the
+        // real pair has arrived — dropping either one earlier is a gap in the
+        // conversation where a message used to be.
         await refresh()
+        setQuestion(null)
         setAnswer(null)
       }
 
@@ -104,7 +119,7 @@ export function useChatTurn(tripId: string, { hasHistory, refresh }: Options): C
     [hasHistory, refresh, tripId]
   )
 
-  return { answer, searching, incomplete, error, sending, ask }
+  return { question, answer, searching, incomplete, error, sending, ask }
 }
 
 /**

@@ -24,7 +24,7 @@ import { assertWithinBudget, recordTurn } from './budget.js'
 import { modelMeta, priceUsage } from './models.js'
 import { captureGeneration, newTraceId } from './observability.js'
 import { runAgent } from './runtime.js'
-import type { AgentSpec, AiCapability, AiEvent, AiUsage } from './types.js'
+import type { AgentSpec, AiCapability, AiEvent, AiMessage, AiUsage } from './types.js'
 
 /** Who is charged, and for what. */
 export interface MeterSubject {
@@ -77,8 +77,13 @@ async function* meteredRun(
   const started = Date.now()
   const traceId = newTraceId()
   let usage: AiUsage | null = null
+  // Collected as it streams, because by the time the turn resolves the text has
+  // already been forwarded and nothing else is holding a copy of it.
+  let answer = ''
 
   for await (const event of runAgent(spec)) {
+    if (event.type === 'text') answer += event.text
+
     if (event.type === 'usage') {
       usage = event.usage
       await recordTurn(store, {
@@ -97,6 +102,7 @@ async function* meteredRun(
       report(subject, spec, {
         traceId,
         usage,
+        answer,
         started,
         stopReason: event.type === 'done' ? (event.complete ? 'end_turn' : 'max_iterations') : null,
         isError: event.type === 'error',
@@ -113,6 +119,7 @@ function report(
   turn: {
     traceId: string
     usage: AiUsage | null
+    answer: string
     started: number
     stopReason: string | null
     isError: boolean
@@ -131,5 +138,21 @@ function report(
     latencySeconds: (Date.now() - turn.started) / 1000,
     stopReason: turn.stopReason,
     isError: turn.isError,
+    // The question only, never the system prefix — see observability.ts.
+    question: lastQuestion(spec.messages),
+    answer: turn.answer || null,
   })
+}
+
+/**
+ * The question this turn is answering.
+ *
+ * The last user message rather than the first, because `messages` carries the
+ * conversation so far and the new question is on the end of it.
+ */
+function lastQuestion(messages: AiMessage[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i].role === 'user') return messages[i].content
+  }
+  return null
 }
