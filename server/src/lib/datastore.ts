@@ -506,6 +506,25 @@ export interface PushSubscriptionInput {
   label?: string | null
 }
 
+/**
+ * A table the code expects is not in the database.
+ *
+ * Always the same cause: a migration that was committed but never run against
+ * the project. Its own type rather than a bare Error so a caller can tell
+ * "this feature was never set up here" from "the database is broken", and
+ * answer differently — the first is ordinary on a fresh deployment, the second
+ * is an incident.
+ */
+export class TableMissingError extends Error {
+  constructor(
+    public table: string,
+    public migration: string
+  ) {
+    super(`Table "${table}" is missing — migration ${migration} has not been applied`)
+    this.name = 'TableMissingError'
+  }
+}
+
 export type FileUrlResult = { url: string; expires_in: number } | 'FILE_MISSING'
 export type FileBytesResult = { bytes: Buffer; mime_type: string } | 'FILE_MISSING'
 

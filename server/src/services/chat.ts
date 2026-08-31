@@ -13,8 +13,9 @@ import { openMeter } from '../lib/ai/metering.js'
 import { DEFAULT_CHAT_MODEL } from '../lib/ai/models.js'
 import type { AgentSpec, AiEvent, AiMessage } from '../lib/ai/types.js'
 import { buildTripContext } from '../lib/chat-context.js'
+import { TableMissingError } from '../lib/datastore.js'
 import type { ChatMessage, ChatThread, DataStore, Trip } from '../lib/datastore.js'
-import { ApiError, validation } from '../lib/errors.js'
+import { ApiError, notFound, validation } from '../lib/errors.js'
 
 export interface ChatMessageView {
   id: string
@@ -52,6 +53,34 @@ export interface ChatView {
  * had room while the server refused them.
  */
 export async function getChat(store: DataStore, tripId: string, userId: string): Promise<ChatView> {
+  try {
+    return await readChat(store, tripId, userId)
+  } catch (err) {
+    return asMissingFeature(err)
+  }
+}
+
+/**
+ * Chat's three tables arrive in one migration, so their absence means exactly
+ * one thing: 0023 was committed but never run against this project.
+ *
+ * Answered as 404 — the same "absent, not broken" a missing API key gives, and
+ * a sentence the screen already knows how to render. **The operator needs more
+ * than the traveller does**, so the actionable half goes to the log: without it
+ * this is a generic 500 and somebody spends an evening on it.
+ */
+function asMissingFeature(err: unknown): never {
+  if (err instanceof TableMissingError) {
+    console.error(
+      `[chat] ${err.message}. Run supabase/migrations/${err.migration} against the project — ` +
+        'chat answers 404 until then.'
+    )
+    throw notFound('Chat')
+  }
+  throw err
+}
+
+async function readChat(store: DataStore, tripId: string, userId: string): Promise<ChatView> {
   const [thread, messages, budget] = await Promise.all([
     store.getChatThread(tripId),
     store.listChatMessages(tripId),
@@ -157,7 +186,10 @@ export async function* runChatTurn(
 ): AsyncIterable<AiEvent> {
   const question = validateQuestion(content)
   const tripId = context.trip.id
-  const thread = await claimTurn(store, tripId)
+
+  // Outside the try/finally below on purpose: nothing has been claimed yet, so
+  // there is nothing to release if this is where it fails.
+  const thread = await claimTurn(store, tripId).catch(asMissingFeature)
 
   try {
     // Opening the meter is the budget gate: it throws before anything below
@@ -177,6 +209,8 @@ export async function* runChatTurn(
       await answer.record(event)
       yield event
     }
+  } catch (err) {
+    asMissingFeature(err)
   } finally {
     // Every exit path, success and failure alike. A lock left held would shut
     // the conversation for both travellers until it went stale.

@@ -37,7 +37,7 @@ import type {
   Zone,
   ZoneInput,
 } from './datastore.js'
-import { CATEGORIES, normalizeTraveller } from './datastore.js'
+import { CATEGORIES, TableMissingError, normalizeTraveller } from './datastore.js'
 import { normalizeFlight } from './flight.js'
 import { DEFAULT_HOME_CURRENCIES, DEFAULT_LOCAL_CURRENCY, normalizeCurrency } from './currencies.js'
 import { FILES_BUCKET, getSupabase } from './supabase.js'
@@ -88,6 +88,24 @@ const MEMBER_COLS =
 // looks up *by* hash, and nothing else has a reason to read it back.
 const INVITE_COLS =
   'id,trip_id,email,role,can_see_stays,can_see_flight,can_see_documents,can_see_shopping,invited_by,expires_at,accepted_at,accepted_by,revoked_at,declined_at,created_at'
+
+/**
+ * Postgres/PostgREST for "there is no such table" — a migration committed but
+ * never run against the project.
+ *
+ * Both codes matter: Postgres raises `42P01`, while PostgREST answers `PGRST205`
+ * when the table is absent from its schema cache. Seeing only one of them is how
+ * this reads as a generic 500 on half of deployments.
+ */
+function isMissingTable(error: { code?: string; message?: string } | null): boolean {
+  return error?.code === '42P01' || error?.code === 'PGRST205'
+}
+
+/** Chat's three tables all arrive together, in 0023. */
+function failChatRead(table: string, error: { code?: string; message?: string } | null): never {
+  if (isMissingTable(error)) throw new TableMissingError(table, '0023_chat.sql')
+  throw new Error(error?.message ?? `Could not read ${table}`)
+}
 
 function isMissingProfilesTable(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false
@@ -304,7 +322,7 @@ export function createSupabaseStore(): DataStore {
       const base = db.from('ai_usage').select('cost_cents').gte('created_at', sinceIso)
       const scoped = userId ? base.eq('user_id', userId) : base
       const { data, error } = await scoped.range(from, from + PAGE - 1)
-      if (error) throw new Error(error.message)
+      if (error) failChatRead('ai_usage', error)
       const rows = (data as { cost_cents: number | string }[]) ?? []
       // numeric(12,4) arrives as a string from PostgREST; `+` on strings would
       // concatenate, and the cap would compare a very long string to a number.
@@ -1406,11 +1424,12 @@ export function createSupabaseStore(): DataStore {
     // --- Chat (005) ---------------------------------------------------------
 
     async getChatThread(tripId) {
-      const { data } = await db
+      const { data, error } = await db
         .from('chat_threads')
         .select(CHAT_THREAD_COLS)
         .eq('trip_id', tripId)
         .maybeSingle()
+      if (error) failChatRead('chat_threads', error)
       return data ? rowToChatThread(data as Record<string, unknown>) : null
     },
 
@@ -1425,7 +1444,7 @@ export function createSupabaseStore(): DataStore {
           { id: randomUUID(), trip_id: tripId, turn_started_at: null },
           { onConflict: 'trip_id', ignoreDuplicates: true }
         )
-      if (error) throw new Error(error.message)
+      if (error) failChatRead('chat_threads', error)
       const { data } = await db
         .from('chat_threads')
         .select(CHAT_THREAD_COLS)
@@ -1447,7 +1466,7 @@ export function createSupabaseStore(): DataStore {
         .or(`turn_started_at.is.null,turn_started_at.lt.${staleBefore}`)
         .select(CHAT_THREAD_COLS)
         .maybeSingle()
-      if (error) throw new Error(error.message)
+      if (error) failChatRead('chat_threads', error)
       return data ? rowToChatThread(data as Record<string, unknown>) : null
     },
 
@@ -1456,7 +1475,7 @@ export function createSupabaseStore(): DataStore {
     },
 
     async listChatMessages(tripId) {
-      const { data } = await db
+      const { data, error } = await db
         .from('chat_messages')
         .select(CHAT_MESSAGE_COLS)
         .eq('trip_id', tripId)
@@ -1466,6 +1485,7 @@ export function createSupabaseStore(): DataStore {
         // secondary sort on the random uuid would be worse than nothing, putting
         // an answer before its question whenever two rows did tie.
         .order('created_at', { ascending: true })
+      if (error) failChatRead('chat_messages', error)
       return ((data as Record<string, unknown>[]) ?? []).map(rowToChatMessage)
     },
 
