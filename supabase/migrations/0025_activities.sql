@@ -23,20 +23,41 @@ begin
   if to_regclass('public.activities') is not null then
     raise exception '0025 has already run: activities exists';
   end if;
+  -- The rollback KEEPS the journal deliberately (it is the record of what the
+  -- fold did). So a rolled-back project still has one, and step 7 would die on
+  -- a primary-key collision two hundred lines from here — inside the
+  -- transaction, so nothing is lost, but at 2am the message would say
+  -- `duplicate key` and not what to do about it. Say it here instead.
+  if to_regclass('public.activity_migration_journal') is not null then
+    execute 'select count(*) from activity_migration_journal' into n;
+    if n > 0 then
+      raise exception 'the journal already holds % row(s) from an earlier run. '
+        'Rolling back keeps it on purpose; read it, then '
+        '`drop table activity_migration_journal` before re-running.', n;
+    end if;
+  end if;
   select count(*) into n from places p join itinerary_items i on i.id = p.id;
   if n > 0 then raise exception 'id collision: % row(s) share an id', n; end if;
   select count(*) into n from places p join zones z on z.id = p.zone_id where z.trip_id is null;
   if n > 0 then raise exception '% place(s) sit in a zone with no trip', n; end if;
 end $$;
 
--- 1 · the snapshot. This IS the rollback: one table per source, taken before a
---     single row moves, dropped by hand at the contract phase (§7).
+-- 1 · the snapshot. This IS the rollback, and it is ONE table, not two.
+--
+--     `itinerary_items` is renamed away by step 3, so after this migration
+--     there is no `itinerary_items` left to restore from — hence the pre-image,
+--     taken inside the transaction so it cannot be stale by a write landing
+--     between a hand-made backup and the run.
+--
+--     `places` gets no snapshot on purpose: this migration only ever *reads*
+--     it. It is never renamed, altered or dropped, so it survives intact and a
+--     copy of it would be a copy of a table still sitting right there. It is
+--     dropped by the contract migration (0026), not this one.
 create table itinerary_items_pre_010 as select * from itinerary_items;
-create table places_pre_010          as select * from places;
 
 -- 2 · the journal — every folding decision, both source rows verbatim ---------
 create table if not exists activity_migration_journal (
-  source      text not null check (source in ('place','item','item_copy','fold','stray')),
+  source      text not null check (source in ('place','item','item_copy','item_stay','fold','stray')),
   source_id   text not null,
   activity_id text not null,
   folded_with text,
@@ -181,14 +202,24 @@ select 'place', p.id, p.id, to_jsonb(p)
 from places p
 where not exists (select 1 from _fold f where f.place_id = p.id and f.rn = 1);
 
+--     `item_copy` and `item_stay` are both matched items that did not keep the
+--     place's id, and they are told apart because the difference is real: a
+--     copy was given the place's location by step 6, while a stay-linked item
+--     was excluded from `_fold` and left exactly as it was (§3). Filed as one,
+--     a verification query asking "does every copy carry a pin?" has to restate
+--     `p.category <> 'hotel'` to be right — a rule of the migration, copied into
+--     the thing that checks the migration, free to drift from it.
 insert into activity_migration_journal (source, source_id, activity_id, folded_with, item_row)
 select case when pre.place_id is null    then 'item'
-            when m.item_id is not null   then 'item_copy'
+            when f.item_id is not null   then 'item_copy'   -- rn > 1, given the place's location
+            when m.item_id is not null   then 'item_stay'   -- its place is a stay: untouched
             else 'stray' end,
        pre.id, pre.id, pre.place_id, to_jsonb(pre)
 from itinerary_items_pre_010 pre
 left join _match m on m.item_id = pre.id
-where not exists (select 1 from _fold f where f.item_id = pre.id and f.rn = 1);
+-- rn = 1 is excluded below, so any `_fold` row reaching here is a copy.
+left join _fold  f on f.item_id = pre.id
+where not exists (select 1 from _fold f2 where f2.item_id = pre.id and f2.rn = 1);
 
 delete from activities where id in (select item_id from _fold where rn = 1);
 

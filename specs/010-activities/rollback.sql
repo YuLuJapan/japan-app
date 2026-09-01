@@ -5,8 +5,8 @@
 -- that nobody has to reason it out while the app is down.
 --
 -- `places` is never modified by 0025 — it is only read — so there is nothing to
--- restore there; `places_pre_010` is belt and braces. `itinerary_items` is the
--- table that was evolved, and it comes back from `itinerary_items_pre_010`.
+-- restore there, and it gets no snapshot for that reason. `itinerary_items` is
+-- the table that was evolved, and it comes back from `itinerary_items_pre_010`.
 --
 -- WHAT THIS LOSES: every activity written after 0025 ran. Rows created in the
 -- new shape have no place in the old one, and this script does not invent one.
@@ -80,8 +80,11 @@ alter table tips add constraint tips_place_id_fkey
 
 -- 5 · the migration's own scaffolding ------------------------------------------
 drop table itinerary_items_pre_010;
-drop table places_pre_010;
 -- The journal is deliberately KEPT: it is the record of what the fold did, and
 -- it costs nothing. Drop it by hand once the decision to stay rolled back is final.
+--
+-- Keeping it is also what stops 0025 from being re-run as-is: its own pre-flight
+-- refuses a non-empty journal and says so. That is the intended order — read what
+-- the last run decided, THEN `drop table activity_migration_journal`, then re-run.
 
 commit;

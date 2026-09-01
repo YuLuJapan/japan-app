@@ -59,9 +59,15 @@ shaped that way; read the file for the statements.
 foreign key re-pointed, and not one row is rewritten. That is the main practical dividend of
 evolving rather than copying.
 
-**The rollback is a snapshot, not an untouched source table.** `itinerary_items_pre_010` and
-`places_pre_010` are taken before a single row moves, and `specs/010-activities/rollback.sql`
-brings the database back from them. Copying into a fresh table would have made rollback a
+**The rollback is a snapshot, not an untouched source table** — and it is **one** table, not
+two. `itinerary_items` is renamed away, so after the migration there is nothing left to restore
+it from: `itinerary_items_pre_010` is that pre-image, taken inside the transaction so a write
+landing between a hand-made backup and the run cannot make it stale.
+`specs/010-activities/rollback.sql` brings the database back from it.
+
+`places` gets **no** snapshot, deliberately: the migration only reads it. It is never renamed,
+altered or dropped, so it survives intact and a copy would be a copy of a table still sitting
+right there. It goes in the contract migration, with the rest. Copying into a fresh table would have made rollback a
 `drop table` — that was the one real argument for it — and a snapshot buys the same thing for
 one throwaway table, without pretending 226 rows of hand-written plan are new data.
 
@@ -186,7 +192,8 @@ up as consistency. Its linked items are left **entirely untouched** — they kee
 their own tag (usually none) and none of the stay's booking content: the reservation stays in
 exactly one row. Untouched rather than re-tagged is deliberate: stamping `hotel` on a
 "Check in" line would hide it from a member whose view withholds stays (FR-021), which is not
-what they see today. One row in production takes this branch.
+what they see today. One row in production takes this branch — the Takayama line, journalled
+as `item_stay` rather than `item_copy` precisely because nothing was copied onto it.
 
 **A copy carries location, not record.** `address`, `image_url`, `lat` and `lng` are copied so
 the second and third visits pin on the map; `links`, `name_ja`, files and tips are not — those
@@ -207,7 +214,7 @@ proves no id is used by both tables.
 
 ```sql
 create table if not exists activity_migration_journal (
-  source      text not null check (source in ('place','item','item_copy','fold','stray')),
+  source      text not null check (source in ('place','item','item_copy','item_stay','fold','stray')),
   source_id   text not null,
   activity_id text not null,
   folded_with text,          -- the other row's id, where two became one
@@ -221,6 +228,15 @@ create table if not exists activity_migration_journal (
 Every activity gets a row. For the 12 folds it holds both sources, which is what makes the one
 lossy step — two rows becoming one — mechanically reversible. It outlives the contract phase;
 it is the only copy of the fold decisions once the source tables are dropped.
+
+**`item_copy` and `item_stay` are the same situation with opposite outcomes**, and separating
+them is what keeps §6 honest. Both are matched items that did not keep the place's id; a copy
+was given the place's location by the backfill, a stay-linked item was excluded from the fold
+and left exactly as it arrived (§3). Filed under one name, the check *“does every copy carry a
+pin?”* has to restate `p.category <> 'hotel'` to be true — a rule of the migration copied into
+the query that verifies the migration, free to drift from it. It failed exactly that way on
+the first run against production, where the one stay-linked row has coordinates and the three
+real copies do not.
 
 ## 5 · The backfill
 
@@ -270,7 +286,7 @@ zero that changed their text, their time or their position.**
 
 ```sql
 -- every source row is represented exactly once
-select (select count(*) from places_pre_010)                                as places,
+select (select count(*) from places)                                        as places,
        (select count(*) from itinerary_items_pre_010)                       as items,
        (select count(*) from activities)                                    as activities,
        (select count(*) from activity_migration_journal)                    as journalled,
@@ -291,6 +307,16 @@ select count(*) from activities a
 join activity_migration_journal j on j.activity_id = a.id and j.source = 'stray'
 where a.lat is not null or a.address is not null;                                -- 0
 
+-- no stay was moved onto a day (§3), and every copy carries the pin it was
+-- given (§4 — the reason `item_stay` is not filed as `item_copy`)
+select count(*) from activities a
+join activity_migration_journal j on j.activity_id = a.id and j.source = 'fold'
+where a.category = 'hotel' and a.day is not null;                                -- 0
+select count(*) from activity_migration_journal j
+join activities a on a.id = j.activity_id
+join places p     on p.id = j.folded_with
+where j.source = 'item_copy' and p.lat is not null and a.lat is null;            -- 0
+
 -- THE one: the day plan says exactly what it said before
 with b as (select day, title as name, start_time, row_number() over
              (partition by day order by (start_time is null), start_time, position, id) rn
@@ -304,7 +330,7 @@ where b.name is distinct from a.name or b.start_time is distinct from a.start_ti
 
 On the 2026-09-01 snapshot, after the §3a cleanup, that is `places` 56, `items` 226,
 `folds` **14** → `activities` **268**, `journalled` 268. The 18 remaining links split
-14 folded · 3 matched copies (all same-day) · 1 hanging off a stay, with no strays left.
+14 `fold` · 3 `item_copy` (all same-day) · 1 `item_stay`, with no `stray` left.
 Re-derive it on the day; the identity `activities = places + items − folds` is the thing to
 check, not the figure.
 
@@ -314,7 +340,7 @@ check, not the figure.
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **1 · migrate**  | `0025_activities.sql` against the live project, dry-run first (`commit` → `rollback`) with §6 in the same transaction. No code ships. | Everything, and trivially: the dry run commits nothing.                                                                                                       |
 | **2 · cut over** | Deploy the code that reads and writes `activities`.                                                                                   | `rollback.sql`, tested to restore the database byte-identically. **Activities written during phase 2 are lost by it** — they have no shape in the old schema. |
-| **3 · contract** | After a soak: drop `places`, `activities.place_id`, `itinerary_items_pre_010`, `places_pre_010`. Keep the journal.                    | Only through the journal.                                                                                                                                     |
+| **3 · contract** | After a soak: drop `places`, `activities.place_id`, `itinerary_items_pre_010`. Keep the journal.                    | Only through the journal.                                                                                                                                     |
 
 Phase 2's window is the real risk and it is not hidden: two trips are actively edited, so a
 soak of a week costs almost nothing and a dual-write shim would cost a service layer writing
@@ -336,7 +362,7 @@ Verified against a scratch Postgres by building a pristine reference database fr
 migrations and seed, migrating a second one, rolling it back, and comparing: **the DDL of
 `itinerary_items`, `files` and `tips` is identical, and so are the row digests of
 `itinerary_items`, `places`, `files` and `tips`.** `places` is never modified by 0025 — it is
-only read — so `places_pre_010` is belt and braces.
+only read — which is why it is not snapshotted in the first place.
 
 What it loses is stated at the top of the file: **every activity written after the migration
 ran.** A row created in the new shape has no place in the old one, and the script does not
@@ -347,6 +373,12 @@ select count(*) from activities where id not in (select activity_id from activit
 ```
 
 That number growing is exactly what makes phase 3 wait rather than follow phase 2 immediately.
+
+**What it keeps is the journal**, on purpose — it is the only record of what the fold decided,
+and it costs nothing. The consequence is that a rolled-back project cannot re-run 0025 until
+the journal is dropped, since the journal's primary key would collide. 0025's pre-flight
+refuses that case by name rather than letting it surface two hundred lines later as
+`duplicate key`: read the journal, `drop table activity_migration_journal`, then re-run.
 
 ## 9 · The seed file is data too
 
