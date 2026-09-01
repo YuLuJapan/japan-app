@@ -32,7 +32,6 @@ import ShoppingItemDetail from './pages/ShoppingItem'
 import ShoppingList from './pages/ShoppingList'
 import TripEssentials from './pages/TripEssentials'
 import TripExport from './pages/TripExport'
-import TripChat from './pages/TripChat'
 import TripFiles from './pages/TripFiles'
 import TripMembers from './pages/TripMembers'
 import TripsList from './pages/TripsList'
@@ -171,14 +170,29 @@ export function RequireMap() {
  *
  * Default off means chat is invisible in local dev and on any deploy without
  * `VITE_POSTHOG_PROJECT_TOKEN`: with no answer the default applies. Flip it here
- * and in `Journey.tsx` to work on it, and flip it back before committing — the
- * same dance `export-trip` and `show-map` already need.
+ * and in `components/chat/AskDock.tsx` — the two places that read the flag now
+ * that the button belongs to the layout rather than to the journey — and flip
+ * it back before committing, the same dance `export-trip` and `show-map`
+ * already need.
  */
 export function RequireChat() {
   const { tripId } = useParams<{ tripId: string }>()
   const enabled = useBooleanFlag('chat-bot', false)
   const canEdit = useCanEdit()
   return enabled && canEdit ? <Outlet /> : <Navigate to={`/trips/${tripId}`} replace />
+}
+
+/**
+ * The old chat page's address, which is now a way of opening the window.
+ *
+ * `?chat=1` on the trip home is what `AskDock` reads, so a link that predates
+ * the redesign lands on the trip with the conversation open over it instead of
+ * on a page that no longer exists. `replace`, so the Back gesture that closes
+ * the window does not land back on this redirect and reopen it.
+ */
+function ChatLink() {
+  const { tripId } = useParams<{ tripId: string }>()
+  return <Navigate to={`/trips/${tripId}?chat=1`} replace />
 }
 
 /**
@@ -256,11 +270,13 @@ export const router = createBrowserRouter([
             ],
           },
 
-          // Chat, behind the flag *and* the route guard: with `chat-bot` off
-          // there is no button and a bookmarked /chat redirects to the trip.
-          // Not lazy — unlike the map it pulls in no library of its own, so a
-          // separate chunk would buy nothing and add a way to fail.
-          { element: <RequireChat />, children: [{ path: 'chat', element: <TripChat /> }] },
+          // Chat is a window over whatever screen you are on now, not a page
+          // (`components/chat/AskDock.tsx`), so this URL is kept only for what
+          // already points at it — a bookmark, a pasted link, the back button
+          // — and hands it to the trip home with the window open. Still behind
+          // the flag *and* the guard: with `chat-bot` off it redirects to the
+          // trip with no window and no button.
+          { element: <RequireChat />, children: [{ path: 'chat', element: <ChatLink /> }] },
 
           // Everyone on the trip can see who else is on it; the screen itself
           // offers the owner-only controls only to an owner, and a viewer-only

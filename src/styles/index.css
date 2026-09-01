@@ -61,6 +61,39 @@
   .section-title {
     @apply text-xs font-bold uppercase tracking-wide text-muted;
   }
+  /* The chat button: the only control that is on every trip screen, and the
+     one place the palette is deliberately left behind. Sand and coral are the
+     app's colours, so a token-coloured circle in the corner of a sand page is
+     a circle nobody sees — this is meant to read as "something else lives
+     here". Painted as a layer inside the button (`::before`) rather than as
+     the button's own background, so the mark on top can stay still while the
+     colour turns underneath it. */
+  .ask-orb {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(140deg, #6a5cff 0%, #b14bff 40%, #ff5c8a 72%, #ffb648 100%);
+    box-shadow:
+      0 10px 24px -8px rgba(122, 76, 255, 0.55),
+      0 4px 12px -4px rgba(255, 92, 138, 0.45);
+  }
+  .ask-orb::before {
+    content: '';
+    position: absolute;
+    /* Inset past the circle on every side: a square gradient rotating inside a
+       round mask has to be wider than the circle's diagonal or its corners
+       sweep through as blank wedges. */
+    inset: -40%;
+    background: conic-gradient(
+      from 0deg,
+      #6a5cff,
+      #2ec5ff,
+      #35d9a0,
+      #ffc44d,
+      #ff5c8a,
+      #b14bff,
+      #6a5cff
+    );
+  }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -107,5 +140,37 @@
   }
   .animate-toast-timer {
     animation: none;
+  }
+}
+
+/* The colour turns; the spark does not. Guarded by the media query rather than
+   JS, so with motion turned down the orb is simply a still gradient — it is a
+   button, and its job does not depend on moving. */
+@media (prefers-reduced-motion: no-preference) {
+  .ask-orb::before {
+    animation: ask-orb-turn 9s linear infinite;
+  }
+  .chat-sheet {
+    animation: chat-sheet-up 240ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}
+
+@keyframes ask-orb-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* No fill mode, deliberately — the same hazard `page-transition` documents: a
+   forwards fill would leave a resolved transform matrix on the sheet, and any
+   transform makes it the containing block for the `position: fixed`
+   ConfirmDialog that "Start over" opens from inside it. Unfilled, the
+   transform is gone the moment the slide ends. */
+@keyframes chat-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
   }
 }

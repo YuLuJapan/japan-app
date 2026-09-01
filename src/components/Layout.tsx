@@ -7,6 +7,7 @@ import { useBooleanFlag } from '../lib/flags'
 import { navLabels, type NavLabels } from '../lib/nav-labels'
 import { useCanEdit, useTripShows } from '../lib/session'
 import { useTripId } from '../lib/trip'
+import { AskDock } from './chat/AskDock'
 import { RingMark } from './RingMark'
 import { SignOutButton } from './SignOutButton'
 
@@ -307,6 +308,16 @@ export function Layout({ children }: { children: ReactNode }) {
           )}
         </div>
       </nav>
+      {/* Chat, reachable from wherever you are: the dock draws its own button
+          and opens a sheet over this screen rather than navigating away from
+          it. It gates itself on `chat-bot` and on being able to edit, so with
+          the flag off nothing here changes.
+
+          Hidden on the bleed route, which is the map: that screen already
+          floats its own furniture at `z-[500]` and raises the nav to `z-[600]`
+          to clear it, so a `z-30` orb would be buried under the map's sheet.
+          One floating control per screen — the map's is its own. */}
+      <AskDock hidden={bleed} />
     </div>
   )
 }

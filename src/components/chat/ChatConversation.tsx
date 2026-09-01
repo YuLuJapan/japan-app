@@ -1,25 +1,33 @@
-// Chat: ask about the trip.
+// The conversation itself: transcript, composer, and the one thing that can be
+// done to it — putting it away.
 //
 // Read-only in this phase — it answers questions and changes nothing. The one
-// confirmation on this screen is not about a *write to the trip*: it guards
-// putting the conversation away, which is shared, and which nothing in the app
-// can re-open. When writes arrive, the approval gate lands here beside it.
+// confirmation here is not about a *write to the trip*: it guards putting the
+// conversation away, which is shared, and which nothing in the app can
+// re-open. When writes arrive, the approval gate lands here beside it.
 //
-// The page is composition. The turn's state machine is `useChatTurn`, the
+// This is composition. The turn's state machine is `useChatTurn`, the
 // connection signal is `useOnlineStatus`, and what is left here is which of
 // those to show.
+//
+// **It fills its container and scrolls inside it.** The screen chrome — the
+// title, the way out — belongs to `ChatSheet`, which floats this over whatever
+// page you were reading; this component only assumes it has been given a
+// column with a height. That is what replaced the old page's sticky composer
+// and its bleed margins: inside a sheet the composer is simply the last row of
+// a flex column, and the transcript is the row that scrolls.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ApiError } from '../api/client'
-import { useChat, useMe } from '../api/hooks'
-import { useStartNewChat } from '../api/mutations'
-import type { ChatBudget, ChatMessageView, ChatView } from '../api/types'
-import { ConfirmDialog } from '../components/ConfirmDialog'
-import { ErrorState } from '../components/ErrorState'
-import { Loading } from '../components/Loading'
-import { useChatTurn, type TurnActivity } from '../lib/chat-turn'
-import { useOnlineStatus } from '../lib/online'
-import { useTripId } from '../lib/trip'
+import { ApiError } from '../../api/client'
+import { useChat, useMe } from '../../api/hooks'
+import { useStartNewChat } from '../../api/mutations'
+import type { ChatBudget, ChatMessageView, ChatView } from '../../api/types'
+import { ConfirmDialog } from '../ConfirmDialog'
+import { ErrorState } from '../ErrorState'
+import { Loading } from '../Loading'
+import { useChatTurn, type TurnActivity } from '../../lib/chat-turn'
+import { useOnlineStatus } from '../../lib/online'
+import { useTripId } from '../../lib/trip'
 
 /** What the composer is allowed to do right now, and why. */
 type Composer =
@@ -29,7 +37,7 @@ type Composer =
   | { state: 'blocked'; resumesOn: string | null }
   | { state: 'busy' }
 
-export default function TripChat() {
+export function ChatConversation() {
   const tripId = useTripId()
   const chat = useChat(tripId)
   const me = useMe()
@@ -59,25 +67,23 @@ export default function TripChat() {
     if (!(await turn.ask(question))) setDraft(question)
   }
 
-  if (chat.isLoading) return <Loading />
-  if (chat.error) return <ChatUnavailable error={chat.error} />
+  if (chat.isLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <Loading />
+      </div>
+    )
+  }
+  if (chat.error) {
+    return (
+      <div className="flex flex-1 items-center justify-center px-5">
+        <ChatUnavailable error={chat.error} />
+      </div>
+    )
+  }
 
   return (
-    <div className="flex min-h-[70vh] flex-col">
-      <ChatHeader
-        // Two different questions, deliberately kept apart. *Presence* is "is
-        // there a conversation to throw away" — with none, the button is not
-        // rendered at all, because a greyed-out "Start over" on an empty screen
-        // invites a tap that could never do anything. *Enabled* is "may it
-        // happen right now", which a running turn answers no to: the server
-        // refuses with a 409 while the model is mid-answer, and a button that
-        // sat there tappable would only produce that refusal as a toast.
-        hasConversation={messages.length > 0}
-        canClear={!turn.sending && !startNew.isPending}
-        onClear={() => setConfirmingNew(true)}
-      />
-      {chat.data && <BudgetNotice budget={chat.data.budget} />}
-
+    <div className="flex min-h-0 flex-1 flex-col">
       <ConfirmDialog
         open={confirmingNew}
         title="Start a new conversation?"
@@ -94,7 +100,7 @@ export default function TripChat() {
         }}
       />
 
-      <div className="mt-5 flex-1 space-y-3">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 pb-2 pt-1">
         {messages.length === 0 && turn.question === null && <Suggestions onPick={setDraft} />}
         {messages.map((message) => (
           <Bubble
@@ -116,12 +122,7 @@ export default function TripChat() {
         {turn.answer !== null && <StreamingBubble text={turn.answer} activity={turn.activity} />}
         {turn.incomplete && <IncompleteNotice />}
         {turn.error && <p className="text-sm text-brand-700">{turn.error}</p>}
-        {/* `scroll-mb` is what keeps "scroll to the newest message" from
-            scrolling it to where the composer is. Without it the browser puts
-            this marker at the bottom of the viewport, which is precisely the
-            strip the composer bar is pinned over, so the newest message lands
-            underneath it. */}
-        <div ref={bottom} className="scroll-mb-48" />
+        <div ref={bottom} />
       </div>
 
       <Composer
@@ -129,42 +130,19 @@ export default function TripChat() {
         onDraft={setDraft}
         onSend={() => void send()}
         composer={composerState({ online, sending: turn.sending, chat: chat.data ?? null })}
+        budget={chat.data?.budget ?? null}
+        // Two different questions, deliberately kept apart. *Presence* is "is
+        // there a conversation to throw away" — with none, the button is not
+        // rendered at all, because a greyed-out "Start over" on an empty screen
+        // invites a tap that could never do anything. *Enabled* is "may it
+        // happen right now", which a running turn answers no to: the server
+        // refuses with a 409 while the model is mid-answer, and a button that
+        // sat there tappable would only produce that refusal as a toast.
+        hasConversation={messages.length > 0}
+        canClear={!turn.sending && !startNew.isPending}
+        onClear={() => setConfirmingNew(true)}
       />
     </div>
-  )
-}
-
-function ChatHeader({
-  hasConversation,
-  canClear,
-  onClear,
-}: {
-  hasConversation: boolean
-  canClear: boolean
-  onClear: () => void
-}) {
-  return (
-    <header>
-      <p className="section-title text-brand">Ask</p>
-      <div className="mt-1 flex items-start justify-between gap-3">
-        <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-tight">
-          About this trip
-        </h1>
-        {hasConversation && (
-          <button
-            type="button"
-            className="btn-ghost shrink-0 px-3 py-1.5 text-xs"
-            disabled={!canClear}
-            onClick={onClear}
-          >
-            Start over
-          </button>
-        )}
-      </div>
-      <p className="mt-1.5 text-sm text-muted">
-        It knows your plan, your places and your bookings. It can’t change anything yet.
-      </p>
-    </header>
   )
 }
 
@@ -278,12 +256,15 @@ function StreamingBubble({ text, activity }: { text: string; activity: TurnActiv
  * The 80% notice and the 100% stop.
  *
  * Below 80% nothing about money is mentioned at all — a running total on a
- * screen nobody is worried about is just noise.
+ * screen nobody is worried about is just noise. It sits with the composer
+ * rather than at the top of the transcript: the one thing it changes is
+ * whether you can type, so it belongs where the typing happens instead of
+ * scrolled off the top of a long conversation.
  */
 function BudgetNotice({ budget }: { budget: ChatBudget }) {
   if (budget.blocked) {
     return (
-      <p className="mt-4 rounded-2xl bg-blush px-4 py-3 text-sm text-brand-700">
+      <p className="rounded-2xl bg-blush px-4 py-3 text-sm text-brand-700">
         Chat is paused until {formatResumeDate(budget.resumes_on)} — this month’s budget is used up.
         Everything you’ve asked is still here.
       </p>
@@ -291,7 +272,7 @@ function BudgetNotice({ budget }: { budget: ChatBudget }) {
   }
   if (budget.pct >= 80) {
     return (
-      <p className="mt-4 rounded-2xl bg-sand px-4 py-3 text-sm text-slate">
+      <p className="rounded-2xl bg-sand px-4 py-3 text-sm text-slate">
         You’ve used {budget.pct}% of this month’s chat budget.
       </p>
     )
@@ -324,34 +305,40 @@ function Suggestions({ onPick }: { onPick: (text: string) => void }) {
   )
 }
 
+/**
+ * Everything that lives under the transcript: the budget line, why the box is
+ * disabled when it is, the box itself, and the way to put the conversation
+ * away.
+ *
+ * "Start over" is *here*, at the bottom, rather than in a header — the header
+ * scrolls out of reach of a thumb the moment a conversation is long enough to
+ * be worth clearing, which is exactly when it is wanted. It sits under the box
+ * rather than over it so it can never be the thing a thumb lands on when it
+ * was reaching for Ask.
+ */
 function Composer({
   draft,
   onDraft,
   onSend,
   composer,
+  budget,
+  hasConversation,
+  canClear,
+  onClear,
 }: {
   draft: string
   onDraft: (value: string) => void
   onSend: () => void
   composer: Composer
+  budget: ChatBudget | null
+  hasConversation: boolean
+  canClear: boolean
+  onClear: () => void
 }) {
   const disabled = composer.state !== 'ready'
   return (
-    /* A bar, not a floating card. It is pinned over the conversation, so it
-       needs a ground of its own: transparent, the messages scrolled through the
-       page padding either side of it and through the strip between it and the
-       tab bar. Hence the full-width bleed (`-mx-5 px-5`, the same idiom
-       PhotoHero uses to cancel `<main>`'s padding) and an opaque `bg-canvas`
-       reaching from the rule at its top to the bottom of the screen.
-
-       `bottom-0` with `pb-24` rather than `bottom-24`: the two put the box in
-       the same place, but this way the box *extends* to the screen's edge
-       instead of stopping short of it and leaving a live strip of conversation
-       showing beneath. `-mb-28` gives that padding back to `<main>`'s own
-       `pb-28`, so the page does not grow a screenful of dead space at the end.
-       The rule and `mt-6` are the separation between the conversation and the
-       box you type in. */
-    <div className="sticky bottom-0 -mx-5 -mb-28 mt-6 border-t border-line bg-canvas px-5 pb-24 pt-3 space-y-1.5">
+    <div className="space-y-2 border-t border-line bg-canvas px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+      {budget && <BudgetNotice budget={budget} />}
       {composer.state === 'offline' && (
         <p className="text-xs text-muted">Chat needs a signal. Everything above is still here.</p>
       )}
@@ -389,6 +376,18 @@ function Composer({
           {composer.state === 'sending' ? 'Asking…' : 'Ask'}
         </button>
       </div>
+      {hasConversation && (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-muted disabled:opacity-40"
+            disabled={!canClear}
+            onClick={onClear}
+          >
+            <span aria-hidden>↺</span> Start over
+          </button>
+        </div>
+      )}
     </div>
   )
 }
