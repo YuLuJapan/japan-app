@@ -50,6 +50,18 @@ afterEach(() => {
   setAiRuntime(null)
 })
 
+/**
+ * The live conversation's messages, read straight from the store.
+ *
+ * A helper rather than `listChatMessages('trip-1')`, because that read is
+ * scoped to a **thread** since 0024 — a trip holds every conversation it has
+ * ever had, and a trip-scoped read would hand back the archived ones too.
+ */
+async function storedMessages(tripId = 'trip-1') {
+  const thread = await store.getActiveChatThread(tripId)
+  return thread ? store.listChatMessages(thread.id) : []
+}
+
 describe('a successful turn', () => {
   it('streams text, then usage, then done', async () => {
     const res = await ask('What is the plan Thursday?')
@@ -75,7 +87,7 @@ describe('a successful turn', () => {
 
   it('persists both messages, question first', async () => {
     await ask('What is the plan Thursday?')
-    const messages = await store.listChatMessages('trip-1')
+    const messages = await storedMessages()
     expect(messages.map((m) => m.role)).toEqual(['user', 'assistant'])
     expect(messages[0]).toMatchObject({
       content: 'What is the plan Thursday?',
@@ -88,7 +100,7 @@ describe('a successful turn', () => {
   it('creates exactly one thread, however many turns are taken', async () => {
     await ask('One')
     await ask('Two')
-    const messages = await store.listChatMessages('trip-1')
+    const messages = await storedMessages()
     const threads = new Set(messages.map((m) => m.thread_id))
     expect(threads.size).toBe(1)
   })
@@ -103,7 +115,7 @@ describe('a successful turn', () => {
 
   it('releases the lock so the next question can be asked', async () => {
     await ask('One')
-    const after = await store.getChatThread('trip-1')
+    const after = await store.getActiveChatThread('trip-1')
     expect(after?.turn_started_at).toBeNull()
 
     const second = await ask('Two')
@@ -252,7 +264,7 @@ describe('a turn that does not finish cleanly', () => {
     const types = events(res.text).map((e) => e.type)
     expect(types).toEqual(['text', 'text', 'error'])
 
-    const messages = await store.listChatMessages('trip-1')
+    const messages = await storedMessages()
     expect(messages.map((m) => m.content)).toEqual(['Something', 'Partly through'])
   })
 
@@ -261,7 +273,7 @@ describe('a turn that does not finish cleanly', () => {
     await ask('Unanswered')
 
     // A question with no answer reads honestly. Losing what was typed would not.
-    const messages = await store.listChatMessages('trip-1')
+    const messages = await storedMessages()
     expect(messages).toHaveLength(1)
     expect(messages[0]).toMatchObject({ role: 'user', content: 'Unanswered' })
   })
@@ -269,7 +281,7 @@ describe('a turn that does not finish cleanly', () => {
   it('releases the lock after a failure', async () => {
     script([{ error: { code: 'UPSTREAM', message: 'gone' } }])
     await ask('Unanswered')
-    expect((await store.getChatThread('trip-1'))?.turn_started_at).toBeNull()
+    expect((await store.getActiveChatThread('trip-1'))?.turn_started_at).toBeNull()
   })
 })
 
@@ -283,7 +295,7 @@ describe('a question that is not one', () => {
     const res = await ask(content)
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('VALIDATION')
-    expect(await store.listChatMessages('trip-1')).toEqual([])
+    expect(await storedMessages()).toEqual([])
   })
 
   it('refuses one that is far too long', async () => {
@@ -293,7 +305,7 @@ describe('a question that is not one', () => {
 
   it('leaves no lock behind after a refusal', async () => {
     await ask('')
-    const thread = await store.getChatThread('trip-1')
+    const thread = await store.getActiveChatThread('trip-1')
     // Either no thread at all, or one that is not locked. What must not happen
     // is a rejected question holding the conversation shut.
     expect(thread?.turn_started_at ?? null).toBeNull()
@@ -310,7 +322,7 @@ describe('two people at once', () => {
     const res = await ask('Me too')
     expect(res.status).toBe(409)
     // A 409 writes nothing at all: the lock is claimed before the question.
-    expect(await store.listChatMessages('trip-1')).toEqual([])
+    expect(await storedMessages()).toEqual([])
   })
 
   it('takes over a lock left behind by a turn that died', async () => {

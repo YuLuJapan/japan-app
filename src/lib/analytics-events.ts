@@ -163,6 +163,14 @@ export interface AnalyticsEventProperties {
   /** Bucketed, never the exact figure: this answers "does the cap bite?", and a
    *  running total per account is closer to a bill than to a shape. */
   chat_budget_state: { pct_bucket: 'under_80' | 'over_80' | 'blocked' }
+  /**
+   * A conversation was put away and a new one begun.
+   *
+   * How long the old one had got is a shape and worth having — it is the
+   * difference between "the answers went wrong and I started over" and ordinary
+   * tidying. Not a word of what was in it, as everywhere else on this screen.
+   */
+  chat_thread_started: { previous_message_count: number }
 
   // Sharing
   trip_member_invited: {

@@ -1,8 +1,9 @@
 // Chat: ask about the trip.
 //
-// Read-only in this phase — it answers questions and changes nothing, which is
-// why there is no confirmation step anywhere on this screen. When 006 adds
-// writes, the approval gate lands here.
+// Read-only in this phase — it answers questions and changes nothing. The one
+// confirmation on this screen is not about a *write to the trip*: it guards
+// putting the conversation away, which is shared, and which nothing in the app
+// can re-open. When writes arrive, the approval gate lands here beside it.
 //
 // The page is composition. The turn's state machine is `useChatTurn`, the
 // connection signal is `useOnlineStatus`, and what is left here is which of
@@ -11,7 +12,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError } from '../api/client'
 import { useChat, useMe } from '../api/hooks'
+import { useStartNewChat } from '../api/mutations'
 import type { ChatBudget, ChatMessageView, ChatView } from '../api/types'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
 import { useChatTurn, type TurnActivity } from '../lib/chat-turn'
@@ -36,6 +39,8 @@ export default function TripChat() {
   const messages = chat.data?.messages ?? []
   const refresh = useCallback(() => chat.refetch(), [chat])
   const turn = useChatTurn(tripId, { hasHistory: messages.length > 0, refresh })
+  const startNew = useStartNewChat(tripId)
+  const [confirmingNew, setConfirmingNew] = useState(false)
 
   const bottom = useRef<HTMLDivElement>(null)
   useRefreshOnFocus(refresh)
@@ -59,8 +64,35 @@ export default function TripChat() {
 
   return (
     <div className="flex min-h-[70vh] flex-col">
-      <ChatHeader />
+      <ChatHeader
+        // Two different questions, deliberately kept apart. *Presence* is "is
+        // there a conversation to throw away" — with none, the button is not
+        // rendered at all, because a greyed-out "Start over" on an empty screen
+        // invites a tap that could never do anything. *Enabled* is "may it
+        // happen right now", which a running turn answers no to: the server
+        // refuses with a 409 while the model is mid-answer, and a button that
+        // sat there tappable would only produce that refusal as a toast.
+        hasConversation={messages.length > 0}
+        canClear={!turn.sending && !startNew.isPending}
+        onClear={() => setConfirmingNew(true)}
+      />
       {chat.data && <BudgetNotice budget={chat.data.budget} />}
+
+      <ConfirmDialog
+        open={confirmingNew}
+        title="Start a new conversation?"
+        // Said plainly, because all three are surprising: the transcript is
+        // shared, so this clears the screen for the other traveller too; there
+        // is no way back to it in the app, even though it is kept; and the
+        // month's spending is not a transcript, so it does not come back.
+        message="This one is put away for both of you and can’t be re-opened here. What you have spent this month stays as it is."
+        confirmLabel="Start a new one"
+        onCancel={() => setConfirmingNew(false)}
+        onConfirm={() => {
+          setConfirmingNew(false)
+          startNew.mutate()
+        }}
+      />
 
       <div className="mt-5 flex-1 space-y-3">
         {messages.length === 0 && turn.question === null && <Suggestions onPick={setDraft} />}
@@ -102,13 +134,33 @@ export default function TripChat() {
   )
 }
 
-function ChatHeader() {
+function ChatHeader({
+  hasConversation,
+  canClear,
+  onClear,
+}: {
+  hasConversation: boolean
+  canClear: boolean
+  onClear: () => void
+}) {
   return (
     <header>
       <p className="section-title text-brand">Ask</p>
-      <h1 className="mt-1 font-display text-[34px] font-bold leading-[1.05] tracking-tight">
-        About this trip
-      </h1>
+      <div className="mt-1 flex items-start justify-between gap-3">
+        <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-tight">
+          About this trip
+        </h1>
+        {hasConversation && (
+          <button
+            type="button"
+            className="btn-ghost shrink-0 px-3 py-1.5 text-xs"
+            disabled={!canClear}
+            onClick={onClear}
+          >
+            Start over
+          </button>
+        )}
+      </div>
       <p className="mt-1.5 text-sm text-muted">
         It knows your plan, your places and your bookings. It can’t change anything yet.
       </p>

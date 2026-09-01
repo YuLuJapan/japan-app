@@ -450,3 +450,102 @@ describe('when chat is not configured', () => {
     expect(await screen.findByText(/isn’t set up/)).toBeInTheDocument()
   })
 })
+
+/**
+ * The API with a working archive.
+ *
+ * A separate mock rather than a flag on `mockApi`, because what matters here is
+ * the *sequence*: the GET must answer differently once the archive has landed,
+ * or a correct screen looks broken when it re-reads and the messages come back.
+ */
+function mockClearableApi(chat: ChatView) {
+  let cleared = false
+  fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.includes('/chat/archive')) {
+      cleared = true
+      return new Response(null, { status: 204 })
+    }
+    if (url.includes('/me')) {
+      return json({
+        user: { id: 'u_owner', email: 'yuval@example.com', display_name: 'Yuval' },
+        terms: { accepted: true, version: '1' },
+      })
+    }
+    if (url.includes('/chat')) {
+      return json(cleared ? { ...chat, thread: null, messages: [] } : chat)
+    }
+    return json({})
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  return {
+    get cleared() {
+      return cleared
+    },
+  }
+}
+
+const talked = (over: Partial<ChatView> = {}): ChatView =>
+  withMessage(withMessage(view(over), 'user', 'Where do we sleep Friday?'), 'assistant', 'Hakone.')
+
+describe('starting a new conversation', () => {
+  it('offers nothing to clear on an empty screen', async () => {
+    // Rendered as absent rather than disabled: a greyed-out "Start over" with
+    // no conversation behind it invites a tap that can never do anything.
+    mockApi(view())
+    show()
+    expect(await screen.findByLabelText('Ask about this trip')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start over' })).not.toBeInTheDocument()
+  })
+
+  it('asks before putting a shared conversation away', async () => {
+    const api = mockClearableApi(talked())
+    show()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Start over' }))
+    // The surprising facts, on screen before anything happens: it is shared, it
+    // cannot be re-opened here, and the month's spending is unaffected.
+    expect(await screen.findByText(/put away for both of you/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(api.cleared).toBe(false)
+    expect(screen.getByText('Hakone.')).toBeInTheDocument()
+  })
+
+  it('empties the transcript once confirmed', async () => {
+    mockClearableApi(talked())
+    show()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Start over' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Start a new one' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Hakone.')).not.toBeInTheDocument()
+    })
+    // Back to the state a trip nobody has asked anything on is in — openers, not
+    // a blank box.
+    expect(await screen.findByText('What’s the plan for tomorrow?')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start over' })).not.toBeInTheDocument()
+  })
+
+  it('does not hand back the month’s budget with the messages', async () => {
+    // The failure worth naming: `ai_usage` belongs to the account, not the
+    // thread, so an empty conversation is not a fresh allowance. If the notice
+    // vanished here, the screen would be telling somebody they had room the
+    // server would refuse them.
+    mockClearableApi(
+      talked({
+        budget: { spent_cents: 900, cap_cents: 1000, pct: 90, blocked: false, resumes_on: null },
+      })
+    )
+    show()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Start over' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Start a new one' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Hakone.')).not.toBeInTheDocument()
+    })
+    expect(screen.getByText(/used 90% of this month’s chat budget/)).toBeInTheDocument()
+  })
+})

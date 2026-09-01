@@ -6,7 +6,7 @@ import { ApiError, asyncHandler, forbidden, notFound } from '../lib/errors.js'
 import { canWrite } from '../lib/permissions.js'
 import { tripContextOf } from '../lib/trip-context.js'
 import { eventStream } from '../lib/sse.js'
-import { getChat, runChatTurn, type TurnContext } from '../services/chat.js'
+import { getChat, runChatTurn, startNewChatThread, type TurnContext } from '../services/chat.js'
 
 /**
  * Two refusals, before any handler, mounted on the path rather than repeated per
@@ -71,6 +71,28 @@ const turn = asyncHandler(async (req, res) => {
   stream.end()
 })
 
+/**
+ * Finish with this conversation; the next question opens a new one.
+ *
+ * A POST rather than a DELETE, because nothing is deleted: the thread is
+ * archived and keeps its messages. Naming it `DELETE /chat` would be a route
+ * that says one thing and does another, which is the kind of small lie that
+ * later justifies a real delete nobody meant to write.
+ *
+ * `204`, and a trip with no live conversation answers it too — the button is
+ * idempotent, so a second tap and two travellers tapping at once are both
+ * no-ops rather than a 404 somebody has to explain.
+ *
+ * Writers only, inherited from `requireChat` on the path above: a viewer never
+ * reaches this, and a partner may do it because a partner may already write to
+ * the conversation and spend against it. It is shared, though, which is why the
+ * confirmation on the screen says so in those words.
+ */
+const archive = asyncHandler(async (req, res) => {
+  await startNewChatThread(await getDataStore(), tripContextOf(req).trip.id)
+  res.status(204).end()
+})
+
 /** Who is asking, and about which trip. */
 async function turnContext(req: Request, store: DataStore): Promise<TurnContext> {
   const profile = await store.getProfile(req.user!.id)
@@ -100,4 +122,5 @@ function streamError(err: unknown) {
 export const chatTripRouter = Router({ mergeParams: true })
 chatTripRouter.use('/chat', requireChat)
 chatTripRouter.get('/chat', read)
+chatTripRouter.post('/chat/archive', archive)
 chatTripRouter.post('/chat/messages', turn)

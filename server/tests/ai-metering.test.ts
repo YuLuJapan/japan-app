@@ -119,7 +119,9 @@ describe('running through the meter', () => {
     await drain(meter.run(spec))
 
     expect(await spent()).toBeGreaterThan(0)
-    expect(await store.listChatMessages('trip-1')).toEqual([])
+    // Neither a message nor a thread to hold one: the meter's whole
+    // relationship with the transcript is that it does not have one.
+    expect(await store.getActiveChatThread('trip-1')).toBeNull()
   })
 
   it('writes nothing when the run reports no usage', async () => {

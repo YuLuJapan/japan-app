@@ -429,6 +429,16 @@ export interface ChatThread {
    * timestamp is compared against a staleness window and expires on its own.
    */
   turn_started_at: string | null
+  /**
+   * When this conversation was finished with, or null while it is the live one.
+   *
+   * A trip has at most one unarchived thread — a partial unique index in
+   * migration 0024, not a service rule, for the same reason 0023 made the
+   * original one-per-trip rule a constraint. Archived threads keep their
+   * messages: "start over" is not a delete, and the record of what the
+   * travellers asked survives even though nothing reads it back yet.
+   */
+  archived_at: string | null
   created_at: string
 }
 
@@ -745,9 +755,17 @@ export interface DataStore {
    */
   deletePushSubscription(userId: string, endpoint: string): Promise<boolean>
 
-  /** The trip's one conversation, or null if nobody has asked anything yet. */
-  getChatThread(tripId: string): Promise<ChatThread | null>
-  /** Idempotent: a trip already holding a thread gets that one back, never a second. */
+  /**
+   * The trip's **live** conversation, or null when there is none — either
+   * nobody has asked anything yet, or the last one was archived.
+   *
+   * Named for "active" rather than left as `getChatThread`, because since 0024
+   * a trip can hold several and only one of them is the one being added to. A
+   * method that quietly returned "one of them" is the kind of ambiguity that
+   * shows up later as a conversation answering from the wrong history.
+   */
+  getActiveChatThread(tripId: string): Promise<ChatThread | null>
+  /** Idempotent: a trip already holding a live thread gets that one back, never a second. */
   createChatThread(tripId: string): Promise<ChatThread>
   /**
    * Atomically take the turn lock, stamping `turn_started_at` in the same
@@ -765,9 +783,38 @@ export interface DataStore {
   claimChatTurn(tripId: string, nowIso: string, staleMs: number): Promise<ChatThread | null>
   /** Release the lock. Called on every exit path, success and failure alike. */
   releaseChatTurn(tripId: string): Promise<void>
+  /**
+   * Finish with the live conversation: stamp `archived_at` and let go of the
+   * lock in the same write.
+   *
+   * **Nothing is deleted.** The thread and every message in it stay exactly
+   * where they are; what changes is that they are no longer the conversation
+   * the app reads or the model is shown. Re-opening one is not built — there is
+   * no route and no screen for it — but the rows are there for when it is, which
+   * is the whole reason this is an archive rather than a delete.
+   *
+   * Returns whether there was a live one, so starting over on a trip nobody has
+   * asked anything on is a no-op rather than an error: the button is idempotent
+   * by construction, and two taps do not produce a failure on the second.
+   *
+   * **The ledger is not touched, and must never be.** `ai_usage` rows belong to
+   * the account and the trip, not to the thread, so putting a conversation away
+   * cannot move the monthly cap. Wire it the other way and "start over" becomes
+   * the way around the one control that stops this feature spending money —
+   * which is why `chat-threads.test.ts` asserts the budget afterwards rather
+   * than trusting the schema.
+   */
+  archiveChatThread(tripId: string): Promise<boolean>
 
-  /** The whole transcript for one trip, oldest first. */
-  listChatMessages(tripId: string): Promise<ChatMessage[]>
+  /**
+   * One conversation's messages, oldest first.
+   *
+   * **Scoped to the thread, never to the trip**, and that is load-bearing since
+   * 0024: a trip-scoped read would hand back every archived conversation as
+   * well, which shows up as a transcript that will not clear and — worse — as
+   * history the model is shown from a conversation the travellers finished with.
+   */
+  listChatMessages(threadId: string): Promise<ChatMessage[]>
   createChatMessage(input: ChatMessageInput): Promise<ChatMessage>
 
   /** Append one priced row to the ledger. */
