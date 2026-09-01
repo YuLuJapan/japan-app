@@ -1,13 +1,12 @@
 // The small white card floating over the map's right side.
 //
-// One glyph and label per category **actually present in the current view** —
-// a legend for a category with no pin on screen explains nothing, and for a
+// One swatch and label per category **actually present in the current view**
+// — a legend for a category with no pin on screen explains nothing, and for a
 // member whose view withholds stays it would name something they were never
-// sent (FR-017). The glyph is `CATEGORY_META.icon` — the same emoji every
-// category-picking surface in the app already uses (the place form's category
-// select, `CategoryChips`) — rather than `CATEGORY_META.dot`'s colour swatch:
-// four small colour dots read as one blur at a glance, where four shapes
-// don't.
+// sent (FR-017). The swatch carries `CATEGORY_META.icon` inside
+// `CATEGORY_META.dot`'s circle — the same pairing the map's own pins and the
+// card row below draw, so the legend key matches what is actually on screen
+// rather than a colour a traveller has to match by eye.
 import { CATEGORY_META, type Category } from '../../api/types'
 
 export function MapLegend({ categories }: { categories: Category[] }) {
@@ -17,7 +16,10 @@ export function MapLegend({ categories }: { categories: Category[] }) {
       <ul className="space-y-1">
         {categories.map((c) => (
           <li key={c} className="flex items-center gap-2 text-xs font-semibold text-ink">
-            <span className="shrink-0" aria-hidden="true">
+            <span
+              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] leading-none ${CATEGORY_META[c].dot}`}
+              aria-hidden="true"
+            >
               {CATEGORY_META[c].icon}
             </span>
             {CATEGORY_META[c].label}

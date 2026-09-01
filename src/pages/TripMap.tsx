@@ -51,7 +51,7 @@ export default function TripMap() {
   const trip = useTrip(tripId)
   const steps = useMemo(() => trip.data?.steps ?? [], [trip.data])
 
-  const [scale, setScale] = useState<MapScale>('zone')
+  const [scale, setScale] = useState<MapScale>('trip')
   const [zoneId, setZoneId] = useState('')
   const [active, setActive] = useState<Set<Category> | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
