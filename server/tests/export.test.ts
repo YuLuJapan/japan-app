@@ -208,7 +208,7 @@ describe('a trip three times the real size', () => {
     setDataStore(store)
   })
 
-  it('is assembled in five store reads, not sixty', async () => {
+  it('is assembled in four store reads, not sixty', async () => {
     // The claim research R5 rests on, and the one that cannot be checked by
     // reading the response: with the per-parent reads this would be one query
     // per zone plus one per place — well over a hundred here — inside a single
@@ -233,13 +233,7 @@ describe('a trip three times the real size', () => {
     // (lib/auth.ts, lib/trip-context.ts), not to the export.
     const access = new Set(['listMembershipsForUser'])
     const gathering = reads.filter((r) => r.startsWith('list') && !access.has(r))
-    expect(gathering.sort()).toEqual([
-      'listAllPlaces',
-      'listAllTips',
-      'listItinerary',
-      'listSteps',
-      'listZones',
-    ])
+    expect(gathering.sort()).toEqual(['listActivities', 'listAllTips', 'listSteps', 'listZones'])
   })
 
   it('carries every stop and every place, and counts the missing addresses', async () => {

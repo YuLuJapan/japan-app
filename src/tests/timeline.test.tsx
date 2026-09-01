@@ -11,14 +11,14 @@ const steps: TripStep[] = [
     position: 1,
     start_date: '2026-10-05',
     end_date: '2026-10-09',
-    zone: { id: 'z1', name: 'Tokyo', name_ja: '東京', summary: null, place_counts: counts },
+    zone: { id: 'z1', name: 'Tokyo', name_ja: '東京', summary: null, saved_counts: counts },
   },
   {
     id: 's2',
     position: 2,
     start_date: '2026-10-09',
     end_date: '2026-10-12',
-    zone: { id: 'z2', name: 'Kyoto', name_ja: '京都', summary: null, place_counts: counts },
+    zone: { id: 'z2', name: 'Kyoto', name_ja: '京都', summary: null, saved_counts: counts },
   },
 ]
 

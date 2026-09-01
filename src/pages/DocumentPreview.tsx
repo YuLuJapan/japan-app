@@ -40,8 +40,8 @@ const fileName = (doc: TripDocument) => {
 }
 
 const parentHref = (doc: TripDocument, tripId: string) =>
-  doc.attached_to.kind === 'place'
-    ? `/trips/${tripId}/places/${doc.attached_to.id}`
+  doc.attached_to.kind === 'activity'
+    ? `/trips/${tripId}/activities/${doc.attached_to.id}`
     : doc.attached_to.kind === 'zone'
       ? `/trips/${tripId}/zones/${doc.attached_to.id}`
       : null

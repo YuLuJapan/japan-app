@@ -424,11 +424,11 @@ export async function getDateImpact(
       // longer has room for it — rather than re-deriving the rule and drifting.
       moves_to: movedStepDates(s, range),
     })),
-    items: stranded.items.map((a) => ({
+    activities: stranded.items.map((a) => ({
       id: a.id,
       day: a.day,
       start_time: a.start_time,
-      title: a.name,
+      name: a.name,
       highlight: a.highlight,
     })),
   }

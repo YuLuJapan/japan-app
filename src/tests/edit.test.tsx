@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import PlaceDetail from '../pages/PlaceDetail'
-import PlaceForm from '../pages/PlaceForm'
+import ActivityDetail from '../pages/ActivityDetail'
+import ActivityForm from '../pages/ActivityForm'
 import { renderAt } from './helpers'
 
 const mocks = vi.hoisted(() => ({
@@ -34,10 +34,10 @@ describe('ConfirmDialog (FR-017)', () => {
   })
 })
 
-describe('PlaceDetail delete flow (FR-017)', () => {
+describe('ActivityDetail delete flow (FR-017)', () => {
   it('asks for confirmation before firing the delete mutation', async () => {
     mocks.get.mockResolvedValue({
-      place: {
+      activity: {
         id: 'p1',
         zone_id: 'z1',
         category: 'food',
@@ -51,8 +51,8 @@ describe('PlaceDetail delete flow (FR-017)', () => {
       files: [],
     })
     mocks.delete.mockResolvedValue(undefined)
-    renderAt('/trips/trip-1/places/p1', [
-      { path: '/trips/:tripId/places/:placeId', element: <PlaceDetail /> },
+    renderAt('/trips/trip-1/activities/p1', [
+      { path: '/trips/:tripId/activities/:activityId', element: <ActivityDetail /> },
       { path: '/trips/:tripId/zones/:zoneId/c/:category', element: <p>list</p> },
     ])
 
@@ -65,15 +65,15 @@ describe('PlaceDetail delete flow (FR-017)', () => {
       (b) => b.textContent === 'Delete'
     )!
     await userEvent.click(confirm)
-    await waitFor(() => expect(mocks.delete).toHaveBeenCalledWith('/trips/trip-1/places/p1'))
+    await waitFor(() => expect(mocks.delete).toHaveBeenCalledWith('/trips/trip-1/activities/p1'))
   })
 })
 
-describe('PlaceForm failure path (FR-019)', () => {
+describe('ActivityForm failure path (FR-019)', () => {
   it('keeps the entered text and offers retry when the save fails', async () => {
     mocks.post.mockRejectedValue(new Error('offline'))
     renderAt('/trips/trip-1/zones/z1/places/new', [
-      { path: '/trips/:tripId/zones/:zoneId/places/new', element: <PlaceForm /> },
+      { path: '/trips/:tripId/zones/:zoneId/places/new', element: <ActivityForm /> },
     ])
 
     const name = screen.getByLabelText('Name *')
@@ -84,11 +84,11 @@ describe('PlaceForm failure path (FR-019)', () => {
     expect(name).toHaveValue('Hidden Gyoza Bar') // input preserved
     const retry = screen.getByRole('button', { name: 'Retry save' })
 
-    mocks.post.mockResolvedValue({ place: { id: 'p-new' } })
+    mocks.post.mockResolvedValue({ activity: { id: 'p-new' } })
     await userEvent.click(retry)
     await waitFor(() =>
       expect(mocks.post).toHaveBeenLastCalledWith(
-        '/trips/trip-1/places',
+        '/trips/trip-1/activities',
         expect.objectContaining({ name: 'Hidden Gyoza Bar', zone_id: 'z1' })
       )
     )

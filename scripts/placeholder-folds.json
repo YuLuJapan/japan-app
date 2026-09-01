@@ -8,129 +8,36 @@
     }
   ],
   "matches": [
-    [
-      "attr-sensoji",
-      "itin-20260922-0"
-    ],
-    [
-      "attr-teamlab",
-      "itin-20260923-6"
-    ],
-    [
-      "hotel-hakone-yutowa",
-      "itin-20260925-0"
-    ],
-    [
-      "attr-hakone-openair",
-      "itin-20260925-1"
-    ],
-    [
-      "attr-owakudani",
-      "itin-20260926-0"
-    ],
-    [
-      "hotel-mizno",
-      "itin-20260927-2"
-    ],
-    [
-      "attr-chureito",
-      "itin-20260928-0"
-    ],
-    [
-      "attr-matsumoto-castle",
-      "itin-20260928-3"
-    ],
-    [
-      "hotel-wood-takayama",
-      "itin-20260929-3"
-    ],
-    [
-      "attr-sanmachi",
-      "itin-20260930-1"
-    ],
-    [
-      "attr-higashichaya",
-      "itin-20261001-3"
-    ],
-    [
-      "attr-kenrokuen",
-      "itin-20261002-0"
-    ],
-    [
-      "shop-omicho",
-      "itin-20261002-1"
-    ],
-    [
-      "attr-higashichaya",
-      "itin-20261002-3"
-    ],
-    [
-      "hotel-mitsui-kyoto",
-      "itin-20261003-1"
-    ],
-    [
-      "attr-arashiyama",
-      "itin-20261004-0"
-    ],
-    [
-      "attr-kinkakuji",
-      "itin-20261004-4"
-    ],
-    [
-      "attr-fushimi",
-      "itin-20261005-1"
-    ],
-    [
-      "shop-nishiki",
-      "itin-20261005-2"
-    ],
-    [
-      "attr-teamlab-biovortex",
-      "itin-20261006-1"
-    ],
-    [
-      "hotel-candeo-osaka",
-      "itin-20261007-6"
-    ],
-    [
-      "attr-dotonbori",
-      "itin-20261007-7"
-    ],
-    [
-      "attr-osaka-castle",
-      "itin-20261009-1"
-    ],
-    [
-      "hotel-atami-sekaie",
-      "itin-20261010-2"
-    ],
-    [
-      "attr-atami-beach",
-      "itin-20261010-3"
-    ],
-    [
-      "food-atami-seafood",
-      "itin-20261010-5"
-    ],
-    [
-      "attr-kiunkaku",
-      "itin-20261011-0"
-    ],
-    [
-      "attr-moa-museum",
-      "itin-20261011-1"
-    ],
-    [
-      "hotel-gracery",
-      "itin-20261012-2"
-    ],
-    [
-      "shop-donki",
-      "itin-20261013-2"
-    ],
-    [
-      "attr-shibuya",
-      "itin-20261013-6"
-    ]
+    ["attr-sensoji", "itin-20260922-0"],
+    ["attr-teamlab", "itin-20260923-6"],
+    ["hotel-hakone-yutowa", "itin-20260925-0"],
+    ["attr-hakone-openair", "itin-20260925-1"],
+    ["attr-owakudani", "itin-20260926-0"],
+    ["hotel-mizno", "itin-20260927-2"],
+    ["attr-chureito", "itin-20260928-0"],
+    ["attr-matsumoto-castle", "itin-20260928-3"],
+    ["hotel-wood-takayama", "itin-20260929-3"],
+    ["attr-sanmachi", "itin-20260930-1"],
+    ["attr-higashichaya", "itin-20261001-3"],
+    ["attr-kenrokuen", "itin-20261002-0"],
+    ["shop-omicho", "itin-20261002-1"],
+    ["attr-higashichaya", "itin-20261002-3"],
+    ["hotel-mitsui-kyoto", "itin-20261003-1"],
+    ["attr-arashiyama", "itin-20261004-0"],
+    ["attr-kinkakuji", "itin-20261004-4"],
+    ["attr-fushimi", "itin-20261005-1"],
+    ["shop-nishiki", "itin-20261005-2"],
+    ["attr-teamlab-biovortex", "itin-20261006-1"],
+    ["hotel-candeo-osaka", "itin-20261007-6"],
+    ["attr-dotonbori", "itin-20261007-7"],
+    ["attr-osaka-castle", "itin-20261009-1"],
+    ["hotel-atami-sekaie", "itin-20261010-2"],
+    ["attr-atami-beach", "itin-20261010-3"],
+    ["food-atami-seafood", "itin-20261010-5"],
+    ["attr-kiunkaku", "itin-20261011-0"],
+    ["attr-moa-museum", "itin-20261011-1"],
+    ["hotel-gracery", "itin-20261012-2"],
+    ["shop-donki", "itin-20261013-2"],
+    ["attr-shibuya", "itin-20261013-6"]
   ]
 }

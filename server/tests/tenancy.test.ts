@@ -48,9 +48,8 @@ function collectRoutes(router: Router, prefix = ''): RouteEntry[] {
 /** Real ids from the fixture, so nothing 404s merely for being made up. */
 const REAL_IDS: Record<string, string> = {
   ':zoneId': 'zone-tokyo',
-  ':placeId': 'place-hotel',
+  ':activityId': 'place-hotel',
   ':tipId': 'tip-zone',
-  ':itemId': 'itin-ramen',
   ':stepId': 'step-1',
   ':reminderId': 'reminder-1',
   ':fileId': 'file-trip',
@@ -158,24 +157,24 @@ describe('cross-resource scoping', () => {
   })
 
   it('404s deleting another trip’s place', async () => {
-    await request(app).delete('/api/trips/trip-1/places/place-other').set(owner()).expect(404)
+    await request(app).delete('/api/trips/trip-1/activities/place-other').set(owner()).expect(404)
     // …and it is still there.
     await request(app)
-      .get('/api/trips/trip-2/places/place-other')
+      .get('/api/trips/trip-2/activities/place-other')
       .set(as('partner.jwt'))
       .expect(200)
   })
 
   it('refuses to move a place into a zone belonging to another trip', async () => {
     const res = await request(app)
-      .patch('/api/trips/trip-1/places/place-ramen')
+      .patch('/api/trips/trip-1/activities/place-ramen')
       .set(owner())
       .send({ zone_id: 'zone-osaka' })
     expect(res.status).toBe(404)
 
     // The place kept its own zone rather than being half-moved.
-    const after = await request(app).get('/api/trips/trip-1/places/place-ramen').set(owner())
-    expect(after.body.place.zone_id).toBe('zone-tokyo')
+    const after = await request(app).get('/api/trips/trip-1/activities/place-ramen').set(owner())
+    expect(after.body.activity.zone_id).toBe('zone-tokyo')
   })
 
   it('refuses to hang a tip off another trip’s zone', async () => {
@@ -197,7 +196,7 @@ describe('cross-resource scoping', () => {
   it('keeps each trip’s own resources reachable', async () => {
     // The other half: a guard that refused everything would pass all of the
     // above while breaking the app.
-    await request(app).get('/api/trips/trip-1/places/place-ramen').set(owner()).expect(200)
+    await request(app).get('/api/trips/trip-1/activities/place-ramen').set(owner()).expect(200)
     await request(app).get('/api/trips/trip-1/zones/zone-tokyo').set(owner()).expect(200)
     await request(app).get('/api/trips/trip-2/zones/zone-osaka').set(as('partner.jwt')).expect(200)
   })

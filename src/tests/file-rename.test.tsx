@@ -130,13 +130,13 @@ describe('what a rename refreshes', () => {
    * is right, and silently wrong — a stale name until a manual reload — the
    * moment it isn't. So every file cache is invalidated, whatever the parent.
    */
-  it('marks the zone, place and trip caches stale even for a trip-parented file', async () => {
+  it('marks the zone, activity and trip caches stale even for a trip-parented file', async () => {
     const client = new QueryClient({
       defaultOptions: { queries: { staleTime: 60_000, gcTime: 86_400_000, retry: false } },
     })
     // screens visited earlier in the session, now sitting in the cache
     client.setQueryData(['zone', 'z1'], { zone: {}, files: [file] })
-    client.setQueryData(['place', 'p1'], { place: {}, files: [file] })
+    client.setQueryData(['activity', 'p1'], { activity: {}, files: [file] })
     client.setQueryData(['trip-files', 't1'], { files: [file] })
     client.setQueryData(['trip', 't1'], { trip: {}, trip_files_count: 1 })
 
@@ -165,7 +165,7 @@ describe('what a rename refreshes', () => {
     const invalidated = (key: unknown[]) => client.getQueryState(key)?.isInvalidated
     await waitFor(() => expect(invalidated(['trip-files', 't1'])).toBe(true))
     expect(invalidated(['zone', 'z1'])).toBe(true)
-    expect(invalidated(['place', 'p1'])).toBe(true)
+    expect(invalidated(['activity', 'p1'])).toBe(true)
     expect(invalidated(['trip', 't1'])).toBe(true)
   })
 })

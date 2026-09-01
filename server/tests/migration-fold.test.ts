@@ -21,7 +21,7 @@ const zones = new Map(input.zones.map((z) => [z.id, z.trip_id]))
 const fold = () =>
   foldActivities({ places, items, matches, tripIdOfZone: (id) => zones.get(id) ?? '' })
 
-const byId = (rows: { id: string }[]) => new Map(rows.map((r) => [r.id, r]))
+const byId = <T extends { id: string }>(rows: T[]) => new Map(rows.map((r) => [r.id, r]))
 
 describe('the fold rule agrees with the SQL that runs in production', () => {
   it('produces exactly the rows the migration produced in Postgres', () => {
@@ -38,7 +38,12 @@ describe('the fold rule agrees with the SQL that runs in production', () => {
     const out = byId(fold())
     for (const place of places) expect(out.has(place.id)).toBe(true)
     const foldedAway = items.filter((i) => !out.has(i.id))
-    expect(foldedAway.map((i) => i.id).sort()).toEqual(['i-differ', 'i-dupe', 'i-same', 'i-twice-a'])
+    expect(foldedAway.map((i) => i.id).sort()).toEqual([
+      'i-differ',
+      'i-dupe',
+      'i-same',
+      'i-twice-a',
+    ])
     // and each of those left its words behind on the row that absorbed it
     for (const item of foldedAway) {
       const survivor = out.get(item.place_id!)!

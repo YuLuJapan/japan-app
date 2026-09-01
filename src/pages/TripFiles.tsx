@@ -10,13 +10,13 @@ import { useTripId } from '../lib/trip'
 
 interface Group {
   key: string
-  kind: 'trip' | 'zone' | 'place'
+  kind: 'trip' | 'zone' | 'activity'
   id: string
   name: string
   files: TripDocument[]
 }
 
-/** Trip docs first, then one group per place/city that has attached files. */
+/** Trip docs first, then one group per activity/city that has attached files. */
 function groupDocuments(files: TripDocument[]): Group[] {
   const groups = new Map<string, Group>()
   for (const f of files) {
@@ -33,8 +33,8 @@ const parentFor = (g: Group): FileParent =>
   g.kind === 'trip' ? { kind: 'trip' } : { kind: g.kind, id: g.id }
 
 const groupHref = (g: Group, tripId: string) =>
-  g.kind === 'place'
-    ? `/trips/${tripId}/places/${g.id}`
+  g.kind === 'activity'
+    ? `/trips/${tripId}/activities/${g.id}`
     : g.kind === 'zone'
       ? `/trips/${tripId}/zones/${g.id}`
       : null
@@ -73,7 +73,7 @@ export default function TripFiles() {
                     'Trip'
                   ) : (
                     <>
-                      <span>{g.kind === 'place' ? '📍' : '🏙️'}</span>
+                      <span>{g.kind === 'activity' ? '📍' : '🏙️'}</span>
                       {href ? (
                         <Link to={href} className="text-brand">
                           {g.name}

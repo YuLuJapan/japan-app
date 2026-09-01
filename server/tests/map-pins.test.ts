@@ -40,7 +40,7 @@ const asViewer = (stays: boolean) =>
 
 /** What the map asks for: one zone, no category, every place in it. */
 const sweep = (headers: Record<string, string>) =>
-  request(app).get('/api/trips/trip-1/zones/zone-tokyo/places?category=').set(headers)
+  request(app).get('/api/trips/trip-1/activities').set(headers)
 
 beforeEach(() => {
   store = createMemoryStore(fixture())
@@ -48,23 +48,31 @@ beforeEach(() => {
   useTestTokens()
 })
 
-describe('the all-categories sweep the map makes', () => {
-  it('gives an owner every place in the zone, stays included', async () => {
+describe('the one list the map plots', () => {
+  type Row = Record<string, unknown> & { zone_id: string; day: string | null }
+  const inTokyo = (rows: Row[]) => rows.filter((a) => a.zone_id === 'zone-tokyo')
+
+  it('gives an owner every activity in the city, stays and scheduled ones included', async () => {
     const res = await sweep(owner).expect(200)
-    const categories = res.body.places.map((p: { category: string }) => p.category)
-    expect(categories).toContain('hotel')
-    expect(res.body.places.map((p: { id: string }) => p.id).sort()).toEqual([
+    const tokyo = inTokyo(res.body.activities)
+    expect(tokyo.map((p) => p.category)).toContain('hotel')
+    expect(tokyo.map((p) => p.id).sort()).toEqual([
+      'itin-ramen',
+      'itin-walk',
       'place-hotel',
       'place-ramen',
     ])
+    // The point of 010 for the map: a *scheduled* activity is plottable too.
+    expect(tokyo.some((a) => a.day !== null)).toBe(true)
   })
 
   it('sends a viewer who may not see stays no hotel object at all', async () => {
     await asViewer(false)
     const res = await sweep(viewer).expect(200)
     // Not hidden, not redacted, not filtered later — absent from the payload.
-    expect(res.body.places.some((p: { category: string }) => p.category === 'hotel')).toBe(false)
-    expect(res.body.places.map((p: { id: string }) => p.id)).toEqual(['place-ramen'])
+    const saved = res.body.activities.filter((a: { day: string | null }) => !a.day)
+    expect(saved.some((p: { category: string }) => p.category === 'hotel')).toBe(false)
+    expect(inTokyo(saved).map((p) => p.id)).toEqual(['place-ramen'])
     // And the name never rides along in some other field either (SC-003).
     expect(JSON.stringify(res.body)).not.toContain('Test Hotel')
   })
@@ -72,7 +80,7 @@ describe('the all-categories sweep the map makes', () => {
   it('gives that same viewer the stays back once their view allows it', async () => {
     await asViewer(true)
     const res = await sweep(viewer).expect(200)
-    expect(res.body.places.some((p: { category: string }) => p.category === 'hotel')).toBe(true)
+    expect(res.body.activities.some((p: { category: string }) => p.category === 'hotel')).toBe(true)
   })
 
   it('answers 404 to a non-member, indistinguishable from no such trip (FR-018)', async () => {
@@ -85,37 +93,48 @@ describe('what a pin is built from', () => {
     // The client counts the ones without a location (FR-019), and an absent key
     // and a null value are not equally easy to count honestly (contracts §1).
     const res = await sweep(owner).expect(200)
-    const ramen = res.body.places.find((p: { id: string }) => p.id === 'place-ramen')
+    const ramen = res.body.activities.find((p: { id: string }) => p.id === 'place-ramen')
     expect(ramen).toHaveProperty('lat', null)
     expect(ramen).toHaveProperty('lng', null)
   })
 
-  it('carries a located place through with its coordinates intact', async () => {
-    const res = await request(app)
-      .get('/api/trips/trip-1/zones/zone-kyoto/places?category=')
-      .set(owner)
-      .expect(200)
-    const inari = res.body.places.find((p: { id: string }) => p.id === 'place-everything')
+  it('carries a located activity through with its coordinates intact', async () => {
+    const res = await sweep(owner).expect(200)
+    const inari = res.body.activities.find((p: { id: string }) => p.id === 'place-everything')
     expect(inari.lat).toBe(34.9671)
     expect(inari.lng).toBe(135.7727)
   })
 
   it('emits exactly the fields the list policy admits, and no others', async () => {
-    // The weaker, runtime half of the guard in `zonePlaceListItem`: the
-    // compile-time half is `Record<keyof Place, …>`, which `npm test` cannot
-    // see because Vitest transpiles types away. This one catches a stray
-    // spread; typecheck catches a new column nobody classified.
+    // The weaker, runtime half of the guard in `activityView`: the compile-time
+    // half is `Record<keyof Activity, …>`, which `npm test` cannot see because
+    // Vitest transpiles types away. This one catches a stray spread; typecheck
+    // catches a new column nobody classified.
+    //
+    // `trip_id` is the one column deliberately absent — the caller asked for
+    // this trip. Everything else travels; what keeps a stay's booking away
+    // from someone who may not see it is `stripStay`, applied before this
+    // projection, not the shape of the projection (see activity-view.ts).
     const res = await sweep(owner).expect(200)
-    expect(Object.keys(res.body.places[0]).sort()).toEqual([
+    expect(Object.keys(res.body.activities[0]).sort()).toEqual([
       'address',
       'category',
+      'day',
+      'description',
+      'file_count',
+      'highlight',
+      'icon',
       'id',
       'image_url',
       'lat',
+      'links',
       'lng',
       'name',
       'name_ja',
+      'position',
+      'start_time',
       'summary_line',
+      'zone_id',
     ])
   })
 })

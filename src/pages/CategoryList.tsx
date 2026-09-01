@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { useZone, useZonePlaces } from '../api/hooks'
+import { useActivities, useZone } from '../api/hooks'
 import type { Category } from '../api/types'
 import { CATEGORY_META } from '../api/types'
 import { Breadcrumbs } from '../components/Breadcrumbs'
@@ -17,11 +17,17 @@ export default function CategoryList() {
   const tripId = useTripId()
   const cat = category as Category
   const zone = useZone(zoneId)
-  const { data, isPending, isError, refetch } = useZonePlaces(zoneId, cat)
+  const { data, isPending, isError, refetch } = useActivities(tripId)
   const meta = CATEGORY_META[cat] ?? { label: category, icon: '📍' }
 
   if (isPending) return <Loading />
-  if (isError) return <ErrorState message="Could not load places." onRetry={() => refetch()} />
+  if (isError) return <ErrorState message="Could not load activities." onRetry={() => refetch()} />
+
+  // Explore is the *saved* half: no date, this city, this tag. An untagged
+  // activity falls under "More", which is `other`'s own row in the grid.
+  const saved = data.activities.filter(
+    (a) => a.day === null && a.zone_id === zoneId && (a.category ?? 'other') === cat
+  )
 
   return (
     <div>
@@ -38,7 +44,7 @@ export default function CategoryList() {
         </h1>
         {canEdit && (
           <Link
-            to={`/trips/${tripId}/zones/${zoneId}/places/new?category=${cat}`}
+            to={`/trips/${tripId}/zones/${zoneId}/activities/new?category=${cat}`}
             className="text-sm font-bold text-brand"
           >
             + Add
@@ -46,7 +52,7 @@ export default function CategoryList() {
         )}
       </div>
 
-      {data.places.length === 0 ? (
+      {saved.length === 0 ? (
         <EmptyState
           message={
             // The API sends a restricted caller no stays at all, so an empty
@@ -58,10 +64,10 @@ export default function CategoryList() {
         />
       ) : (
         <ul className="mt-4 space-y-3">
-          {data.places.map((p) => (
+          {saved.map((p) => (
             <li key={p.id}>
               <Link
-                to={`/trips/${tripId}/places/${p.id}`}
+                to={`/trips/${tripId}/activities/${p.id}`}
                 className="card flex items-stretch gap-3 overflow-hidden active:scale-[0.99]"
               >
                 <ZoneImage

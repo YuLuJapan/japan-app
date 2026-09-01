@@ -103,7 +103,7 @@ function isMissingProfilesTable(error: { code?: string; message?: string } | nul
 // pre-010 places/itinerary reads there is no tier to fall back to — if 0025
 // has not been applied the table itself is absent, which PostgREST reports
 // plainly rather than as a missing column.
-const ACTIVITY_COLS =
+export const ACTIVITY_COLS =
   'id,trip_id,zone_id,category,name,name_ja,description,address,links,image_url,lat,lng,' +
   'day,start_time,position,highlight,icon'
 

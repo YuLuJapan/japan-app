@@ -137,7 +137,7 @@ describe('what the model is given', () => {
     const spec = calls.specs[0]
     // The trip's front matter and the paths — not the trip. What is *in* a file
     // arrives only if the model opens one.
-    expect(spec.system).toContain('/trip/places.json')
+    expect(spec.system).toContain('/trip/saved.json')
     expect(spec.system).toContain('Country: Japan')
     expect(spec.tools?.map((t) => t.name)).toEqual(['grep'])
     expect(spec.messages.at(-1)).toMatchObject({

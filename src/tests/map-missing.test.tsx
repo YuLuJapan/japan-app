@@ -15,7 +15,7 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import TripMap from '../pages/TripMap'
 import { CATEGORY_META, type Category } from '../api/types'
-import { renderAt } from './helpers'
+import { renderAt, activity } from './helpers'
 import { lastFakeEngine, resetFakeEngine } from '../map/engine.fake'
 
 vi.mock('../map/engine.leaflet', async () => await import('../map/engine.fake'))
@@ -41,7 +41,7 @@ const TOKYO = {
   image_url: null,
   lat: 35.68,
   lng: 139.76,
-  place_counts: { hotel: 1, attraction: 1, food: 1, shopping: 0, other: 0 },
+  saved_counts: { hotel: 1, attraction: 1, food: 1, shopping: 0, other: 0 },
 }
 
 const bundle = () => ({
@@ -71,17 +71,7 @@ const place = (
   category: string,
   lat: number | null,
   lng: number | null
-) => ({
-  id,
-  name,
-  name_ja: null,
-  category,
-  summary_line: '',
-  image_url: null,
-  address: null,
-  lat,
-  lng,
-})
+) => activity({ id, name, category: category as Category, lat, lng, zone_id: 'zone-tokyo' })
 
 let places: ReturnType<typeof place>[]
 
@@ -94,7 +84,7 @@ beforeEach(() => {
   ]
   mocks.get.mockImplementation((path: string) => {
     if (path === '/trips/trip-1') return Promise.resolve(bundle())
-    if (path.startsWith('/trips/trip-1/zones/zone-tokyo/places')) return Promise.resolve({ places })
+    if (path === '/trips/trip-1/activities') return Promise.resolve({ activities: places })
     return Promise.reject(new Error(`unexpected GET ${path}`))
   })
 })
@@ -143,11 +133,11 @@ describe('for a member who can edit', () => {
 
     expect(screen.getByRole('link', { name: /Unlocated Cafe/ })).toHaveAttribute(
       'href',
-      '/trips/trip-1/places/p-cafe/edit'
+      '/trips/trip-1/activities/p-cafe/edit'
     )
     expect(screen.getByRole('link', { name: /Unlocated Shrine/ })).toHaveAttribute(
       'href',
-      '/trips/trip-1/places/p-shrine/edit'
+      '/trips/trip-1/activities/p-shrine/edit'
     )
     // Exactly those: the located place is on the map, not on this list.
     expect(screen.queryByRole('link', { name: /teamLab/ })).toBeNull()

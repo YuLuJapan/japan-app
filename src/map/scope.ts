@@ -23,7 +23,7 @@ import {
   CATEGORIES,
   CATEGORY_META,
   type Category,
-  type PlaceListItem,
+  type Activity,
   type TripStep,
 } from '../api/types'
 
@@ -86,7 +86,7 @@ export interface MapScope {
    * which is what keeps the page from asking which scale it is on to decide
    * whether to render the line at all.
    */
-  missing: PlaceListItem[]
+  missing: Activity[]
   /** What to say when `pins` is empty. Only ever read then. */
   emptyMessage: string
   onPinTap: (id: string) => void
@@ -125,7 +125,7 @@ export function zoneScope({
 }: {
   zone: { name: string; lat?: number | null; lng?: number | null }
   /** Every place saved in the city, unfiltered — the filter is applied here. */
-  places: PlaceListItem[]
+  places: Activity[]
   /** Null means every category — the `All` state, not a full selection. */
   active?: Set<Category> | null
   onPinTap: (placeId: string) => void
@@ -134,8 +134,8 @@ export function zoneScope({
   // own order rather than the order the places happen to arrive in. Read from
   // the whole city, never from the filtered list — otherwise switching a chip
   // off would take its own chip away with it.
-  const categories = CATEGORIES.filter((c) => places.some((p) => p.category === c))
-  const shown = active ? places.filter((p) => active.has(p.category)) : places
+  const categories = CATEGORIES.filter((c) => places.some((p) => (p.category ?? 'other') === c))
+  const shown = active ? places.filter((p) => active.has(p.category ?? 'other')) : places
   const pins = toPins(shown)
   const located = new Set(pins.map((p) => p.id))
   return {
@@ -169,9 +169,9 @@ export function zoneScope({
 const emptyMessageFor = (
   name: string,
   /** Every place saved in the city. */
-  places: PlaceListItem[],
+  places: Activity[],
   /** What survived the chips. */
-  shown: PlaceListItem[]
+  shown: Activity[]
 ): string => {
   if (!places.length) return `Nothing saved in ${name} yet.`
   if (!shown.length) return `Nothing in ${name} matches these filters.`
@@ -183,15 +183,21 @@ const emptyMessageFor = (
     : `Nothing matching these filters has a location yet.`
 }
 
-/** A place, as the card row draws it. */
-const placeCard = (place: PlaceListItem, zoneName: string): MapCard => ({
+/**
+ * An activity, as the card row draws it.
+ *
+ * An untagged one reads as `other` ("More") — the same neutral the app already
+ * uses where a category is absent. The row keeps its null; this is a rendering
+ * choice, not a claim about the activity.
+ */
+const placeCard = (place: Activity, zoneName: string): MapCard => ({
   id: place.id,
   title: place.name,
-  subtitle: `${CATEGORY_META[place.category].singular} · ${zoneName}`,
-  dot: CATEGORY_META[place.category].dot,
-  icon: CATEGORY_META[place.category].icon,
+  subtitle: `${CATEGORY_META[place.category ?? 'other'].singular} · ${zoneName}`,
+  dot: CATEGORY_META[place.category ?? 'other'].dot,
+  icon: CATEGORY_META[place.category ?? 'other'].icon,
   place: {
-    category: place.category,
+    category: place.category ?? 'other',
     address: place.address ?? null,
     summary: place.summary_line,
     lat: place.lat ?? null,
@@ -231,17 +237,28 @@ export function tripScope({
     .filter((zone): zone is NonNullable<TripStep['zone']> => zone !== null)
   const byId = new Map(zones.map((zone) => [zone.id, zone]))
   const pins = toPins(
-    zones.map((zone) => ({
+    zones.map((zone): Activity => ({
       id: zone.id,
+      trip_id: '',
+      zone_id: zone.id,
       name: zone.name,
       // Every zone pin is drawn as a counted cluster rather than by category,
       // so the category here is only what keeps the shape one shape.
-      category: 'other' as Category,
+      category: 'other',
       name_ja: null,
+      description: null,
       summary_line: '',
+      file_count: 0,
       address: null,
+      links: [],
+      image_url: null,
       lat: zone.lat ?? null,
       lng: zone.lng ?? null,
+      day: null,
+      start_time: null,
+      position: 0,
+      highlight: false,
+      icon: null,
     }))
     // By id, not by index: `toPins` drops the cities with no coordinates, so
     // the two arrays stop lining up exactly where it matters most.
@@ -264,8 +281,8 @@ export function tripScope({
 }
 
 /** How much is saved in a city — the number its cluster carries. */
-export const savedIn = (zone: { place_counts?: Record<Category, number> }): number =>
-  Object.values(zone.place_counts ?? {}).reduce((total, n) => total + n, 0)
+export const savedIn = (zone: { saved_counts?: Record<Category, number> }): number =>
+  Object.values(zone.saved_counts ?? {}).reduce((total, n) => total + n, 0)
 
 /** A city, as the trip scale's card row draws it. */
 const cityCard = (zone: NonNullable<TripStep['zone']>): MapCard => {

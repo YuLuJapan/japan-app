@@ -54,61 +54,83 @@ beforeEach(() => {
 })
 
 describe('stays', () => {
-  it('hides the stay itself, its category count and its search hit', async () => {
+  // 010 split this rule in two, because a stay is now an activity and an
+  // activity may or may not have a date.
+  //
+  //   FR-020 · a **saved** stay IS the booking → withheld wholesale.
+  //   FR-021 · a **scheduled** one is a line on a day → the line survives and
+  //            everything else goes, its category included.
+  //
+  // Dropping the scheduled row instead would leave a hole in the day that says
+  // something was there; keeping its content would put the hotel back.
+
+  it('withholds a saved stay entirely: the page, the count and the search hit', async () => {
     await asViewer({ stays: false })
 
-    await request(app).get('/api/trips/trip-1/places/place-hotel').set(viewer).expect(403)
+    await request(app).get('/api/trips/trip-1/activities/place-hotel').set(viewer).expect(403)
 
     const zone = await request(app).get('/api/trips/trip-1/zones/zone-tokyo').set(viewer)
-    expect(zone.body.place_counts.hotel).toBe(0)
+    expect(zone.body.saved_counts.hotel).toBe(0)
 
-    const list = await request(app)
-      .get('/api/trips/trip-1/zones/zone-tokyo/places?category=hotel')
-      .set(viewer)
-    expect(list.body.places).toEqual([])
+    const list = await request(app).get('/api/trips/trip-1/activities').set(viewer)
+    const ids = list.body.activities.map((a: { id: string }) => a.id)
+    expect(ids).not.toContain('place-hotel')
+    expect(ids).not.toContain('place-ryokan')
+    expect(ids).toContain('place-ramen') // everything else is untouched
 
     const search = await request(app).get('/api/trips/trip-1/search?q=Hotel').set(viewer)
     expect(search.body.results).toEqual([])
   })
 
-  it('drops the stay from the all-categories sweep the city map uses', async () => {
+  it('keeps a scheduled stay’s line and takes everything else off it', async () => {
     await asViewer({ stays: false })
-    const res = await request(app)
-      .get('/api/trips/trip-1/zones/zone-tokyo/places?category=')
-      .set(viewer)
-    expect(res.body.places.map((p: { id: string }) => p.id)).not.toContain('place-hotel')
-    expect(res.body.places.map((p: { id: string }) => p.id)).toContain('place-ramen')
+    const res = await request(app).get('/api/trips/trip-1/activities').set(viewer)
+    const ryokan = res.body.activities.find((a: { id: string }) => a.id === 'itin-ryokan')
+
+    // The line survives — it is what the day says happened.
+    expect(ryokan).toBeTruthy()
+    expect(ryokan.name).toBe('Check into the ryokan')
+    expect(ryokan.day).toBe('2026-10-10')
+    expect(ryokan.start_time).toBe('15:00')
+
+    // And nothing that would name the hotel does. The category above all: it is
+    // what draws the coloured pill, and a pill reading "Stays" would announce
+    // exactly what the flag withholds.
+    expect(ryokan.category).toBeNull()
+    expect(ryokan.description).toBeNull()
+    expect(ryokan.address).toBeNull()
+    expect(ryokan.links).toEqual([])
+    expect(ryokan.lat).toBeNull()
+    expect(ryokan.lng).toBeNull()
+    expect(ryokan.file_count).toBe(0)
+
+    // An activity that is not a stay keeps its own tag.
+    const ramen = res.body.activities.find((a: { id: string }) => a.id === 'itin-ramen')
+    expect(ramen.category).toBe('food')
+  })
+
+  it('refuses the detail page for a scheduled stay, and strips what it returns', async () => {
+    await asViewer({ stays: false })
+    // Not a 403 — the row exists on their day plan, so the page has to open —
+    // but it opens on the stripped row, with no tips and no documents.
+    const res = await request(app).get('/api/trips/trip-1/activities/itin-ryokan').set(viewer)
+    expect(res.status).toBe(200)
+    expect(res.body.activity.name).toBe('Check into the ryokan')
+    expect(res.body.activity.address).toBeNull()
+    expect(res.body.tips).toEqual([])
+    expect(res.body.files).toEqual([])
   })
 
   it('shows all of it when the flag is on', async () => {
     await asViewer({ stays: true })
-    await request(app).get('/api/trips/trip-1/places/place-hotel').set(viewer).expect(200)
+    await request(app).get('/api/trips/trip-1/activities/place-hotel').set(viewer).expect(200)
     const zone = await request(app).get('/api/trips/trip-1/zones/zone-tokyo').set(viewer)
-    expect(zone.body.place_counts.hotel).toBe(1)
-  })
+    expect(zone.body.saved_counts.hotel).toBe(1)
 
-  // The day plan tags each activity with the category of the place it links to.
-  // That tag has to disappear with the link, or a withheld stay would announce
-  // itself from the plan as "Stays" instead of from a page that answers 403.
-  it('takes the day plan’s category tag away with the link', async () => {
-    await asViewer({ stays: false })
-    const res = await request(app).get('/api/trips/trip-1/itinerary').set(viewer)
-    const ryokan = res.body.items.find((i: { id: string }) => i.id === 'itin-ryokan')
-
-    expect(ryokan.title).toBe('Check into the ryokan')
-    expect(ryokan.place_id).toBeNull()
-    expect(ryokan.place_category).toBeNull()
-
-    // An activity pointing at something they may see keeps its tag.
-    const ramen = res.body.items.find((i: { id: string }) => i.id === 'itin-ramen')
-    expect(ramen.place_category).toBe('food')
-  })
-
-  it('tags the stay for a caller who can see stays', async () => {
-    await asViewer({ stays: true })
-    const res = await request(app).get('/api/trips/trip-1/itinerary').set(viewer)
-    const ryokan = res.body.items.find((i: { id: string }) => i.id === 'itin-ryokan')
-    expect(ryokan.place_category).toBe('hotel')
+    const res = await request(app).get('/api/trips/trip-1/activities').set(viewer)
+    const ryokan = res.body.activities.find((a: { id: string }) => a.id === 'itin-ryokan')
+    expect(ryokan.category).toBe('hotel')
+    expect(ryokan.address).toBe('3 Higashiyama, Kyoto')
   })
 })
 
@@ -143,21 +165,21 @@ describe('documents', () => {
     await request(app).get('/api/trips/trip-1/files/file-trip/content').set(viewer).expect(200)
   })
 
-  // A file name is a document. The plan's attachment tag names one, so it is
-  // gated on the same flag the documents section is — otherwise a withheld
-  // attachment would still announce itself from the day plan.
-  it('drops the day plan’s attachment tags', async () => {
+  // Before 010 the plan named the files on the place an entry linked to; a name
+  // is a document, so that had to be gated. A list carries a *count* now, and a
+  // count still says one exists — so it is gated on the same flag.
+  it('zeroes the document count on every activity', async () => {
     await asViewer({ documents: false })
-    const res = await request(app).get('/api/trips/trip-1/itinerary').set(viewer)
-    const ramen = res.body.items.find((i: { id: string }) => i.id === 'itin-ramen')
-    expect(ramen.place_files).toEqual([])
+    const res = await request(app).get('/api/trips/trip-1/activities').set(viewer)
+    const ramen = res.body.activities.find((a: { id: string }) => a.id === 'place-ramen')
+    expect(ramen.file_count).toBe(0)
   })
 
-  it('names them when documents are shared', async () => {
+  it('counts them when documents are shared', async () => {
     await asViewer({ documents: true })
-    const res = await request(app).get('/api/trips/trip-1/itinerary').set(viewer)
-    const ramen = res.body.items.find((i: { id: string }) => i.id === 'itin-ramen')
-    expect(ramen.place_files).toEqual(['Menu photo'])
+    const res = await request(app).get('/api/trips/trip-1/activities').set(viewer)
+    const ramen = res.body.activities.find((a: { id: string }) => a.id === 'place-ramen')
+    expect(ramen.file_count).toBe(1)
   })
 })
 
@@ -199,7 +221,7 @@ describe('a file hanging off a stay inherits the stay', () => {
   beforeEach(async () => {
     await store.createFile(
       {
-        place_id: 'place-hotel',
+        activity_id: 'place-hotel',
         display_name: 'Hotel reservation',
         storage_path: 'placeholder-files/hotel-reservation.pdf',
         mime_type: 'application/pdf',
@@ -241,7 +263,7 @@ describe('the flags never apply to writers', () => {
       can_see_shopping: false,
     })
 
-    await request(app).get('/api/trips/trip-1/places/place-hotel').set(owner).expect(200)
+    await request(app).get('/api/trips/trip-1/activities/place-hotel').set(owner).expect(200)
     await request(app).get('/api/trips/trip-1/shopping').set(owner).expect(200)
     const bundle = await request(app).get('/api/trips/trip-1').set(owner)
     expect(bundle.body.flight).toBeTruthy()

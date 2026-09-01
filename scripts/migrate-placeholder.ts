@@ -71,7 +71,9 @@ function main() {
   }
 
   const matches: [string, string][] = JSON.parse(readFileSync(FOLDS, 'utf-8')).matches
-  const zoneTrip = new Map<string, string>(data.zones.map((z: { id: string; trip_id: string }) => [z.id, z.trip_id]))
+  const zoneTrip = new Map<string, string>(
+    data.zones.map((z: { id: string; trip_id: string }) => [z.id, z.trip_id])
+  )
 
   const activities = foldActivities({
     places,

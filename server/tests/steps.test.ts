@@ -30,7 +30,7 @@ describe('POST /api/trips/trip-1/steps', () => {
       end_date: '2026-10-14',
       zone: expect.objectContaining({ id: 'zone-kyoto', name: 'Kyoto' }),
     })
-    expect(res.body.step.zone.place_counts).toBeDefined()
+    expect(res.body.step.zone.saved_counts).toBeDefined()
   })
 
   it('400 VALIDATION for missing zone_id/destination or bad dates', async () => {

@@ -8,7 +8,7 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import TripMap from '../pages/TripMap'
 import { CATEGORY_META, type Category } from '../api/types'
-import { renderAt } from './helpers'
+import { renderAt, activity } from './helpers'
 import { lastFakeEngine, resetFakeEngine } from '../map/engine.fake'
 
 vi.mock('../map/engine.leaflet', async () => await import('../map/engine.fake'))
@@ -52,28 +52,30 @@ const bundle = () => ({
 })
 
 const places = [
-  {
+  activity({
     id: 'p-ramen',
     name: 'Ramen Bar',
     name_ja: null,
-    category: 'food',
+    category: 'food' as Category,
+    zone_id: 'zone-tokyo',
     summary_line: '',
     image_url: null,
     address: 'Shinjuku',
     lat: 35.69,
     lng: 139.7,
-  },
-  {
+  }),
+  activity({
     id: 'p-teamlab',
     name: 'teamLab',
     name_ja: null,
-    category: 'attraction',
+    category: 'attraction' as Category,
+    zone_id: 'zone-tokyo',
     summary_line: '',
     image_url: null,
     address: 'Toyosu',
     lat: 35.63,
     lng: 139.79,
-  },
+  }),
 ]
 
 const getCurrentPosition = vi.fn()
@@ -84,7 +86,7 @@ beforeEach(() => {
   vi.stubGlobal('navigator', { ...navigator, geolocation: { getCurrentPosition } })
   mocks.get.mockImplementation((path: string) => {
     if (path === '/trips/trip-1') return Promise.resolve(bundle())
-    if (path.startsWith('/trips/trip-1/zones/zone-tokyo/places')) return Promise.resolve({ places })
+    if (path === '/trips/trip-1/activities') return Promise.resolve({ activities: places })
     return Promise.reject(new Error(`unexpected GET ${path}`))
   })
 })

@@ -8,7 +8,7 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import PlaceForm from '../pages/PlaceForm'
+import ActivityForm from '../pages/ActivityForm'
 import { renderAt } from './helpers'
 import type { GeocodeResult } from '../api/types'
 
@@ -46,7 +46,7 @@ const ZONE = {
   zone: { id: 'zone-tokyo', name: 'Tokyo', name_ja: null, summary: null, lat: 35.68, lng: 139.76 },
   tips: [],
   files: [],
-  place_counts: { hotel: 0, attraction: 0, food: 0, shopping: 0, other: 0 },
+  saved_counts: { hotel: 0, attraction: 0, food: 0, shopping: 0, other: 0 },
 }
 
 beforeEach(() => {
@@ -56,13 +56,13 @@ beforeEach(() => {
     return Promise.reject(new Error(`unexpected GET ${path}`))
   })
   mocks.geocode.mockResolvedValue({ results: [ICHIRAN, NAMESAKE] })
-  mocks.post.mockResolvedValue({ place: { id: 'pl-new' } })
+  mocks.post.mockResolvedValue({ activity: { id: 'pl-new' } })
 })
 
 function addPlace() {
   return renderAt('/trips/trip-1/zones/zone-tokyo/places/new', [
-    { path: '/trips/:tripId/zones/:zoneId/places/new', element: <PlaceForm /> },
-    { path: '/trips/:tripId/places/:placeId', element: <p>Saved</p> },
+    { path: '/trips/:tripId/zones/:zoneId/places/new', element: <ActivityForm /> },
+    { path: '/trips/:tripId/activities/:activityId', element: <p>Saved</p> },
   ])
 }
 

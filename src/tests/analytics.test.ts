@@ -71,8 +71,9 @@ describe('analytics with no key configured', () => {
 
   it('never calls the client — an uninitialised posthog would warn on every event', async () => {
     const lib = await loadWith(undefined)
-    lib.capture('place_created', {
+    lib.capture('activity_created', {
       category: 'food',
+      scheduled: false,
       has_address: false,
       has_coords: false,
       has_photo: false,
@@ -200,12 +201,16 @@ describe('the property guard', () => {
   it('still sends the event when a property is rejected', async () => {
     // A save must never fail because an analytics property was wrong.
     const { capture } = await loadWith('phc_test')
-    const properties = { category: 'food', name: 'Ichiran' } as unknown as {
+    const properties = { category: 'food', scheduled: false, name: 'Ichiran' } as unknown as {
       category: 'food'
+      scheduled: boolean
       fields: string[]
     }
-    capture('place_updated', properties)
-    expect(mocks.capture).toHaveBeenCalledWith('place_updated', { category: 'food' })
+    capture('activity_updated', properties)
+    expect(mocks.capture).toHaveBeenCalledWith('activity_updated', {
+      category: 'food',
+      scheduled: false,
+    })
   })
 })
 

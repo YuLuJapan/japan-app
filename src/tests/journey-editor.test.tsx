@@ -39,7 +39,7 @@ const TRIP_BUNDLE = {
         name_ja: null,
         summary: null,
         image_url: null,
-        place_counts: {},
+        saved_counts: {},
       },
     },
   ],

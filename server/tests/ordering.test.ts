@@ -9,8 +9,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { setDataStore, type DataStore } from '../src/lib/datastore.js'
 import { createMemoryStore } from '../src/lib/datastore.memory.js'
 import { fixture } from './fixture.js'
-import { compareItinerary, compareShopping, compareSteps } from '../../src/lib/ordering'
-import type { ItineraryItem, ShoppingItem, TripStep } from '../../src/api/types'
+import { compareActivities, compareShopping, compareSteps } from '../../src/lib/ordering'
+import type { Activity, ShoppingItem, TripStep } from '../../src/api/types'
 
 let store: DataStore
 
@@ -54,25 +54,33 @@ describe('the journey', () => {
   })
 })
 
-describe('a day plan', () => {
+describe('the one activities list', () => {
   it('comes back in the order the client would sort it into', async () => {
     const day = '2026-10-06'
     // A timed item, an untimed one, and two that only position separates.
-    await store.createItineraryItem({ trip_id: 'trip-1', day, title: 'Late', start_time: '18:00' })
-    await store.createItineraryItem({ trip_id: 'trip-1', day, title: 'Anytime' })
-    await store.createItineraryItem({ trip_id: 'trip-1', day, title: 'Early', start_time: '09:00' })
-    await store.createItineraryItem({ trip_id: 'trip-1', day: '2026-10-05', title: 'Day before' })
+    const zone_id = 'zone-tokyo'
+    await store.createActivity({ trip_id: 'trip-1', day, name: 'Late', start_time: '18:00' })
+    await store.createActivity({ trip_id: 'trip-1', day, name: 'Anytime' })
+    await store.createActivity({ trip_id: 'trip-1', day, name: 'Early', start_time: '09:00' })
+    await store.createActivity({ trip_id: 'trip-1', day: '2026-10-05', name: 'Day before' })
+    // And the saved half, which sorts by a different rule in the same array.
+    await store.createActivity({ trip_id: 'trip-1', zone_id, name: 'A shop', category: 'shopping' })
+    await store.createActivity({ trip_id: 'trip-1', zone_id, name: 'A cafe', category: 'food' })
 
-    const fromStore = await store.listItinerary('trip-1')
+    const fromStore = await store.listActivities('trip-1')
     const asClient = shuffled(fromStore).sort((a, b) =>
-      compareItinerary(a as unknown as ItineraryItem, b as unknown as ItineraryItem)
+      compareActivities(a as unknown as Activity, b as unknown as Activity)
     )
-    expect(asClient.map((i) => i.title)).toEqual(fromStore.map((i) => i.title))
+    expect(asClient.map((i) => i.name)).toEqual(fromStore.map((i) => i.name))
     // And the rule the sort exists for, stated outright: on one day, timed
     // items run in time order and untimed ones come after them.
     const mine = new Set(['Early', 'Late', 'Anytime'])
-    const titles = fromStore.filter((i) => i.day === day && mine.has(i.title)).map((i) => i.title)
+    const titles = fromStore.filter((i) => i.day === day && mine.has(i.name)).map((i) => i.name)
     expect(titles).toEqual(['Early', 'Late', 'Anytime'])
+    // Scheduled before saved: two orders in one array, and the boundary is the
+    // date. A screen filtering this list never has to ask which half it is in.
+    const days = fromStore.map((a) => a.day)
+    expect(days.indexOf(null)).toBe(days.filter((d) => d !== null).length)
   })
 })
 
@@ -92,35 +100,52 @@ describe('the shopping list', () => {
   })
 })
 
-// The export reads a whole trip at once (listAllPlaces / listAllTips) instead
+// The export reads a whole trip at once (listActivities / listAllTips) instead
 // of once per zone and once per parent, which is the difference between five
 // queries and sixty on a real trip. Two reads of the same rows is the same
 // drift risk as a mirrored comparator, so it is pinned the same way.
+//
+// Since 010 there is only one activities read, so what is pinned here is that
+// slicing it by zone still reads as a zone-scoped query would have.
 describe('the export’s whole-trip sweeps', () => {
-  it('return each zone’s places in the order the per-zone read does', async () => {
-    await store.createPlace('trip-1', { zone_id: 'zone-kyoto', category: 'food', name: 'Nishiki' })
-    await store.createPlace('trip-1', {
+  it('slice by zone the way a zone-scoped read would', async () => {
+    const trip_id = 'trip-1'
+    await store.createActivity({
+      trip_id,
+      zone_id: 'zone-kyoto',
+      category: 'food',
+      name: 'Nishiki',
+    })
+    await store.createActivity({
+      trip_id,
       zone_id: 'zone-tokyo',
       category: 'attraction',
       name: 'teamLab',
     })
-    await store.createPlace('trip-1', { zone_id: 'zone-kyoto', category: 'other', name: 'Fushimi' })
+    await store.createActivity({
+      trip_id,
+      zone_id: 'zone-kyoto',
+      category: 'other',
+      name: 'Fushimi',
+    })
 
-    const all = await store.listAllPlaces('trip-1')
+    const all = await store.listActivities(trip_id)
     for (const zoneId of ['zone-tokyo', 'zone-kyoto']) {
-      const perZone = await store.listPlacesInZone('trip-1', zoneId)
-      expect(all.filter((p) => p.zone_id === zoneId).map((p) => p.id)).toEqual(
-        perZone.map((p) => p.id)
+      const saved = all.filter((a) => a.zone_id === zoneId && a.day === null)
+      expect(saved.length).toBeGreaterThan(0)
+      // Sorted already, so a screen filtering it never re-sorts.
+      const resorted = shuffled(saved).sort((a, b) =>
+        compareActivities(a as unknown as Activity, b as unknown as Activity)
       )
-      expect(perZone.length).toBeGreaterThan(0)
+      expect(resorted.map((a) => a.id)).toEqual(saved.map((a) => a.id))
     }
     // And nothing from the other tenant's trip rides along.
-    expect(all.some((p) => p.id === 'place-other')).toBe(false)
+    expect(all.some((a) => a.id === 'place-other')).toBe(false)
   })
 
   it('return every tip, matching the per-parent reads parent by parent', async () => {
     await store.createTip('trip-1', { zone_id: 'zone-kyoto', body: 'Rent a bike' })
-    await store.createTip('trip-1', { place_id: 'place-hotel', body: 'Check in after 15:00' })
+    await store.createTip('trip-1', { activity_id: 'place-hotel', body: 'Check in after 15:00' })
 
     const all = await store.listAllTips('trip-1')
     for (const zoneId of ['zone-tokyo', 'zone-kyoto']) {
@@ -130,14 +155,14 @@ describe('the export’s whole-trip sweeps', () => {
       )
     }
     for (const placeId of ['place-ramen', 'place-hotel']) {
-      const perPlace = await store.listTips('trip-1', { place_id: placeId })
-      expect(all.filter((t) => t.place_id === placeId).map((t) => t.id)).toEqual(
+      const perPlace = await store.listTips('trip-1', { activity_id: placeId })
+      expect(all.filter((t) => t.activity_id === placeId).map((t) => t.id)).toEqual(
         perPlace.map((t) => t.id)
       )
     }
     // Both kinds of parent, and only this trip's.
     expect(all.some((t) => t.zone_id)).toBe(true)
-    expect(all.some((t) => t.place_id)).toBe(true)
+    expect(all.some((t) => t.activity_id)).toBe(true)
     expect(all.some((t) => t.id === 'tip-other')).toBe(false)
   })
 })

@@ -3,8 +3,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
 import { capture, tripFacts } from '../lib/posthog'
-import { compareItinerary, compareShopping, compareSteps } from '../lib/ordering'
-import type { PlaceFacts } from '../lib/analytics-events'
+import { compareActivities, compareShopping, compareSteps } from '../lib/ordering'
+import type { ActivityFacts } from '../lib/analytics-events'
 import { useTripPath } from './tripPath'
 import type {
   Category,
@@ -12,13 +12,10 @@ import type {
   FileMeta,
   FileParent,
   FileUploadInput,
-  ItineraryItem,
-  ItineraryItemInput,
+  Activity,
+  ActivityDetail,
+  ActivityInput,
   JourneyStepInput,
-  Place,
-  PlaceDetail,
-  PlaceInput,
-  PlaceListItem,
   Reminder,
   ReminderInput,
   ShoppingItem,
@@ -39,7 +36,7 @@ import type { SubscriptionPayload } from '../lib/push'
 
 /** The cached shapes the writes above reach into. */
 type ShoppingList = { items: ShoppingItem[] }
-type ItineraryList = { items: ItineraryItem[] }
+type ActivityList = { activities: Activity[] }
 type TripList = { trips: Trip[] }
 
 /**
@@ -115,12 +112,12 @@ const replaceById = <T extends { id: string }>(rows: T[], next: { id: string }):
 const removeById = <T extends { id: string }>(rows: T[], id: string): T[] =>
   rows.filter((row) => row.id !== id)
 
-/** Anything the API hands back with a `files` array: the trip's, a zone's, a place's. */
+/** Anything the API hands back with a `files` array: the trip's, a zone's, an activity's. */
 const holdsFiles = (data: unknown): data is { files: FileMeta[] } =>
   !!data && typeof data === 'object' && Array.isArray((data as { files?: unknown }).files)
 
 /**
- * A file is listed in three places — the trip's documents, its zone, its place
+ * A file is listed in three places — the trip's documents, its zone, its activity
  * — and which of them hold a copy is not knowable from here. So all three are
  * walked, including the ones sitting inactive in the cache: the zone page
  * opened later is then already right rather than right after a refetch.
@@ -129,14 +126,14 @@ function patchCachedFiles(
   qc: ReturnType<typeof useQueryClient>,
   apply: (files: FileMeta[]) => FileMeta[]
 ) {
-  for (const queryKey of [['trip-files'], ['zone'], ['place']]) {
+  for (const queryKey of [['trip-files'], ['zone'], ['activity']]) {
     qc.setQueriesData({ queryKey }, (data: unknown) =>
       holdsFiles(data) ? { ...data, files: apply(data.files) } : data
     )
   }
 }
 
-/** A zone's or a place's detail payload, whichever a tip hangs off. */
+/** A zone's or an activity's detail payload, whichever a tip hangs off. */
 function patchTips(
   qc: ReturnType<typeof useQueryClient>,
   parent: TipParent,
@@ -144,8 +141,8 @@ function patchTips(
 ) {
   const key = parent.zone_id
     ? ['zone', parent.zone_id]
-    : parent.place_id
-      ? ['place', parent.place_id]
+    : parent.activity_id
+      ? ['activity', parent.activity_id]
       : null
   if (!key) return
   qc.setQueryData(key, (cached: { tips: Tip[] } | undefined) =>
@@ -171,17 +168,21 @@ function patchReminders(
 }
 
 /**
- * A day plan, on whichever trip's itinerary is cached. Re-sorted on the way in:
- * giving an activity a time, or moving it to another day, moves it — and the
- * order is `compareItinerary`, mirrored from the datastore and pinned by
- * `server/tests/ordering.test.ts`.
+ * The trip's activities, on whichever trip is cached. Re-sorted on the way in:
+ * giving an activity a time, moving it to another day, or **scheduling one at
+ * all** moves it — and the order is `compareActivities`, mirrored from the
+ * datastore and pinned by `server/tests/ordering.test.ts`.
+ *
+ * One list now, where there used to be two caches to keep in step (the day
+ * plan and a per-category zone list). That is the merge paying for itself: a
+ * whole class of "right in one place, stale in the other" cannot arise.
  */
-function patchItinerary(
+function patchActivities(
   qc: ReturnType<typeof useQueryClient>,
-  apply: (items: ItineraryItem[]) => ItineraryItem[]
+  apply: (rows: Activity[]) => Activity[]
 ) {
-  qc.setQueriesData({ queryKey: ['itinerary'] }, (cached: ItineraryList | undefined) =>
-    cached ? { ...cached, items: apply(cached.items).sort(compareItinerary) } : cached
+  qc.setQueriesData({ queryKey: ['activities'] }, (cached: ActivityList | undefined) =>
+    cached ? { ...cached, activities: apply(cached.activities).sort(compareActivities) } : cached
   )
 }
 
@@ -199,92 +200,54 @@ function patchSteps(
 }
 
 /**
- * The row a zone's category list renders, out of the place a write returns.
- *
- * Every field comes from the response, `summary_line` included — the server
- * derives it and hands it back for exactly this reason, so nothing here is a
- * reconstruction of a rule that lives somewhere else.
+ * Move the tally on a zone as a **saved** activity joins, leaves or changes
+ * category. Only saved ones count: Explore's grid is what the tally labels,
+ * and it shows what has not been scheduled yet (FR-011).
  */
-const placeRow = (place: Place): PlaceListItem => ({
-  id: place.id,
-  name: place.name,
-  name_ja: place.name_ja,
-  category: place.category,
-  summary_line: place.summary_line,
-  image_url: place.image_url ?? null,
-  address: place.address ?? null,
-  lat: place.lat ?? null,
-  lng: place.lng ?? null,
-})
-
-/**
- * Put a place into the category list it now belongs to, and out of any other.
- *
- * A list is cached per category (`['zone-places', zoneId, category]`), so an
- * edit that changes a place's category has to move the row between two of
- * them — which is bookkeeping over what is already cached, not a guess. Within
- * its own list the row keeps its position; a place it was not in appends,
- * which is where `created_at` order puts a new one.
- */
-function patchZoneList(qc: ReturnType<typeof useQueryClient>, place: Place) {
-  const row = placeRow(place)
-  // The cache is walked rather than swept: `setQueriesData` hands its updater
-  // the data alone, and which category a list holds is in its key.
-  for (const query of qc.getQueryCache().findAll({ queryKey: ['zone-places', place.zone_id] })) {
-    const listCategory = query.queryKey[2]
-    qc.setQueryData(query.queryKey, (cached: { places: PlaceListItem[] } | undefined) => {
-      if (!cached) return cached
-      if (listCategory !== place.category)
-        return { ...cached, places: removeById(cached.places, place.id) }
-      return cached.places.some((p) => p.id === place.id)
-        ? { ...cached, places: replaceById(cached.places, row) }
-        : { ...cached, places: [...cached.places, row] }
-    })
-  }
-}
-
-/** Move the tally on a zone as a place joins, leaves or changes category. */
-function shiftPlaceCount(
+function shiftSavedCount(
   qc: ReturnType<typeof useQueryClient>,
-  zoneId: string,
-  category: Category,
+  zoneId: string | null | undefined,
+  category: Category | null | undefined,
   by: 1 | -1
 ) {
+  if (!zoneId) return
+  const key = category ?? 'other'
   qc.setQueryData(['zone', zoneId], (cached: ZoneDetail | undefined) =>
     cached
       ? {
           ...cached,
-          place_counts: {
-            ...cached.place_counts,
-            [category]: Math.max(0, (cached.place_counts[category] ?? 0) + by),
+          saved_counts: {
+            ...cached.saved_counts,
+            [key]: Math.max(0, (cached.saved_counts[key] ?? 0) + by),
           },
         }
       : cached
   )
 }
 
-function usePlaceInvalidation() {
+/** What a saved activity contributes to a zone's tally; null once scheduled. */
+const savedTally = (a: Pick<Activity, 'day' | 'zone_id' | 'category'>) =>
+  a.day === null ? { zone_id: a.zone_id, category: a.category } : null
+
+function useActivityInvalidation() {
   const qc = useQueryClient()
-  return (zoneId?: string, placeId?: string) =>
+  return (zoneId?: string | null, activityId?: string) =>
     Promise.all([
       qc.invalidateQueries({ queryKey: ['trip'] }),
-      ...(zoneId
-        ? [
-            qc.invalidateQueries({ queryKey: ['zone', zoneId] }),
-            qc.invalidateQueries({ queryKey: ['zone-places', zoneId] }),
-          ]
-        : []),
-      ...(placeId ? [qc.invalidateQueries({ queryKey: ['place', placeId] })] : []),
+      qc.invalidateQueries({ queryKey: ['activities'] }),
+      ...(zoneId ? [qc.invalidateQueries({ queryKey: ['zone', zoneId] })] : []),
+      ...(activityId ? [qc.invalidateQueries({ queryKey: ['activity', activityId] })] : []),
     ])
 }
 
 /**
- * What a place is, with nothing it says. `name`, `description` and the link
+ * What an activity is, with nothing it says. `name`, `description` and the link
  * URLs are the reservation on a `hotel` — see lib/trip-view.ts — so only their
  * presence travels.
  */
-const placeFacts = (input: PlaceInput): PlaceFacts => ({
-  category: input.category,
+const activityFacts = (input: ActivityInput): ActivityFacts => ({
+  category: input.category ?? null,
+  scheduled: Boolean(input.day),
   has_address: Boolean(input.address),
   has_coords: input.lat != null && input.lng != null,
   has_photo: Boolean(input.image_url),
@@ -316,81 +279,76 @@ const hoursFromNow = (instant: string): number => {
   return Number.isNaN(at) ? 0 : Math.round((at - Date.now()) / MS_PER_HOUR)
 }
 
-export function useCreatePlace() {
+export function useCreateActivity() {
   const path = useTripPath()
   const qc = useQueryClient()
-  const invalidate = usePlaceInvalidation()
+  const invalidate = useActivityInvalidation()
   return useMutation({
-    meta: { success: 'Place added' },
-    mutationFn: (input: PlaceInput) => api.post<{ place: Place }>(path('/places'), input),
+    meta: { success: 'Activity added' },
+    mutationFn: (input: ActivityInput) =>
+      api.post<{ activity: Activity }>(path('/activities'), input),
     onSuccess: (data, input) => {
-      capture('place_created', placeFacts(input))
-      patchZoneList(qc, data.place)
-      shiftPlaceCount(qc, data.place.zone_id, data.place.category, 1)
-      reconcile(invalidate(data.place.zone_id, data.place.id))
+      capture('activity_created', activityFacts(input))
+      patchActivities(qc, (rows) => [...rows, data.activity])
+      const tally = savedTally(data.activity)
+      if (tally) shiftSavedCount(qc, tally.zone_id, tally.category, 1)
+      reconcile(invalidate(data.activity.zone_id, data.activity.id))
     },
   })
 }
 
-export function useUpdatePlace(placeId: string) {
+export function useUpdateActivity() {
   const path = useTripPath()
   const qc = useQueryClient()
-  const invalidate = usePlaceInvalidation()
+  const invalidate = useActivityInvalidation()
   return useMutation({
-    meta: { success: 'Place saved' },
-    mutationFn: (patch: Partial<PlaceInput>) =>
-      api.patch<{ place: Place }>(path(`/places/${placeId}`), patch),
-    onSuccess: (data, patch) => {
-      capture('place_updated', { category: data.place.category, fields: changedFields(patch) })
-      const before = qc.getQueryData<PlaceDetail>(['place', placeId])?.place
-      qc.setQueryData(['place', placeId], (cached: PlaceDetail | undefined) =>
-        cached ? { ...cached, place: data.place } : cached
+    meta: { success: 'Activity saved' },
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<ActivityInput> }) =>
+      api.patch<{ activity: Activity }>(path(`/activities/${id}`), patch),
+    onSuccess: (data, { id, patch }) => {
+      capture('activity_updated', {
+        category: data.activity.category,
+        scheduled: data.activity.day !== null,
+        fields: changedFields(patch),
+      })
+      const before = qc.getQueryData<ActivityDetail>(['activity', id])?.activity
+      qc.setQueryData(['activity', id], (cached: ActivityDetail | undefined) =>
+        cached ? { ...cached, activity: data.activity } : cached
       )
-      patchZoneList(qc, data.place)
-      // Recategorising moves it between two lists, and between two tallies.
-      if (before && before.category !== data.place.category) {
-        shiftPlaceCount(qc, data.place.zone_id, before.category, -1)
-        shiftPlaceCount(qc, data.place.zone_id, data.place.category, 1)
+      patchActivities(qc, (rows) => replaceById(rows, data.activity))
+      // Scheduling or un-scheduling moves the row between the day plan and
+      // Explore, so the tally the grid renders moves with it — and so does
+      // recategorising, which moves it between two of Explore's rows.
+      const was = before ? savedTally(before) : null
+      const now = savedTally(data.activity)
+      if (was?.zone_id !== now?.zone_id || was?.category !== now?.category) {
+        if (was) shiftSavedCount(qc, was.zone_id, was.category, -1)
+        if (now) shiftSavedCount(qc, now.zone_id, now.category, 1)
       }
-      reconcile(invalidate(data.place.zone_id, placeId))
+      reconcile(invalidate(data.activity.zone_id, id))
     },
   })
 }
 
-/** `category` is only for the event — the request needs the id alone. */
-export function useDeletePlace(zoneId: string | undefined, category?: Category) {
+/** `zoneId`/`category` are for the tally and the event; the request needs the id. */
+export function useDeleteActivity(zoneId?: string | null, category?: Category | null) {
   const path = useTripPath()
-  const invalidate = usePlaceInvalidation()
   const qc = useQueryClient()
+  const invalidate = useActivityInvalidation()
   return useMutation({
-    meta: { success: 'Place deleted' },
-    mutationFn: (placeId: string) => api.delete<void>(path(`/places/${placeId}`)),
-    onSuccess: (_data, placeId) => {
-      capture('place_deleted', { category })
-      qc.removeQueries({ queryKey: ['place', placeId] })
-      // The category list it was in, and the tally on the zone that counts it.
-      qc.setQueriesData(
-        { queryKey: ['zone-places'] },
-        (cached: { places: PlaceListItem[] } | undefined) =>
-          cached ? { ...cached, places: removeById(cached.places, placeId) } : cached
-      )
-      if (zoneId && category) {
-        qc.setQueryData(['zone', zoneId], (cached: ZoneDetail | undefined) =>
-          cached
-            ? {
-                ...cached,
-                place_counts: {
-                  ...cached.place_counts,
-                  [category]: Math.max(0, (cached.place_counts[category] ?? 0) - 1),
-                },
-              }
-            : cached
-        )
-      }
+    meta: { success: 'Activity deleted' },
+    mutationFn: (activityId: string) => api.delete<void>(path(`/activities/${activityId}`)),
+    onSuccess: (_data, activityId) => {
+      capture('activity_deleted', { category: category ?? null })
+      const before = qc.getQueryData<ActivityDetail>(['activity', activityId])?.activity
+      qc.removeQueries({ queryKey: ['activity', activityId] })
+      patchActivities(qc, (rows) => removeById(rows, activityId))
+      const was = before ? savedTally(before) : zoneId ? { zone_id: zoneId, category } : null
+      if (was) shiftSavedCount(qc, was.zone_id, was.category, -1)
       reconcile(
         invalidate(zoneId),
-        // the deleted place's files re-parent to the trip — rows this cannot
-        // build, on a screen the delete did not change
+        // the deleted activity's files re-parent to the trip — rows this
+        // cannot build, on a screen the delete did not change
         qc.invalidateQueries({ queryKey: ['trip-files'] })
       )
     },
@@ -523,7 +481,7 @@ function invalidateFileCaches(qc: ReturnType<typeof useQueryClient>) {
   return Promise.all([
     qc.invalidateQueries({ queryKey: ['trip-files'] }),
     qc.invalidateQueries({ queryKey: ['zone'] }),
-    qc.invalidateQueries({ queryKey: ['place'] }),
+    qc.invalidateQueries({ queryKey: ['activity'] }),
     qc.invalidateQueries({ queryKey: ['trip'] }),
   ])
 }
@@ -580,61 +538,6 @@ export function useDeleteFile() {
     onSuccess: (_data, fileId) => {
       patchCachedFiles(qc, (files) => removeById(files, fileId))
       reconcile(invalidateFileCaches(qc))
-    },
-  })
-}
-
-function useItineraryInvalidation() {
-  const qc = useQueryClient()
-  return () => qc.invalidateQueries({ queryKey: ['itinerary'] })
-}
-
-export function useCreateItineraryItem(tripId: string) {
-  const qc = useQueryClient()
-  const invalidate = useItineraryInvalidation()
-  return useMutation({
-    meta: { success: 'Added to the day' },
-    mutationFn: (input: ItineraryItemInput) =>
-      api.post<{ item: ItineraryItem }>(`/trips/${tripId}/itinerary`, input),
-    onSuccess: (data, input) => {
-      capture('itinerary_item_created', {
-        has_place: Boolean(input.place_id),
-        has_time: Boolean(input.start_time),
-        highlight: Boolean(input.highlight),
-      })
-      patchItinerary(qc, (items) => [...items, data.item])
-      reconcile(invalidate())
-    },
-  })
-}
-
-export function useUpdateItineraryItem() {
-  const path = useTripPath()
-  const qc = useQueryClient()
-  const invalidate = useItineraryInvalidation()
-  return useMutation({
-    meta: { success: 'Activity saved' },
-    mutationFn: ({ id, patch }: { id: string; patch: Partial<ItineraryItemInput> }) =>
-      api.patch<{ item: ItineraryItem }>(path(`/itinerary/${id}`), patch),
-    onSuccess: (data, { patch }) => {
-      capture('itinerary_item_updated', { fields: changedFields(patch) })
-      patchItinerary(qc, (items) => replaceById(items, data.item))
-      reconcile(invalidate())
-    },
-  })
-}
-
-export function useDeleteItineraryItem() {
-  const path = useTripPath()
-  const qc = useQueryClient()
-  const invalidate = useItineraryInvalidation()
-  return useMutation({
-    meta: { success: 'Activity removed' },
-    mutationFn: (id: string) => api.delete<void>(path(`/itinerary/${id}`)),
-    onSuccess: (_data, id) => {
-      capture('itinerary_item_deleted')
-      patchItinerary(qc, (items) => removeById(items, id))
-      reconcile(invalidate())
     },
   })
 }
@@ -697,7 +600,7 @@ export function useDeleteStep() {
 
 interface TipParent {
   zone_id?: string
-  place_id?: string
+  activity_id?: string
 }
 
 function useTipInvalidation(parent: TipParent) {
@@ -705,7 +608,9 @@ function useTipInvalidation(parent: TipParent) {
   return () =>
     Promise.all([
       ...(parent.zone_id ? [qc.invalidateQueries({ queryKey: ['zone', parent.zone_id] })] : []),
-      ...(parent.place_id ? [qc.invalidateQueries({ queryKey: ['place', parent.place_id] })] : []),
+      ...(parent.activity_id
+        ? [qc.invalidateQueries({ queryKey: ['activity', parent.activity_id] })]
+        : []),
     ])
 }
 

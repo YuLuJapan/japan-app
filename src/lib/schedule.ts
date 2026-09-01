@@ -1,7 +1,7 @@
 // Day-by-day helpers. Trip data has no per-day rows — a day's city is derived
 // from the journey steps (hotel stays). Dates are plain ISO strings (YYYY-MM-DD)
 // compared lexically; Date objects are only used for formatting and stepping.
-import type { ItineraryItem, TripStep, ZoneSummary } from '../api/types'
+import type { Activity, TripStep, ZoneSummary } from '../api/types'
 
 /** Local calendar date of `d` as YYYY-MM-DD (not UTC — avoids off-by-one). */
 export function toISODate(d: Date): string {
@@ -94,7 +94,7 @@ export interface DaySection {
   zone: ZoneSummary | null
   /** Where the band falls in the day: the city you start in, or one you move on to. */
   direction: 'before' | 'after' | null
-  items: ItineraryItem[]
+  items: Activity[]
 }
 
 /**
@@ -116,7 +116,7 @@ export interface DaySection {
 export function daySections(
   steps: TripStep[],
   day: string,
-  items: ItineraryItem[],
+  items: Activity[],
   zoneId?: string | null
 ): DaySection[] {
   const covering = coveringSteps(steps, day)

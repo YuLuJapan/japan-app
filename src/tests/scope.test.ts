@@ -5,7 +5,8 @@
 // into the page (research R6).
 import { describe, expect, it } from 'vitest'
 import { defaultZoneId, savedIn, tripScope, zoneScope } from '../map/scope'
-import type { Category, PlaceListItem, TripStep } from '../api/types'
+import type { Category, Activity, TripStep } from '../api/types'
+import { activity } from './helpers'
 
 const counts = (n: number) => ({ hotel: n, attraction: 0, food: 0, shopping: 0, other: 0 })
 
@@ -17,7 +18,7 @@ const zone = (id: string, name: string, lat: number | null, lng: number | null, 
   image_url: null,
   lat,
   lng,
-  place_counts: counts(saved),
+  saved_counts: counts(saved),
 })
 
 const step = (
@@ -34,17 +35,8 @@ const step = (
   zone: z,
 })
 
-const place = (id: string, lat: number | null, lng: number | null): PlaceListItem => ({
-  id,
-  name: `Place ${id}`,
-  name_ja: null,
-  category: 'food',
-  summary_line: '',
-  image_url: null,
-  address: null,
-  lat,
-  lng,
-})
+const place = (id: string, lat: number | null, lng: number | null): Activity =>
+  activity({ id, name: `Place ${id}`, category: 'food', lat, lng })
 
 const TOKYO = zone('zone-tokyo', 'Tokyo', 35.68, 139.76, 4)
 const HAKONE = zone('zone-hakone', 'Hakone', 35.23, 139.02, 2)
@@ -184,7 +176,7 @@ describe('tripScope', () => {
 describe('savedIn', () => {
   it('adds up every category', () => {
     expect(
-      savedIn({ place_counts: { hotel: 1, attraction: 2, food: 3, shopping: 0, other: 1 } })
+      savedIn({ saved_counts: { hotel: 1, attraction: 2, food: 3, shopping: 0, other: 1 } })
     ).toBe(7)
   })
 
