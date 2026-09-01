@@ -112,6 +112,15 @@ the date. There is one form, one list endpoint, one detail screen, one field set
 - **FR-012** The trip screen's day plan shows scheduled activities banded by city on a moving
   day, unchanged (`daySections`, `primaryStep`, `zoneChoices` all keep working on the merged
   row).
+- **FR-012a** The day plan's inline form takes an **optional location**, on the trip screen and
+  the city page alike — both render the same `DayPlan`. It is behind a disclosure, because
+  most plan lines never want one and the quick path is a title and a button, and it reuses
+  `LocationPicker` so the app keeps one geocoding interaction. A save says **nothing** about
+  the location unless the field was engaged: a PATCH that always carried `address`/`lat`/`lng`
+  would erase the pin the coordinate backfill found for an activity whose time was being
+  nudged. Changing the text without picking a candidate clears the coordinates, which is the
+  rule `LocationPicker` already states — a coordinate describing a name that is no longer
+  there is worse than none.
 - **FR-013** The map's city scale pins **every** located activity in the city, scheduled and
   saved alike, filtered by the category chips. The trip scale is unchanged: one pin per city.
 - **FR-014** The "could not be pinned" count and list (FR-019 of spec 004) counts every
