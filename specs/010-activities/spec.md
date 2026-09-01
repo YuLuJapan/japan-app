@@ -30,10 +30,11 @@ in step, or one row missing half of what they wanted.
 
 The entity/event split is a defensible model — a thing and a scheduled occurrence of it are
 genuinely different — but it costs two forms, two lists, two field sets and two mental models,
-and it buys the link on 24 rows out of 282. **Six of those 24 links point at the wrong place**
-(`migration.md` §3a) and nobody has noticed, because a link surfaces only as a category pill
-and a file list. A feature that can be silently wrong a quarter of the time is not carrying its
-own weight. The common case, by a factor of seven, is a
+and it buys the link on 24 rows out of 282 — **six of which point at the wrong place** and have
+gone unnoticed for a month, because a link surfaces only as a category pill and a file list.
+Those six all came from one bulk import rather than from the app (`migration.md` §3a), so this
+is not a running defect; it is a feature so dim that a third of one import's guesses could be
+wrong without anyone seeing. The common case, by a factor of seven, is a
 traveller typing a line onto a day and never saving a place at all. That line can then never
 hold the ticket PDF or show up on the map.
 
@@ -159,8 +160,7 @@ So the trade is being made with the evidence in hand rather than in the abstract
 - the alternative — one `activities` table plus a small `occurrences` child holding
   `(day, time, position)` — keeps the ability but is the two-concept model again, and would
   make every free-text plan line (179 of the 226) write two rows instead of one;
-- and the thing being given up has never once been used as intended, while the mechanism that
-  provides it has quietly gone wrong on **6 of its 24 rows**.
+- and the thing being given up has never once been used as intended.
 
 What softens it is a **Copy to another day** action on a scheduled activity: one tap, and the
 copy carries the location, address, photo, category and description. That is also exactly the

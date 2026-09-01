@@ -132,10 +132,25 @@ description, photo and coordinates — and would then have copied those coordina
 "Shirakawa-go", putting a pin 50km from the village. Silent, plausible-looking, and wrong on
 the one surface (the map) this feature exists to add.
 
-Nobody noticed the rot because today the link is nearly invisible: it surfaces only as a
-category pill and a file list. That is an argument for the merge rather than against it — an
-invisible link that can be wrong and never checked is a bad feature — but it means the
-migration cannot trust `place_id` as a statement of identity.
+**They all came from one import, not from the app.** Every one of the six sits inside four bulk
+inserts made on 2026-08-01 between 19:10 and 19:17 (identical `created_at` to the microsecond —
+a script, not a person tapping). Split by origin, the picture is unambiguous:
+
+| how the link was made                | links | wrong |
+| ------------------------------------ | ----- | ----- |
+| typed one at a time, through the app | 6     | **0** |
+| bulk insert, 2026-08-01              | 18    | **6** |
+
+`AddPlaceToDay` writes `title = place.name`, so the interactive path _cannot_ produce a
+mismatch; the import guessed a place per row and missed a third of the time. Nobody noticed
+because the link is nearly invisible in the UI — it surfaces only as a category pill and a file
+list.
+
+Two consequences. The damage is **bounded and will not grow on its own**, so this is a
+data-cleaning job rather than a running defect — but it will grow if another import is run
+before the migration, which is why the fold's `--report` pass is not a one-off. And the
+migration **cannot treat `place_id` as a statement of identity**, because a third of the values
+it would be trusting were never asserted by a human.
 
 **So the fold is gated on the name, not on the link.** Normalise both sides (lower-case, strip
 punctuation and hyphens, drop parentheticals) and fold when the place's distinctive tokens
