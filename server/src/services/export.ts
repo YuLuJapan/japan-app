@@ -44,12 +44,11 @@ export async function buildTripExport(
   }
 
   const tripId = context.trip.id
-  const [steps, zones, places, tips, itinerary] = await Promise.all([
+  const [steps, zones, activities, tips] = await Promise.all([
     store.listSteps(tripId),
     store.listZones(tripId),
-    store.listAllPlaces(tripId),
+    store.listActivities(tripId),
     store.listAllTips(tripId),
-    store.listItinerary(tripId),
   ])
 
   return {
@@ -59,9 +58,8 @@ export async function buildTripExport(
         trip: context.trip,
         steps,
         zones,
-        places,
+        activities,
         tips,
-        itinerary,
         generated_at: new Date().toISOString(),
       },
       { detail, ids: ids === '1' || ids === 'true' }

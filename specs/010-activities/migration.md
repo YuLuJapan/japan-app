@@ -182,9 +182,11 @@ which is worth knowing before paying for the occurrences table the spec declined
 **Stays are never folded.** A reservation is looked up on any night of the stay, not on the
 check-in day — and `journey_steps` already model the range. Folding would move the hotel out
 of Explore's **Stays** list and onto one day's plan, which is a usability regression dressed
-up as consistency. Its linked items become ordinary activities carrying the stay's city and
-category and **none** of its booking content (no address, no links, no photo, no coordinates):
-the reservation stays in exactly one row. One row in production takes this branch.
+up as consistency. Its linked items are left **entirely untouched** — they keep their own city,
+their own tag (usually none) and none of the stay's booking content: the reservation stays in
+exactly one row. Untouched rather than re-tagged is deliberate: stamping `hotel` on a
+"Check in" line would hide it from a member whose view withholds stays (FR-021), which is not
+what they see today. One row in production takes this branch.
 
 **A copy carries location, not record.** `address`, `image_url`, `lat` and `lng` are copied so
 the second and third visits pin on the map; `links`, `name_ja`, files and tips are not — those

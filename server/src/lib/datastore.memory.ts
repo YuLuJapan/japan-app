@@ -22,12 +22,10 @@ import type {
   FileBytesResult,
   FileInput,
   FileUrlResult,
-  ItineraryItem,
-  ItineraryItemInput,
+  Activity,
+  ActivityInput,
   JourneyStep,
   JourneyStepInput,
-  Place,
-  PlaceInput,
   PushSubscriptionInput,
   PushSubscriptionRecord,
   Reminder,
@@ -60,10 +58,9 @@ export interface MemoryData {
   trips: Trip[]
   steps: JourneyStep[]
   zones: Zone[]
-  places: Place[]
+  activities: Activity[]
   tips: Tip[]
   files: FileAttachment[]
-  itinerary?: ItineraryItem[]
   shopping?: ShoppingItem[]
   reminders?: Reminder[]
 }
@@ -81,10 +78,10 @@ function compareSteps(a: JourneyStep, b: JourneyStep): number {
   return a.id < b.id ? -1 : 1
 }
 
-// Stable itinerary order: by day, then timed items (ascending) before untimed,
-// then manual position, then id.
-function compareItinerary(a: ItineraryItem, b: ItineraryItem): number {
-  if (a.day !== b.day) return a.day < b.day ? -1 : 1
+// A day plan: by day, then timed items (ascending) before untimed, then manual
+// position, then id. Only scheduled activities are ever sorted with this.
+function compareScheduled(a: Activity, b: Activity): number {
+  if (a.day !== b.day) return (a.day ?? '') < (b.day ?? '') ? -1 : 1
   if (a.start_time !== b.start_time) {
     if (a.start_time === null) return 1
     if (b.start_time === null) return -1
@@ -92,6 +89,28 @@ function compareItinerary(a: ItineraryItem, b: ItineraryItem): number {
   }
   if (a.position !== b.position) return a.position - b.position
   return a.id < b.id ? -1 : 1
+}
+
+// Explore's order, for activities with no date: by category in the app's own
+// order, then manual position, then name, then id. Two orders rather than one
+// comparator with a null branch, because they belong to two lists — a day plan
+// and a saved list — and `src/lib/ordering.ts` mirrors both.
+function compareSaved(a: Activity, b: Activity): number {
+  const rank = (c: Category | null) => (c === null ? CATEGORIES.length : CATEGORIES.indexOf(c))
+  if (rank(a.category) !== rank(b.category)) return rank(a.category) - rank(b.category)
+  if (a.position !== b.position) return a.position - b.position
+  if (a.name !== b.name) return a.name < b.name ? -1 : 1
+  return a.id < b.id ? -1 : 1
+}
+
+/**
+ * The one list every screen filters. Scheduled activities come first in day
+ * order, then the saved ones in Explore order — one array, two orders, so a
+ * caller never has to ask which list it is reading.
+ */
+function compareActivities(a: Activity, b: Activity): number {
+  if ((a.day === null) !== (b.day === null)) return a.day === null ? 1 : -1
+  return a.day === null ? compareSaved(a, b) : compareScheduled(a, b)
 }
 
 // Shopping list order: unbought items first (that's the working list), then
@@ -105,13 +124,27 @@ function compareShopping(a: ShoppingItem, b: ShoppingItem): number {
 export function createMemoryStore(initial?: MemoryData): DataStore {
   // deep clone so mutations never touch the caller's fixture or the JSON module cache
   const db: MemoryData = structuredClone(initial ?? loadPlaceholderData())
-  db.itinerary ??= [] // optional in older fixtures
+  db.activities ??= [] // optional in older fixtures
   db.shopping ??= []
   db.reminders ??= []
-  // backfill fields added after some fixtures/seed rows were written
-  for (const i of db.itinerary) {
-    i.highlight ??= false
-    i.icon ??= null
+  // Backfill columns added after some fixtures/seed rows were written. A JSON
+  // row simply lacks a key the Postgres column would read as NULL, and
+  // `undefined` is not `null` — every read below assumes the field is there.
+  for (const a of db.activities) {
+    a.day ??= null
+    a.zone_id ??= null
+    a.category ??= null
+    a.name_ja ??= null
+    a.description ??= null
+    a.address ??= null
+    a.links ??= []
+    a.image_url ??= null
+    a.lat ??= null
+    a.lng ??= null
+    a.start_time ??= null
+    a.position ??= 0
+    a.highlight ??= false
+    a.icon ??= null
   }
   // The flight is jsonb in Postgres and free-form JSON here, so it is checked
   // on the way in exactly as the Supabase store checks it (lib/flight.ts).
@@ -152,17 +185,21 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
   // in that trip?" is a zone lookup for anything hanging off a zone.
   const zoneIn = (tripId: string, zoneId: string) =>
     db.zones.some((z) => z.id === zoneId && z.trip_id === tripId)
-  const placesIn = (tripId: string) => db.places.filter((p) => zoneIn(tripId, p.zone_id))
-  const placeIn = (tripId: string, placeId: string) =>
-    db.places.some((p) => p.id === placeId && zoneIn(tripId, p.zone_id))
+  // An activity carries its own trip id (the column places never had), so this
+  // is a direct match rather than a hop through the zone.
+  const activitiesIn = (tripId: string) => db.activities.filter((a) => a.trip_id === tripId)
+  const activityIn = (tripId: string, activityId: string) =>
+    db.activities.some((a) => a.id === activityId && a.trip_id === tripId)
   /** A tip hangs off exactly one parent, and inherits that parent's trip. */
   const tipIn = (tripId: string, tip: Tip) =>
-    tip.zone_id ? zoneIn(tripId, tip.zone_id) : !!tip.place_id && placeIn(tripId, tip.place_id)
-  /** A file hangs off the trip directly, or off one of its zones or places. */
+    tip.zone_id
+      ? zoneIn(tripId, tip.zone_id)
+      : !!tip.activity_id && activityIn(tripId, tip.activity_id)
+  /** A file hangs off the trip directly, or off one of its zones or activities. */
   const fileIn = (tripId: string, f: FileAttachment) =>
     f.trip_id === tripId ||
     (!!f.zone_id && zoneIn(tripId, f.zone_id)) ||
-    (!!f.place_id && placeIn(tripId, f.place_id))
+    (!!f.activity_id && activityIn(tripId, f.activity_id))
 
   const emptyCounts = (): Record<Category, number> =>
     Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<Category, number>
@@ -381,7 +418,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         if (members[i].trip_id === tripId) members.splice(i, 1)
       }
       db.steps = db.steps.filter((s) => s.trip_id !== tripId)
-      db.itinerary = (db.itinerary ?? []).filter((i) => i.trip_id !== tripId)
+      db.activities = (db.activities ?? []).filter((a) => a.trip_id !== tripId)
       db.shopping = (db.shopping ?? []).filter((s) => s.trip_id !== tripId)
       db.reminders = (db.reminders ?? []).filter((r) => r.trip_id !== tripId)
       db.files = db.files.filter((f) => f.trip_id !== tripId)
@@ -459,47 +496,46 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return structuredClone(zone)
     },
 
-    async countPlacesByCategory(tripId, zoneId) {
+    async countSavedByCategory(tripId, zoneId) {
       const counts = emptyCounts()
       if (!zoneIn(tripId, zoneId)) return counts
-      for (const p of db.places) if (p.zone_id === zoneId) counts[p.category]++
+      // Saved only: Explore means "not yet on a day", so a count that included
+      // scheduled rows would name rows the list does not show.
+      for (const a of db.activities) {
+        if (a.trip_id !== tripId || a.zone_id !== zoneId || a.day !== null) continue
+        counts[a.category ?? 'other']++
+      }
       return counts
     },
 
-    async listPlaces(tripId, zoneId, category) {
-      if (!zoneIn(tripId, zoneId)) return []
-      return db.places.filter((p) => p.zone_id === zoneId && p.category === category)
+    async listActivities(tripId) {
+      return activitiesIn(tripId)
+        .map((a) => structuredClone(a))
+        .sort(compareActivities)
     },
 
-    async listPlacesInZone(tripId, zoneId) {
-      if (!zoneIn(tripId, zoneId)) return []
-      return db.places.filter((p) => p.zone_id === zoneId)
+    async getActivity(tripId, activityId) {
+      const found = db.activities.find((a) => a.id === activityId && a.trip_id === tripId)
+      return found ? structuredClone(found) : null
     },
 
-    // The export's sweep. Same filter, one trip wide: db order is preserved,
-    // so one zone's rows come back in exactly the order listPlacesInZone
-    // returns them in.
-    async listAllPlaces(tripId) {
-      return placesIn(tripId)
+    async listActivityIdsByCategory(tripId, category) {
+      return activitiesIn(tripId)
+        .filter((a) => a.category === category)
+        .map((a) => a.id)
     },
 
-    async getPlace(tripId, placeId) {
-      const place = db.places.find((p) => p.id === placeId)
-      return place && zoneIn(tripId, place.zone_id) ? place : null
-    },
-
-    async listPlaceIdsByCategory(tripId, category) {
-      return placesIn(tripId)
-        .filter((p) => p.category === category)
-        .map((p) => p.id)
-    },
-
-    async createPlace(tripId, input: PlaceInput) {
-      if (!zoneIn(tripId, input.zone_id)) throw new Error('zone does not belong to this trip')
-      const place: Place = {
+    async createActivity(input: ActivityInput) {
+      // Both ends have to be in the trip, or an activity could be filed in
+      // someone else's city.
+      if (input.zone_id != null && !zoneIn(input.trip_id, input.zone_id)) {
+        throw new Error('zone does not belong to this trip')
+      }
+      const activity: Activity = {
         id: randomUUID(),
-        zone_id: input.zone_id,
-        category: input.category,
+        trip_id: input.trip_id,
+        zone_id: input.zone_id ?? null,
+        category: input.category ?? null,
         name: input.name,
         name_ja: input.name_ja ?? null,
         description: input.description ?? null,
@@ -508,89 +544,46 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         image_url: input.image_url ?? null,
         lat: input.lat ?? null,
         lng: input.lng ?? null,
-      }
-      db.places.push(place)
-      return structuredClone(place)
-    },
-
-    async updatePlace(tripId, placeId, patch) {
-      const place = db.places.find((p) => p.id === placeId)
-      if (!place || !zoneIn(tripId, place.zone_id)) return null
-      // Both ends have to be in this trip, or a place could be moved into
-      // someone else's city.
-      if (patch.zone_id !== undefined && !zoneIn(tripId, patch.zone_id)) return null
-      // last write wins (spec edge case: concurrent edits)
-      if (patch.zone_id !== undefined) place.zone_id = patch.zone_id
-      if (patch.category !== undefined) place.category = patch.category
-      if (patch.name !== undefined) place.name = patch.name
-      if (patch.name_ja !== undefined) place.name_ja = patch.name_ja ?? null
-      if (patch.description !== undefined) place.description = patch.description ?? null
-      if (patch.address !== undefined) place.address = patch.address ?? null
-      if (patch.links !== undefined) place.links = patch.links ?? []
-      if (patch.image_url !== undefined) place.image_url = patch.image_url ?? null
-      if (patch.lat !== undefined) place.lat = patch.lat ?? null
-      if (patch.lng !== undefined) place.lng = patch.lng ?? null
-      return structuredClone(place)
-    },
-
-    async deletePlace(tripId, placeId) {
-      const idx = db.places.findIndex((p) => p.id === placeId && zoneIn(tripId, p.zone_id))
-      if (idx === -1) return false
-      db.places.splice(idx, 1)
-      db.tips = db.tips.filter((t) => t.place_id !== placeId) // cascade
-      // keep the day plan; just unlink the deleted place (mirrors on delete set null)
-      for (const item of db.itinerary!) if (item.place_id === placeId) item.place_id = null
-      return true
-    },
-
-    async listItinerary(tripId) {
-      return db.itinerary!.filter((i) => i.trip_id === tripId).sort(compareItinerary)
-    },
-
-    async getItineraryItem(tripId, itemId) {
-      const item = db.itinerary!.find((i) => i.id === itemId && i.trip_id === tripId)
-      return item ? structuredClone(item) : null
-    },
-
-    async createItineraryItem(input: ItineraryItemInput) {
-      const item: ItineraryItem = {
-        id: randomUUID(),
-        trip_id: input.trip_id,
-        zone_id: input.zone_id ?? null,
-        place_id: input.place_id ?? null,
-        day: input.day,
+        day: input.day ?? null,
         start_time: input.start_time ?? null,
-        title: input.title,
-        note: input.note ?? null,
         position: input.position ?? 0,
         highlight: input.highlight ?? false,
         icon: input.icon ?? null,
-        category: input.category ?? null,
       }
-      db.itinerary!.push(item)
-      return structuredClone(item)
+      db.activities.push(activity)
+      return structuredClone(activity)
     },
 
-    async updateItineraryItem(tripId, itemId, patch) {
-      const item = db.itinerary!.find((i) => i.id === itemId && i.trip_id === tripId)
-      if (!item) return null
-      if (patch.zone_id !== undefined) item.zone_id = patch.zone_id ?? null
-      if (patch.place_id !== undefined) item.place_id = patch.place_id ?? null
-      if (patch.day !== undefined) item.day = patch.day
-      if (patch.start_time !== undefined) item.start_time = patch.start_time ?? null
-      if (patch.title !== undefined) item.title = patch.title
-      if (patch.note !== undefined) item.note = patch.note ?? null
-      if (patch.position !== undefined) item.position = patch.position ?? 0
-      if (patch.highlight !== undefined) item.highlight = patch.highlight ?? false
-      if (patch.icon !== undefined) item.icon = patch.icon ?? null
-      if (patch.category !== undefined) item.category = patch.category ?? null
-      return structuredClone(item)
+    async updateActivity(tripId, activityId, patch) {
+      const activity = db.activities.find((a) => a.id === activityId && a.trip_id === tripId)
+      if (!activity) return null
+      if (patch.zone_id != null && !zoneIn(tripId, patch.zone_id)) return null
+      // last write wins (spec edge case: concurrent edits)
+      if (patch.zone_id !== undefined) activity.zone_id = patch.zone_id ?? null
+      if (patch.category !== undefined) activity.category = patch.category ?? null
+      if (patch.name !== undefined) activity.name = patch.name
+      if (patch.name_ja !== undefined) activity.name_ja = patch.name_ja ?? null
+      if (patch.description !== undefined) activity.description = patch.description ?? null
+      if (patch.address !== undefined) activity.address = patch.address ?? null
+      if (patch.links !== undefined) activity.links = patch.links ?? []
+      if (patch.image_url !== undefined) activity.image_url = patch.image_url ?? null
+      if (patch.lat !== undefined) activity.lat = patch.lat ?? null
+      if (patch.lng !== undefined) activity.lng = patch.lng ?? null
+      // Setting or clearing the date is what moves a row between the day plan
+      // and Explore — the one write in the app that changes which list it is in.
+      if (patch.day !== undefined) activity.day = patch.day ?? null
+      if (patch.start_time !== undefined) activity.start_time = patch.start_time ?? null
+      if (patch.position !== undefined) activity.position = patch.position ?? 0
+      if (patch.highlight !== undefined) activity.highlight = patch.highlight ?? false
+      if (patch.icon !== undefined) activity.icon = patch.icon ?? null
+      return structuredClone(activity)
     },
 
-    async deleteItineraryItem(tripId, itemId) {
-      const i = db.itinerary!.findIndex((x) => x.id === itemId && x.trip_id === tripId)
-      if (i === -1) return false
-      db.itinerary!.splice(i, 1)
+    async deleteActivity(tripId, activityId) {
+      const idx = db.activities.findIndex((a) => a.id === activityId && a.trip_id === tripId)
+      if (idx === -1) return false
+      db.activities.splice(idx, 1)
+      db.tips = db.tips.filter((t) => t.activity_id !== activityId) // cascade
       return true
     },
 
@@ -645,8 +638,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         if (!zoneIn(tripId, parent.zone_id)) return []
         return db.tips.filter((t) => t.zone_id === parent.zone_id)
       }
-      if (!placeIn(tripId, parent.place_id)) return []
-      return db.tips.filter((t) => t.place_id === parent.place_id)
+      if (!activityIn(tripId, parent.activity_id)) return []
+      return db.tips.filter((t) => t.activity_id === parent.activity_id)
     },
 
     // Every tip in the trip, both parents at once — the export's sweep, and
@@ -658,12 +651,12 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
     async createTip(tripId, input: TipInput) {
       const parentInTrip = input.zone_id
         ? zoneIn(tripId, input.zone_id)
-        : !!input.place_id && placeIn(tripId, input.place_id)
+        : !!input.activity_id && activityIn(tripId, input.activity_id)
       if (!parentInTrip) throw new Error('tip parent does not belong to this trip')
       const tip: Tip = {
         id: randomUUID(),
         zone_id: input.zone_id ?? null,
-        place_id: input.place_id ?? null,
+        activity_id: input.activity_id ?? null,
         body: input.body,
       }
       db.tips.push(tip)
@@ -688,18 +681,18 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       const mine = db.files.filter((f) => fileIn(tripId, f))
       if ('trip_id' in parent) return mine.filter((f) => f.trip_id === parent.trip_id)
       if ('zone_id' in parent) return mine.filter((f) => f.zone_id === parent.zone_id)
-      return mine.filter((f) => f.place_id === parent.place_id)
+      return mine.filter((f) => f.activity_id === parent.activity_id)
     },
 
     async listAllFiles(tripId) {
       const zoneIds = new Set(db.steps.filter((s) => s.trip_id === tripId).map((s) => s.zone_id))
-      const placeIds = new Set(db.places.filter((p) => zoneIds.has(p.zone_id)).map((p) => p.id))
+      const activityIds = new Set(activitiesIn(tripId).map((a) => a.id))
       return db.files
         .filter(
           (f) =>
             f.trip_id === tripId ||
             (f.zone_id && zoneIds.has(f.zone_id)) ||
-            (f.place_id && placeIds.has(f.place_id))
+            (f.activity_id && activityIds.has(f.activity_id))
         )
         .map((f) => structuredClone(f))
     },
@@ -717,7 +710,7 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
         id: randomUUID(),
         trip_id: input.trip_id ?? null,
         zone_id: input.zone_id ?? null,
-        place_id: input.place_id ?? null,
+        activity_id: input.activity_id ?? null,
         display_name: input.display_name,
         storage_path: input.storage_path,
         mime_type: input.mime_type,
@@ -743,10 +736,10 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       return true
     },
 
-    async reparentFilesToTrip(placeId, tripId) {
+    async reparentFilesToTrip(activityId, tripId) {
       for (const f of db.files) {
-        if (f.place_id === placeId) {
-          f.place_id = null
+        if (f.activity_id === activityId) {
+          f.activity_id = null
           f.trip_id = tripId
         }
       }
@@ -988,8 +981,8 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       const q = query.trim().toLowerCase()
       const has = (s?: string | null) => !!s && s.toLowerCase().includes(q)
       return {
-        places: placesIn(tripId).filter(
-          (p) => has(p.name) || has(p.name_ja) || has(p.description) || has(p.address)
+        activities: activitiesIn(tripId).filter(
+          (a) => has(a.name) || has(a.name_ja) || has(a.description) || has(a.address)
         ),
         zones: db.zones
           .filter((z) => z.trip_id === tripId)

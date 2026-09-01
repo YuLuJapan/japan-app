@@ -43,8 +43,7 @@
 import type {
   DataStore,
   FileAttachment,
-  ItineraryItem,
-  Place,
+  Activity,
   ShoppingItem,
   Tip,
   Trip,
@@ -73,15 +72,20 @@ export function tripFileSystem(store: DataStore, trip: Trip): VirtualFileSystem 
     file('flight.json', 'airline, booking reference, legs, departure and arrival times', () =>
       Promise.resolve(flightFile(trip))
     ),
+    // Two files over one table, and that is deliberate. 010 merged places and
+    // plan items into one entity for the traveller, who was holding two
+    // concepts to describe one thing — but the *model* greps by question, and
+    // "what have we saved in Kyoto" and "what happens Thursday" are different
+    // questions. One file would make every question read both.
     file(
-      'places.json',
-      'every saved place — stays, sights, food and shops — with addresses and notes',
-      () => placesFile(load)
+      'saved.json',
+      'places saved but not yet on a day — stays, sights, food and shops, with addresses',
+      () => savedFile(load)
     ),
-    file('itinerary.json', 'the day plan: what happens on which day, in which city', () =>
-      itineraryFile(load)
+    file('plan.json', 'the day plan: what happens on which day, in which city', () =>
+      planFile(load)
     ),
-    file('tips.json', 'notes saved against a place, a city, or the trip as a whole', () =>
+    file('tips.json', 'notes saved against an activity, a city, or the trip as a whole', () =>
       tipsFile(load)
     ),
     file('shopping.json', 'the shopping list: what to buy, where, and what is bought already', () =>
@@ -100,8 +104,8 @@ export function tripFilePaths(): string[] {
   return [
     'cities.json',
     'flight.json',
-    'places.json',
-    'itinerary.json',
+    'saved.json',
+    'plan.json',
     'tips.json',
     'shopping.json',
     'documents.json',
@@ -129,9 +133,8 @@ function loaders(store: DataStore, trip: Trip) {
   return {
     steps: once(() => store.listSteps(trip.id)),
     zones: once(() => store.listZones(trip.id)),
-    places: once(() => store.listAllPlaces(trip.id)),
+    activities: once(() => store.listActivities(trip.id)),
     tips: once(() => store.listAllTips(trip.id)),
-    itinerary: once(() => store.listItinerary(trip.id)),
     shopping: once(() => store.listShoppingItems(trip.id)),
     files: once(() => store.listAllFiles(trip.id)),
   }
@@ -154,10 +157,19 @@ function once<T>(fn: () => Promise<T>): () => Promise<T> {
  * the 12th" is a fact about the journey, and collapsing the two would lose it.
  */
 async function citiesFile(load: Loaders): Promise<string> {
-  const [steps, zones, places] = await Promise.all([load.steps(), load.zones(), load.places()])
+  const [steps, zones, activities] = await Promise.all([
+    load.steps(),
+    load.zones(),
+    load.activities(),
+  ])
   const byId = new Map(zones.map((z) => [z.id, z]))
+  // The saved half only: "saved_places" answers "what have we got lined up
+  // here", and a scheduled activity is already on the plan file's day.
   const counts = new Map<string, number>()
-  for (const place of places) counts.set(place.zone_id, (counts.get(place.zone_id) ?? 0) + 1)
+  for (const activity of activities) {
+    if (activity.day !== null || !activity.zone_id) continue
+    counts.set(activity.zone_id, (counts.get(activity.zone_id) ?? 0) + 1)
+  }
 
   const visited = steps.map((step) => ({
     ...cityFields(byId.get(step.zone_id)),
@@ -221,69 +233,66 @@ function itineraryFields(itinerary: FlightItinerary | null | undefined) {
   }
 }
 
-async function placesFile(load: Loaders): Promise<string> {
-  const [zones, places] = await Promise.all([load.zones(), load.places()])
+/** The saved half: activities with no date, which is what Explore shows. */
+async function savedFile(load: Loaders): Promise<string> {
+  const [zones, activities] = await Promise.all([load.zones(), load.activities()])
   const cityName = names(zones)
-  return json(places.map((place) => placeFields(place, cityName)))
+  return json(activities.filter((a) => a.day === null).map((a) => savedFields(a, cityName)))
 }
 
-function placeFields(place: Place, cityName: Map<string, string>) {
+function savedFields(activity: Activity, cityName: Map<string, string>) {
   return {
-    city: cityName.get(place.zone_id) ?? 'Unknown city',
-    category: place.category,
-    name: place.name,
-    japanese: place.name_ja ?? null,
-    address: place.address ?? null,
-    notes: place.description ?? null,
+    city: activity.zone_id ? (cityName.get(activity.zone_id) ?? 'Unknown city') : null,
+    category: activity.category,
+    name: activity.name,
+    japanese: activity.name_ja ?? null,
+    address: activity.address ?? null,
+    notes: activity.description ?? null,
     // A stay's reservation lives in the links and the notes, and a writer sees
     // both everywhere else in the app — so they are here too rather than being
     // the one thing chat cannot answer about.
-    links: place.links.map((link) => ({ label: link.label, url: link.url })),
+    links: activity.links.map((link) => ({ label: link.label, url: link.url })),
   }
 }
 
-async function itineraryFile(load: Loaders): Promise<string> {
-  const [zones, places, itinerary] = await Promise.all([
-    load.zones(),
-    load.places(),
-    load.itinerary(),
-  ])
+/** The scheduled half: activities with a date, in day order. */
+async function planFile(load: Loaders): Promise<string> {
+  const [zones, activities] = await Promise.all([load.zones(), load.activities()])
   const cityName = names(zones)
-  const placeName = new Map(places.map((p) => [p.id, p.name]))
-  return json(itinerary.map((item) => itineraryItemFields(item, cityName, placeName)))
+  return json(activities.filter((a) => a.day !== null).map((a) => planFields(a, cityName)))
 }
 
-function itineraryItemFields(
-  item: ItineraryItem,
-  cityName: Map<string, string>,
-  placeName: Map<string, string>
-) {
+function planFields(activity: Activity, cityName: Map<string, string>) {
   return {
-    day: item.day,
-    time: item.start_time,
-    title: item.title,
+    day: activity.day,
+    time: activity.start_time,
+    title: activity.name,
     // A day two cities share belongs to both of them, and the activity says
     // which half of it this is — so the city is a fact worth carrying, not a
     // derivation from the date.
-    city: item.zone_id ? (cityName.get(item.zone_id) ?? 'Unknown city') : null,
-    place: item.place_id ? (placeName.get(item.place_id) ?? null) : null,
-    category: item.category,
-    highlight: item.highlight,
-    note: item.note,
+    city: activity.zone_id ? (cityName.get(activity.zone_id) ?? 'Unknown city') : null,
+    category: activity.category,
+    highlight: activity.highlight,
+    address: activity.address ?? null,
+    note: activity.description,
   }
 }
 
 async function tipsFile(load: Loaders): Promise<string> {
-  const [zones, places, tips] = await Promise.all([load.zones(), load.places(), load.tips()])
+  const [zones, activities, tips] = await Promise.all([
+    load.zones(),
+    load.activities(),
+    load.tips(),
+  ])
   const cityName = names(zones)
-  const placeName = new Map(places.map((p) => [p.id, p.name]))
-  return json(tips.map((tip) => tipFields(tip, cityName, placeName)))
+  const activityName = new Map(activities.map((a) => [a.id, a.name]))
+  return json(tips.map((tip) => tipFields(tip, cityName, activityName)))
 }
 
-function tipFields(tip: Tip, cityName: Map<string, string>, placeName: Map<string, string>) {
+function tipFields(tip: Tip, cityName: Map<string, string>, activityName: Map<string, string>) {
   return {
-    about: tip.place_id
-      ? (placeName.get(tip.place_id) ?? 'a saved place')
+    about: tip.activity_id
+      ? (activityName.get(tip.activity_id) ?? 'a saved activity')
       : tip.zone_id
         ? (cityName.get(tip.zone_id) ?? 'a city')
         : 'the trip',
@@ -325,7 +334,11 @@ async function documentsFile(load: Loaders): Promise<string> {
 function documentFields(attachment: FileAttachment) {
   return {
     name: attachment.display_name,
-    attached_to: attachment.place_id ? 'a place' : attachment.zone_id ? 'a city' : 'the trip',
+    attached_to: attachment.activity_id
+      ? 'an activity'
+      : attachment.zone_id
+        ? 'a city'
+        : 'the trip',
   }
 }
 

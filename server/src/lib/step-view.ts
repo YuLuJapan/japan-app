@@ -17,13 +17,14 @@ export async function stepView(
   { includeStays = true }: { includeStays?: boolean } = {}
 ) {
   const zone = await store.getZone(tripId, step.zone_id)
-  const counts: Record<Category, number> = await store.countPlacesByCategory(tripId, step.zone_id)
-  const place_counts = includeStays ? counts : hideStayCounts(counts)
+  // Saved activities only — the counts Explore's grid renders (FR-011).
+  const counts: Record<Category, number> = await store.countSavedByCategory(tripId, step.zone_id)
+  const saved_counts = includeStays ? counts : hideStayCounts(counts)
   return {
     id: step.id,
     position: step.position,
     start_date: step.start_date,
     end_date: step.end_date,
-    zone: zone ? { ...zone, place_counts } : null,
+    zone: zone ? { ...zone, saved_counts } : null,
   }
 }

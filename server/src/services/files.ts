@@ -67,18 +67,18 @@ async function attachedTo(
   file: FileAttachment,
   names: NameCache = new Map()
 ) {
-  // Keyed by kind as well as id, so a zone and a place can never collide.
+  // Keyed by kind as well as id, so a zone and an activity can never collide.
   const named = async (key: string, look: () => Promise<string>) => {
     if (!names.has(key)) names.set(key, await look())
     return names.get(key)!
   }
-  if (file.place_id) {
-    const id = file.place_id
+  if (file.activity_id) {
+    const id = file.activity_id
     const name = await named(
-      `place:${id}`,
-      async () => (await store.getPlace(tripId, id))?.name ?? 'Place'
+      `activity:${id}`,
+      async () => (await store.getActivity(tripId, id))?.name ?? 'Activity'
     )
-    return { kind: 'place' as const, id, name }
+    return { kind: 'activity' as const, id, name }
   }
   if (file.zone_id) {
     const id = file.zone_id
@@ -108,10 +108,10 @@ export async function listTripDocuments(store: DataStore, tripId: string, view: 
 
   const stayIds = view.stays
     ? new Set<string>()
-    : new Set(await store.listPlaceIdsByCategory(trip.id, STAY_CATEGORY))
-  const files = all.filter((f) => !f.place_id || !stayIds.has(f.place_id))
+    : new Set(await store.listActivityIdsByCategory(trip.id, STAY_CATEGORY))
+  const files = all.filter((f) => !f.activity_id || !stayIds.has(f.activity_id))
 
-  // One shared cache across the list: several documents on the same place
+  // One shared cache across the list: several documents on the same activity
   // should cost one lookup, not one each.
   const names: NameCache = new Map()
   const documents: Awaited<ReturnType<typeof documentView>>[] = []
@@ -137,7 +137,7 @@ export async function getFileContent(store: DataStore, tripId: string, fileId: s
 }
 
 interface UploadBody {
-  parent?: { kind?: 'trip' | 'zone' | 'place'; id?: string }
+  parent?: { kind?: 'trip' | 'zone' | 'activity'; id?: string }
   display_name?: string
   mime_type?: string
   data_base64?: string
@@ -167,9 +167,9 @@ export async function createFile(store: DataStore, tripId: string, body: UploadB
   if (!b64) errors.push('data_base64 is required')
 
   const kind = body.parent?.kind
-  if (kind !== 'trip' && kind !== 'zone' && kind !== 'place')
+  if (kind !== 'trip' && kind !== 'zone' && kind !== 'activity')
     errors.push('parent.kind must be trip, zone, or place')
-  if ((kind === 'zone' || kind === 'place') && !body.parent?.id)
+  if ((kind === 'zone' || kind === 'activity') && !body.parent?.id)
     errors.push(`parent.id is required for a ${kind}`)
 
   if (errors.length) throw validation(errors)
@@ -188,11 +188,12 @@ export async function createFile(store: DataStore, tripId: string, body: UploadB
     size_bytes: bytes.length,
     trip_id: kind === 'trip' ? trip.id : null,
     zone_id: kind === 'zone' ? body.parent!.id! : null,
-    place_id: kind === 'place' ? body.parent!.id! : null,
+    activity_id: kind === 'activity' ? body.parent!.id! : null,
   }
 
   if (kind === 'zone' && !(await store.getZone(trip.id, input.zone_id!))) throw notFound('Zone')
-  if (kind === 'place' && !(await store.getPlace(trip.id, input.place_id!))) throw notFound('Place')
+  if (kind === 'activity' && !(await store.getActivity(trip.id, input.activity_id!)))
+    throw notFound('Activity')
 
   const file = await store.createFile(input, bytes)
   return { file: await documentView(store, trip.id, file) }

@@ -30,9 +30,9 @@ const assertMayRead = async (req: Parameters<typeof list>[0], fileId: string) =>
   if (view.stays) return
   const store = await getDataStore()
   const file = await store.getFile(trip.id, fileId)
-  if (!file?.place_id) return
-  const stayIds = new Set(await store.listPlaceIdsByCategory(trip.id, STAY_CATEGORY))
-  if (stayIds.has(file.place_id)) throw forbidden('Stays are not part of your view of this trip')
+  if (!file?.activity_id) return
+  const stayIds = new Set(await store.listActivityIdsByCategory(trip.id, STAY_CATEGORY))
+  if (stayIds.has(file.activity_id)) throw forbidden('Stays are not part of your view of this trip')
 }
 
 const create = asyncHandler(async (req, res) => {

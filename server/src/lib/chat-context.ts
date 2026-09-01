@@ -31,7 +31,7 @@
 //
 // WHAT GOES IN
 // ------------
-// Everything a writer can see: steps, zones, places including stays, tips, the
+// Everything a writer can see: steps, zones, activities including stays, tips, the
 // day plan, the flight and the shopping list. Chat is owners-and-partners only
 // and writers always get the full view, so there is nothing here either of them
 // is being kept from — and refusing to answer "what time is our flight?" would
@@ -43,9 +43,8 @@
 
 import type {
   FileAttachment,
-  ItineraryItem,
+  Activity,
   JourneyStep,
-  Place,
   ShoppingItem,
   Tip,
   Trip,
@@ -58,9 +57,8 @@ export interface TripSnapshot {
   trip: Trip
   steps: JourneyStep[]
   zones: Zone[]
-  places: Place[]
+  activities: Activity[]
   tips: Tip[]
-  itinerary: ItineraryItem[]
   shopping: ShoppingItem[]
   files: FileAttachment[]
 }
@@ -219,20 +217,23 @@ function itineraryFlightLines(label: string, itinerary: FlightItinerary | null |
 
 function placeLines(snapshot: TripSnapshot): string[] {
   const lines: string[] = []
+  // The saved half only — the scheduled half is the day plan's section, and
+  // printing an activity twice would spend the cached prefix saying it twice.
+  //
   // Grouped by city in journey order, then by the order the datastore returned
   // them — so the shape of this section follows the shape of the trip, and two
   // builds of an unchanged trip produce the same bytes.
   for (const zone of orderedZones(snapshot)) {
-    const places = snapshot.places.filter((p) => p.zone_id === zone.id)
-    if (!places.length) continue
+    const saved = snapshot.activities.filter((a) => a.day === null && a.zone_id === zone.id)
+    if (!saved.length) continue
     lines.push(`### ${zone.name}${zone.name_ja ? ` (${zone.name_ja})` : ''}`)
     if (zone.summary) lines.push(zone.summary)
-    for (const place of places) {
-      const bits = [`- [${place.category}] ${place.name}`]
-      if (place.name_ja) bits.push(`(${place.name_ja})`)
-      if (place.address) bits.push(`— ${place.address}`)
+    for (const activity of saved) {
+      const bits = [`- [${activity.category ?? 'other'}] ${activity.name}`]
+      if (activity.name_ja) bits.push(`(${activity.name_ja})`)
+      if (activity.address) bits.push(`— ${activity.address}`)
       lines.push(bits.join(' '))
-      if (place.description) lines.push(`  ${place.description}`)
+      if (activity.description) lines.push(`  ${activity.description}`)
     }
   }
   return lines
@@ -240,28 +241,29 @@ function placeLines(snapshot: TripSnapshot): string[] {
 
 function itineraryLines(snapshot: TripSnapshot, zoneName: Map<string, string>): string[] {
   const lines: string[] = []
-  const placeName = new Map(snapshot.places.map((p) => [p.id, p.name]))
   let currentDay = ''
-  for (const item of snapshot.itinerary) {
-    if (item.day !== currentDay) {
-      currentDay = item.day
-      lines.push(`### ${item.day}`)
+  for (const activity of snapshot.activities) {
+    if (activity.day === null) continue
+    if (activity.day !== currentDay) {
+      currentDay = activity.day
+      lines.push(`### ${activity.day}`)
     }
-    const time = item.start_time ? `${item.start_time} ` : ''
-    const city = item.zone_id ? ` in ${zoneName.get(item.zone_id) ?? 'an unknown city'}` : ''
-    const linked = item.place_id ? ` (${placeName.get(item.place_id) ?? 'a saved place'})` : ''
-    const featured = item.highlight ? ' [the day’s highlight]' : ''
-    lines.push(`- ${time}${item.title}${linked}${city}${featured}`)
-    if (item.note) lines.push(`  ${item.note}`)
+    const time = activity.start_time ? `${activity.start_time} ` : ''
+    const city = activity.zone_id
+      ? ` in ${zoneName.get(activity.zone_id) ?? 'an unknown city'}`
+      : ''
+    const featured = activity.highlight ? ' [the day’s highlight]' : ''
+    lines.push(`- ${time}${activity.name}${city}${featured}`)
+    if (activity.description) lines.push(`  ${activity.description}`)
   }
   return lines
 }
 
 function tipLines(snapshot: TripSnapshot, zoneName: Map<string, string>): string[] {
-  const placeName = new Map(snapshot.places.map((p) => [p.id, p.name]))
+  const activityName = new Map(snapshot.activities.map((a) => [a.id, a.name]))
   return snapshot.tips.map((tip) => {
-    const about = tip.place_id
-      ? (placeName.get(tip.place_id) ?? 'a saved place')
+    const about = tip.activity_id
+      ? (activityName.get(tip.activity_id) ?? 'a saved activity')
       : tip.zone_id
         ? (zoneName.get(tip.zone_id) ?? 'a city')
         : 'the trip'

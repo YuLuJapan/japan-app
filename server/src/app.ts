@@ -5,14 +5,13 @@ import { errorMiddleware, notFound } from './lib/errors.js'
 import { requireTripAccess } from './lib/trip-context.js'
 import { exportTripRouter } from './routes/export.js'
 import { filesTripRouter } from './routes/files.js'
+import { activitiesTripRouter } from './routes/activities.js'
 import { geocodeRouter } from './routes/geocode.js'
 import { healthRouter } from './routes/health.js'
 import { imagesRouter } from './routes/images.js'
 import { invitesRouter } from './routes/invites.js'
-import { itineraryTripRouter } from './routes/itinerary.js'
 import { membersTripRouter } from './routes/members.js'
 import { meRouter } from './routes/me.js'
-import { placesTripRouter } from './routes/places.js'
 import { productUrlRouter } from './routes/producturl.js'
 import { pushRouter } from './routes/push.js'
 import { ratesRouter } from './routes/rates.js'
@@ -39,9 +38,8 @@ export function tripScopedRouter() {
   router.use(requireTripAccess)
   router.use(stepsTripRouter)
   router.use(zonesTripRouter)
-  router.use(placesTripRouter)
+  router.use(activitiesTripRouter)
   router.use(tipsTripRouter)
-  router.use(itineraryTripRouter)
   router.use(shoppingTripRouter)
   router.use(remindersTripRouter)
   router.use(filesTripRouter)

@@ -3,7 +3,7 @@ import { CATEGORIES } from '../lib/datastore.js'
 import { STAY_CATEGORY, isStay } from '../lib/trip-view.js'
 
 export interface SearchResult {
-  type: 'place' | 'zone' | 'tip'
+  type: 'activity' | 'zone' | 'tip'
   id: string
   title: string
   subtitle: string
@@ -29,16 +29,19 @@ export async function searchAll(
   const q = query.trim()
   if (q.length < 2) return { results: [] }
 
-  const { places, zones, tips: allTips } = await store.search(tripId, q)
+  const { activities, zones, tips: allTips } = await store.search(tripId, q)
   const zoneName = new Map(zones.map((z) => [z.id, z.name]))
 
-  let matchedPlaces = places
+  let matched = activities
   let tips = allTips
   if (!includeStays) {
-    matchedPlaces = places.filter((p) => !isStay(p))
+    // Both halves of FR-020/FR-021 land in the same place here: a *saved* stay
+    // is withheld, and a *scheduled* one is stripped of everything a result
+    // renders — so neither has anything to show and both leave the list.
+    matched = activities.filter((a) => !isStay(a))
     // A tip's own parent may be a stay that never matched the query itself.
-    const stayIds = new Set(await store.listPlaceIdsByCategory(tripId, STAY_CATEGORY))
-    tips = allTips.filter((t) => !t.place_id || !stayIds.has(t.place_id))
+    const stayIds = new Set(await store.listActivityIdsByCategory(tripId, STAY_CATEGORY))
+    tips = allTips.filter((t) => !t.activity_id || !stayIds.has(t.activity_id))
   }
 
   const results: SearchResult[] = [
@@ -49,19 +52,19 @@ export async function searchAll(
       subtitle: 'Zone',
       href: `/zones/${z.id}`,
     })),
-    ...matchedPlaces.map((p) => ({
-      type: 'place' as const,
-      id: p.id,
-      title: p.name,
-      subtitle: CATEGORIES.includes(p.category) ? p.category : 'place',
-      href: `/places/${p.id}`,
+    ...matched.map((a) => ({
+      type: 'activity' as const,
+      id: a.id,
+      title: a.name,
+      subtitle: a.category && CATEGORIES.includes(a.category) ? a.category : 'activity',
+      href: `/activities/${a.id}`,
     })),
     ...tips.map((t) => ({
       type: 'tip' as const,
       id: t.id,
       title: t.body.length > 80 ? `${t.body.slice(0, 80)}…` : t.body,
       subtitle: t.zone_id ? `Tip · ${zoneName.get(t.zone_id) ?? 'zone'}` : 'Tip',
-      href: t.place_id ? `/places/${t.place_id}` : `/zones/${t.zone_id}`,
+      href: t.activity_id ? `/activities/${t.activity_id}` : `/zones/${t.zone_id}`,
     })),
   ]
   return { results }

@@ -17,7 +17,7 @@
 // wholesale for a different reason: it is where the gifts get written down, so
 // the person it should be hidden from is often the very person you are sharing
 // the rest of the trip with.
-import type { Category, Place, TripMember } from './datastore.js'
+import type { Activity, Category, TripMember } from './datastore.js'
 import { canWrite } from './permissions.js'
 
 export interface TripView {
@@ -64,7 +64,37 @@ export function tripView(
 /** The category that carries the accommodation booking. */
 export const STAY_CATEGORY: Category = 'hotel'
 
-export const isStay = (place: Pick<Place, 'category'>) => place.category === STAY_CATEGORY
+export const isStay = (activity: Pick<Activity, 'category'>) => activity.category === STAY_CATEGORY
+
+/**
+ * A **scheduled** stay, as a member who may not see stays gets it (FR-021).
+ *
+ * The row survives and its content does not: dropping the line would leave a
+ * hole in the day that says something was there, but everything that makes it
+ * the reservation goes — including the **category**, which is what stops the
+ * coloured pill announcing "there is a stay here" all over again. That is the
+ * same job `place_category` nulling did before 010 merged the two entities.
+ *
+ * A **saved** stay is not stripped, it is withheld wholesale — it *is* the
+ * booking, and there is nothing safe left once the content is gone.
+ *
+ * The residual risk is stated rather than solved: `name` is typed by the
+ * traveller, so "Hakone Yutowa 15:00" still names the hotel. A rule cannot
+ * tell a safe title from a revealing one, and the alternative loses the day.
+ */
+export function stripStay(activity: Activity): Activity {
+  return {
+    ...activity,
+    category: null,
+    description: null,
+    address: null,
+    links: [],
+    image_url: null,
+    lat: null,
+    lng: null,
+    name_ja: null,
+  }
+}
 
 /** Zero out the stays so a restricted view never even offers the category card. */
 export function hideStayCounts(counts: Record<Category, number>): Record<Category, number> {

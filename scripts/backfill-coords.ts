@@ -74,7 +74,7 @@ async function revert(journalPath: string, argv: string[]) {
     // The journal records a place, not a trip; each write is scoped by the
     // trip it belongs to, so the wrong trip cannot be patched by a stale file.
     for (const tripId of ids) {
-      const place = await store.updatePlace(tripId, entry.id, {
+      const place = await store.updateActivity(tripId, entry.id, {
         lat: entry.before.lat,
         lng: entry.before.lng,
       })
@@ -129,7 +129,7 @@ export async function main(argv: string[] = process.argv.slice(2)) {
         .map((z) => [z.id, { lat: z.lat as number, lng: z.lng as number }])
     )
 
-    for (const place of await store.listAllPlaces(tripId)) {
+    for (const place of await store.listActivities(tripId)) {
       if (typeof place.lat === 'number' && typeof place.lng === 'number') {
         skipped += 1
         console.log(`· ${place.name}: already located, skipped`)
@@ -139,7 +139,9 @@ export async function main(argv: string[] = process.argv.slice(2)) {
       const hit = await resolvePlaceLocation({
         name: place.name,
         address: place.address,
-        near: near.get(place.zone_id),
+        // An activity may have no city (a dated one need not); with nothing
+        // to bias the search towards, the lookup falls back to a global one.
+        near: place.zone_id ? near.get(place.zone_id) : undefined,
       })
       // The wait belongs to the lookup: a run over already-located places
       // costs nothing, which is what makes a resumed run quick.
@@ -157,7 +159,7 @@ export async function main(argv: string[] = process.argv.slice(2)) {
 
       const before = { lat: place.lat ?? null, lng: place.lng ?? null }
       const after = { lat: hit.lat, lng: hit.lng }
-      const written = await store.updatePlace(tripId, place.id, after)
+      const written = await store.updateActivity(tripId, place.id, after)
       if (!written) {
         console.error(`  ! ${place.name}: the write found no row — not journalled`)
         continue

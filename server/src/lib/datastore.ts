@@ -225,61 +225,87 @@ export interface PlaceLink {
   url: string
 }
 
-export interface Place {
+/**
+ * One thing on a trip: somewhere to go, something to do, or a line on a day.
+ *
+ * Feature 010 merged `Place` and `ItineraryItem` into this. They were the same
+ * thing seen from two sides — a place could hold a location, files and links
+ * but never a date; a plan line could hold a date but none of the rest — and
+ * the split cost two forms, two lists and two mental models to buy a link that
+ * 24 rows in production used, six of them wrongly.
+ *
+ * **The date is the only thing that decides where an activity shows.** With a
+ * `day` it is on the day plan; without one it is in its city's Explore list,
+ * grouped by category. Either way, coordinates put it on the map. Scheduling
+ * something saved is setting its date, and clearing the date sends it back.
+ */
+export interface Activity {
   id: string
-  zone_id: string
-  category: Category
+  trip_id: string
+  /**
+   * The city it is in. Null is allowed only for a *scheduled* activity — a
+   * saved one would exist and be visible nowhere, since Explore is per-city
+   * (FR-004, enforced in `collectActivityErrors` rather than by a check
+   * constraint: as a constraint it would abort trip deletion, see
+   * specs/010-activities/migration.md §2).
+   */
+  zone_id: string | null
+  /**
+   * The tag: what kind of thing this is. Null means untagged — no pill on the
+   * day plan, and in Explore it groups under `other` without `other` being
+   * written to the row.
+   */
+  category: Category | null
   name: string
   name_ja: string | null
   description: string | null
   address: string | null
   links: PlaceLink[]
-  image_url?: string | null
-  lat?: number | null
-  lng?: number | null
+  image_url: string | null
+  lat: number | null
+  lng: number | null
+  /** `YYYY-MM-DD`, or null for an activity that is saved but not scheduled. */
+  day: string | null
+  /** `HH:MM` (24h), or null for "sometime that day". */
+  start_time: string | null
+  position: number
+  /** Shown as a coral banner above the day's plan. Requires a `day` (FR-005). */
+  highlight: boolean
+  /** Leading emoji for that banner. */
+  icon: string | null
 }
 
+/** A note saved against a city, or against one activity. Exactly one parent. */
 export interface Tip {
   id: string
   zone_id: string | null
-  place_id: string | null
+  activity_id: string | null
   body: string
 }
 
-export interface ItineraryItem {
-  id: string
-  trip_id: string
-  zone_id: string | null
-  place_id: string | null
-  day: string // YYYY-MM-DD
-  start_time: string | null // HH:MM (24h) or null
-  title: string
-  note: string | null
-  position: number
-  highlight: boolean // shown as a "featured" banner above the day's plan
-  icon: string | null // leading emoji for the banner
-  /**
-   * The tag the traveller chose for this activity, shown as a coloured pill on
-   * the day plan. Distinct from `place_category`, which is *derived* from the
-   * linked place: this one is typed on the activity itself, so an entry that
-   * points at nothing saved ("Whatever the konbini has") can still say it is
-   * food. `other` is not offered — a tag nobody can read is not a tag.
-   */
-  category: Category | null
-}
+/** A scheduled activity: one that has a date, and so appears on the day plan. */
+export const isScheduled = (a: Pick<Activity, 'day'>): boolean => a.day !== null
 
-export interface ItineraryItemInput {
+/** A saved activity: no date, so it sits in its city's Explore list. */
+export const isSaved = (a: Pick<Activity, 'day'>): boolean => a.day === null
+
+export interface ActivityInput {
   trip_id: string
   zone_id?: string | null
-  place_id?: string | null
-  day: string
+  category?: Category | null
+  name: string
+  name_ja?: string | null
+  description?: string | null
+  address?: string | null
+  links?: PlaceLink[]
+  image_url?: string | null
+  lat?: number | null
+  lng?: number | null
+  day?: string | null
   start_time?: string | null
-  title: string
-  note?: string | null
   position?: number
   highlight?: boolean
   icon?: string | null
-  category?: Category | null
 }
 
 // Shopping list ("things to buy in Japan") — trip-level, not tied to a zone.
@@ -329,36 +355,23 @@ export interface FileAttachment {
   id: string
   trip_id: string | null
   zone_id: string | null
-  place_id: string | null
+  activity_id: string | null
   display_name: string
   storage_path: string
   mime_type: string
   size_bytes: number
 }
 
-export interface PlaceInput {
-  zone_id: string
-  category: Category
-  name: string
-  name_ja?: string | null
-  description?: string | null
-  address?: string | null
-  links?: PlaceLink[]
-  image_url?: string | null
-  lat?: number | null
-  lng?: number | null
-}
-
 export interface TipInput {
   body: string
   zone_id?: string | null
-  place_id?: string | null
+  activity_id?: string | null
 }
 
 export interface FileInput {
   trip_id?: string | null
   zone_id?: string | null
-  place_id?: string | null
+  activity_id?: string | null
   display_name: string
   storage_path: string
   mime_type: string
@@ -614,38 +627,35 @@ export interface DataStore {
   createZone(input: ZoneInput): Promise<Zone>
   /** Patches one zone, scoped to its trip. Null for a zone that isn't in it. */
   updateZone(tripId: string, zoneId: string, patch: ZonePatch): Promise<Zone | null>
-  countPlacesByCategory(tripId: string, zoneId: string): Promise<Record<Category, number>>
-
-  listPlaces(tripId: string, zoneId: string, category: Category): Promise<Place[]>
-  /** Every place in a zone, all categories (used by the city map). */
-  listPlacesInZone(tripId: string, zoneId: string): Promise<Place[]>
   /**
-   * Every place in the trip, all zones, all categories — the export's single
-   * sweep (`services/export.ts`).
-   *
-   * Sliced by zone it must read exactly as `listPlacesInZone` would have: the
-   * relative order of one zone's rows is the same in both, which is what lets
-   * the export nest them without re-sorting. `server/tests/ordering.test.ts`
-   * holds the two together.
+   * How many **saved** activities each category holds in this city — the
+   * counts Explore's grid renders. Scheduled ones are deliberately excluded:
+   * Explore means "saved, not yet on a day", so a count including them would
+   * name rows the list does not show.
    */
-  listAllPlaces(tripId: string): Promise<Place[]>
-  getPlace(tripId: string, placeId: string): Promise<Place | null>
-  /** Ids of every place in one category — one query, so a restricted view can drop stays cheaply. */
-  listPlaceIdsByCategory(tripId: string, category: Category): Promise<string[]>
-  createPlace(tripId: string, input: PlaceInput): Promise<Place>
-  updatePlace(tripId: string, placeId: string, patch: Partial<PlaceInput>): Promise<Place | null>
-  /** Hard delete; the place's tips are deleted with it. Returns false if not found. */
-  deletePlace(tripId: string, placeId: string): Promise<boolean>
+  countSavedByCategory(tripId: string, zoneId: string): Promise<Record<Category, number>>
 
-  listItinerary(tripId: string): Promise<ItineraryItem[]>
-  getItineraryItem(tripId: string, itemId: string): Promise<ItineraryItem | null>
-  createItineraryItem(input: ItineraryItemInput): Promise<ItineraryItem>
-  updateItineraryItem(
+  /**
+   * Every activity on the trip, scheduled and saved alike, in one list.
+   *
+   * One method, because there is one table and every screen is a filter over
+   * it: the day plan takes the dated ones, a city's Explore takes the undated
+   * ones in that city, the map takes the located ones. Sliced by zone it reads
+   * exactly as a zone-scoped query would have — `server/tests/ordering.test.ts`
+   * holds this and `src/lib/ordering.ts` together over the same rows.
+   */
+  listActivities(tripId: string): Promise<Activity[]>
+  getActivity(tripId: string, activityId: string): Promise<Activity | null>
+  /** Ids of every activity in one category — one query, so a restricted view can drop stays cheaply. */
+  listActivityIdsByCategory(tripId: string, category: Category): Promise<string[]>
+  createActivity(input: ActivityInput): Promise<Activity>
+  updateActivity(
     tripId: string,
-    itemId: string,
-    patch: Partial<ItineraryItemInput>
-  ): Promise<ItineraryItem | null>
-  deleteItineraryItem(tripId: string, itemId: string): Promise<boolean>
+    activityId: string,
+    patch: Partial<ActivityInput>
+  ): Promise<Activity | null>
+  /** Hard delete; the activity's tips go with it. Returns false if not found. */
+  deleteActivity(tripId: string, activityId: string): Promise<boolean>
 
   listShoppingItems(tripId: string): Promise<ShoppingItem[]>
   createShoppingItem(input: ShoppingItemInput): Promise<ShoppingItem>
@@ -656,13 +666,13 @@ export interface DataStore {
   ): Promise<ShoppingItem | null>
   deleteShoppingItem(tripId: string, itemId: string): Promise<boolean>
 
-  listTips(tripId: string, parent: { zone_id: string } | { place_id: string }): Promise<Tip[]>
+  listTips(tripId: string, parent: { zone_id: string } | { activity_id: string }): Promise<Tip[]>
   /**
-   * Every tip in the trip, zone-level and place-level alike, in the same order
+   * Every tip in the trip, zone-level and activity-level alike, in the same order
    * `listTips` returns the same rows in.
    *
    * Added for the export (`services/export.ts`), which needs all of them at
-   * once: fetching per parent means one query per zone plus one per place —
+   * once: fetching per parent means one query per zone plus one per activity —
    * around 50 round trips for a real trip, inside a single serverless
    * invocation. `server/tests/ordering.test.ts` pins this against `listTips`
    * so the two implementations cannot drift.
@@ -674,12 +684,12 @@ export interface DataStore {
 
   listFiles(
     tripId: string,
-    parent: { trip_id: string } | { zone_id: string } | { place_id: string }
+    parent: { trip_id: string } | { zone_id: string } | { activity_id: string }
   ): Promise<FileAttachment[]>
   /**
    * Every file for the trip regardless of parent (used by the Documents view):
-   * files attached directly to the trip, plus files on any zone/place visited
-   * by one of the trip's steps.
+   * files attached directly to the trip, plus files on any zone or activity
+   * belonging to it.
    */
   listAllFiles(tripId: string): Promise<FileAttachment[]>
   countTripFiles(tripId: string): Promise<number>
@@ -698,15 +708,18 @@ export interface DataStore {
   ): Promise<FileAttachment | null>
   /** Delete the metadata row and its blob. Returns false if the row is missing. */
   deleteFile(tripId: string, fileId: string): Promise<boolean>
-  /** Move a place's files to the trip (used before place deletion — no silent file loss). */
-  reparentFilesToTrip(placeId: string, tripId: string): Promise<void>
+  /** Move an activity's files to the trip (used before deletion — no silent file loss). */
+  reparentFilesToTrip(activityId: string, tripId: string): Promise<void>
   /** Resolve an openable URL for the blob, or FILE_MISSING when the row exists but the blob is gone. */
   getFileUrl(file: FileAttachment): Promise<FileUrlResult>
   /** Raw bytes for the blob, streamed by GET /api/files/:id/content so the app can preview it inline. */
   getFileBytes(file: FileAttachment): Promise<FileBytesResult>
 
-  /** Free-text search across one trip's places, zones and tips (case-insensitive). */
-  search(tripId: string, query: string): Promise<{ places: Place[]; zones: Zone[]; tips: Tip[] }>
+  /** Free-text search across one trip's activities, zones and tips (case-insensitive). */
+  search(
+    tripId: string,
+    query: string
+  ): Promise<{ activities: Activity[]; zones: Zone[]; tips: Tip[] }>
 
   /** Last exchange rate we successfully fetched (durable fallback), or null. */
   /** The last rate stored for this base currency, or null if none ever was. */
