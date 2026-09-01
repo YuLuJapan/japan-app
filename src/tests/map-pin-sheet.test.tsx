@@ -82,8 +82,12 @@ beforeEach(() => {
 
 afterEach(() => mocks.get.mockReset())
 
+// The map now opens on the trip view by default; these tests are about
+// individual places, so they switch into the city scale first.
 const openMap = async () => {
   renderAt('/trips/trip-1/map', [{ path: '/trips/:tripId/map', element: <TripMap /> }])
+  await waitFor(() => expect(lastFakeEngine()?.mounted).toBe(true))
+  await userEvent.click(screen.getByRole('button', { name: 'City' }))
   await waitFor(() => expect(lastFakeEngine()?.pins).toHaveLength(2))
   return lastFakeEngine()!
 }

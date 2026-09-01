@@ -43,6 +43,8 @@ export interface MapCard {
   subtitle: string
   /** A `CATEGORY_META.dot` class, or null where the pin itself carries the count. */
   dot: string | null
+  /** The glyph that sits inside `dot`'s circle, or null alongside it. */
+  icon: string | null
   /**
    * What is behind the card, when something is: a place. It carries its own
    * coordinates so the directions link aims at the doorway rather than at a
@@ -187,6 +189,7 @@ const placeCard = (place: PlaceListItem, zoneName: string): MapCard => ({
   title: place.name,
   subtitle: `${CATEGORY_META[place.category].singular} · ${zoneName}`,
   dot: CATEGORY_META[place.category].dot,
+  icon: CATEGORY_META[place.category].icon,
   place: {
     category: place.category,
     address: place.address ?? null,
@@ -271,9 +274,11 @@ const cityCard = (zone: NonNullable<TripStep['zone']>): MapCard => {
     id: zone.id,
     title: zone.name,
     subtitle: `${saved} saved`,
-    // No dot: at this scale the pin itself is a counted circle, and a category
-    // swatch beside a whole city would be claiming something untrue.
+    // No dot and no icon: at this scale the pin itself is a counted circle,
+    // and a category glyph beside a whole city would be claiming something
+    // untrue.
     dot: null,
+    icon: null,
   }
 }
 

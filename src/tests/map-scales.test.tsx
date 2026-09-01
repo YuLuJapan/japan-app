@@ -100,14 +100,22 @@ const openMapOn = async (day: string) => {
 }
 
 describe('opening the map', () => {
-  it('opens on the current step’s zone, not on the whole trip (FR-008)', async () => {
+  it('opens on the trip view by default, not on a single city', async () => {
     const engine = await openMapOn('2026-10-10')
+    await waitFor(() => expect(engine.pins.map((p) => p.id)).toEqual(['zone-tokyo', 'zone-kyoto']))
+    expect(screen.getByRole('button', { name: 'Trip' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('switching to City opens on the current step’s zone (FR-008)', async () => {
+    const engine = await openMapOn('2026-10-10')
+    await userEvent.click(screen.getByRole('button', { name: 'City' }))
     await waitFor(() => expect(engine.pins.map((p) => p.id)).toEqual(['p-inari']))
     expect(await screen.findByText('Fushimi Inari')).toBeInTheDocument()
   })
 
-  it('opens on the next step’s zone before the trip starts', async () => {
+  it('switching to City before the trip starts opens on the next step’s zone', async () => {
     const engine = await openMapOn('2026-09-15')
+    await userEvent.click(screen.getByRole('button', { name: 'City' }))
     await waitFor(() => expect(engine.pins.map((p) => p.id)).toEqual(['p-teamlab']))
   })
 })
@@ -115,9 +123,6 @@ describe('opening the map', () => {
 describe('the whole-trip view', () => {
   it('shows one pin per city, each carrying how much is saved there', async () => {
     const engine = await openMapOn('2026-10-10')
-    await waitFor(() => expect(engine.pins).toHaveLength(1))
-
-    await userEvent.click(screen.getByRole('button', { name: 'Trip' }))
 
     await waitFor(() => expect(engine.pins).toHaveLength(2))
     expect(engine.pins.map((p) => p.id)).toEqual(['zone-tokyo', 'zone-kyoto'])
@@ -128,7 +133,6 @@ describe('the whole-trip view', () => {
 
   it('frames every stop', async () => {
     const engine = await openMapOn('2026-10-10')
-    await userEvent.click(screen.getByRole('button', { name: 'Trip' }))
     await waitFor(() =>
       expect(engine.fitted).toEqual({ south: 35.01, west: 135.76, north: 35.68, east: 139.76 })
     )
@@ -136,7 +140,6 @@ describe('the whole-trip view', () => {
 
   it('lists one card per city with its count', async () => {
     await openMapOn('2026-10-10')
-    await userEvent.click(screen.getByRole('button', { name: 'Trip' }))
     expect(await screen.findByText('Tokyo')).toBeInTheDocument()
     expect(screen.getByText('4 saved')).toBeInTheDocument()
     expect(screen.getByText('3 saved')).toBeInTheDocument()
@@ -147,7 +150,6 @@ describe('the whole-trip view', () => {
     // that event is "open this city" — a card that merely highlighted itself
     // would be the one tap of the two-tap budget that goes nowhere.
     const engine = await openMapOn('2026-10-10')
-    await userEvent.click(screen.getByRole('button', { name: 'Trip' }))
     await waitFor(() => expect(engine.pins).toHaveLength(2))
 
     await userEvent.click(screen.getByRole('button', { name: /Tokyo/ }))
@@ -158,7 +160,6 @@ describe('the whole-trip view', () => {
 
   it('drops into that city’s places when a city is tapped (FR-009)', async () => {
     const engine = await openMapOn('2026-10-10')
-    await userEvent.click(screen.getByRole('button', { name: 'Trip' }))
     await waitFor(() => expect(engine.pins).toHaveLength(2))
 
     await act(async () => {

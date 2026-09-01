@@ -1,8 +1,9 @@
 // The horizontally scrolling row under the chips.
 //
-// Each card is white and rounded with a `CATEGORY_META.dot` dot, the name in
-// bold and a quieter second line. The row is **deliberately cut off at the
-// right edge** so it reads as scrollable, exactly as the render draws it.
+// Each card is white and rounded with a small `CATEGORY_META.dot` circle
+// carrying the category's `icon` glyph, the name in bold and a quieter second
+// line. The row is **deliberately cut off at the right edge** so it reads as
+// scrollable, exactly as the render draws it.
 //
 // One row serves both scales: at the city scale a card is a place, at the trip
 // scale a city (research R6 — the page renders one shape and never asks which
@@ -68,7 +69,14 @@ export function PlaceCardRow({
             className="block w-full text-left"
           >
             <span className="flex items-center gap-2">
-              {card.dot && <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${card.dot}`} />}
+              {card.dot && (
+                <span
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] leading-none ${card.dot}`}
+                  aria-hidden="true"
+                >
+                  {card.icon}
+                </span>
+              )}
               <span className="truncate font-bold">{card.title}</span>
             </span>
             <span className="mt-0.5 block truncate text-sm text-muted">{card.subtitle}</span>

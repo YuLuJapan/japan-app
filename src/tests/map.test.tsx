@@ -92,9 +92,12 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+// The map now opens on the trip view by default, so a suite about the city
+// scale switches into it first.
 const openMap = async () => {
   renderAt('/trips/trip-1/map', [{ path: '/trips/:tripId/map', element: <TripMap /> }])
   await waitFor(() => expect(lastFakeEngine()?.mounted).toBe(true))
+  await userEvent.click(screen.getByRole('button', { name: 'City' }))
   return lastFakeEngine()!
 }
 
@@ -203,8 +206,10 @@ describe('with no connection', () => {
     vi.stubGlobal('navigator', { ...navigator, onLine: false })
     renderAt('/trips/trip-1/map', [{ path: '/trips/:tripId/map', element: <TripMap /> }])
     expect(await screen.findByText(/The map needs a connection/)).toBeInTheDocument()
-    // The places are still local — TanStack Query's cache holds the zone
-    // response — so the answer is a screenful of them, not an apology.
+    // The scale toggle is client state, so it still works with no connection —
+    // switching into the city, whose places are still local (TanStack Query's
+    // cache holds the zone response), is a screenful of them, not an apology.
+    await userEvent.click(screen.getByRole('button', { name: 'City' }))
     expect(await screen.findByText('Ramen Bar')).toBeInTheDocument()
     expect(screen.getByText('teamLab')).toBeInTheDocument()
     // And no engine was ever asked to mount.
