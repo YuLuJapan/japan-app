@@ -184,7 +184,7 @@ function withPeopleDefault(row: Record<string, unknown>): Trip {
 // Tables added in migration 0006 (scheduled reminders + push subscriptions).
 const REMINDER_COLS = 'id,trip_id,title,body,url,remind_at,time_zone,sent_at,created_at'
 const SUBSCRIPTION_COLS = 'id,user_id,endpoint,p256dh,auth,label,created_at'
-const CHAT_THREAD_COLS = 'id,trip_id,turn_started_at,created_at'
+const CHAT_THREAD_COLS = 'id,trip_id,turn_started_at,archived_at,created_at'
 const CHAT_MESSAGE_COLS = 'id,thread_id,trip_id,user_id,role,content,created_at'
 const AI_USAGE_COLS =
   'id,user_id,trip_id,capability,vendor,model,unit,quantity,cost_cents,created_at'
@@ -211,6 +211,7 @@ function rowToChatThread(row: Record<string, unknown>): ChatThread {
   return {
     ...t,
     turn_started_at: toIsoUtc(t.turn_started_at),
+    archived_at: toIsoUtc(t.archived_at),
     created_at: toIsoUtc(t.created_at) ?? t.created_at,
   }
 }
@@ -1405,34 +1406,68 @@ export function createSupabaseStore(): DataStore {
 
     // --- Chat (005) ---------------------------------------------------------
 
-    async getChatThread(tripId) {
+    async getActiveChatThread(tripId) {
       const { data, error } = await db
         .from('chat_threads')
         .select(CHAT_THREAD_COLS)
+        // The partial unique index makes this at most one row (0024). Without
+        // the archived filter it would be every conversation the trip has ever
+        // had, and `maybeSingle` would start erroring on the second one.
         .eq('trip_id', tripId)
+        .is('archived_at', null)
         .maybeSingle()
       if (error) throw new Error(error.message)
       return data ? rowToChatThread(data as Record<string, unknown>) : null
     },
 
     async createChatThread(tripId) {
-      // Upsert on the unique trip_id rather than read-then-insert: two first
-      // sends racing would otherwise both see no thread and both try to create
-      // one, and the second would fail on the constraint. `ignoreDuplicates`
-      // makes the loser a no-op instead of an error.
-      const { error } = await db
+      // Read-then-insert, with the duplicate handled rather than avoided.
+      //
+      // 0023 used an upsert on the unique `trip_id`, which closed the race where
+      // two first sends both see no thread and both insert. 0024 replaced that
+      // constraint with a *partial* unique index — `where archived_at is null` —
+      // and `on conflict` cannot name a partial index without repeating its
+      // predicate, which PostgREST will not do.
+      //
+      // So the race is caught instead of prevented: the loser gets 23505 and
+      // re-reads the row the winner made. Same outcome, one more round trip in
+      // a case that happens at most once per conversation.
+      const existing = await this.getActiveChatThread(tripId)
+      if (existing) return existing
+
+      const { data, error } = await db
         .from('chat_threads')
-        .upsert(
-          { id: randomUUID(), trip_id: tripId, turn_started_at: null },
-          { onConflict: 'trip_id', ignoreDuplicates: true }
-        )
-      if (error) throw new Error(error.message)
-      const { data } = await db
-        .from('chat_threads')
+        .insert({ id: randomUUID(), trip_id: tripId, turn_started_at: null, archived_at: null })
         .select(CHAT_THREAD_COLS)
-        .eq('trip_id', tripId)
         .single()
+
+      if (error) {
+        if (error.code !== '23505') throw new Error(error.message)
+        const won = await this.getActiveChatThread(tripId)
+        // Only reachable if the winner archived it between the two reads, which
+        // needs a third actor. Loud rather than a null nobody expects.
+        if (!won) throw new Error('chat thread vanished while being created')
+        return won
+      }
       return rowToChatThread(data as Record<string, unknown>)
+    },
+
+    async archiveChatThread(tripId) {
+      // One statement: stamped and unlocked together, and scoped to the live
+      // thread so re-archiving is a no-op rather than re-stamping history.
+      //
+      // Nothing is deleted — the messages stay pointing at this thread, which is
+      // the whole difference from what 0023's schema allowed. `ai_usage` is
+      // untouched: those rows hang off the trip and the account, never the
+      // thread, so the monthly cap does not move.
+      const { data, error } = await db
+        .from('chat_threads')
+        .update({ archived_at: new Date().toISOString(), turn_started_at: null })
+        .eq('trip_id', tripId)
+        .is('archived_at', null)
+        .select('id')
+      if (error) throw new Error(error.message)
+      return ((data as unknown[]) ?? []).length > 0
     },
 
     async claimChatTurn(tripId, nowIso, staleMs) {
@@ -1440,11 +1475,15 @@ export function createSupabaseStore(): DataStore {
       // the row that was actually updated comes back — so two sends racing
       // cannot both believe they hold it. Reading then writing is exactly the
       // race this exists to close.
+      //
+      // `archived_at is null` is not decoration since 0024: without it this
+      // would stamp a lock onto every finished conversation the trip has.
       const staleBefore = new Date(Date.parse(nowIso) - staleMs).toISOString()
       const { data, error } = await db
         .from('chat_threads')
         .update({ turn_started_at: nowIso })
         .eq('trip_id', tripId)
+        .is('archived_at', null)
         .or(`turn_started_at.is.null,turn_started_at.lt.${staleBefore}`)
         .select(CHAT_THREAD_COLS)
         .maybeSingle()
@@ -1453,14 +1492,23 @@ export function createSupabaseStore(): DataStore {
     },
 
     async releaseChatTurn(tripId) {
-      await db.from('chat_threads').update({ turn_started_at: null }).eq('trip_id', tripId)
+      await db
+        .from('chat_threads')
+        .update({ turn_started_at: null })
+        .eq('trip_id', tripId)
+        .is('archived_at', null)
     },
 
-    async listChatMessages(tripId) {
+    async listChatMessages(threadId) {
       const { data, error } = await db
         .from('chat_messages')
         .select(CHAT_MESSAGE_COLS)
-        .eq('trip_id', tripId)
+        // By thread, never by trip. A trip now holds every conversation it has
+        // ever had, and a trip-scoped read would return all of them — as a
+        // transcript that will not clear, and as history from a finished
+        // conversation being handed to the model. Migration 0024 adds the
+        // matching `(thread_id, created_at)` index.
+        .eq('thread_id', threadId)
         // `created_at` alone, and deliberately no tiebreak. Postgres `now()` is
         // microsecond-resolution and the question and its answer are written by
         // separate statements, so they cannot share a timestamp — while a

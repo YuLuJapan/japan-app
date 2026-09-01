@@ -8,6 +8,7 @@ import type { PlaceFacts } from '../lib/analytics-events'
 import { useTripPath } from './tripPath'
 import type {
   Category,
+  ChatView,
   FileMeta,
   FileParent,
   FileUploadInput,
@@ -1080,5 +1081,45 @@ export function useAcceptInvite() {
         {}
       ),
     onSuccess: () => refreshed(qc.invalidateQueries({ queryKey: ['trips'] })),
+  })
+}
+
+/**
+ * Finish with this conversation; the next question opens a new one.
+ *
+ * A POST, not a DELETE, and the naming here follows the server's: the old
+ * conversation is archived rather than thrown away, and its messages stay in
+ * the database against the day something reads them back.
+ *
+ * The emptied state is **written into the cache** rather than waited for. The
+ * server answers `204`, which carries nothing, but what the screen should now
+ * show follows entirely from the fact that it succeeded — no live thread, no
+ * messages. So the transcript empties on the tap and `reconcile` catches up
+ * whatever could not be computed here.
+ *
+ * **The budget is carried over untouched**, and that is the point rather than
+ * an optimisation: `ai_usage` belongs to the account, not to the thread, so
+ * putting a conversation away does not give anybody their allowance back.
+ * Dropping it to `0` here would put a lie on screen for the second it took the
+ * refetch to correct it — and on a train, for a good deal longer than that.
+ */
+export function useStartNewChat(tripId: string) {
+  const path = useTripPath()
+  const qc = useQueryClient()
+  return useMutation({
+    meta: { success: 'Started a new conversation' },
+    mutationFn: () => api.post<void>(path('/chat/archive'), {}),
+    onSuccess: () => {
+      const cached = qc.getQueryData<ChatView>(['chat', tripId])
+      capture('chat_thread_started', { previous_message_count: cached?.messages.length ?? 0 })
+      if (cached) {
+        qc.setQueryData<ChatView>(['chat', tripId], {
+          ...cached,
+          thread: null,
+          messages: [],
+        })
+      }
+      reconcile(qc.invalidateQueries({ queryKey: ['chat', tripId] }))
+    },
   })
 }

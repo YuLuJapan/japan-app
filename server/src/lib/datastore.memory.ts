@@ -136,6 +136,16 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
   // state no real trip begins in.
   const chatThreads: ChatThread[] = []
   const chatMessages: ChatMessage[] = []
+
+  /**
+   * The one conversation a trip can still be added to.
+   *
+   * The memory-store half of `chat_threads_one_active_per_trip` (migration
+   * 0024). Every chat method here goes through it rather than matching on
+   * `trip_id`, which after archiving would match more than one row.
+   */
+  const activeThread = (tripId: string) =>
+    chatThreads.find((t) => t.trip_id === tripId && !t.archived_at)
   const aiUsage: AiUsageRow[] = []
 
   // Since migration 0013 a zone belongs to exactly one trip, so "is this row
@@ -856,26 +866,42 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
 
     // --- Chat (005) ---------------------------------------------------------
 
-    async getChatThread(tripId) {
-      const thread = chatThreads.find((t) => t.trip_id === tripId)
+    async getActiveChatThread(tripId) {
+      const thread = activeThread(tripId)
       return thread ? { ...thread } : null
     },
 
     async createChatThread(tripId) {
-      const existing = chatThreads.find((t) => t.trip_id === tripId)
+      const existing = activeThread(tripId)
       if (existing) return { ...existing }
       const thread: ChatThread = {
         id: randomUUID(),
         trip_id: tripId,
         turn_started_at: null,
+        archived_at: null,
         created_at: new Date().toISOString(),
       }
       chatThreads.push(thread)
       return { ...thread }
     },
 
+    async archiveChatThread(tripId) {
+      const thread = activeThread(tripId)
+      if (!thread) return false
+      // Stamped and unlocked in one go. A lock left set on an archived row is
+      // dead state nothing will ever clear — `releaseChatTurn` only ever looks
+      // at the live thread.
+      thread.archived_at = new Date().toISOString()
+      thread.turn_started_at = null
+      // The messages stay exactly where they are, pointing at this thread. That
+      // is the difference between archiving and deleting, and the only reason
+      // re-opening a conversation is possible later. Nothing touches `aiUsage`
+      // either — see the note on `archiveChatThread` in datastore.ts.
+      return true
+    },
+
     async claimChatTurn(tripId, nowIso, staleMs) {
-      const thread = chatThreads.find((t) => t.trip_id === tripId)
+      const thread = activeThread(tripId)
       if (!thread) return null
       // A held lock only counts while it is fresh. Past the window the turn that
       // took it is assumed dead — its function timed out or the process went
@@ -890,11 +916,11 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
     },
 
     async releaseChatTurn(tripId) {
-      const thread = chatThreads.find((t) => t.trip_id === tripId)
+      const thread = activeThread(tripId)
       if (thread) thread.turn_started_at = null
     },
 
-    async listChatMessages(tripId) {
+    async listChatMessages(threadId) {
       // Insertion order, not a sort. A conversation is append-only and every
       // append is later than the last, so the array *is* the order.
       //
@@ -902,7 +928,10 @@ export function createMemoryStore(initial?: MemoryData): DataStore {
       // and its answer are written milliseconds apart and routinely land on the
       // same ISO timestamp, at which point any tiebreak on a random uuid puts
       // the answer before the question about half the time.
-      return chatMessages.filter((m) => m.trip_id === tripId).map((m) => ({ ...m }))
+      //
+      // By thread, never by trip: a trip now holds every conversation it has
+      // ever had, and filtering on `trip_id` would hand all of them back.
+      return chatMessages.filter((m) => m.thread_id === threadId).map((m) => ({ ...m }))
     },
 
     async createChatMessage(input: ChatMessageInput) {

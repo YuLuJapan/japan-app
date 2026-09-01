@@ -62,15 +62,21 @@ export async function getChat(store: DataStore, tripId: string, userId: string):
   // resolver the gate enforces — otherwise the notice and the refusal can
   // disagree, which is the one thing computing it server-side was meant to stop.
   const settings = await aiSettings(userId)
-  const [thread, messages, budget] = await Promise.all([
-    store.getChatThread(tripId),
-    store.listChatMessages(tripId),
+  // Two rounds rather than one, and it is not an oversight. Since 0024 a trip
+  // can hold several conversations and the messages belong to *one* of them, so
+  // which thread is live has to be answered before the transcript can be asked
+  // for. The budget goes in the first round, where it costs nothing extra.
+  const [thread, budget] = await Promise.all([
+    store.getActiveChatThread(tripId),
     budgetState(store, userId, new Date(), settings.monthlyCapCents),
   ])
+  const messages = thread ? await store.listChatMessages(thread.id) : []
 
   return {
-    // A trip nobody has asked anything on has no thread yet. Null rather than an
-    // invented empty one: the first send creates it, and a read should not write.
+    // No live thread: either nobody has asked anything yet, or the last
+    // conversation was archived. Both read as null, and both mean the same
+    // thing to the screen — the first send opens a new one, and a read should
+    // not write.
     thread: thread ? { id: thread.id, turn_running: !!thread.turn_started_at } : null,
     messages: await toViews(store, messages),
     budget,
@@ -194,7 +200,11 @@ export async function* runChatTurn(
       capCents: settings.monthlyCapCents,
     })
 
-    const history = await store.listChatMessages(tripId)
+    // This conversation's history, not the trip's. An archived thread's
+    // messages must never be handed to the model: "start over" would then not
+    // start over, and the first answer after it would follow on from a
+    // conversation the travellers had finished with.
+    const history = await store.listChatMessages(thread.id)
     await saveQuestion(store, thread.id, context, question)
 
     const answer = answerCollector(store, thread.id, tripId)
@@ -209,6 +219,47 @@ export async function* runChatTurn(
     // the conversation for both travellers until it went stale.
     await store.releaseChatTurn(tripId)
   }
+}
+
+/**
+ * Finish with this conversation and start a new one.
+ *
+ * **Nothing is deleted.** The thread is stamped `archived_at` and its messages
+ * stay exactly where they are, pointing at it; what changes is that it is no
+ * longer the conversation the app reads or the model is shown. The next question
+ * opens a fresh thread, exactly as the first question always did — so the screen
+ * needs no new empty state, because a trip with no *live* thread reads the same
+ * way a trip nobody has asked anything on always has.
+ *
+ * Re-opening an archived conversation is deliberately not built: there is no
+ * route and no screen for it. What this buys today is that the record survives,
+ * so building it later is a read rather than an excavation of something already
+ * thrown away.
+ *
+ * **The lock is claimed, not merely checked.** A running turn writes its answer
+ * when the model finishes; archive the thread underneath it and that answer
+ * lands in a conversation nothing will ever show — the traveller watched it
+ * stream and then finds it gone. Claiming closes that the same way
+ * `claimChatTurn` closes the race between two simultaneous questions. The claim
+ * is not released: `archiveChatThread` clears the lock in the same write that
+ * stamps the row, because a lock left set on an archived thread is dead state
+ * nothing would ever clear.
+ *
+ * **Nothing here touches `ai_usage`.** Putting a conversation away is not a way
+ * to spend more money.
+ */
+export async function startNewChatThread(store: DataStore, tripId: string): Promise<void> {
+  // No live conversation: nothing to put away. Answering successfully rather
+  // than 404 is what makes the button idempotent — a second tap, or two
+  // travellers tapping at once, is a no-op and not a failure.
+  if (!(await store.getActiveChatThread(tripId))) return
+
+  const claimed = await store.claimChatTurn(tripId, new Date().toISOString(), TURN_STALE_MS)
+  if (!claimed) {
+    throw new ApiError(409, 'VALIDATION', 'Someone else on this trip is asking something')
+  }
+
+  await store.archiveChatThread(tripId)
 }
 
 /** Take the lock, or refuse. Creating the thread first is idempotent. */

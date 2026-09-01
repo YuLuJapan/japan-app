@@ -52,6 +52,18 @@ afterEach(() => {
   setAiRuntime(null)
 })
 
+/**
+ * The live conversation's messages, read straight from the store.
+ *
+ * A helper rather than `listChatMessages('trip-1')`, because that read is
+ * scoped to a **thread** since 0024 — a trip holds every conversation it has
+ * ever had, and a trip-scoped read would hand back the archived ones too.
+ */
+async function storedMessages(tripId = 'trip-1') {
+  const thread = await store.getActiveChatThread(tripId)
+  return thread ? store.listChatMessages(thread.id) : []
+}
+
 describe('a turn that opens a file', () => {
   it('hands the model the lines it asked for', async () => {
     const calls = script([
@@ -114,7 +126,7 @@ describe('a turn that opens a file', () => {
     script([{ tools: [{ tool: 'grep', input: { path: '/trip/tips.json' } }], text: 'Cash only.' }])
     await ask('Anything about the ramen place?')
 
-    const messages = await store.listChatMessages('trip-1')
+    const messages = await storedMessages()
     expect(messages.map((m) => m.role)).toEqual(['user', 'assistant'])
     expect(messages[1].content).toBe('Cash only.')
   })

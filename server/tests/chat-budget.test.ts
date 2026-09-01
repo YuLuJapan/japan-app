@@ -42,6 +42,18 @@ const ask = () =>
 
 const read = () => asOwner(request(app).get('/api/trips/trip-1/chat'))
 
+/**
+ * The live conversation's messages, read straight from the store.
+ *
+ * A helper rather than `listChatMessages('trip-1')`, because that read is
+ * scoped to a **thread** since 0024 — a trip holds every conversation it has
+ * ever had, and a trip-scoped read would hand back the archived ones too.
+ */
+async function storedMessages(tripId = 'trip-1') {
+  const thread = await store.getActiveChatThread(tripId)
+  return thread ? store.listChatMessages(thread.id) : []
+}
+
 beforeEach(() => {
   store = createMemoryStore(fixture())
   setDataStore(store)
@@ -137,7 +149,7 @@ describe('a capped account', () => {
   it('is refused before a token is spent', async () => {
     await ask()
     // Nothing written: the refusal happens before the question is persisted.
-    expect(await store.listChatMessages('trip-1')).toEqual([])
+    expect(await storedMessages()).toEqual([])
   })
 
   it('can still read what was already asked', async () => {
@@ -149,7 +161,7 @@ describe('a capped account', () => {
 
   it('leaves no lock behind', async () => {
     await ask()
-    const thread = await store.getChatThread('trip-1')
+    const thread = await store.getActiveChatThread('trip-1')
     // The budget is checked *after* the lock is claimed, so this is the path
     // that would shut the conversation for both travellers if the release were
     // ever dropped from the failure branch.

@@ -777,6 +777,43 @@ after a send — deliberately not a realtime subscription.
   enforcement cannot disagree.
 - A trip with no thread yet returns `thread: null`, `messages: []`. The first send creates it, not a read.
 
+### POST /api/trips/:tripId/chat/archive
+
+Finish with the live conversation; the next question opens a new one. `204`, and a trip with no
+live conversation answers `204` too — the button is idempotent, so a second tap and two
+travellers tapping at once are both no-ops rather than a 404 somebody has to explain.
+
+**A POST, because nothing is deleted.** The thread is stamped `archived_at` and keeps every
+message pointing at it. Since migration **0024** a trip may hold many threads and exactly one is
+live — a partial unique index (`where archived_at is null`), replacing 0023's outright unique on
+`trip_id`. That older constraint expressed a rule about _who may read what_, and that rule is
+unchanged: every thread is still shared by everyone who can open chat, and chat is still
+owners-and-partners only. What changed is that a conversation can be finished with.
+
+A trip with no live thread answers `GET /chat` with `thread: null, messages: []` — the same
+state a trip nobody has asked anything on has always been in, so the client needs no new shape.
+
+**Re-opening an archived conversation is deliberately not built**: there is no route and no
+screen. What archiving buys today is that the record survives, so building it later is a read
+rather than an excavation of something already thrown away.
+
+- **The transcript is read per thread, never per trip.** `GET /chat` and the history handed to
+  the model both scope to the live thread's id. Trip-scoped — as it was before 0024 — the first
+  answer after starting over would follow on from a conversation the travellers had finished
+  with, and "start over" would not start over.
+- **`ai_usage` is untouched, and must stay that way.** Those rows belong to the account and the
+  trip, never the thread, so putting a conversation away does not move the monthly cap. Wire it
+  the other way and "start over" becomes the way around the one control that stops this feature
+  spending money.
+- **409 `VALIDATION` while a turn is running.** The running turn writes its answer when the
+  model finishes, and archiving the thread underneath it lands that answer in a conversation
+  nothing will ever show — watched streaming in, then gone. The lock is _claimed_, not merely
+  checked, which closes the read-then-write race the same way `claimChatTurn` closes it for two
+  simultaneous questions; `archiveChatThread` then clears the lock in the same write that stamps
+  the row, so no lock is left set on an archived thread.
+- Writers only, inherited from the path guard: a viewer gets 403, and a partner may do it
+  because a partner may already write to the conversation and spend against it.
+
 ### POST /api/trips/:tripId/chat/messages
 
 Body `{"content": "…"}`. Answers `200` with `Content-Type: text/event-stream`; headers are flushed before the
