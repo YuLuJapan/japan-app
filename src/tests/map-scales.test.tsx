@@ -154,6 +154,45 @@ describe('the whole-trip view', () => {
     expect(screen.getByRole('button', { name: 'City' })).toHaveAttribute('aria-pressed', 'true')
   })
 
+  it('shows a city visited twice once, and leaves nothing behind on the way back', async () => {
+    // The journey returns to Tokyo, which is how most Japan trips are shaped.
+    // One city is one pin and one card — and because the two cards used to
+    // carry one `id`, the row rendered two children under one React key and
+    // kept a stale city card on every switch of scale, one more each time,
+    // over the city's own places and back at the trip scale.
+    mocks.get.mockImplementation((path: string) => {
+      if (path === '/trips/trip-1')
+        return Promise.resolve({
+          ...bundle(),
+          steps: [
+            { id: 's1', start_date: '2026-10-01', end_date: '2026-10-08', position: 1, zone: TOKYO },
+            { id: 's2', start_date: '2026-10-08', end_date: '2026-10-12', position: 2, zone: KYOTO },
+            { id: 's3', start_date: '2026-10-12', end_date: '2026-10-14', position: 3, zone: TOKYO },
+          ],
+        })
+      if (path === '/trips/trip-1/activities')
+        return Promise.resolve({
+          activities: [place('p-teamlab', 'teamLab', 35.63, 139.79, 'zone-tokyo')],
+        })
+      return Promise.reject(new Error(`unexpected GET ${path}`))
+    })
+    const engine = await openMapOn('2026-10-02')
+    await waitFor(() => expect(engine.pins.map((p) => p.id)).toEqual(['zone-tokyo', 'zone-kyoto']))
+    expect(screen.getAllByText('Tokyo')).toHaveLength(1)
+
+    for (let pass = 0; pass < 2; pass++) {
+      await userEvent.click(screen.getByRole('button', { name: 'City' }))
+      await waitFor(() => expect(engine.pins.map((p) => p.id)).toEqual(['p-teamlab']))
+      // The city scale lists places, never a city card left over from the trip.
+      expect(screen.queryByText('4 saved')).not.toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Trip' }))
+      await waitFor(() => expect(engine.pins).toHaveLength(2))
+      expect(screen.getAllByText('Tokyo')).toHaveLength(1)
+      expect(screen.getAllByText('4 saved')).toHaveLength(1)
+    }
+  })
+
   it('drops into that city’s places when a city is tapped (FR-009)', async () => {
     const engine = await openMapOn('2026-10-10')
     await waitFor(() => expect(engine.pins).toHaveLength(2))

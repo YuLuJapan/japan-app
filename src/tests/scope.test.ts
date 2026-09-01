@@ -154,6 +154,23 @@ describe('tripScope', () => {
     expect(scope.cards.map((c) => c.id)).not.toContain('z-x')
   })
 
+  it('pins a city once however many times the journey visits it', () => {
+    // Tokyo at both ends is the ordinary shape of a Japan trip, and it is one
+    // city either way: `saved_counts` belongs to the zone, so a second pin
+    // draws the same counted circle and the same name pill on the same spot,
+    // and a second card offers the city twice. The two cards also carried one
+    // `id`, which is one React key for two children — the row then kept a
+    // stale city card on every switch of scale, one more each time.
+    const scope = tripScope({
+      steps: [...TRIP, step('s4', 4, '2026-10-14', '2026-10-18', TOKYO)],
+      onPinTap: () => undefined,
+    })
+    expect(scope.pins.map((p) => p.id)).toEqual(['zone-tokyo', 'zone-hakone', 'zone-kyoto'])
+    // In journey order, so the returned-to city stays where its first visit
+    // put it rather than jumping to the end of the row.
+    expect(scope.cards.map((c) => c.id)).toEqual(['zone-tokyo', 'zone-hakone', 'zone-kyoto'])
+  })
+
   it('returns the same shape the city scale does', () => {
     // This is the property the page depends on: it renders one shape and never
     // asks which scale it is on.
