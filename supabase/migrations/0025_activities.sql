@@ -55,6 +55,16 @@ end $$;
 --     dropped by the contract migration (0026), not this one.
 create table itinerary_items_pre_010 as select * from itinerary_items;
 
+--     RLS on, no policies — the shape every table in this schema already has.
+--     The API talks as the service role, which bypasses RLS; everyone else is
+--     denied. Without this the table is created RLS-OFF while Supabase's default
+--     grants still give `anon` full SELECT/INSERT/UPDATE/DELETE, and `anon` is
+--     the publishable key that ships in the browser bundle. A snapshot of every
+--     itinerary row would be world-readable — and world-deletable, which is the
+--     rollback going with it. `create table as` does not inherit the source
+--     table's RLS, so this is not optional.
+alter table itinerary_items_pre_010 enable row level security;
+
 -- 2 · the journal — every folding decision, both source rows verbatim ---------
 create table if not exists activity_migration_journal (
   source      text not null check (source in ('place','item','item_copy','item_stay','fold','stray')),
@@ -66,6 +76,10 @@ create table if not exists activity_migration_journal (
   migrated_at timestamptz not null default now(),
   primary key (source, source_id)
 );
+-- Same reasoning as the snapshot above, and the journal is the worse leak of the
+-- two: it stores `to_jsonb` of both source rows, so a hotel's booking blob is in
+-- here verbatim.
+alter table activity_migration_journal enable row level security;
 
 -- 3 · the table becomes what it always was -----------------------------------
 alter table itinerary_items rename to activities;
