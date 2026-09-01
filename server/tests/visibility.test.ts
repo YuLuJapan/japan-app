@@ -69,8 +69,10 @@ describe('stays', () => {
 
     await request(app).get('/api/trips/trip-1/activities/place-hotel').set(viewer).expect(403)
 
+    // The zone endpoint carries no tally to redact any more; the withholding
+    // has to show in the list, which is what Explore counts and renders.
     const zone = await request(app).get('/api/trips/trip-1/zones/zone-tokyo').set(viewer)
-    expect(zone.body.saved_counts.hotel).toBe(0)
+    expect(zone.body.saved_counts).toBeUndefined()
 
     const list = await request(app).get('/api/trips/trip-1/activities').set(viewer)
     const ids = list.body.activities.map((a: { id: string }) => a.id)
@@ -124,10 +126,9 @@ describe('stays', () => {
   it('shows all of it when the flag is on', async () => {
     await asViewer({ stays: true })
     await request(app).get('/api/trips/trip-1/activities/place-hotel').set(viewer).expect(200)
-    const zone = await request(app).get('/api/trips/trip-1/zones/zone-tokyo').set(viewer)
-    expect(zone.body.saved_counts.hotel).toBe(1)
 
     const res = await request(app).get('/api/trips/trip-1/activities').set(viewer)
+    expect(res.body.activities.map((a: { id: string }) => a.id)).toContain('place-hotel')
     const ryokan = res.body.activities.find((a: { id: string }) => a.id === 'itin-ryokan')
     expect(ryokan.category).toBe('hotel')
     expect(ryokan.address).toBe('3 Higashiyama, Kyoto')

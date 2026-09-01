@@ -332,7 +332,17 @@ A step's `start_date`/`end_date` must both fall within its trip's own `start_dat
 
 ### GET /api/zones/:zoneId
 
-Zone header + zone-level tips + zone-level files + per-category counts (drives category visibility, FR-012).
+Zone header + zone-level tips + zone-level files.
+
+**No per-category tally, since 2026-09-01.** Explore's grid now groups **every**
+activity in the city by tag — dated and undated alike — and counts them off the
+`GET /api/trips/:tripId/activities` list it already renders. A tally here would
+be a second number to keep in step with that list, and for a member whose view
+hides stays it would disagree with it: a scheduled stay reaches them with its
+category stripped (010 FR-021), so it belongs under “More”, which a count taken
+before the strip cannot know. `steps[].zone.saved_counts` on the trip bundle
+survives and still means _undated only_ — it feeds the map's city pins, which
+count something different and say so.
 
 - 200:
 
@@ -347,8 +357,7 @@ Zone header + zone-level tips + zone-level files + per-category counts (drives c
       "mime_type": "application/pdf",
       "size_bytes": 123456
     }
-  ],
-  "place_counts": { "hotel": 1, "attraction": 5, "food": 4, "shopping": 0, "other": 1 }
+  ]
 }
 ```
 

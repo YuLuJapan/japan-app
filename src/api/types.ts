@@ -141,7 +141,11 @@ export interface ZoneSummary {
   image_url?: string | null
   lat?: number | null
   lng?: number | null
-  /** Saved (undated) activities per category — what Explore's grid shows. */
+  /**
+   * Saved (undated) activities per category, for the map's city pins. **Not**
+   * Explore's grid: that counts dated and undated alike and counts them from
+   * the activities list itself, so the two numbers differ on purpose.
+   */
   saved_counts: Record<Category, number>
 }
 
@@ -299,8 +303,6 @@ export interface ZoneDetail {
   }
   tips: Tip[]
   files: FileMeta[]
-  /** Saved (undated) activities per category — what Explore's grid shows. */
-  saved_counts: Record<Category, number>
 }
 
 export interface GeocodeResult {

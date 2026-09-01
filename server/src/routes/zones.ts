@@ -8,7 +8,6 @@ const zoneDetail = asyncHandler(async (req, res) => {
   res.json(
     await getZoneDetail(await getDataStore(), req.params.tripId, req.params.zoneId, {
       includeFiles: tripContextOf(req).view.documents,
-      includeStays: tripContextOf(req).view.stays,
     })
   )
 })

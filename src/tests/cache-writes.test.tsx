@@ -513,13 +513,16 @@ describe('an activity, in the one list every screen reads', () => {
       ...over,
     })
 
-  const zoneWith = (counts: Partial<Record<string, number>>) =>
-    client.setQueryData(['zone', 'z1'], {
-      zone: { id: 'z1' },
-      tips: [],
-      files: [],
-      saved_counts: { hotel: 0, attraction: 0, food: 0, shopping: 0, other: 0, ...counts },
-    })
+  // Explore's tally is counted off `['activities']` rather than patched onto
+  // the zone, so these tests assert the list — the grid is a pure function of
+  // it, and there is no second number left to check.
+  const tally = (rows: Activity[] | undefined, category: string) => {
+    const mine = (rows ?? []).filter((a) => (a.category ?? 'other') === category)
+    return {
+      planned: mine.filter((a) => a.day !== null).length,
+      saved: mine.filter((a) => a.day === null).length,
+    }
+  }
 
   it('shows an edited name and summary back in the list, in place', async () => {
     client.setQueryData(['activity', 'p1'], { activity: saved(), tips: [], files: [] })
@@ -540,35 +543,36 @@ describe('an activity, in the one list every screen reads', () => {
     expect(mocks.get).not.toHaveBeenCalled()
   })
 
-  it('moves the tally between categories when the tag changes', async () => {
+  it('moves it between Explore’s rows when the tag changes', async () => {
     client.setQueryData(['activity', 'p1'], { activity: saved(), tips: [], files: [] })
     client.setQueryData(['activities', 't1'], { activities: [saved()] })
-    zoneWith({ attraction: 2, food: 1 })
     mocks.patch.mockResolvedValue({ activity: saved({ category: 'attraction' }) })
 
     const { result } = renderHook(() => useUpdateActivity(), { wrapper })
     result.current.mutate({ id: 'p1', patch: { category: 'attraction' } })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    const counts = client.getQueryData<{ saved_counts: Record<string, number> }>(['zone', 'z1'])
-    expect(counts?.saved_counts).toMatchObject({ food: 0, attraction: 3 })
+    const rows = client.getQueryData<{ activities: Activity[] }>(['activities', 't1'])?.activities
+    expect(tally(rows, 'food')).toEqual({ planned: 0, saved: 0 })
+    expect(tally(rows, 'attraction')).toEqual({ planned: 0, saved: 1 })
   })
 
-  it('takes it out of the tally when it is scheduled, and puts it back when it is not', async () => {
-    // The write this feature exists for: a date moves a row from Explore to the
-    // day plan, and the grid's count has to follow it.
+  it('moves it from saved to planned when it is scheduled, and back when it is not', async () => {
+    // Scheduling no longer takes a row out of Explore — it stays under its tag
+    // and changes which half of the label it counts towards.
     client.setQueryData(['activity', 'p1'], { activity: saved(), tips: [], files: [] })
     client.setQueryData(['activities', 't1'], { activities: [saved()] })
-    zoneWith({ food: 1 })
     mocks.patch.mockResolvedValue({ activity: saved({ day: '2026-10-06' }) })
 
     const { result } = renderHook(() => useUpdateActivity(), { wrapper })
     result.current.mutate({ id: 'p1', patch: { day: '2026-10-06' } })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(
-      client.getQueryData<{ saved_counts: Record<string, number> }>(['zone', 'z1'])?.saved_counts
-        .food
-    ).toBe(0)
+      tally(
+        client.getQueryData<{ activities: Activity[] }>(['activities', 't1'])?.activities,
+        'food'
+      )
+    ).toEqual({ planned: 1, saved: 0 })
 
     // and back the other way
     client.setQueryData(['activity', 'p1'], {
@@ -580,15 +584,16 @@ describe('an activity, in the one list every screen reads', () => {
     result.current.mutate({ id: 'p1', patch: { day: null } })
     await waitFor(() =>
       expect(
-        client.getQueryData<{ saved_counts: Record<string, number> }>(['zone', 'z1'])?.saved_counts
-          .food
-      ).toBe(1)
+        tally(
+          client.getQueryData<{ activities: Activity[] }>(['activities', 't1'])?.activities,
+          'food'
+        )
+      ).toEqual({ planned: 0, saved: 1 })
     )
   })
 
-  it('adds a new one to the list and the tally at once', async () => {
+  it('adds a new one straight into the list Explore counts', async () => {
     client.setQueryData(['activities', 't1'], { activities: [saved({ id: 'p0' })] })
-    zoneWith({ food: 1 })
     mocks.post.mockResolvedValue({ activity: saved({ id: 'p2', name: 'New spot' }) })
 
     const { result } = renderHook(() => useCreateActivity(), { wrapper })
@@ -601,10 +606,7 @@ describe('an activity, in the one list every screen reads', () => {
     // Before 010 a zone's category list was `created_at` ascending and a new
     // row belonged last — the order changed with the list.
     expect(list?.activities.map((a) => a.id)).toEqual(['p2', 'p0'])
-    expect(
-      client.getQueryData<{ saved_counts: Record<string, number> }>(['zone', 'z1'])?.saved_counts
-        .food
-    ).toBe(2)
+    expect(tally(list?.activities, 'food')).toEqual({ planned: 0, saved: 2 })
   })
 })
 

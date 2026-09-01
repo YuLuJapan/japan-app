@@ -158,6 +158,10 @@ export const weekdayLetter = (iso: string) =>
 
 export const dayNumber = (iso: string) => String(at(iso).getDate())
 
+/** "Sep 19" — the compact form a chip or a date range uses. */
+export const fmtDayShort = (iso: string) =>
+  at(iso).toLocaleDateString('en', { month: 'short', day: 'numeric' })
+
 export const fmtDayLong = (iso: string) =>
   at(iso).toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' })
 

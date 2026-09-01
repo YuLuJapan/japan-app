@@ -232,8 +232,8 @@ it is the only copy of the fold decisions once the source tables are dropped.
 **`item_copy` and `item_stay` are the same situation with opposite outcomes**, and separating
 them is what keeps §6 honest. Both are matched items that did not keep the place's id; a copy
 was given the place's location by the backfill, a stay-linked item was excluded from the fold
-and left exactly as it arrived (§3). Filed under one name, the check *“does every copy carry a
-pin?”* has to restate `p.category <> 'hotel'` to be true — a rule of the migration copied into
+and left exactly as it arrived (§3). Filed under one name, the check _“does every copy carry a
+pin?”_ has to restate `p.category <> 'hotel'` to be true — a rule of the migration copied into
 the query that verifies the migration, free to drift from it. It failed exactly that way on
 the first run against production, where the one stay-linked row has coordinates and the three
 real copies do not.
@@ -360,7 +360,7 @@ check, not the figure.
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **1 · migrate**  | `0025_activities.sql` against the live project, dry-run first (`commit` → `rollback`) with §6 in the same transaction. No code ships. | Everything, and trivially: the dry run commits nothing.                                                                                                       |
 | **2 · cut over** | Deploy the code that reads and writes `activities`.                                                                                   | `rollback.sql`, tested to restore the database byte-identically. **Activities written during phase 2 are lost by it** — they have no shape in the old schema. |
-| **3 · contract** | After a soak: drop `places`, `activities.place_id`, `itinerary_items_pre_010`. Keep the journal.                    | Only through the journal.                                                                                                                                     |
+| **3 · contract** | After a soak: drop `places`, `activities.place_id`, `itinerary_items_pre_010`. Keep the journal.                                      | Only through the journal.                                                                                                                                     |
 
 Phase 2's window is the real risk and it is not hidden: two trips are actively edited, so a
 soak of a week costs almost nothing and a dual-write shim would cost a service layer writing

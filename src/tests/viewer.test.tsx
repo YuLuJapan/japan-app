@@ -19,7 +19,7 @@ import ActivityDetail from '../pages/ActivityDetail'
 import ShoppingItemDetail from '../pages/ShoppingItem'
 import ShoppingList from '../pages/ShoppingList'
 import Zone from '../pages/Zone'
-import { renderAt } from './helpers'
+import { activity, renderAt } from './helpers'
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
@@ -57,8 +57,11 @@ const zone = {
   zone: { id: 'zone-1', name: 'Tokyo', name_ja: '東京', summary: 'Big city' },
   tips: [{ id: 't1', body: 'Get a Suica card' }],
   files: [],
-  saved_counts: { hotel: 0, attraction: 2, food: 1, shopping: 0, other: 0 },
 }
+
+/** Explore counts the activities list now, so a zone render needs both. */
+const zoneAnd = (activities: unknown[]) => (url: string) =>
+  Promise.resolve(url.includes('/activities') ? { activities } : zone)
 
 const shoppingItem = {
   id: 'buy-1',
@@ -142,7 +145,9 @@ describe('viewer — activities', () => {
 
 describe('viewer — zones', () => {
   it('browses a zone without the add-place or files sections', async () => {
-    mocks.get.mockResolvedValue(zone)
+    mocks.get.mockImplementation(
+      zoneAnd([activity({ id: 'a1', name: 'Senso-ji', zone_id: 'zone-1', category: 'attraction' })])
+    )
     renderAt(
       '/trips/trip-1/zones/zone-1',
       [{ path: '/trips/:tripId/zones/:zoneId', element: <Zone /> }],
@@ -150,7 +155,7 @@ describe('viewer — zones', () => {
     )
 
     expect(await screen.findByText('Tokyo')).toBeInTheDocument()
-    expect(screen.getByTestId('category-attraction')).toBeInTheDocument()
+    expect(await screen.findByTestId('category-attraction')).toBeInTheDocument()
     expect(screen.getByText('Get a Suica card')).toBeInTheDocument()
 
     expect(screen.queryByRole('link', { name: '+ Add' })).not.toBeInTheDocument()

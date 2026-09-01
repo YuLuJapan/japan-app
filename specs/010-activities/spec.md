@@ -56,15 +56,15 @@ activity
 
 **The date is the only thing that decides where it shows.**
 
-|                 |                                                                                |
-| --------------- | ------------------------------------------------------------------------------ |
-| `day` set       | the day plan — the trip screen's timeline, and its city's Schedule             |
-| `day` null      | **Explore** on the city page, grouped by category, exactly as places are today |
-| `lat`/`lng` set | a pin on the map — **whether or not it has a date**                            |
+|                 |                                                                                                               |
+| --------------- | ------------------------------------------------------------------------------------------------------------- |
+| `day` set       | the day plan — the trip screen's timeline, and its city's Schedule; **and** its city's Explore, under its tag |
+| `day` null      | **Explore** on the city page — which lists _both_ halves (FR-011)                                             |
+| `lat`/`lng` set | a pin on the map — **whether or not it has a date**                                                           |
 
-Scheduling something saved is setting its date, and it moves from Explore to the plan.
-Un-scheduling it is clearing the date, and it moves back. There is one form, one list
-endpoint, one detail screen, one field set.
+Scheduling something saved is setting its date, and it _joins_ the plan — it does not leave
+Explore, it changes which half of its tag's tally it counts towards. Un-scheduling is clearing
+the date. There is one form, one list endpoint, one detail screen, one field set.
 
 ## Requirements
 
@@ -91,8 +91,24 @@ endpoint, one detail screen, one field set.
 
 - **FR-010** The city page's **Schedule** shows that city's scheduled activities for each day
   it touches. Unchanged from today apart from its source.
-- **FR-011** The city page's **Explore** shows that city's _saved_ (undated) activities,
-  grouped by category, with a count per category. A category with none is hidden, as today.
+- **FR-011** The city page's **Explore** shows **every** activity in that city grouped by
+  category — dated and undated alike — each row labelled with the split (“3 planned · 9
+  saved”). A scheduled activity carries the day it is on, so the two halves are told apart
+  without leaving the list.
+  - _Revised 2026-09-01._ It first shipped as the undated half only, which split one tag
+    across two screens: the ramen place pencilled in for Thursday was on the Schedule and the
+    one that was not was in Explore, and neither list could answer “where are we eating in
+    Kyoto?”. A date decides which _day_ an activity sits on — not whether it is worth listing
+    under its tag.
+  - The tallies are counted from the same `/activities` list the category page filters, never
+    from a server tally. Two numbers that must agree is a bug waiting to happen, and this pair
+    would already disagree: a member whose view hides stays is sent a scheduled stay with its
+    category stripped (FR-021), so it belongs under **More**, which a server count taken
+    before the strip cannot know.
+- **FR-011a** Every category is offered to a member who can write, **including empty ones** —
+  an empty tag is where a new activity goes, so hiding it hides the way in. A read-only member
+  still sees only the categories that hold something: for them an empty row is a button that
+  leads nowhere.
 - **FR-012** The trip screen's day plan shows scheduled activities banded by city on a moving
   day, unchanged (`daySections`, `primaryStep`, `zoneChoices` all keep working on the merged
   row).

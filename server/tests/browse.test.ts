@@ -53,13 +53,15 @@ describe('GET /api/trips/trip-1', () => {
 })
 
 describe('GET /api/trips/trip-1/zones/:id', () => {
-  it('returns zone with tips, files and counts', async () => {
+  it('returns zone with tips and files, and no per-category tally', async () => {
     const res = await auth(request(app).get('/api/trips/trip-1/zones/zone-tokyo'))
     expect(res.status).toBe(200)
     expect(res.body.zone.name_ja).toBe('東京')
     expect(res.body.tips).toHaveLength(1)
     expect(res.body.tips[0].body).toBe('Get a Suica card')
-    expect(res.body.saved_counts.food).toBe(1)
+    // Explore counts dated and undated alike now, off the one `/activities`
+    // list it renders. A tally here would be a second number to keep in step.
+    expect(res.body.saved_counts).toBeUndefined()
   })
 
   it('404 for unknown zone', async () => {
