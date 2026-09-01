@@ -203,9 +203,15 @@ function Bubble({
   return (
     <div className={mine ? 'flex justify-end' : 'flex justify-start'}>
       <div
+        // Coral rather than ink, so the two sides of the conversation are the
+        // app's own two voices: the trip's colour for the people on it, white
+        // card for the thing answering. `brand.600` rather than `brand`, and
+        // that is the whole reason the deeper shade exists here — white text on
+        // the coral itself is 3.5:1, which a button's worth of bold type can
+        // carry and a paragraph cannot.
         className={
           mine
-            ? 'max-w-[85%] rounded-[20px] rounded-br-md bg-ink px-4 py-2.5 text-sm text-canvas'
+            ? 'max-w-[85%] rounded-[20px] rounded-br-md bg-brand-600 px-4 py-2.5 text-sm text-canvas'
             : 'max-w-[85%] rounded-[20px] rounded-bl-md bg-white px-4 py-2.5 text-sm shadow-card'
         }
       >
@@ -213,7 +219,7 @@ function Bubble({
             and "someone" when the author's account is gone, which is honest
             rather than inventing a name. */}
         {mine && (
-          <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wide text-canvas/60">
+          <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wide text-canvas/70">
             {author ?? 'Someone'}
           </p>
         )}
