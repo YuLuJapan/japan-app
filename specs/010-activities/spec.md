@@ -24,16 +24,16 @@ in step, or one row missing half of what they wanted.
 | -------------------------------------------------- | ------------- |
 | plan lines that are free text with no linked place | **179 / 226** |
 | places never scheduled onto a day                  | **39 / 56**   |
-| rows that actually use the `place_id` link         | **24**        |
-| places scheduled on more than one day              | **5**         |
+| rows that actually use the `place_id` link         | **18**        |
+| places with more than one entry                    | **3**         |
 | places carrying a location                         | **13 / 56**   |
 
 The entity/event split is a defensible model — a thing and a scheduled occurrence of it are
 genuinely different — but it costs two forms, two lists, two field sets and two mental models,
-and it buys the link on 24 rows out of 282 — **six of which point at the wrong place** and have
-gone unnoticed for a month, because a link surfaces only as a category pill and a file list.
-Those six all came from one bulk import rather than from the app (`migration.md` §3a), so this
-is not a running defect; it is a feature so dim that a third of one import's guesses could be
+and it buys the link on 18 rows out of 282 — and until 2026-09-01 six more pointed at the wrong
+place, unnoticed for a month, because a link surfaces only as a category pill and a file list
+(`migration.md` §3a). They came from one bulk import rather than from the app, so it was never
+a running defect; it is a feature dim enough that a third of one import's guesses could be
 wrong without anyone seeing. The common case, by a factor of seven, is a
 traveller typing a line onto a day and never saving a place at all. That line can then never
 hold the ticket PDF or show up on the map.
@@ -146,14 +146,14 @@ plan entries; after this, three days means three activities, and the location, a
 and description are copied onto each. Editing one does not update the others.
 
 This is the cost of the single mental model, and on today's data it is paid in nothing at all.
-Five places look multi-day, and **none of them is a repeat visit** (`migration.md` §3a):
+Three places carry more than one entry, and **none of them is a repeat visit**
+(`migration.md` §3a):
 
 - Nishiki Market and Omicho Market each have two entries on the **same day** — a lunch and a
   snack, which the merged model expresses as two activities anyway;
-- Higashi Chaya District and Lake Kawaguchi each have exactly **one** real entry; their other
-  links are stale and point at the wrong place entirely ("Shirakawa-go" is ~50km from Higashi
-  Chaya);
-- the only place genuinely spanning two days is called "Check", and is test data.
+- the only place spanning two days is called "Check", and is test data;
+- Higashi Chaya District and Lake Kawaguchi looked multi-day until 2026-09-01, when the stale
+  links that made them look that way were removed. Each has one real entry.
 
 So the trade is being made with the evidence in hand rather than in the abstract:
 

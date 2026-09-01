@@ -111,13 +111,16 @@ item with no place                 → one activity, exactly as it is today
 **"Matching" is doing real work here — see §3a.** A linked item is folded only if its title
 names the place. It is not enough that `place_id` is set.
 
-### 3a · A quarter of the links are wrong
+### 3a · `place_id` is not a statement of identity
 
-The obvious fold rule — _take the first linked item by `(day, position, id)`_ — was the first
-draft of this document, and the data kills it. Six of the twenty-four `place_id` links in
-production point at the wrong place:
+**This has been cleaned in production and the rule stays anyway.** Read this section as the
+reason the fold is gated, not as a description of the data you will find.
 
-| the place                         | the plan line pointing at it                              |
+Six of the twenty-four `place_id` links pointed at the wrong place. All six came from four
+bulk inserts made on 2026-08-01 between 19:10 and 19:17 — identical `created_at` to the
+microsecond, so a script rather than a person:
+
+| the place                         | the plan line that pointed at it                          |
 | --------------------------------- | --------------------------------------------------------- |
 | Higashi Chaya District (Kanazawa) | "Drive to Kanazawa (~1h15)"                               |
 | Higashi Chaya District            | "Shirakawa-go" — a village ~50km away                     |
@@ -126,54 +129,59 @@ production point at the wrong place:
 | Kinkaku-ji (Golden Pavilion)      | "Togetsukyo Bridge, riverside walk, optional monkey park" |
 | Sanmachi Suji old town            | "Miyagawa morning market along the river (07:00–12:00)"   |
 
-Both wrong-linked places happen to sort **first** by day, so an ordinal fold would have
-produced an activity called _"Drive to Kanazawa (~1h15)"_ carrying Higashi Chaya's address,
-description, photo and coordinates — and would then have copied those coordinates onto
-"Shirakawa-go", putting a pin 50km from the village. Silent, plausible-looking, and wrong on
-the one surface (the map) this feature exists to add.
+Split by origin the picture was unambiguous — 18 links from those batches, 6 wrong; 6 links
+typed one at a time through the app, none wrong. `AddPlaceToDay` writes `title = place.name`,
+so the interactive path cannot produce a mismatch at all; the import guessed a place per row
+and missed a third of the time. Nobody noticed for a month, because a link surfaces only as a
+category pill and a file list.
 
-**They all came from one import, not from the app.** Every one of the six sits inside four bulk
-inserts made on 2026-08-01 between 19:10 and 19:17 (identical `created_at` to the microsecond —
-a script, not a person tapping). Split by origin, the picture is unambiguous:
+**All six were unlinked by hand on 2026-09-01**, before any of this shipped. Production now
+holds 18 links and no known strays, which empties the migration's most dangerous branch. Two of
+those six were also what made the fold look dangerous: both wrong-linked places sorted _first_
+by day, so an ordinal fold would have produced an activity called _"Drive to Kanazawa (~1h15)"_
+carrying Higashi Chaya's address, description, photo and coordinates, then copied those
+coordinates onto "Shirakawa-go" and pinned it 50km from the village.
 
-| how the link was made                | links | wrong |
-| ------------------------------------ | ----- | ----- |
-| typed one at a time, through the app | 6     | **0** |
-| bulk insert, 2026-08-01              | 18    | **6** |
+#### The gate stays, and the heuristic is weaker than it looks
 
-`AddPlaceToDay` writes `title = place.name`, so the interactive path _cannot_ produce a
-mismatch; the import guessed a place per row and missed a third of the time. Nobody noticed
-because the link is nearly invisible in the UI — it surfaces only as a category pill and a file
-list.
+The fold is still gated on the item's title naming the place, because the cleanup fixed the
+rows rather than the cause: another import can reintroduce the same class of row before the
+migration runs.
 
-Two consequences. The damage is **bounded and will not grow on its own**, so this is a
-data-cleaning job rather than a running defect — but it will grow if another import is run
-before the migration, which is why the fold's `--report` pass is not a one-off. And the
-migration **cannot treat `place_id` as a statement of identity**, because a third of the values
-it would be trusting were never asserted by a human.
+But **the name match is not reliable enough to decide on its own, in either direction.** Run
+against `placeholder-data.json` it flags 12 of 32 links, and most of those are _correct_:
 
-**So the fold is gated on the name, not on the link.** Normalise both sides (lower-case, strip
-punctuation and hyphens, drop parentheticals) and fold when the place's distinctive tokens
-appear in the title. That accepts `Kenroku-en Garden` ← "Kenrokuen Garden at opening",
-`Fushimi Inari Shrine` ← "Fushimi Inari at sunrise" and `Higashi Chaya District` ←
-"Higashi Chaya teahouse district again for gold-leaf ice cream", and rejects every row in the
-table above. A stray link is **dropped** — the item becomes a plain dated activity keeping its
-city and category and **no copied location** — and both rows go to the journal as
-`source = 'stray'`, so the link is recoverable if one of these turns out to be deliberate.
+| plan line                        | linked place        | verdict                                    |
+| -------------------------------- | ------------------- | ------------------------------------------ |
+| "Check in at the ryokan. Yukata" | Atami Sekaie        | correct — the heuristic cannot know        |
+| "Pick one"                       | MOA Museum of Art   | correct — the title carries no name at all |
+| "Evening: the ryokan"            | HOTEL WOOD TAKAYAMA | correct                                    |
+| "Kenrokuen at opening"           | Kenroku-en Garden   | correct — a hyphen                         |
+| "Sensoji"                        | Senso-ji Temple     | correct — a hyphen                         |
+| "Oishi Park"                     | Lake Kawaguchi      | arguable — the park is _on_ the lake       |
 
-**The heuristic proposes; a human disposes.** `npm run migrate:activities -- --report` prints
-every candidate pair with its verdict and writes the accepted ids to
-`specs/010-activities/folds.json`, which the migration reads. Seventeen places is a ten-minute
-review, and a threshold that gets Higashi Chaya wrong is worse than a list somebody looked at.
-The heuristic exists so the same script still works on the seed file (31 linked items) and on
-anything created between the review and the run — those get reported, not assumed.
+Normalising hyphens recovers two. The rest are the ordinary case for a human-written plan line:
+**the whole point of the link is that the title does not name the place.** So the heuristic
+catches real errors in one dataset and manufactures false ones in the other.
 
-**What is left once the strays are gone: no genuine repeat visits at all.** Higashi Chaya and
-Lake Kawaguchi have exactly one real entry each. Nishiki Market and Omicho Market have two
-entries on the **same day** — a lunch and a snack, not a second visit. The only place spanning
-two days is "Check", which is test data. FR-006's trade — one saved thing can no longer be
-scheduled on several days — therefore costs nothing on today's data, which is worth knowing
-before paying for the occurrences table the spec declined.
+That settles what the tooling is for. `npm run migrate:activities -- --report` prints every
+linked pair with a proposed verdict and writes the accepted ones to
+`specs/010-activities/folds.json`, which the migration reads. **The review is where the
+decision is made, not a rubber stamp on a good guess** — treat a `STRAY` verdict as a question,
+not an answer. Six stays among those twelve seed rows fold nowhere regardless, which caps how
+much the review can get wrong.
+
+A rejected pair is **dropped, not folded**: the item becomes a plain dated activity keeping its
+city and category and **no copied location**, the place keeps its own undated row, and both go
+to the journal as `source = 'stray'` so the link is recoverable if the call was wrong.
+
+**What is left once the strays are gone: no genuine repeat visits at all.** Three places still
+carry two entries — `Check` (test data created 2026-09-01), `Nishiki Market` and
+`Omicho Market` — and both markets have their two entries on the **same day**: a lunch and a
+snack, which the merged model expresses as two activities anyway. Higashi Chaya and Lake
+Kawaguchi dropped to one entry each the moment the strays went. FR-006's trade — one saved
+thing can no longer be scheduled on several days — therefore costs nothing on today's data,
+which is worth knowing before paying for the occurrences table the spec declined.
 
 **Stays are never folded.** A reservation is looked up on any night of the stay, not on the
 check-in day — and `journey_steps` already model the range. Folding would move the hotel out
@@ -393,9 +401,9 @@ select count(*) from tips  where place_id is not null and activity_id is null;  
 select source, count(*) from activity_migration_journal group by source order by 1;
 ```
 
-On the 2026-09-01 snapshot, with the strays of §3a excluded, that is `places` 56, `items` 226,
-`folds` **14** → `activities` **268**, `journalled` 268. The 24 linked items split
-14 folded · 3 matched copies · 6 stray · 1 hanging off a stay. Re-derive it on the day; the
+On the 2026-09-01 snapshot, after the §3a cleanup, that is `places` 56, `items` 226,
+`folds` **14** → `activities` **268**, `journalled` 268. The 18 remaining links split
+14 folded · 3 matched copies (all same-day) · 1 hanging off a stay, with no strays left. Re-derive it on the day; the
 identity `activities = places + items − folds` is the thing to check, not the figure.
 
 ```sql
