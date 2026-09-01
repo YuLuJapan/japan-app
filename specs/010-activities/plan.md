@@ -13,10 +13,11 @@ client's two hook families collapse into one list the screens derive everything 
 repo hides behind a PostHog default-off flag — `show-map`, `export-trip`, `chat-bot` — because
 each adds a surface that can be withdrawn. This one _replaces_ the app's two most-used
 entities and moves their rows, so there is no state in which both the old and new code are
-correct. The safety story is structural instead: expand, cut over, contract, with the source
-tables kept for the whole soak and every lossy decision journalled (`migration.md` §4, §7).
-Anything that reads like "we can flip it back" is about `git revert` and phase 3 not having
-run yet.
+correct. The safety story is structural instead: migrate, cut over, contract — with a snapshot
+taken before a single row moves, every lossy decision journalled, and a **pre-written, tested**
+`rollback.sql` that restores the database byte-identically (`migration.md` §4, §7, §8).
+Anything that reads like "we can flip it back" is about `git revert`, that script, and phase 3
+not having run yet.
 
 ## Two things that only the type checker will catch
 
@@ -129,9 +130,12 @@ itinerary edit that can reorder a day waits for the refetch today.
 
 Each step ends green (`npm test && npm run typecheck && npm run lint`).
 
-1. **Migration, dry run.** Write `supabase/migrations/0025_activities.sql`; run it inside
-   `begin; … rollback;` against the live project with §6's verification queries in the same
-   transaction. Read the numbers. Nothing ships.
+1. ~~**Migration, dry run.**~~ **Done.** `supabase/migrations/0025_activities.sql` and
+   `rollback.sql` are written and have been run against a scratch Postgres 16 built from the
+   committed migrations plus the seed and four synthetic edge rows — every invariant passes,
+   the day plan comes out textually identical, and the rollback restores the database
+   byte-for-byte (`migration.md` §5, §8). Still to do on the live project: regenerate the
+   `_match` list, dry-run with `commit` → `rollback`, read the numbers.
 2. **The fold, twice.** `scripts/migrate-placeholder.ts` (TypeScript) and the SQL above, with
    `server/tests/migration-fold.test.ts` running both over the same fixture rows and asserting
    they agree — the `ordering.test.ts` discipline applied to a one-off.

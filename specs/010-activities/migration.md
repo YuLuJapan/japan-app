@@ -33,45 +33,37 @@ pre-flight and verification queries (§5, §6) are what must be believed on the 
 The last two are pre-flight assertions, not observations — the migration re-checks them and
 aborts rather than trusting this table.
 
-## 2 · The target table
+## 2 · The shape: evolve, don't copy
 
-```sql
-create table if not exists activities (
-  id          text primary key,
-  trip_id     text not null references trips(id) on delete cascade,
-  zone_id     text references zones(id) on delete set null,
-  category    text check (category is null or category in
-                ('hotel','attraction','food','shopping','other')),
-  name        text not null check (char_length(name) between 1 and 200),
-  name_ja     text,
-  description text,
-  address     text,
-  links       jsonb not null default '[]'::jsonb,
-  image_url   text,
-  lat         double precision check (lat is null or lat between -90 and 90),
-  lng         double precision check (lng is null or lng between -180 and 180),
-  day         date,
-  start_time  text check (start_time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'),
-  position    int not null default 0,
-  highlight   boolean not null default false,
-  icon        text check (icon is null or char_length(icon) <= 16),
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now(),
-  -- FR-005: a featured note banners a day, so it needs one.
-  constraint activities_highlight_needs_day check (not highlight or day is not null)
-);
-create index if not exists activities_trip_day_idx  on activities (trip_id, day);
-create index if not exists activities_saved_idx     on activities (zone_id, category)
-  where day is null;
+`itinerary_items` **becomes** `activities`. It is not copied into a new table, because an
+activity is what an itinerary item already was — 226 of the 282 rows are the right shape
+already, and the 56 places are the small side of the merge. A place gains a schedule it
+usually leaves empty; an item gains the four things only a place could carry.
 
--- the same trigger every other table carries (0001)
-drop trigger if exists set_updated_at on activities;
-create trigger set_updated_at before update on activities
-  for each row execute function set_updated_at();
-
--- deny all except the service-role key, like every other table
-alter table activities enable row level security;
 ```
+alter table itinerary_items rename to activities;
+      rename title → name, note → description
+      day: drop not null                     -- an activity need not be scheduled
+      category: widen the check to allow 'other'   -- places can be, the plan could not
+      add name_ja, address, image_url, links, lat, lng
+then   insert the 56 places as rows (14 of them carrying a folded item's schedule)
+then   delete the 14 folded item rows, journalled
+then   files.place_id → files.activity_id, tips.place_id → tips.activity_id  (a rename only)
+```
+
+The whole thing is `supabase/migrations/0025_activities.sql`. What follows is why it is
+shaped that way; read the file for the statements.
+
+**`files` and `tips` need no backfill at all.** The folded row keeps the _place's_ id, so every
+`place_id` in those tables already names the right activity — the column is renamed and its
+foreign key re-pointed, and not one row is rewritten. That is the main practical dividend of
+evolving rather than copying.
+
+**The rollback is a snapshot, not an untouched source table.** `itinerary_items_pre_010` and
+`places_pre_010` are taken before a single row moves, and `specs/010-activities/rollback.sql`
+brings the database back from them. Copying into a fresh table would have made rollback a
+`drop table` — that was the one real argument for it — and a snapshot buys the same thing for
+one throwaway table, without pretending 226 rows of hand-written plan are new data.
 
 **FR-004 — "a saved activity needs a city" — is a service rule, not a check constraint, and
 that is not laziness.** Written as `check (day is not null or zone_id is not null)` alongside
@@ -87,11 +79,15 @@ The state the check would have prevented is unreachable today — the datastore 
 added, it owns this**: its saved activities have to be re-homed or deleted explicitly, or they
 survive as rows no screen can show. Write that in the method, not here.
 
-Three widenings, each because the union of two columns has to fit: `name` takes the
-itinerary's 200 rather than the place's 120; `description` takes the place's uncapped text
-rather than the note's 1000 (the service still validates 2000 on write); `category` becomes
-nullable, because 135 plan lines have no tag and stamping them `other` would put a grey pill
-on 135 rows nobody asked for.
+`activities_highlight_needs_day` **is** a constraint, because no cascade can produce a
+highlight without a day.
+
+Three widenings, each because the union of two columns has to fit. `name` keeps the
+itinerary's 1–200 (the longest place name in production is 42). `description` drops the note's
+1000-character cap, because a place's description holds a booking blob (the longest today is
+396, but the column was never capped). And `category` gains `'other'` **and** stays nullable —
+135 plan lines have no tag, and stamping them `other` would put a grey pill on 135 rows nobody
+asked for.
 
 ## 3 · The fold rule
 
@@ -226,226 +222,129 @@ it is the only copy of the fold decisions once the source tables are dropped.
 
 ## 5 · The backfill
 
-Written as one transaction against a temporary table, so the "which item folded" decision is
-computed once and every branch reads the same answer.
+`supabase/migrations/0025_activities.sql`, as one transaction. Four things in it are worth
+knowing without reading the SQL:
 
-```sql
-begin;
+**It refuses to run twice.** The pre-flight aborts if `activities` already exists, if any id is
+used by both tables, or if a place sits in a zone with no trip.
 
--- pre-flight: abort rather than trust the table in §1 -------------------------
-do $$
-declare n int;
-begin
-  select count(*) into n from places p join itinerary_items i on i.id = p.id;
-  if n > 0 then raise exception 'id collision: % row(s) share an id', n; end if;
-  select count(*) into n from places p join zones z on z.id = p.zone_id where z.trip_id is null;
-  if n > 0 then raise exception '% place(s) sit in a zone with no trip', n; end if;
-end $$;
+**The match list is an input, not a computation.** The `_match` values block is the reviewed
+output of §3a and is the one part that must be regenerated per environment — a link created
+between the review and the run is absent from the list and would be treated as a stray. The
+file ships with production's 18 reviewed pairs and says so.
 
--- the reviewed match list (§3a): one row per (place, item) pair confirmed to be
--- the same thing. Produced by `migrate:activities --report` and eyeballed; a
--- `place_id` that is NOT in here is a stray link and is dropped, not folded.
-create temporary table _match (place_id text not null, item_id text primary key);
-insert into _match (place_id, item_id) values
-  -- …generated from specs/010-activities/folds.json…
-  (null, null);
-delete from _match where item_id is null;
+**A folded row is written once, not written and then patched.** The place's INSERT left-joins
+its folded item, so `name` is `coalesce(item.name, place.name)` and the description is the
+place's, the item's note and `Saved as "<place name>"` concatenated — with the note dropped
+only when it repeats the description **word for word**. A near-duplicate is left in: redundant
+text can be edited away, dropped text cannot.
 
--- which matched item folds into its place, and which are copies ---------------
-create temporary table _fold on commit drop as
-select m.item_id,
-       m.place_id,
-       row_number() over (partition by m.place_id order by i.day, i.position, i.id) as rn
-from _match m
-join itinerary_items i on i.id = m.item_id
-join places p         on p.id = m.place_id
-where p.category <> 'hotel';          -- stays never fold (§3)
+**A copy carries location, not record.** The 2nd and later matched days get the place's
+address, photo and coordinates so they pin, and not its links, `name_ja`, files or tips — those
+stay with the row that kept the id.
 
--- A · the folded rows: place record + that item's schedule --------------------
-insert into activities (id, trip_id, zone_id, category, name, name_ja, description,
-                        address, links, image_url, lat, lng,
-                        day, start_time, position, highlight, icon, created_at)
-select p.id, z.trip_id, p.zone_id,
-       coalesce(i.category, p.category),
-       i.title,
-       p.name_ja,
-       nullif(concat_ws(E'\n\n',
-         nullif(p.description, ''),
-         nullif(i.note, ''),
-         case when lower(btrim(i.title)) is distinct from lower(btrim(p.name))
-              then 'Saved as “' || p.name || '”' end), ''),
-       p.address, p.links, p.image_url, p.lat, p.lng,
-       i.day, i.start_time, i.position, i.highlight, i.icon,
-       least(p.created_at, i.created_at)
-from _fold f
-join itinerary_items i on i.id = f.item_id
-join places p         on p.id = f.place_id
-join zones z          on z.id = p.zone_id
-where f.rn = 1;
+### It has been run
 
--- B · every other place: saved, undated --------------------------------------
-insert into activities (id, trip_id, zone_id, category, name, name_ja, description,
-                        address, links, image_url, lat, lng,
-                        day, start_time, position, highlight, icon, created_at)
-select p.id, z.trip_id, p.zone_id, p.category, p.name, p.name_ja, p.description,
-       p.address, p.links, p.image_url, p.lat, p.lng,
-       null, null, 0, false, null, p.created_at
-from places p
-join zones z on z.id = p.zone_id
-where not exists (select 1 from _fold f where f.place_id = p.id and f.rn = 1);
+Not reasoned about — run, against Postgres 16 loaded from the committed migrations plus
+`placeholder-data.json` (39 places, 189 items, 32 links) and four synthetic rows production's
+data does not cover: a place tagged `other`, an activity with no city, a stray link, and a
+multi-day place carrying coordinates.
 
--- C · every itinerary item that did not fold ---------------------------------
---     four cases in one statement, because they differ only in what the two
---     left joins find: free text (no place), a matched copy (rn ≥ 2), an item
---     hanging off a stay, and a STRAY link (§3a).
---
---     `m` — not `p` — gates the copied location. A stray's place_id is not a
---     statement about where the activity is, so copying its coordinates would
---     pin Shirakawa-go at Higashi Chaya.
-insert into activities (id, trip_id, zone_id, category, name, name_ja, description,
-                        address, links, image_url, lat, lng,
-                        day, start_time, position, highlight, icon, created_at)
-select i.id, i.trip_id,
-       coalesce(i.zone_id, p.zone_id),
-       coalesce(i.category, p.category),
-       i.title, null, nullif(i.note, ''),
-       -- a matched copy carries location; a stray and a stay carry none (§3, §3a)
-       case when m.item_id is not null and p.category <> 'hotel' then p.address   end,
-       '[]'::jsonb,
-       case when m.item_id is not null and p.category <> 'hotel' then p.image_url end,
-       case when m.item_id is not null and p.category <> 'hotel' then p.lat       end,
-       case when m.item_id is not null and p.category <> 'hotel' then p.lng       end,
-       i.day, i.start_time, i.position, i.highlight, i.icon, i.created_at
-from itinerary_items i
-left join _match m on m.item_id = i.id
-left join places p on p.id = i.place_id
-where not exists (select 1 from _fold f where f.item_id = i.id and f.rn = 1);
+| assertion                                                                                                                            |      |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ---- |
+| `activities = places + items − folds`                                                                                                | PASS |
+| journal covers every activity                                                                                                        | PASS |
+| no pre-migration row missing (both tables)                                                                                           | PASS |
+| **the day plan reads identically** — same text, same times, same order, every day                                                    | PASS |
+| invariants: no nameless row, no saved row without a city, no undated highlight, no orphaned file or tip, no stray keeping a location | PASS |
+| stays are never given a date                                                                                                         | PASS |
+| a copy of a located place carries the pin                                                                                            | PASS |
 
--- the journal ----------------------------------------------------------------
-insert into activity_migration_journal (source, source_id, activity_id, folded_with,
-                                        place_row, item_row)
-select 'fold', p.id, p.id, i.id, to_jsonb(p), to_jsonb(i)
-from _fold f
-join itinerary_items i on i.id = f.item_id
-join places p         on p.id = f.place_id
-where f.rn = 1;
+The harness rebuilds the database from scratch each run, so it is re-runnable after any edit to
+the SQL. The fourth row is the one that matters most: **191 plan lines before, 191 after, and
+zero that changed their text, their time or their position.**
 
-insert into activity_migration_journal (source, source_id, activity_id, place_row)
-select 'place', p.id, p.id, to_jsonb(p)
-from places p
-where not exists (select 1 from _fold f where f.place_id = p.id and f.rn = 1);
-
-insert into activity_migration_journal (source, source_id, activity_id, folded_with, item_row)
-select case when i.place_id is null      then 'item'
-            when m.item_id is not null   then 'item_copy'
-            else 'stray' end,            -- the link was dropped; §3a
-       i.id, i.id, i.place_id, to_jsonb(i)
-from itinerary_items i
-left join _match m on m.item_id = i.id
-where not exists (select 1 from _fold f where f.item_id = i.id and f.rn = 1);
-
--- re-point the children -------------------------------------------------------
-alter table files add column if not exists activity_id text
-  references activities(id) on delete set null;
-update files set activity_id = place_id where place_id is not null;
-alter table files drop constraint if exists files_check;      -- verified name, see §5 note
-alter table files add constraint files_one_parent
-  check (num_nonnulls(trip_id, zone_id, activity_id) = 1);
-
-alter table tips add column if not exists activity_id text
-  references activities(id) on delete cascade;
-update tips set activity_id = place_id where place_id is not null;
-alter table tips drop constraint if exists tips_check;        -- verified name, see §5 note
-alter table tips add constraint tips_one_parent
-  check (num_nonnulls(zone_id, activity_id) = 1);
-
-commit;
-```
-
-`files.place_id` and `tips.place_id` are **kept**, with their foreign keys intact — they still
-resolve, because `places` is still there. They are what the revert reads.
-
-The two `drop constraint` names were read off the live project rather than guessed — 0001
-declared both checks inline, so Postgres generated them, and they came back as
-`files_check := CHECK ((num_nonnulls(trip_id, zone_id, place_id) = 1))` and
-`tips_check := CHECK ((num_nonnulls(zone_id, place_id) = 1))`. **Re-read them before running
-anyway.** A `drop constraint if exists` against a name that has since changed silently does
-nothing and leaves the old check in place, which then rejects every write to `files` — a
-failure that appears at the first upload, not at migration time:
-
-```sql
-select conname, pg_get_constraintdef(oid) from pg_constraint
-where conrelid in ('files'::regclass, 'tips'::regclass) and contype = 'c';
-```
-
-## 6 · Verification, before the code ships
+## 6 · Verification, on the day
 
 ```sql
 -- every source row is represented exactly once
-select (select count(*) from places)                                       as places,
-       (select count(*) from itinerary_items)                              as items,
-       (select count(*) from activities)                                   as activities,
-       (select count(*) from activity_migration_journal)                   as journalled,
+select (select count(*) from places_pre_010)                                as places,
+       (select count(*) from itinerary_items_pre_010)                       as items,
+       (select count(*) from activities)                                    as activities,
+       (select count(*) from activity_migration_journal)                    as journalled,
        (select count(*) from activity_migration_journal where source='fold') as folds;
 -- expect: activities = places + items − folds, and journalled = activities
 
--- nothing lost its city, its day or its name
-select count(*) from activities where name is null or btrim(name) = '';         -- 0
-select count(*) from activities where day is null and zone_id is null;          -- 0
-select count(*) from activities a left join trips t on t.id = a.trip_id
-  where t.id is null;                                                            -- 0
-select count(*) from files where place_id is not null and activity_id is null;  -- 0
-select count(*) from tips  where place_id is not null and activity_id is null;  -- 0
+-- nothing lost its name, its city or its parent
+select count(*) from activities where name is null or btrim(name) = '';          -- 0
+select count(*) from activities where day is null and zone_id is null;           -- 0
+select count(*) from activities where highlight and day is null;                 -- 0
+select count(*) from files f where f.activity_id is not null
+  and not exists (select 1 from activities a where a.id = f.activity_id);        -- 0
+select count(*) from tips t where t.activity_id is not null
+  and not exists (select 1 from activities a where a.id = t.activity_id);        -- 0
 
--- the fold is the only place a row count drops, and it is journalled
-select source, count(*) from activity_migration_journal group by source order by 1;
-```
-
-On the 2026-09-01 snapshot, after the §3a cleanup, that is `places` 56, `items` 226,
-`folds` **14** → `activities` **268**, `journalled` 268. The 18 remaining links split
-14 folded · 3 matched copies (all same-day) · 1 hanging off a stay, with no strays left. Re-derive it on the day; the
-identity `activities = places + items − folds` is the thing to check, not the figure.
-
-```sql
 -- no stray kept a coordinate it has no right to (§3a)
 select count(*) from activities a
 join activity_migration_journal j on j.activity_id = a.id and j.source = 'stray'
 where a.lat is not null or a.address is not null;                                -- 0
+
+-- THE one: the day plan says exactly what it said before
+with b as (select day, title as name, start_time, row_number() over
+             (partition by day order by (start_time is null), start_time, position, id) rn
+           from itinerary_items_pre_010),
+     a as (select day, name, start_time, row_number() over
+             (partition by day order by (start_time is null), start_time, position, id) rn
+           from activities where day is not null)
+select count(*) from b full outer join a on a.day = b.day and a.rn = b.rn
+where b.name is distinct from a.name or b.start_time is distinct from a.start_time;  -- 0
 ```
+
+On the 2026-09-01 snapshot, after the §3a cleanup, that is `places` 56, `items` 226,
+`folds` **14** → `activities` **268**, `journalled` 268. The 18 remaining links split
+14 folded · 3 matched copies (all same-day) · 1 hanging off a stay, with no strays left.
+Re-derive it on the day; the identity `activities = places + items − folds` is the thing to
+check, not the figure.
 
 ## 7 · The phases
 
-| phase            | what runs                                                                                                | what is reversible                                                                                                          |
-| ---------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| **1 · expand**   | §5 against the live project. No code ships.                                                              | Everything: drop `activities`, restore the two checks. The app has not read the new table yet.                              |
-| **2 · cut over** | Deploy the code that reads and writes `activities`. `places` / `itinerary_items` go stale but stay.      | Code revert + `drop table activities`. **Writes made during phase 2 do not reach the old tables and are lost by a revert.** |
-| **3 · contract** | After a soak: `drop table itinerary_items`, `drop table places`, drop `files.place_id`, `tips.place_id`. | Only through the journal.                                                                                                   |
+| phase            | what runs                                                                                                                             | what is reversible                                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1 · migrate**  | `0025_activities.sql` against the live project, dry-run first (`commit` → `rollback`) with §6 in the same transaction. No code ships. | Everything, and trivially: the dry run commits nothing.                                                                                                       |
+| **2 · cut over** | Deploy the code that reads and writes `activities`.                                                                                   | `rollback.sql`, tested to restore the database byte-identically. **Activities written during phase 2 are lost by it** — they have no shape in the old schema. |
+| **3 · contract** | After a soak: drop `places`, `activities.place_id`, `itinerary_items_pre_010`, `places_pre_010`. Keep the journal.                    | Only through the journal.                                                                                                                                     |
 
 Phase 2's window is the real risk and it is not hidden: two trips are actively edited, so a
-soak of a week costs almost nothing and a dual-write shim would cost a service layer that
-writes both shapes for the sake of a fortnight. That trade is the recommendation, not a
-constraint — if the window is unacceptable, say so and the shim goes in the plan.
+soak of a week costs almost nothing and a dual-write shim would cost a service layer writing
+both shapes for the sake of a fortnight. That trade is the recommendation, not a constraint —
+if the window is unacceptable, say so and the shim goes in the plan.
 
-**Do not skip phase 1's dry run.** Run §5 inside `begin; … rollback;` first with the §6
-queries in the same transaction, and read the numbers. A `rollback` after a successful
-`create temporary table … on commit drop` is safe.
+**Do not skip the dry run.** Replace the final `commit` with `rollback`, paste §6 above it, and
+read the numbers. The snapshot tables are created inside the same transaction, so a rollback
+discards them too and leaves nothing behind.
 
 ## 8 · The revert
 
-```
-npm run migrate:activities -- --revert
+`specs/010-activities/rollback.sql`, pre-written and **tested** — because the point of a
+rollback is that nobody has to reason it out while the app is down. It re-points `files` and
+`tips` back to `place_id`, drops `activities`, recreates `itinerary_items` with the DDL of
+0002 + 0004 + 0022, and refills it from `itinerary_items_pre_010`.
+
+Verified against a scratch Postgres by building a pristine reference database from the same
+migrations and seed, migrating a second one, rolling it back, and comparing: **the DDL of
+`itinerary_items`, `files` and `tips` is identical, and so are the row digests of
+`itinerary_items`, `places`, `files` and `tips`.** `places` is never modified by 0025 — it is
+only read — so `places_pre_010` is belt and braces.
+
+What it loses is stated at the top of the file: **every activity written after the migration
+ran.** A row created in the new shape has no place in the old one, and the script does not
+invent one — it does not silently drop them either, it tells you how to count them first:
+
+```sql
+select count(*) from activities where id not in (select activity_id from activity_migration_journal);
 ```
 
-Reads the journal and rebuilds `places` and `itinerary_items` from `place_row` / `item_row`,
-then re-points `files.activity_id`/`tips.activity_id` back to `place_id` and restores the
-original checks. Because both source rows are stored verbatim, a fold reverses exactly — the
-appended `Saved as “…”` line and the merged note are discarded rather than parsed back out.
-
-Rows **created after** the migration have no journal entry. The script reports them and does
-not invent history for them: it writes them into `itinerary_items` if they have a day and into
-`places` if they do not, and prints the id of every row it converted so the loss (a saved
-activity's files surviving, a scheduled activity's location not) is visible rather than
-assumed. That asymmetry is exactly why phase 3 waits.
+That number growing is exactly what makes phase 3 wait rather than follow phase 2 immediately.
 
 ## 9 · The seed file is data too
 
