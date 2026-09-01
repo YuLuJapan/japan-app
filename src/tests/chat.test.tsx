@@ -1,4 +1,4 @@
-// The chat screen.
+// The chat window.
 //
 // The two behaviours worth protecting here are the ones that are easy to write
 // backwards and look fine in a demo: text is **appended** as it streams, not
@@ -9,7 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, screen, waitFor } from '@testing-library/react'
 import { onlineManager } from '@tanstack/react-query'
 import userEvent from '@testing-library/user-event'
-import TripChat from '../pages/TripChat'
+import { ChatConversation } from '../components/chat/ChatConversation'
+import { ChatSheet } from '../components/chat/ChatSheet'
 import type { ChatView } from '../api/types'
 import { renderAt } from './helpers'
 
@@ -94,8 +95,22 @@ const withMessage = (base: ChatView, role: 'user' | 'assistant', content: string
   ],
 })
 
+/**
+ * The conversation as it is actually seen: inside the window that floats over
+ * the screen you were reading. Rendered open, because everything below is
+ * about what happens once it is.
+ */
 const show = () =>
-  renderAt('/trips/trip-1/chat', [{ path: '/trips/:tripId/chat', element: <TripChat /> }])
+  renderAt('/trips/trip-1', [
+    {
+      path: '/trips/:tripId',
+      element: (
+        <ChatSheet open onClose={() => {}}>
+          <ChatConversation />
+        </ChatSheet>
+      ),
+    },
+  ])
 
 beforeEach(() => {
   vi.stubGlobal('navigator', { ...navigator, onLine: true })
@@ -495,14 +510,27 @@ describe('starting a new conversation', () => {
     mockApi(view())
     show()
     expect(await screen.findByLabelText('Ask about this trip')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Start over' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Start over/ })).not.toBeInTheDocument()
+  })
+
+  it('keeps the button at the bottom, under the box', async () => {
+    // Where a thumb already is. In the header it was above a transcript, so the
+    // longer the conversation — which is exactly when clearing it is worth
+    // doing — the further it had to be scrolled back to. Under the box rather
+    // than over it, so it can never be what a thumb lands on when it was
+    // reaching for Ask.
+    mockClearableApi(talked())
+    show()
+    const clear = await screen.findByRole('button', { name: /Start over/ })
+    const box = screen.getByLabelText('Ask about this trip')
+    expect(box.compareDocumentPosition(clear) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('asks before putting a shared conversation away', async () => {
     const api = mockClearableApi(talked())
     show()
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Start over' }))
+    await userEvent.click(await screen.findByRole('button', { name: /Start over/ }))
     // The surprising facts, on screen before anything happens: it is shared, it
     // cannot be re-opened here, and the month's spending is unaffected.
     expect(await screen.findByText(/put away for both of you/)).toBeInTheDocument()
@@ -516,7 +544,7 @@ describe('starting a new conversation', () => {
     mockClearableApi(talked())
     show()
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Start over' }))
+    await userEvent.click(await screen.findByRole('button', { name: /Start over/ }))
     await userEvent.click(screen.getByRole('button', { name: 'Start a new one' }))
 
     await waitFor(() => {
@@ -525,7 +553,7 @@ describe('starting a new conversation', () => {
     // Back to the state a trip nobody has asked anything on is in — openers, not
     // a blank box.
     expect(await screen.findByText('What’s the plan for tomorrow?')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Start over' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Start over/ })).not.toBeInTheDocument()
   })
 
   it('does not hand back the month’s budget with the messages', async () => {
@@ -540,7 +568,7 @@ describe('starting a new conversation', () => {
     )
     show()
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Start over' }))
+    await userEvent.click(await screen.findByRole('button', { name: /Start over/ }))
     await userEvent.click(screen.getByRole('button', { name: 'Start a new one' }))
 
     await waitFor(() => {
