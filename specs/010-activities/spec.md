@@ -30,7 +30,10 @@ in step, or one row missing half of what they wanted.
 
 The entity/event split is a defensible model — a thing and a scheduled occurrence of it are
 genuinely different — but it costs two forms, two lists, two field sets and two mental models,
-and it buys the link on 24 rows out of 282. The common case, by a factor of seven, is a
+and it buys the link on 24 rows out of 282. **Six of those 24 links point at the wrong place**
+(`migration.md` §3a) and nobody has noticed, because a link surfaces only as a category pill
+and a file list. A feature that can be silently wrong a quarter of the time is not carrying its
+own weight. The common case, by a factor of seven, is a
 traveller typing a line onto a day and never saving a place at all. That line can then never
 hold the ticket PDF or show up on the map.
 
@@ -141,13 +144,23 @@ changes is what "a stay" means now that a stay is an activity.
 plan entries; after this, three days means three activities, and the location, address, photo
 and description are copied onto each. Editing one does not update the others.
 
-This is the cost of the single mental model, and it is being paid deliberately:
+This is the cost of the single mental model, and on today's data it is paid in nothing at all.
+Five places look multi-day, and **none of them is a repeat visit** (`migration.md` §3a):
 
-- five places in the live database are scheduled more than once, none of them more than three
-  times;
+- Nishiki Market and Omicho Market each have two entries on the **same day** — a lunch and a
+  snack, which the merged model expresses as two activities anyway;
+- Higashi Chaya District and Lake Kawaguchi each have exactly **one** real entry; their other
+  links are stale and point at the wrong place entirely ("Shirakawa-go" is ~50km from Higashi
+  Chaya);
+- the only place genuinely spanning two days is called "Check", and is test data.
+
+So the trade is being made with the evidence in hand rather than in the abstract:
+
 - the alternative — one `activities` table plus a small `occurrences` child holding
   `(day, time, position)` — keeps the ability but is the two-concept model again, and would
-  make every free-text plan line (179 of the 226) write two rows instead of one.
+  make every free-text plan line (179 of the 226) write two rows instead of one;
+- and the thing being given up has never once been used as intended, while the mechanism that
+  provides it has quietly gone wrong on **6 of its 24 rows**.
 
 What softens it is a **Copy to another day** action on a scheduled activity: one tap, and the
 copy carries the location, address, photo, category and description. That is also exactly the

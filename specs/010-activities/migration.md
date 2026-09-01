@@ -95,17 +95,70 @@ on 135 rows nobody asked for.
 
 ## 3 · The fold rule
 
-One rule, applied per place, with one exception.
+One rule, applied per place, with two exceptions.
 
 ```
-place with no linked item          → one saved activity   (id = place.id, day = null)
-place tagged `hotel`               → one saved activity   (id = place.id, day = null)   ← exception
-place with N ≥ 1 linked items      → N scheduled activities:
+place with no matching item        → one saved activity   (id = place.id, day = null)
+place tagged `hotel`               → one saved activity   (id = place.id, day = null)   ← exception 1
+place with N ≥ 1 MATCHING items    → N scheduled activities:
     the first (by day, position, id) takes the place's id and the place's whole record,
     plus that item's day, time, position and icon;
     the other N−1 keep their own ids and are copies.
-itinerary item with no place       → one activity, exactly as it is today
+item with a STRAY link             → one plain activity, link dropped and journalled   ← exception 2
+item with no place                 → one activity, exactly as it is today
 ```
+
+**"Matching" is doing real work here — see §3a.** A linked item is folded only if its title
+names the place. It is not enough that `place_id` is set.
+
+### 3a · A quarter of the links are wrong
+
+The obvious fold rule — _take the first linked item by `(day, position, id)`_ — was the first
+draft of this document, and the data kills it. Six of the twenty-four `place_id` links in
+production point at the wrong place:
+
+| the place                         | the plan line pointing at it                              |
+| --------------------------------- | --------------------------------------------------------- |
+| Higashi Chaya District (Kanazawa) | "Drive to Kanazawa (~1h15)"                               |
+| Higashi Chaya District            | "Shirakawa-go" — a village ~50km away                     |
+| Lake Kawaguchi                    | "Drive to Kawaguchiko"                                    |
+| Lake Kawaguchi                    | "Oshino Hakkai"                                           |
+| Kinkaku-ji (Golden Pavilion)      | "Togetsukyo Bridge, riverside walk, optional monkey park" |
+| Sanmachi Suji old town            | "Miyagawa morning market along the river (07:00–12:00)"   |
+
+Both wrong-linked places happen to sort **first** by day, so an ordinal fold would have
+produced an activity called _"Drive to Kanazawa (~1h15)"_ carrying Higashi Chaya's address,
+description, photo and coordinates — and would then have copied those coordinates onto
+"Shirakawa-go", putting a pin 50km from the village. Silent, plausible-looking, and wrong on
+the one surface (the map) this feature exists to add.
+
+Nobody noticed the rot because today the link is nearly invisible: it surfaces only as a
+category pill and a file list. That is an argument for the merge rather than against it — an
+invisible link that can be wrong and never checked is a bad feature — but it means the
+migration cannot trust `place_id` as a statement of identity.
+
+**So the fold is gated on the name, not on the link.** Normalise both sides (lower-case, strip
+punctuation and hyphens, drop parentheticals) and fold when the place's distinctive tokens
+appear in the title. That accepts `Kenroku-en Garden` ← "Kenrokuen Garden at opening",
+`Fushimi Inari Shrine` ← "Fushimi Inari at sunrise" and `Higashi Chaya District` ←
+"Higashi Chaya teahouse district again for gold-leaf ice cream", and rejects every row in the
+table above. A stray link is **dropped** — the item becomes a plain dated activity keeping its
+city and category and **no copied location** — and both rows go to the journal as
+`source = 'stray'`, so the link is recoverable if one of these turns out to be deliberate.
+
+**The heuristic proposes; a human disposes.** `npm run migrate:activities -- --report` prints
+every candidate pair with its verdict and writes the accepted ids to
+`specs/010-activities/folds.json`, which the migration reads. Seventeen places is a ten-minute
+review, and a threshold that gets Higashi Chaya wrong is worse than a list somebody looked at.
+The heuristic exists so the same script still works on the seed file (31 linked items) and on
+anything created between the review and the run — those get reported, not assumed.
+
+**What is left once the strays are gone: no genuine repeat visits at all.** Higashi Chaya and
+Lake Kawaguchi have exactly one real entry each. Nishiki Market and Omicho Market have two
+entries on the **same day** — a lunch and a snack, not a second visit. The only place spanning
+two days is "Check", which is test data. FR-006's trade — one saved thing can no longer be
+scheduled on several days — therefore costs nothing on today's data, which is worth knowing
+before paying for the occurrences table the spec declined.
 
 **Stays are never folded.** A reservation is looked up on any night of the stay, not on the
 check-in day — and `journey_steps` already model the range. Folding would move the hotel out
@@ -133,7 +186,7 @@ proves no id is used by both tables.
 
 ```sql
 create table if not exists activity_migration_journal (
-  source      text not null check (source in ('place','item','item_copy','fold')),
+  source      text not null check (source in ('place','item','item_copy','fold','stray')),
   source_id   text not null,
   activity_id text not null,
   folded_with text,          -- the other row's id, where two became one
@@ -166,13 +219,23 @@ begin
   if n > 0 then raise exception '% place(s) sit in a zone with no trip', n; end if;
 end $$;
 
--- which linked item folds into its place, and which are copies ----------------
+-- the reviewed match list (§3a): one row per (place, item) pair confirmed to be
+-- the same thing. Produced by `migrate:activities --report` and eyeballed; a
+-- `place_id` that is NOT in here is a stray link and is dropped, not folded.
+create temporary table _match (place_id text not null, item_id text primary key);
+insert into _match (place_id, item_id) values
+  -- …generated from specs/010-activities/folds.json…
+  (null, null);
+delete from _match where item_id is null;
+
+-- which matched item folds into its place, and which are copies ---------------
 create temporary table _fold on commit drop as
-select i.id as item_id,
-       i.place_id,
-       row_number() over (partition by i.place_id order by i.day, i.position, i.id) as rn
-from itinerary_items i
-join places p on p.id = i.place_id
+select m.item_id,
+       m.place_id,
+       row_number() over (partition by m.place_id order by i.day, i.position, i.id) as rn
+from _match m
+join itinerary_items i on i.id = m.item_id
+join places p         on p.id = m.place_id
 where p.category <> 'hotel';          -- stays never fold (§3)
 
 -- A · the folded rows: place record + that item's schedule --------------------
@@ -209,8 +272,13 @@ join zones z on z.id = p.zone_id
 where not exists (select 1 from _fold f where f.place_id = p.id and f.rn = 1);
 
 -- C · every itinerary item that did not fold ---------------------------------
---     free text, a copy (rn ≥ 2), or an item hanging off a stay. The three are
---     one statement because they differ only in what the left join finds.
+--     four cases in one statement, because they differ only in what the two
+--     left joins find: free text (no place), a matched copy (rn ≥ 2), an item
+--     hanging off a stay, and a STRAY link (§3a).
+--
+--     `m` — not `p` — gates the copied location. A stray's place_id is not a
+--     statement about where the activity is, so copying its coordinates would
+--     pin Shirakawa-go at Higashi Chaya.
 insert into activities (id, trip_id, zone_id, category, name, name_ja, description,
                         address, links, image_url, lat, lng,
                         day, start_time, position, highlight, icon, created_at)
@@ -218,14 +286,15 @@ select i.id, i.trip_id,
        coalesce(i.zone_id, p.zone_id),
        coalesce(i.category, p.category),
        i.title, null, nullif(i.note, ''),
-       -- a copy carries location; a stay's booking content stays in one row (§3)
-       case when p.category is distinct from 'hotel' then p.address   end,
+       -- a matched copy carries location; a stray and a stay carry none (§3, §3a)
+       case when m.item_id is not null and p.category <> 'hotel' then p.address   end,
        '[]'::jsonb,
-       case when p.category is distinct from 'hotel' then p.image_url end,
-       case when p.category is distinct from 'hotel' then p.lat       end,
-       case when p.category is distinct from 'hotel' then p.lng       end,
+       case when m.item_id is not null and p.category <> 'hotel' then p.image_url end,
+       case when m.item_id is not null and p.category <> 'hotel' then p.lat       end,
+       case when m.item_id is not null and p.category <> 'hotel' then p.lng       end,
        i.day, i.start_time, i.position, i.highlight, i.icon, i.created_at
 from itinerary_items i
+left join _match m on m.item_id = i.id
 left join places p on p.id = i.place_id
 where not exists (select 1 from _fold f where f.item_id = i.id and f.rn = 1);
 
@@ -244,9 +313,12 @@ from places p
 where not exists (select 1 from _fold f where f.place_id = p.id and f.rn = 1);
 
 insert into activity_migration_journal (source, source_id, activity_id, folded_with, item_row)
-select case when i.place_id is null then 'item' else 'item_copy' end,
+select case when i.place_id is null      then 'item'
+            when m.item_id is not null   then 'item_copy'
+            else 'stray' end,            -- the link was dropped; §3a
        i.id, i.id, i.place_id, to_jsonb(i)
 from itinerary_items i
+left join _match m on m.item_id = i.id
 where not exists (select 1 from _fold f where f.item_id = i.id and f.rn = 1);
 
 -- re-point the children -------------------------------------------------------
@@ -306,9 +378,17 @@ select count(*) from tips  where place_id is not null and activity_id is null;  
 select source, count(*) from activity_migration_journal group by source order by 1;
 ```
 
-On the 2026-09-01 snapshot that is `places` 56, `items` 226, `folds` 16 → `activities`
-**266**, `journalled` 266. Re-derive it on the day; the identity
-`activities = places + items − folds` is the thing to check, not the figure.
+On the 2026-09-01 snapshot, with the strays of §3a excluded, that is `places` 56, `items` 226,
+`folds` **14** → `activities` **268**, `journalled` 268. The 24 linked items split
+14 folded · 3 matched copies · 6 stray · 1 hanging off a stay. Re-derive it on the day; the
+identity `activities = places + items − folds` is the thing to check, not the figure.
+
+```sql
+-- no stray kept a coordinate it has no right to (§3a)
+select count(*) from activities a
+join activity_migration_journal j on j.activity_id = a.id and j.source = 'stray'
+where a.lat is not null or a.address is not null;                                -- 0
+```
 
 ## 7 · The phases
 
