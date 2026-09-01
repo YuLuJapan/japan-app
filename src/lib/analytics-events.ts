@@ -72,9 +72,10 @@ export const TRIP_CONTEXT_KEYS = [
  */
 export interface AnalyticsEventProperties {
   // Places
-  place_created: PlaceFacts
-  place_updated: { category?: Category; fields: string[] }
-  place_deleted: { category?: Category }
+  activity_created: ActivityFacts
+  /** `scheduled` is the shape 010 added: whether it has a date at all. */
+  activity_updated: { category: Category | null; scheduled: boolean; fields: string[] }
+  activity_deleted: { category: Category | null }
   zone_image_updated: { cleared: boolean }
 
   // Shopping
@@ -89,13 +90,10 @@ export interface AnalyticsEventProperties {
   shopping_item_deleted: undefined
 
   // Documents
-  file_uploaded: { parent_type: 'trip' | 'zone' | 'place'; mime_type: string; size_kb: number }
-  file_renamed: { parent_type: 'trip' | 'zone' | 'place' }
+  file_uploaded: { parent_type: 'trip' | 'zone' | 'activity'; mime_type: string; size_kb: number }
+  file_renamed: { parent_type: 'trip' | 'zone' | 'activity' }
 
   // The day plan and the journey
-  itinerary_item_created: { has_place: boolean; has_time: boolean; highlight: boolean }
-  itinerary_item_updated: { fields: string[] }
-  itinerary_item_deleted: undefined
   journey_step_created: { nights: number; from_search: boolean }
 
   // Reminders and push
@@ -204,8 +202,10 @@ export interface AnalyticsEventProperties {
   }
 }
 
-export type PlaceFacts = {
-  category: Category
+export type ActivityFacts = {
+  category: Category | null
+  /** Whether it was created onto a day, or saved to a city's Explore list. */
+  scheduled: boolean
   has_address: boolean
   has_coords: boolean
   has_photo: boolean

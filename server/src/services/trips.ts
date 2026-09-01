@@ -1,7 +1,7 @@
 // Trips: the top-level "which journey is this" entity. GET /api/trips lists
 // them all (the "Where to next?" screen); GET /api/trips/:tripId returns the
 // full journey skeleton for one (steps + zones + flight + file count).
-import type { DataStore, ItineraryItem, JourneyStep, Trip, TripInput } from '../lib/datastore.js'
+import type { Activity, DataStore, JourneyStep, Trip, TripInput } from '../lib/datastore.js'
 import { normalizeTraveller } from '../lib/datastore.js'
 import { assertTripAccess, roleForTrip, type AccessContext } from '../lib/access.js'
 import { canDeleteTrip, canEditTrip } from '../lib/permissions.js'
@@ -323,12 +323,17 @@ function collectTripErrors(input: Partial<TripInput>, partial: boolean): string[
  * move the stops along with it.
  */
 async function findStranded(store: DataStore, tripId: string, range: DateRange) {
-  const [steps, items] = await Promise.all([store.listSteps(tripId), store.listItinerary(tripId)])
+  const [steps, activities] = await Promise.all([
+    store.listSteps(tripId),
+    store.listActivities(tripId),
+  ])
   return {
     steps: steps.filter(
       (s) => !withinRange(s.start_date, range) || !withinRange(s.end_date, range)
     ),
-    items: items.filter((i) => !withinRange(i.day, range)),
+    // Only a *scheduled* activity can be stranded by a date change: a saved one
+    // has no date to fall outside the trip, which is what makes it saved.
+    items: activities.filter((a) => a.day !== null && !withinRange(a.day, range)),
   }
 }
 
@@ -356,7 +361,7 @@ function movedStepDates(step: JourneyStep, range: DateRange) {
   }
 }
 
-function strandedItemsError(items: ItineraryItem[], range: DateRange): string[] {
+function strandedItemsError(items: Activity[], range: DateRange): string[] {
   if (!items.length) return []
   const days = [...new Set(items.map((i) => i.day))].sort()
   return [
@@ -419,12 +424,12 @@ export async function getDateImpact(
       // longer has room for it — rather than re-deriving the rule and drifting.
       moves_to: movedStepDates(s, range),
     })),
-    items: stranded.items.map((i) => ({
-      id: i.id,
-      day: i.day,
-      start_time: i.start_time,
-      title: i.title,
-      highlight: i.highlight,
+    activities: stranded.items.map((a) => ({
+      id: a.id,
+      day: a.day,
+      start_time: a.start_time,
+      name: a.name,
+      highlight: a.highlight,
     })),
   }
 }
@@ -498,7 +503,7 @@ export async function updateTrip(
 
   const datesChanged = fields.start_date !== undefined || fields.end_date !== undefined
   let strandedSteps: JourneyStep[] = []
-  let strandedItems: ItineraryItem[] = []
+  let strandedItems: Activity[] = []
   let range: DateRange | null = null
 
   if (datesChanged) {
@@ -539,13 +544,13 @@ export async function updateTrip(
       await store.updateStep(tripId, step.id, movedStepDates(step, range))
       movedStops.push(step.id)
     }
-    for (const item of strandedItems) {
+    for (const activity of strandedItems) {
       if (resolution === 'delete') {
-        await store.deleteItineraryItem(tripId, item.id)
-        deleted.push(item.id)
+        await store.deleteActivity(tripId, activity.id)
+        deleted.push(activity.id)
       } else {
-        await store.updateItineraryItem(tripId, item.id, { day: range.start_date })
-        moved.push(item.id)
+        await store.updateActivity(tripId, activity.id, { day: range.start_date })
+        moved.push(activity.id)
       }
     }
   }

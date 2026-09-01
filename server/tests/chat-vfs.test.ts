@@ -33,7 +33,7 @@ describe('the listing', () => {
   it('names every file, and reads nothing to say so', async () => {
     // The point of the whole feature, as a call count. Building the prefix used
     // to be seven queries before the model had been asked anything.
-    const places = vi.spyOn(store, 'listAllPlaces')
+    const places = vi.spyOn(store, 'listActivities')
     const zones = vi.spyOn(store, 'listZones')
 
     const manifest = (await fs()).manifest()
@@ -65,9 +65,8 @@ describe('the listing', () => {
       trip: await trip(),
       steps: await store.listSteps('trip-1'),
       zones: await store.listZones('trip-1'),
-      places: await store.listAllPlaces('trip-1'),
+      activities: await store.listActivities('trip-1'),
       tips: await store.listAllTips('trip-1'),
-      itinerary: await store.listItinerary('trip-1'),
       shopping: await store.listShoppingItems('trip-1'),
       files: await store.listAllFiles('trip-1'),
     })
@@ -86,19 +85,19 @@ describe('the listing', () => {
 
 describe('reading a file whole', () => {
   it('returns it line-numbered, with the total', async () => {
-    const result = await grep({ path: '/trip/places.json' })
-    expect(result).toContain('/trip/places.json (lines 1-')
+    const result = await grep({ path: '/trip/saved.json' })
+    expect(result).toContain('/trip/saved.json (lines 1-')
     expect(result).toContain('Ramen Bar')
     expect(result).toMatch(/^\s*\d+: /m)
   })
 
   it('pages a long file rather than truncating it away', async () => {
     store = createMemoryStore(largeFixture())
-    const first = await grep({ path: '/trip/places.json' })
+    const first = await grep({ path: '/trip/saved.json' })
     expect(first).toMatch(/Read on with offset \d+/)
 
     const offset = Number(first.match(/Read on with offset (\d+)/)![1])
-    const second = await grep({ path: '/trip/places.json', offset })
+    const second = await grep({ path: '/trip/saved.json', offset })
     expect(second).toContain(`(lines ${offset}-`)
     // The two pages meet rather than overlapping or skipping a line.
     expect(second).not.toContain(`\n${offset - 1}: `)
@@ -121,14 +120,14 @@ describe('reading a file whole', () => {
     // listing costs one round trip; answering "not found" costs the turn.
     const result = await grep({ path: '/trip/hotels.json' })
     expect(result).toContain('There is no file at "/trip/hotels.json"')
-    expect(result).toContain('/trip/places.json')
+    expect(result).toContain('/trip/saved.json')
   })
 })
 
 describe('searching', () => {
   it('finds a line and shows what is around it', async () => {
-    const result = await grep({ path: '/trip/places.json', pattern: 'Ramen' })
-    expect(result).toContain('/trip/places.json:')
+    const result = await grep({ path: '/trip/saved.json', pattern: 'Ramen' })
+    expect(result).toContain('/trip/saved.json:')
     expect(result).toContain('Ramen Bar')
     // The context is the point: a match on a name is useless without the city
     // and category lines that bracket it.
@@ -149,8 +148,8 @@ describe('searching', () => {
   it('says nothing matched rather than returning an empty result', async () => {
     // An empty search *is* an answer — "there is no ramen place saved in Osaka"
     // — and the model can only give it if the tool says so in words.
-    expect(await grep({ path: '/trip/places.json', pattern: 'zzz-no-such-place' })).toContain(
-      'No lines in /trip/places.json match that'
+    expect(await grep({ path: '/trip/saved.json', pattern: 'zzz-no-such-place' })).toContain(
+      'No lines in /trip/saved.json match that'
     )
   })
 
@@ -169,7 +168,7 @@ describe('searching', () => {
 
 describe('what the files contain', () => {
   it('groups every place under the city it is in', async () => {
-    const result = await grep({ path: '/trip/places.json', pattern: 'Fushimi', context: 4 })
+    const result = await grep({ path: '/trip/saved.json', pattern: 'Fushimi', context: 4 })
     expect(result).toContain('Kyoto')
     expect(result).toContain('"category": "attraction"')
   })
@@ -210,7 +209,7 @@ describe('what the files contain', () => {
 
   it('resolves a day-plan entry to its city and its place by name', async () => {
     const result = await grep({
-      path: '/trip/itinerary.json',
+      path: '/trip/plan.json',
       pattern: 'Walk Shinjuku',
       context: 5,
     })
@@ -241,8 +240,8 @@ describe('paying for a file once', () => {
     const files = await fs()
     const tool = grepTool(files)
 
-    await tool.run({ path: '/trip/places.json' })
-    await tool.run({ path: '/trip/places.json', pattern: 'Ramen' })
+    await tool.run({ path: '/trip/saved.json' })
+    await tool.run({ path: '/trip/saved.json', pattern: 'Ramen' })
     await tool.run({ path: '/trip/tips.json' })
 
     expect(zones).toHaveBeenCalledTimes(1)

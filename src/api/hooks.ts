@@ -3,16 +3,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
 import { useTripId, useTripPath } from './tripPath'
 import type {
-  Category,
   ChatView,
   ExportDetail,
   ExportPayload,
   CurrencyCatalogue,
   GeocodeResult,
   ImageResult,
-  ItineraryItem,
-  PlaceDetail,
-  PlaceListItem,
+  Activity,
+  ActivityDetail,
   ProductPreview,
   Rates,
   Reminder,
@@ -55,10 +53,19 @@ export const useTrip = (tripId: string) =>
     enabled: !!tripId,
   })
 
-export const useItinerary = (tripId: string) =>
+/**
+ * Every activity on the trip — the one list every screen filters.
+ *
+ * One query, because there is one table: the day plan takes the dated rows, a
+ * city's Explore the undated ones in that city, the map the located ones.
+ * That is fewer requests than before 010, not more — the map used to fetch a
+ * zone's places per city on top of the itinerary.
+ */
+export const useActivities = (tripId: string) =>
   useQuery({
-    queryKey: ['itinerary', tripId],
-    queryFn: () => api.get<{ items: ItineraryItem[] }>(`/trips/${tripId}/itinerary`),
+    queryKey: ['activities', tripId],
+    queryFn: () => api.get<{ activities: Activity[] }>(`/trips/${tripId}/activities`),
+    enabled: !!tripId,
   })
 
 export const useZone = (zoneId: string) => {
@@ -68,28 +75,19 @@ export const useZone = (zoneId: string) => {
     // invalidations in mutations.ts match on this prefix.
     queryKey: ['zone', zoneId],
     queryFn: () => api.get<ZoneDetail>(path(`/zones/${zoneId}`)),
-    // The place form asks for the zone it is adding into before it knows which
-    // one that is (editing: the zone arrives with the place), and `/zones//…`
-    // would 404 on the way past. Same guard, same reason, as `usePlace`.
+    // The activity form asks for the zone it is adding into before it knows
+    // which one that is, and `/zones//…` would 404 on the way past. Same
+    // guard, same reason, as `useActivity`.
     enabled: zoneId !== '',
   })
 }
 
-export const useZonePlaces = (zoneId: string, category: Category) => {
+export const useActivity = (activityId: string) => {
   const path = useTripPath()
   return useQuery({
-    queryKey: ['zone-places', zoneId, category],
-    queryFn: () =>
-      api.get<{ places: PlaceListItem[] }>(path(`/zones/${zoneId}/places?category=${category}`)),
-  })
-}
-
-export const usePlace = (placeId: string) => {
-  const path = useTripPath()
-  return useQuery({
-    queryKey: ['place', placeId],
-    queryFn: () => api.get<PlaceDetail>(path(`/places/${placeId}`)),
-    enabled: placeId !== '', // PlaceForm in add mode has no place to fetch
+    queryKey: ['activity', activityId],
+    queryFn: () => api.get<ActivityDetail>(path(`/activities/${activityId}`)),
+    enabled: activityId !== '', // ActivityForm in add mode has nothing to fetch
   })
 }
 

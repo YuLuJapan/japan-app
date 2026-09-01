@@ -10,7 +10,7 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import TripMap from '../pages/TripMap'
 import { CATEGORY_META, type Category } from '../api/types'
-import { renderAt } from './helpers'
+import { renderAt, activity } from './helpers'
 import { lastFakeEngine, resetFakeEngine } from '../map/engine.fake'
 
 vi.mock('../map/engine.leaflet', async () => await import('../map/engine.fake'))
@@ -34,17 +34,16 @@ const place = (
   category: string,
   lat: number | null,
   lng: number | null
-) => ({
-  id,
-  name,
-  name_ja: null,
-  category,
-  summary_line: '',
-  image_url: null,
-  address: `${name} street`,
-  lat,
-  lng,
-})
+) =>
+  activity({
+    id,
+    name,
+    category: category as Category,
+    address: `${name} street`,
+    lat,
+    lng,
+    zone_id: 'zone-tokyo',
+  })
 
 const TOKYO = { id: 'zone-tokyo', name: 'Tokyo', image_url: null, lat: 35.68, lng: 139.76 }
 
@@ -82,7 +81,7 @@ beforeEach(() => {
   ]
   mocks.get.mockImplementation((path: string) => {
     if (path === '/trips/trip-1') return Promise.resolve(bundle())
-    if (path.startsWith('/trips/trip-1/zones/zone-tokyo/places')) return Promise.resolve({ places })
+    if (path === '/trips/trip-1/activities') return Promise.resolve({ activities: places })
     return Promise.reject(new Error(`unexpected GET ${path}`))
   })
 })

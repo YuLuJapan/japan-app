@@ -3,7 +3,7 @@
 // days only). Selection defaults to today when it falls inside the range.
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { ItineraryItem, TripStep } from '../api/types'
+import type { Activity, TripStep } from '../api/types'
 import {
   daySections,
   dayZones,
@@ -18,7 +18,7 @@ import { DayStrip } from './DayStrip'
 
 interface Props {
   steps: TripStep[]
-  items: ItineraryItem[]
+  items: Activity[]
   days: string[]
   today: string
   /** 'trip' shows the day's city; 'zone' is scoped to one city's days. */
@@ -109,7 +109,7 @@ export function Schedule({ steps, items, days, today, mode, zoneId, tripId }: Pr
         )}
       </div>
 
-      <DayHighlights day={day} highlights={highlights} zoneId={newZoneId} tripId={tripId} />
+      <DayHighlights day={day} highlights={highlights} zoneId={newZoneId} />
 
       {/* Keyed by day so switching days drops any half-open form or "moved" notice. */}
       <DayPlan

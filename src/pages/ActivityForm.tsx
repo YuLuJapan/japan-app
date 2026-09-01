@@ -1,31 +1,35 @@
-// Add/edit places on the fly (FR-015, SC-008). On save failure the entered
-// text is preserved and a retry is offered (FR-019) — form state lives here,
-// never cleared on error.
+// Add/edit an activity on the fly (FR-015, SC-008). On save failure the
+// entered text is preserved and a retry is offered (FR-019) — form state lives
+// here, never cleared on error.
+//
+// This is the *full* form: a location, links, a photo, a tag. The day plan's
+// inline editor is the quick one — a name, a time, a tag — and both survive
+// 010 deliberately. One entity, two depths of form, no second concept.
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { usePlace } from '../api/hooks'
-import { useCreatePlace, useUpdatePlace } from '../api/mutations'
+import { useActivity } from '../api/hooks'
+import { useCreateActivity, useUpdateActivity } from '../api/mutations'
 import { useZone } from '../api/hooks'
-import type { Category, GeocodeResult, PlaceInput, PlaceLink } from '../api/types'
+import type { ActivityInput, Category, GeocodeResult, PlaceLink } from '../api/types'
 import { CATEGORIES, CATEGORY_META } from '../api/types'
 import { Breadcrumbs } from '../components/Breadcrumbs'
 import { Loading } from '../components/Loading'
 import { LocationPicker } from '../components/LocationPicker'
 import { useTripId } from '../lib/trip'
 
-export default function PlaceForm() {
-  const { zoneId, placeId } = useParams()
+export default function ActivityForm() {
+  const { zoneId, activityId } = useParams()
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const tripId = useTripId()
-  const editing = Boolean(placeId)
+  const editing = Boolean(activityId)
 
-  const existing = usePlace(placeId ?? '')
-  // The city this place sits in, for the location search to lean on. Adding
-  // knows its zone from the route; editing learns it with the place.
-  const zone = useZone(zoneId ?? existing.data?.place.zone_id ?? '')
-  const create = useCreatePlace()
-  const update = useUpdatePlace(placeId ?? '')
+  const existing = useActivity(activityId ?? '')
+  // The city this activity sits in, for the location search to lean on. Adding
+  // knows its zone from the route; editing learns it with the activity.
+  const zone = useZone(zoneId ?? existing.data?.activity.zone_id ?? '')
+  const create = useCreateActivity()
+  const update = useUpdateActivity()
   const mutation = editing ? update : create
 
   const [name, setName] = useState('')
@@ -44,9 +48,9 @@ export default function PlaceForm() {
   const loaded = editing && existing.data
   useEffect(() => {
     if (loaded) {
-      const p = existing.data.place
+      const p = existing.data.activity
       setName(p.name)
-      setCategory(p.category)
+      setCategory(p.category ?? 'other')
       setDescription(p.description ?? '')
       setAddress(p.address ?? '')
       setImageUrl(p.image_url ?? '')
@@ -56,7 +60,7 @@ export default function PlaceForm() {
 
   if (editing && existing.isPending) return <Loading />
 
-  const targetZone = editing ? existing.data?.place.zone_id : zoneId
+  const targetZone = editing ? existing.data?.activity.zone_id : zoneId
   const z = zone.data?.zone
   const zoneBias =
     typeof z?.lat === 'number' && typeof z?.lng === 'number'
@@ -65,7 +69,7 @@ export default function PlaceForm() {
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
-    const input: Partial<PlaceInput> = {
+    const input: Partial<ActivityInput> = {
       name: name.trim(),
       category,
       description: description.trim() || null,
@@ -73,15 +77,17 @@ export default function PlaceForm() {
       image_url: imageUrl.trim() || null,
       links: links.filter((l) => l.label.trim() && l.url.trim()),
       // Only what was accepted. Omitted rather than nulled when nothing was
-      // picked, so editing a place's notes never quietly clears the location
-      // the backfill found for it (the PATCH convention `flight` follows).
+      // picked, so editing an activity's notes never quietly clears the
+      // location the backfill found for it (the PATCH convention `flight`
+      // follows). `day` is absent for the same reason: this form does not
+      // schedule — `ScheduleActivity` on the detail screen does.
       ...(located ? { lat: located.lat, lng: located.lng } : {}),
     }
-    const onSuccess = (data: { place: { id: string } }) =>
-      navigate(`/trips/${tripId}/places/${data.place.id}`, { replace: true })
-    if (editing) update.mutate(input, { onSuccess })
+    const onSuccess = (data: { activity: { id: string } }) =>
+      navigate(`/trips/${tripId}/activities/${data.activity.id}`, { replace: true })
+    if (editing && activityId) update.mutate({ id: activityId, patch: input }, { onSuccess })
     else if (targetZone)
-      create.mutate({ ...input, zone_id: targetZone } as PlaceInput, { onSuccess })
+      create.mutate({ ...input, zone_id: targetZone } as ActivityInput, { onSuccess })
   }
 
   const setLink = (i: number, patch: Partial<PlaceLink>) =>
@@ -93,11 +99,13 @@ export default function PlaceForm() {
         trail={[
           { label: 'Journey', to: `/trips/${tripId}` },
           editing
-            ? { label: name || 'This place', to: `/trips/${tripId}/places/${placeId}` }
+            ? { label: name || 'This activity', to: `/trips/${tripId}/activities/${activityId}` }
             : { label: 'Zone', to: `/trips/${tripId}/zones/${targetZone}` },
         ]}
       />
-      <h1 className="font-display text-2xl font-bold">{editing ? 'Edit place' : 'Add a place'}</h1>
+      <h1 className="font-display text-2xl font-bold">
+        {editing ? 'Edit activity' : 'Add an activity'}
+      </h1>
 
       <div>
         <label className="label" htmlFor="name">
@@ -153,7 +161,7 @@ export default function PlaceForm() {
       <LocationPicker
         label="Location"
         placeholder="Street, area, or landmark"
-        initialQuery={editing ? (existing.data?.place.address ?? '') : ''}
+        initialQuery={editing ? (existing.data?.activity.address ?? '') : ''}
         near={zoneBias}
         onPick={setLocated}
         onQueryChange={(query) => setAddress(query)}

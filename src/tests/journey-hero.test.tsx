@@ -54,7 +54,7 @@ const bundle = (flight?: unknown) => ({
         id: 'zone-tokyo',
         name: 'Tokyo',
         image_url: 'https://example.com/tokyo.jpg',
-        place_counts: { hotel: 0, attraction: 0, food: 0, shopping: 0, other: 0 },
+        saved_counts: { hotel: 0, attraction: 0, food: 0, shopping: 0, other: 0 },
       },
     },
     {
@@ -66,7 +66,7 @@ const bundle = (flight?: unknown) => ({
         id: 'zone-hakone',
         name: 'Hakone',
         image_url: null,
-        place_counts: { hotel: 0, attraction: 0, food: 0, shopping: 0, other: 0 },
+        saved_counts: { hotel: 0, attraction: 0, food: 0, shopping: 0, other: 0 },
       },
     },
   ],
@@ -89,7 +89,9 @@ const route = [{ path: '/trips/:tripId', element: <Journey /> }]
 
 const mockApi = (payload: unknown) =>
   mocks.get.mockImplementation((path: string) =>
-    path === '/trips/trip-1' ? Promise.resolve(payload) : Promise.resolve({ items: [] })
+    path === '/trips/trip-1'
+      ? Promise.resolve(payload)
+      : Promise.resolve({ activities: [], items: [] })
   )
 
 beforeEach(() => {

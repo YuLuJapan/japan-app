@@ -84,7 +84,7 @@ function mockApi(items: ShoppingItem[]) {
               name: 'Tokyo',
               name_ja: null,
               summary: null,
-              place_counts: {},
+              saved_counts: {},
             },
           },
         ],
@@ -540,7 +540,7 @@ describe('ShoppingForm', () => {
             },
           ],
         })
-      return Promise.resolve({ items: [] })
+      return Promise.resolve({ activities: [], items: [] })
     })
     renderNewForm()
 
@@ -559,7 +559,9 @@ describe('ShoppingForm', () => {
   it('says so when the web search comes back empty', async () => {
     mockApi([])
     mocks.get.mockImplementation((path: string) =>
-      path.startsWith('/images') ? Promise.resolve({ results: [] }) : Promise.resolve({ items: [] })
+      path.startsWith('/images')
+        ? Promise.resolve({ results: [] })
+        : Promise.resolve({ activities: [], items: [] })
     )
     renderNewForm()
 

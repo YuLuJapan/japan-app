@@ -93,7 +93,7 @@ export function PlaceCardRow({
             <div className="mt-2 border-t border-line pt-2">
               <div className="flex gap-2">
                 <Link
-                  to={`/trips/${tripId}/places/${card.id}`}
+                  to={`/trips/${tripId}/activities/${card.id}`}
                   className="btn-ghost min-h-10 flex-1 px-3 text-xs"
                 >
                   Open place

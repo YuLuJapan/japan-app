@@ -7,21 +7,13 @@
 // apart.
 import { describe, expect, it } from 'vitest'
 import { boundsOf, categoryStyle, missingCount, toPins } from '../map/pins'
-import type { PlaceListItem } from '../api/types'
+import type { Activity } from '../api/types'
+import { activity } from './helpers'
 
-const place = (id: string, lat: number | null, lng: number | null): PlaceListItem => ({
-  id,
-  name: `Place ${id}`,
-  name_ja: null,
-  category: 'food',
-  summary_line: '',
-  image_url: null,
-  address: null,
-  lat,
-  lng,
-})
+const place = (id: string, lat: number | null, lng: number | null): Activity =>
+  activity({ id, name: `Place ${id}`, category: 'food', lat, lng })
 
-const MIXED: PlaceListItem[] = [
+const MIXED: Activity[] = [
   place('a', 35.66, 139.7),
   place('b', null, null),
   place('c', 34.99, 135.77),

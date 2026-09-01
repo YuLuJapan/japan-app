@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useItinerary, useTrip, useZone } from '../api/hooks'
+import { useActivities, useTrip, useZone } from '../api/hooks'
 import { CATEGORIES, CATEGORY_META } from '../api/types'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
@@ -25,19 +25,19 @@ export default function Zone() {
   const tripId = useTripId()
   const { data, isPending, isError, refetch } = useZone(zoneId)
   const trip = useTrip(tripId)
-  const itinerary = useItinerary(tripId)
+  const activities = useActivities(tripId)
 
   if (isPending) return <Loading />
   if (isError) return <ErrorState message="Could not load this zone." onRetry={() => refetch()} />
 
-  const { zone, tips, files, place_counts } = data
+  const { zone, tips, files, saved_counts } = data
 
   const steps = trip.data?.steps ?? []
   const days = trip.data?.trip
     ? zoneDays(steps, zoneId, enumerateDays(trip.data.trip.start_date, trip.data.trip.end_date))
     : []
   // hide empty categories without breaking navigation (FR-012)
-  const visible = CATEGORIES.filter((c) => place_counts[c] > 0)
+  const visible = CATEGORIES.filter((c) => saved_counts[c] > 0)
 
   // "Sep 19 – Sep 25 · 6 nights", from the stops that land in this city. A city
   // visited twice (out and back) has two stops, so the range spans the whole
@@ -101,14 +101,14 @@ export default function Zone() {
       )}
       {zone.summary && <p className="text-[13px] leading-relaxed text-muted">{zone.summary}</p>}
 
-      {days.length > 0 && itinerary.data && (
+      {days.length > 0 && activities.data && (
         <section>
           <h2 className="mb-2.5 font-display text-lg font-bold tracking-tight">Schedule</h2>
           <Schedule
             mode="zone"
             zoneId={zoneId}
             steps={steps}
-            items={itinerary.data.items}
+            items={activities.data.activities.filter((a) => a.day !== null)}
             days={days}
             today={toISODate(new Date())}
             tripId={tripId}
@@ -121,10 +121,10 @@ export default function Zone() {
           <h2 className="font-display text-lg font-bold tracking-tight">Explore</h2>
           {canEdit && (
             <Link
-              to={`/trips/${tripId}/zones/${zoneId}/places/new`}
+              to={`/trips/${tripId}/zones/${zoneId}/activities/new`}
               className="text-xs font-bold text-brand"
             >
-              + Add place
+              + Add
             </Link>
           )}
         </div>
@@ -154,7 +154,7 @@ export default function Zone() {
                     <span className="block truncate text-[13px] font-bold leading-tight text-ink">
                       {meta.label}
                     </span>
-                    <span className="text-[10px] text-faint">{place_counts[c]} saved</span>
+                    <span className="text-[10px] text-faint">{saved_counts[c]} saved</span>
                   </span>
                   <span aria-hidden className="text-sm text-hush">
                     ›

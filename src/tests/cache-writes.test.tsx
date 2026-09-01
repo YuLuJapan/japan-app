@@ -11,8 +11,8 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import {
-  useCreateItineraryItem,
-  useCreatePlace,
+  useCreateActivity,
+  useUpdateActivity,
   useCreateReminder,
   useCreateTip,
   useCreateShoppingItem,
@@ -29,13 +29,13 @@ import {
   useRemoveMember,
   useRevokeInvite,
   useUpdateMember,
-  useUpdatePlace,
   useUpdateReminder,
   useUpdateZone,
   useUpdateShoppingItem,
   useUpdateTrip,
 } from '../api/mutations'
-import type { FileMeta, Place, PlaceListItem, Reminder, ShoppingItem, Trip } from '../api/types'
+import type { FileMeta, Activity, Reminder, ShoppingItem, Trip } from '../api/types'
+import { activity } from './helpers'
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() }))
 vi.mock('../api/client', async (importOriginal) => ({
@@ -174,14 +174,14 @@ describe('the shopping list', () => {
 describe('deleting a document', () => {
   it('takes it out of every list at once', async () => {
     client.setQueryData(['trip-files', 't1'], { files: [file] })
-    client.setQueryData(['place', 'p1'], { place: { id: 'p1' }, tips: [], files: [file] })
+    client.setQueryData(['activity', 'p1'], { activity: { id: 'p1' }, tips: [], files: [file] })
 
     const { result } = renderHook(() => useDeleteFile(), { wrapper })
     result.current.mutate('f1')
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(client.getQueryData<{ files: FileMeta[] }>(['trip-files', 't1'])?.files).toEqual([])
-    expect(client.getQueryData<{ files: FileMeta[] }>(['place', 'p1'])?.files).toEqual([])
+    expect(client.getQueryData<{ files: FileMeta[] }>(['activity', 'p1'])?.files).toEqual([])
   })
 })
 
@@ -189,7 +189,7 @@ describe('what is deliberately left to the refetch', () => {
   it('leaves a cache it cannot read alone rather than mangling it', async () => {
     // `setQueriesData` sweeps every key under a prefix, and not all of them
     // hold a file list. Anything unrecognised is passed through untouched.
-    client.setQueryData(['zone', 'z1'], { zone: { id: 'z1' }, place_counts: { food: 2 } })
+    client.setQueryData(['zone', 'z1'], { zone: { id: 'z1' }, saved_counts: { food: 2 } })
     mocks.patch.mockResolvedValue({ file: { ...file, display_name: 'New name' } })
 
     const { result } = renderHook(() => useRenameFile({ kind: 'trip' }), { wrapper })
@@ -198,7 +198,7 @@ describe('what is deliberately left to the refetch', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(client.getQueryData(['zone', 'z1'])).toEqual({
       zone: { id: 'z1' },
-      place_counts: { food: 2 },
+      saved_counts: { food: 2 },
     })
   })
 })
@@ -496,119 +496,115 @@ describe('sharing', () => {
   })
 })
 
-describe('activities in a zone', () => {
-  const place = (over: Partial<Place> = {}): Place => ({
-    id: 'p1',
-    zone_id: 'z1',
-    category: 'food',
-    name: 'Ramen Bar',
-    name_ja: null,
-    description: 'Tiny counter, queue early',
-    address: null,
-    links: [],
-    image_url: null,
-    lat: null,
-    lng: null,
-    summary_line: 'Tiny counter, queue early',
-    ...over,
-  })
+describe('an activity, in the one list every screen reads', () => {
+  // Before 010 this block tested a per-category zone list *and* a day plan,
+  // two caches that had to be kept in step. There is one list now, so what is
+  // worth asserting changed: that the row lands in it, and that the tally
+  // Explore's grid renders follows the row between saved and scheduled.
 
-  const row = (over: Partial<PlaceListItem> = {}): PlaceListItem => ({
-    id: 'p1',
-    name: 'Ramen Bar',
-    name_ja: null,
-    category: 'food',
-    summary_line: 'Tiny counter, queue early',
-    image_url: null,
-    address: null,
-    lat: null,
-    lng: null,
-    ...over,
-  })
+  const saved = (over: Partial<Activity> = {}) =>
+    activity({
+      id: 'p1',
+      name: 'Ramen Bar',
+      category: 'food',
+      description: 'Tiny counter, queue early',
+      summary_line: 'Tiny counter, queue early',
+      zone_id: 'z1',
+      ...over,
+    })
 
-  it('shows an edited name and summary back in the zone list, in place', async () => {
-    // The list you return to after editing — the one that used to hold the old
-    // name until a refetch caught up.
-    client.setQueryData(['place', 'p1'], { place: place(), tips: [], files: [] })
-    client.setQueryData(['zone-places', 'z1', 'food'], {
-      places: [row({ id: 'p0', name: 'First' }), row()],
+  const zoneWith = (counts: Partial<Record<string, number>>) =>
+    client.setQueryData(['zone', 'z1'], {
+      zone: { id: 'z1' },
+      tips: [],
+      files: [],
+      saved_counts: { hotel: 0, attraction: 0, food: 0, shopping: 0, other: 0, ...counts },
+    })
+
+  it('shows an edited name and summary back in the list, in place', async () => {
+    client.setQueryData(['activity', 'p1'], { activity: saved(), tips: [], files: [] })
+    client.setQueryData(['activities', 't1'], {
+      activities: [saved({ id: 'p0', name: 'First' }), saved()],
     })
     mocks.patch.mockResolvedValue({
-      place: place({ name: 'Ichiran', description: 'Solo booths', summary_line: 'Solo booths' }),
+      activity: saved({ name: 'Ichiran', description: 'Solo booths', summary_line: 'Solo booths' }),
     })
 
-    const { result } = renderHook(() => useUpdatePlace('p1'), { wrapper })
-    result.current.mutate({ name: 'Ichiran', description: 'Solo booths' })
+    const { result } = renderHook(() => useUpdateActivity(), { wrapper })
+    result.current.mutate({ id: 'p1', patch: { name: 'Ichiran', description: 'Solo booths' } })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    const list = client.getQueryData<{ places: PlaceListItem[] }>(['zone-places', 'z1', 'food'])
-    expect(list?.places.map((p) => p.name)).toEqual(['First', 'Ichiran']) // position kept
-    expect(list?.places[1].summary_line).toBe('Solo booths') // the server's own line
+    const list = client.getQueryData<{ activities: Activity[] }>(['activities', 't1'])
+    expect(list?.activities.map((a) => a.name)).toEqual(['First', 'Ichiran'])
+    expect(list?.activities[1].summary_line).toBe('Solo booths') // the server's own line
     expect(mocks.get).not.toHaveBeenCalled()
   })
 
-  it('moves it between lists, and between tallies, when the category changes', async () => {
-    client.setQueryData(['place', 'p1'], { place: place(), tips: [], files: [] })
-    client.setQueryData(['zone-places', 'z1', 'food'], { places: [row()] })
-    client.setQueryData(['zone-places', 'z1', 'attraction'], { places: [] })
-    client.setQueryData(['zone', 'z1'], {
-      zone: { id: 'z1' },
-      tips: [],
-      files: [],
-      place_counts: { hotel: 0, attraction: 2, food: 1, shopping: 0, other: 0 },
-    })
-    mocks.patch.mockResolvedValue({ place: place({ category: 'attraction' }) })
+  it('moves the tally between categories when the tag changes', async () => {
+    client.setQueryData(['activity', 'p1'], { activity: saved(), tips: [], files: [] })
+    client.setQueryData(['activities', 't1'], { activities: [saved()] })
+    zoneWith({ attraction: 2, food: 1 })
+    mocks.patch.mockResolvedValue({ activity: saved({ category: 'attraction' }) })
 
-    const { result } = renderHook(() => useUpdatePlace('p1'), { wrapper })
-    result.current.mutate({ category: 'attraction' })
+    const { result } = renderHook(() => useUpdateActivity(), { wrapper })
+    result.current.mutate({ id: 'p1', patch: { category: 'attraction' } })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    expect(
-      client.getQueryData<{ places: PlaceListItem[] }>(['zone-places', 'z1', 'food'])?.places
-    ).toEqual([])
-    expect(
-      client
-        .getQueryData<{ places: PlaceListItem[] }>(['zone-places', 'z1', 'attraction'])
-        ?.places.map((p) => p.id)
-    ).toEqual(['p1'])
-    const counts = client.getQueryData<{ place_counts: Record<string, number> }>(['zone', 'z1'])
-    expect(counts?.place_counts).toMatchObject({ food: 0, attraction: 3 })
+    const counts = client.getQueryData<{ saved_counts: Record<string, number> }>(['zone', 'z1'])
+    expect(counts?.saved_counts).toMatchObject({ food: 0, attraction: 3 })
   })
 
-  it('adds a new one to its list and its tally at once', async () => {
-    client.setQueryData(['zone-places', 'z1', 'food'], { places: [row({ id: 'p0' })] })
-    client.setQueryData(['zone', 'z1'], {
-      zone: { id: 'z1' },
+  it('takes it out of the tally when it is scheduled, and puts it back when it is not', async () => {
+    // The write this feature exists for: a date moves a row from Explore to the
+    // day plan, and the grid's count has to follow it.
+    client.setQueryData(['activity', 'p1'], { activity: saved(), tips: [], files: [] })
+    client.setQueryData(['activities', 't1'], { activities: [saved()] })
+    zoneWith({ food: 1 })
+    mocks.patch.mockResolvedValue({ activity: saved({ day: '2026-10-06' }) })
+
+    const { result } = renderHook(() => useUpdateActivity(), { wrapper })
+    result.current.mutate({ id: 'p1', patch: { day: '2026-10-06' } })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(
+      client.getQueryData<{ saved_counts: Record<string, number> }>(['zone', 'z1'])?.saved_counts
+        .food
+    ).toBe(0)
+
+    // and back the other way
+    client.setQueryData(['activity', 'p1'], {
+      activity: saved({ day: '2026-10-06' }),
       tips: [],
       files: [],
-      place_counts: { hotel: 0, attraction: 0, food: 1, shopping: 0, other: 0 },
     })
-    mocks.post.mockResolvedValue({ place: place({ id: 'p2', name: 'New spot' }) })
+    mocks.patch.mockResolvedValue({ activity: saved({ day: null }) })
+    result.current.mutate({ id: 'p1', patch: { day: null } })
+    await waitFor(() =>
+      expect(
+        client.getQueryData<{ saved_counts: Record<string, number> }>(['zone', 'z1'])?.saved_counts
+          .food
+      ).toBe(1)
+    )
+  })
 
-    const { result } = renderHook(() => useCreatePlace(), { wrapper })
+  it('adds a new one to the list and the tally at once', async () => {
+    client.setQueryData(['activities', 't1'], { activities: [saved({ id: 'p0' })] })
+    zoneWith({ food: 1 })
+    mocks.post.mockResolvedValue({ activity: saved({ id: 'p2', name: 'New spot' }) })
+
+    const { result } = renderHook(() => useCreateActivity(), { wrapper })
     result.current.mutate({ zone_id: 'z1', category: 'food', name: 'New spot' })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    const list = client.getQueryData<{ places: PlaceListItem[] }>(['zone-places', 'z1', 'food'])
-    // Appended: the list is created_at ascending, so the newest belongs last.
-    expect(list?.places.map((p) => p.id)).toEqual(['p0', 'p2'])
-    const counts = client.getQueryData<{ place_counts: Record<string, number> }>(['zone', 'z1'])
-    expect(counts?.place_counts.food).toBe(2)
-  })
-
-  it('leaves a category list it has never loaded alone', async () => {
-    // Nothing is invented for a list nobody has opened: it simply fetches.
-    client.setQueryData(['zone-places', 'z1', 'food'], { places: [] })
-    mocks.post.mockResolvedValue({ place: place({ id: 'p3', category: 'shopping' }) })
-
-    const { result } = renderHook(() => useCreatePlace(), { wrapper })
-    result.current.mutate({ zone_id: 'z1', category: 'shopping', name: 'Loft' })
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    expect(client.getQueryData(['zone-places', 'z1', 'shopping'])).toBeUndefined()
+    const list = client.getQueryData<{ activities: Activity[] }>(['activities', 't1'])
+    // Sorted, not appended: Explore's half of the list runs by category then
+    // name, so "New spot" lands ahead of "Ramen Bar" rather than at the end.
+    // Before 010 a zone's category list was `created_at` ascending and a new
+    // row belonged last — the order changed with the list.
+    expect(list?.activities.map((a) => a.id)).toEqual(['p2', 'p0'])
     expect(
-      client.getQueryData<{ places: PlaceListItem[] }>(['zone-places', 'z1', 'food'])?.places
-    ).toEqual([])
+      client.getQueryData<{ saved_counts: Record<string, number> }>(['zone', 'z1'])?.saved_counts
+        .food
+    ).toBe(2)
   })
 })
 
@@ -618,12 +614,12 @@ describe('what the API now hands back whole', () => {
     // included, which the client could never have built.
     client.setQueryData(['trip-files', 't1'], { files: [] })
     mocks.post.mockResolvedValue({
-      file: { ...file, attached_to: { kind: 'place', id: 'p1', name: 'Ramen Bar' } },
+      file: { ...file, attached_to: { kind: 'activity', id: 'p1', name: 'Ramen Bar' } },
     })
 
     const { result } = renderHook(() => useUploadFile('t1'), { wrapper })
     result.current.mutate({
-      parent: { kind: 'place', id: 'p1' },
+      parent: { kind: 'activity', id: 'p1' },
       display_name: 'Old name',
       mime_type: 'application/pdf',
       data_base64: 'AAAA',
@@ -634,7 +630,7 @@ describe('what the API now hands back whole', () => {
       'trip-files',
       't1',
     ])
-    expect(docs?.files[0].attached_to).toEqual({ kind: 'place', id: 'p1', name: 'Ramen Bar' })
+    expect(docs?.files[0].attached_to).toEqual({ kind: 'activity', id: 'p1', name: 'Ramen Bar' })
     expect(mocks.get).not.toHaveBeenCalled()
   })
 
@@ -671,33 +667,21 @@ describe('what the API now hands back whole', () => {
   })
 
   it('drops a new activity into the right place in its day', async () => {
-    const anytime = {
-      id: 'i1',
-      trip_id: 't1',
-      zone_id: null,
-      place_id: null,
-      day: '2026-10-02',
-      start_time: null,
-      title: 'Wander',
-      note: null,
-      position: 0,
-      highlight: false,
-      icon: null,
-    }
-    client.setQueryData(['itinerary', 't1'], { items: [anytime] })
+    const anytime = activity({ id: 'i1', zone_id: null, day: '2026-10-02', name: 'Wander' })
+    client.setQueryData(['activities', 't1'], { activities: [anytime] })
     mocks.post.mockResolvedValue({
-      item: { ...anytime, id: 'i2', start_time: '09:00', title: 'Museum' },
+      activity: { ...anytime, id: 'i2', start_time: '09:00', name: 'Museum' },
     })
 
-    const { result } = renderHook(() => useCreateItineraryItem('t1'), { wrapper })
-    result.current.mutate({ day: '2026-10-02', title: 'Museum', start_time: '09:00' })
+    const { result } = renderHook(() => useCreateActivity(), { wrapper })
+    result.current.mutate({ day: '2026-10-02', name: 'Museum', start_time: '09:00' })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     // Timed items sort ahead of untimed ones — the order the API returns.
     expect(
       client
-        .getQueryData<{ items: { title: string }[] }>(['itinerary', 't1'])
-        ?.items.map((i) => i.title)
+        .getQueryData<{ activities: { name: string }[] }>(['activities', 't1'])
+        ?.activities.map((a) => a.name)
     ).toEqual(['Museum', 'Wander'])
   })
 

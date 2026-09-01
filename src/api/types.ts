@@ -118,11 +118,11 @@ export interface TripDateImpact {
     /** Where `stranded_stops: 'move'` would put it — clipped if the trip is now too short. */
     moves_to: { start_date: string; end_date: string }
   }[]
-  items: {
+  activities: {
     id: string
     day: string
     start_time: string | null
-    title: string
+    name: string
     highlight: boolean
   }[]
 }
@@ -141,7 +141,8 @@ export interface ZoneSummary {
   image_url?: string | null
   lat?: number | null
   lng?: number | null
-  place_counts: Record<Category, number>
+  /** Saved (undated) activities per category — what Explore's grid shows. */
+  saved_counts: Record<Category, number>
 }
 
 export interface TripStep {
@@ -261,7 +262,7 @@ export interface InvitePreview {
 export interface Tip {
   id: string
   zone_id?: string | null
-  place_id?: string | null
+  activity_id?: string | null
   body: string
 }
 
@@ -273,10 +274,10 @@ export interface FileMeta {
 }
 
 export type FileParent =
-  { kind: 'trip' } | { kind: 'zone'; id: string } | { kind: 'place'; id: string }
+  { kind: 'trip' } | { kind: 'zone'; id: string } | { kind: 'activity'; id: string }
 
 export interface TripDocument extends FileMeta {
-  attached_to: { kind: 'trip' | 'zone' | 'place'; id: string; name: string }
+  attached_to: { kind: 'trip' | 'zone' | 'activity'; id: string; name: string }
 }
 
 export interface FileUploadInput {
@@ -298,19 +299,8 @@ export interface ZoneDetail {
   }
   tips: Tip[]
   files: FileMeta[]
-  place_counts: Record<Category, number>
-}
-
-export interface PlaceListItem {
-  id: string
-  name: string
-  name_ja: string | null
-  category: Category
-  summary_line: string
-  image_url?: string | null
-  address?: string | null
-  lat?: number | null
-  lng?: number | null
+  /** Saved (undated) activities per category — what Explore's grid shows. */
+  saved_counts: Record<Category, number>
 }
 
 export interface GeocodeResult {
@@ -325,10 +315,25 @@ export interface PlaceLink {
   url: string
 }
 
-export interface Place {
+/**
+ * One thing on a trip — somewhere to go, something to do, or a line on a day.
+ *
+ * Mirrors `server/src/lib/datastore.ts`. Feature 010 merged what used to be
+ * `Place` and `ItineraryItem`: they described the same thing from two sides,
+ * and the split meant a plan line could never hold a document or a pin.
+ *
+ * **The date is the only thing that decides where it shows.** With a `day` it
+ * is on the day plan; without one it is in its city's Explore list, grouped by
+ * category. Either way, coordinates put it on the map. Setting the date is
+ * "Schedule this"; clearing it sends the row back to Explore.
+ */
+export interface Activity {
   id: string
-  zone_id: string
-  category: Category
+  trip_id: string
+  /** The city. Null only for a *scheduled* activity — Explore is per-city. */
+  zone_id: string | null
+  /** Null means untagged: no pill on the plan, grouped under "More" in Explore. */
+  category: Category | null
   name: string
   name_ja: string | null
   description: string | null
@@ -337,24 +342,46 @@ export interface Place {
   image_url?: string | null
   lat?: number | null
   lng?: number | null
+  /** `YYYY-MM-DD`, or null for saved-but-not-scheduled. */
+  day: string | null
+  /** `HH:MM` (24h), or null for "sometime that day". */
+  start_time: string | null
+  position: number
+  /** Shown as a coral banner above the day's plan. Requires a `day`. */
+  highlight: boolean
+  /** Leading emoji for that banner. */
+  icon: string | null
   /**
-   * The one-line gist the zone's category lists show. Derived from the
-   * description, computed by the server (`lib/place-view.ts`) and returned on
-   * every place — so an edited place can go back into the list it came from
-   * without the client inventing the same rule. See `placeRow` in mutations.
+   * The one-line gist a list shows. Derived from the description, computed by
+   * the server (`lib/activity-view.ts`) and returned on every activity — so an
+   * edited row can go back into the list it came from without the client
+   * inventing the same rule. See `activityRow` in mutations.
    */
   summary_line: string
+  /**
+   * How many documents hang off this activity. A count, not the names: a name
+   * is a document, and the `documents` view withholds those. Zero when the
+   * caller may not see them.
+   */
+  file_count: number
 }
 
-export interface PlaceDetail {
-  place: Place
+/** With a date: on the day plan. */
+export const isScheduled = (a: Pick<Activity, 'day'>): a is Activity & { day: string } =>
+  a.day !== null
+
+/** Without one: in its city's Explore list. */
+export const isSaved = (a: Pick<Activity, 'day'>): boolean => a.day === null
+
+export interface ActivityDetail {
+  activity: Activity
   tips: Tip[]
   files: FileMeta[]
 }
 
-export interface PlaceInput {
-  zone_id: string
-  category: Category
+export interface ActivityInput {
+  zone_id?: string | null
+  category?: Category | null
   name: string
   name_ja?: string | null
   description?: string | null
@@ -363,50 +390,11 @@ export interface PlaceInput {
   image_url?: string | null
   lat?: number | null
   lng?: number | null
-}
-
-export interface ItineraryItem {
-  id: string
-  trip_id: string
-  zone_id: string | null
-  place_id: string | null
-  day: string // YYYY-MM-DD
-  start_time: string | null // HH:MM (24h) or null
-  title: string
-  note: string | null
-  position: number
-  highlight: boolean // shown as a "featured" banner above the day's plan
-  icon: string | null // leading emoji for the banner
-  /**
-   * The tag the traveller chose for this activity. Stored, unlike
-   * `place_category` below — it is what lets an activity that links to nothing
-   * saved still carry a coloured pill. Takes precedence when both are set.
-   * Optional so a payload cached before the column existed still parses.
-   */
-  category?: Category | null
-  /**
-   * Category of the place this activity links to, for the coloured tag under
-   * its title. Derived per request by the server, never stored — and null both
-   * when nothing is linked and when the link was cut off a stay this caller
-   * may not see. Optional so a cached payload written before the field existed
-   * still parses.
-   */
-  place_category?: Category | null
-  /** Names of files attached to that place. Empty when documents are withheld. */
-  place_files?: string[]
-}
-
-export interface ItineraryItemInput {
-  zone_id?: string | null
-  place_id?: string | null
-  day: string
+  day?: string | null
   start_time?: string | null
-  title: string
-  note?: string | null
   position?: number
   highlight?: boolean
   icon?: string | null
-  category?: Category | null
 }
 
 /** The categories an activity may be tagged with — every one the plan can draw. */

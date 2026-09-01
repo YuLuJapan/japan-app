@@ -31,14 +31,14 @@ async function tripWithActivities() {
 
   const itemIds: string[] = []
   for (const item of [
-    { day: '2027-03-06', title: 'Tram 28', start_time: '09:00' },
-    { day: '2027-03-07', title: 'Time Out Market' },
+    { day: '2027-03-06', name: 'Tram 28', start_time: '09:00' },
+    { day: '2027-03-07', name: 'Time Out Market' },
   ]) {
     const res = await request(app)
-      .post(`/api/trips/${tripId}/itinerary`)
+      .post(`/api/trips/${tripId}/activities`)
       .set(OWNER_BEARER)
       .send(item)
-    itemIds.push(res.body.item.id)
+    itemIds.push(res.body.activity.id)
   }
   return { tripId, itemIds }
 }
@@ -270,11 +270,11 @@ describe('trips', () => {
       end_date: '2026-10-11', // Tokyo's 4 nights still fit
     })
     // both fixture activities sit on 2026-10-06
-    expect(res.body.items.map((i: { id: string }) => i.id).sort()).toEqual([
+    expect(res.body.activities.map((i: { id: string }) => i.id).sort()).toEqual([
       'itin-ramen',
       'itin-walk',
     ])
-    expect(res.body.items[0]).toMatchObject({ day: '2026-10-06', title: expect.any(String) })
+    expect(res.body.activities[0]).toMatchObject({ day: '2026-10-06', name: expect.any(String) })
   })
 
   it('GET date-impact reports nothing for a range that still covers everything', async () => {
@@ -283,7 +283,7 @@ describe('trips', () => {
       .set(OWNER_BEARER)
     expect(res.status).toBe(200)
     expect(res.body.steps).toEqual([])
-    expect(res.body.items).toEqual([])
+    expect(res.body.activities).toEqual([])
   })
 
   it('a stranded stop is still refused without a stop resolution', async () => {
@@ -362,8 +362,9 @@ describe('trips', () => {
         expect.objectContaining({ start_date: '2027-01-10', end_date: '2027-01-13' }),
       ])
     )
-    const items = await request(app).get('/api/trips/trip-1/itinerary').set(OWNER_BEARER)
-    for (const i of items.body.items) expect(i.day).toBe('2027-01-10')
+    const items = await request(app).get('/api/trips/trip-1/activities').set(OWNER_BEARER)
+    for (const i of items.body.activities.filter((a: { day: string | null }) => a.day))
+      expect(i.day).toBe('2027-01-10')
   })
 
   it('rejects an unknown stranded_stops value', async () => {
@@ -386,12 +387,13 @@ describe('trips', () => {
     expect(ok.body.trip.end_date).toBe('2027-03-04')
     expect(ok.body.moved.sort()).toEqual([...itemIds].sort())
 
-    const items = await request(app).get(`/api/trips/${tripId}/itinerary`).set(OWNER_BEARER)
-    expect(items.body.items).toHaveLength(2) // nothing lost
-    for (const item of items.body.items) expect(item.day).toBe('2027-03-01')
+    const items = await request(app).get(`/api/trips/${tripId}/activities`).set(OWNER_BEARER)
+    const scheduled = items.body.activities.filter((a: { day: string | null }) => a.day)
+    expect(scheduled).toHaveLength(2) // nothing lost
+    for (const item of scheduled) expect(item.day).toBe('2027-03-01')
     // the move touches the day and nothing else
-    const timed = items.body.items.find((i: { id: string }) => i.id === itemIds[0])
-    expect(timed).toMatchObject({ title: 'Tram 28', start_time: '09:00' })
+    const timed = items.body.activities.find((i: { id: string }) => i.id === itemIds[0])
+    expect(timed).toMatchObject({ name: 'Tram 28', start_time: '09:00' })
   })
 
   it('PATCH with stranded_activities=delete drops them instead', async () => {
@@ -410,8 +412,8 @@ describe('trips', () => {
     expect(ok.status).toBe(200)
     expect(ok.body.deleted).toHaveLength(2)
 
-    const items = await request(app).get(`/api/trips/${tripId}/itinerary`).set(OWNER_BEARER)
-    expect(items.body.items).toEqual([])
+    const items = await request(app).get(`/api/trips/${tripId}/activities`).set(OWNER_BEARER)
+    expect(items.body.activities.filter((a: { day: string | null }) => a.day)).toEqual([])
   })
 
   it('PATCH rejects an unknown stranded_activities value', async () => {
@@ -430,8 +432,8 @@ describe('trips', () => {
       .send({ end_date: '2026-10-20', stranded_activities: 'delete' })
     expect(res.status).toBe(200)
     expect(res.body.deleted).toBeUndefined()
-    const items = await request(app).get('/api/trips/trip-1/itinerary').set(OWNER_BEARER)
-    expect(items.body.items).toHaveLength(3)
+    const items = await request(app).get('/api/trips/trip-1/activities').set(OWNER_BEARER)
+    expect(items.body.activities.filter((a: { day: string | null }) => a.day)).toHaveLength(3)
   })
 
   it('PATCH /api/trips/:tripId allows a date change that still covers everything planned', async () => {
@@ -453,7 +455,7 @@ describe('trips', () => {
     expect(list.body.trips).toEqual([])
 
     // children scoped to trip-1 (steps, itinerary, shopping) go with it
-    const itinerary = await request(app).get('/api/trips/trip-1/itinerary').set(OWNER_BEARER)
+    const itinerary = await request(app).get('/api/trips/trip-1/activities').set(OWNER_BEARER)
     expect(itinerary.status).toBe(404) // the trip itself is gone
   })
 

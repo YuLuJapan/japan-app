@@ -10,23 +10,17 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Schedule } from '../components/Schedule'
 import type { TripStep } from '../api/types'
-import { renderAt } from './helpers'
+import { renderAt, activity } from './helpers'
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() }))
 
-const ITEM = {
+const ITEM = activity({
   id: 'i1',
-  trip_id: 'trip-1',
   zone_id: 'z2',
-  place_id: null,
   day: '2026-10-09',
   start_time: '09:00',
-  title: 'Last coffee',
-  note: null,
-  position: 0,
-  highlight: false,
-  icon: null,
-}
+  name: 'Last coffee',
+})
 
 vi.mock('../api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/client')>()),
@@ -39,7 +33,7 @@ const zone = (id: string, name: string) => ({
   name,
   name_ja: null,
   summary: null,
-  place_counts: counts,
+  saved_counts: counts,
 })
 
 // Tokyo Oct 5–9, Kyoto Oct 9–12: the 9th is the moving day, the 6th is not.
@@ -125,7 +119,7 @@ describe('the city an activity is pinned to', () => {
     mocks.get.mockReset()
     mocks.post.mockReset()
     mocks.patch.mockReset()
-    mocks.patch.mockResolvedValue({ item: { ...ITEM, zone_id: 'z1' } })
+    mocks.patch.mockResolvedValue({ activity: { ...ITEM, zone_id: 'z1' } })
     mocks.get.mockResolvedValue(TRIP_BUNDLE)
     mocks.post.mockResolvedValue({
       item: { id: 'i1', trip_id: 'trip-1', zone_id: 'z1', day: '2026-10-09' },
@@ -182,7 +176,7 @@ describe('the city an activity is pinned to', () => {
     await user.click(screen.getByRole('button', { name: 'Tokyo' }))
     await user.click(screen.getByRole('button', { name: 'Save' }))
     const [path, patch] = await patched()
-    expect(path).toBe('/trips/trip-1/itinerary/i1')
+    expect(path).toBe('/trips/trip-1/activities/i1')
     expect(patch).toMatchObject({ zone_id: 'z1' })
   })
 
@@ -194,7 +188,7 @@ describe('the city an activity is pinned to', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     const [, patch] = await patched()
-    expect(patch).toMatchObject({ title: 'Last coffee and a pastry' })
+    expect(patch).toMatchObject({ name: 'Last coffee and a pastry' })
     expect(patch).not.toHaveProperty('zone_id')
   })
 })

@@ -6,8 +6,9 @@ function collectTipErrors(input: TipInput): string[] {
   const body = (input.body ?? '').trim()
   if (!body) errors.push('body is required')
   else if (body.length > 1000) errors.push('body must be at most 1000 characters')
-  const parents = [input.zone_id, input.place_id].filter((v) => v != null)
-  if (parents.length !== 1) errors.push('a tip must have exactly one parent: zone_id or place_id')
+  const parents = [input.zone_id, input.activity_id].filter((v) => v != null)
+  if (parents.length !== 1)
+    errors.push('a tip must have exactly one parent: zone_id or activity_id')
   return errors
 }
 
@@ -15,11 +16,11 @@ export async function createTip(store: DataStore, tripId: string, input: TipInpu
   const errors = collectTipErrors(input)
   if (errors.length) throw validation(errors)
   // The parent lookups are trip-scoped, so hanging a tip off another trip's
-  // zone or place reads as "no such zone" rather than succeeding.
+  // zone or activity reads as "no such zone" rather than succeeding.
   if (input.zone_id) {
     if (!(await store.getZone(tripId, input.zone_id))) throw notFound('Zone')
-  } else if (input.place_id) {
-    if (!(await store.getPlace(tripId, input.place_id))) throw notFound('Place')
+  } else if (input.activity_id) {
+    if (!(await store.getActivity(tripId, input.activity_id))) throw notFound('Activity')
   }
   const tip = await store.createTip(tripId, { ...input, body: input.body.trim() })
   return { tip }

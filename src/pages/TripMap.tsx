@@ -11,7 +11,7 @@
 // R6) — the only `scope.kind` left in this file is the toggle that chooses a
 // scale, and the analytics event that reports which one was chosen.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTrip, useZonePlaces } from '../api/hooks'
+import { useActivities, useTrip } from '../api/hooks'
 import { type Category } from '../api/types'
 import { MapCanvas } from '../components/map/MapCanvas'
 import { MapLegend } from '../components/map/MapLegend'
@@ -74,8 +74,14 @@ export default function TripMap() {
   }, [zoneId, opensOn])
 
   const zone = steps.map((s) => s.zone).find((z) => z?.id === (zoneId || opensOn)) ?? null
-  const places = useZonePlaces(zoneId, '' as Category)
-  const all = useMemo(() => places.data?.places ?? [], [places.data])
+  const places = useActivities(tripId)
+  // **Every** located activity in this city — scheduled and saved alike
+  // (FR-013). Before 010 the map could only ever show the saved half, because
+  // a plan line had nowhere to keep a location.
+  const all = useMemo(
+    () => (places.data?.activities ?? []).filter((a) => a.zone_id === zoneId),
+    [places.data, zoneId]
+  )
 
   // The scope is memoised on the data, and `select` closes over it — so the
   // handler is reached through a ref rather than rebuilding every scope (and

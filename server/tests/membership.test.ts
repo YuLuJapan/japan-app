@@ -101,14 +101,14 @@ describe('a non-member reaches nothing', () => {
 
   it('404s that zone’s places, including the stays', async () => {
     await request(app)
-      .get('/api/trips/trip-1/zones/zone-tokyo/places?category=hotel')
+      .get('/api/trips/trip-1/zones/zone-tokyo/activities?category=hotel')
       .set(as('outsider.jwt'))
       .expect(404)
   })
 
   it('404s a place in a zone that is not theirs', async () => {
     await request(app)
-      .get('/api/trips/trip-1/places/place-hotel')
+      .get('/api/trips/trip-1/activities/place-hotel')
       .set(as('outsider.jwt'))
       .expect(404)
   })
@@ -119,7 +119,7 @@ describe('a non-member reaches nothing', () => {
 
   it('refuses to create a place in someone else’s zone', async () => {
     await request(app)
-      .post('/api/trips/trip-1/places')
+      .post('/api/trips/trip-1/activities')
       .set(as('outsider.jwt'))
       .send({ zone_id: 'zone-tokyo', category: 'food', name: 'Sneaky' })
       .expect(404)
@@ -130,7 +130,10 @@ describe('a non-member reaches nothing', () => {
     expect(search.body.results.map((r: { id: string }) => r.id)).toEqual(['place-hotel'])
     await request(app).get('/api/trips/trip-1').set(as('owner.jwt')).expect(200)
     await request(app).get('/api/trips/trip-1/zones/zone-tokyo').set(as('owner.jwt')).expect(200)
-    await request(app).get('/api/trips/trip-1/places/place-hotel').set(as('owner.jwt')).expect(200)
+    await request(app)
+      .get('/api/trips/trip-1/activities/place-hotel')
+      .set(as('owner.jwt'))
+      .expect(200)
     await request(app).get('/api/trips/trip-1').set(as('owner.jwt')).expect(200)
   })
 })

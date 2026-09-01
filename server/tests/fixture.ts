@@ -147,9 +147,13 @@ export function fixture(): MemoryData {
         summary: 'Someone else’s city',
       },
     ],
-    places: [
+    // One entity since 010: a saved activity is what used to be a place, a
+    // scheduled one what used to be an itinerary item. They differ by `day`
+    // and nothing else, which is exactly what the fixture has to make testable.
+    activities: [
       {
         id: 'place-ramen',
+        trip_id: 'trip-1',
         zone_id: 'zone-tokyo',
         category: 'food',
         name: 'Ramen Bar',
@@ -158,9 +162,18 @@ export function fixture(): MemoryData {
           'A very long description that should be trimmed into a summary line for lists, exceeding one hundred characters in total length for the test.',
         address: 'Shinjuku',
         links: [{ label: 'Site', url: 'https://example.com' }],
+        image_url: null,
+        lat: null,
+        lng: null,
+        day: null,
+        start_time: null,
+        position: 0,
+        highlight: false,
+        icon: null,
       },
       {
         id: 'place-hotel',
+        trip_id: 'trip-1',
         zone_id: 'zone-tokyo',
         category: 'hotel',
         name: 'Test Hotel',
@@ -168,13 +181,23 @@ export function fixture(): MemoryData {
         description: null,
         address: null,
         links: [],
+        image_url: null,
+        lat: null,
+        lng: null,
+        day: null,
+        start_time: null,
+        position: 0,
+        highlight: false,
+        icon: null,
       },
-      // Every field a place has, populated — the fixture the export's exclusion
-      // tests are only meaningful against. A share projection of this row must
-      // emit exactly name, address and category; anything else showing up here
-      // is a field that joined the share export without a decision (FR-011).
+      // Every field an activity has, populated — the fixture the export's
+      // exclusion tests are only meaningful against. A share projection of this
+      // row must emit exactly name, address and category; anything else showing
+      // up here is a field that joined the share export without a decision
+      // (FR-011).
       {
         id: 'place-everything',
+        trip_id: 'trip-1',
         zone_id: 'zone-kyoto',
         category: 'attraction',
         name: 'Fushimi Inari',
@@ -188,12 +211,18 @@ export function fixture(): MemoryData {
         image_url: 'https://example.com/inari.jpg',
         lat: 34.9671,
         lng: 135.7727,
+        day: null,
+        start_time: null,
+        position: 0,
+        highlight: false,
+        icon: null,
       },
-      // A stay carrying exactly what the share version exists to keep out. The
-      // three words are what server/tests/export.test.ts greps the whole
-      // serialised payload for.
+      // A saved stay carrying exactly what the share version exists to keep
+      // out. The three words are what server/tests/export.test.ts greps the
+      // whole serialised payload for. Saved, so FR-020 withholds it wholesale.
       {
         id: 'place-ryokan',
+        trip_id: 'trip-1',
         zone_id: 'zone-kyoto',
         category: 'hotel',
         name: 'Kyoto Ryokan',
@@ -202,9 +231,18 @@ export function fixture(): MemoryData {
           'Booking on Rakuten, confirmation RYO-99231. The reservation covers two nights, breakfast included.',
         address: '3 Higashiyama, Kyoto',
         links: [{ label: 'Booking', url: 'https://example.com/reservation/RYO-99231' }],
+        image_url: null,
+        lat: null,
+        lng: null,
+        day: null,
+        start_time: null,
+        position: 0,
+        highlight: false,
+        icon: null,
       },
       {
         id: 'place-other',
+        trip_id: 'trip-2',
         zone_id: 'zone-osaka',
         category: 'hotel',
         name: 'Secret Osaka Hotel',
@@ -212,61 +250,90 @@ export function fixture(): MemoryData {
         description: 'Confirmation ABC123, paid ¥40000',
         address: null,
         links: [],
+        image_url: null,
+        lat: null,
+        lng: null,
+        day: null,
+        start_time: null,
+        position: 0,
+        highlight: false,
+        icon: null,
       },
-    ],
-    tips: [
-      { id: 'tip-zone', zone_id: 'zone-tokyo', place_id: null, body: 'Get a Suica card' },
-      { id: 'tip-place', zone_id: null, place_id: 'place-ramen', body: 'Cash only' },
-      { id: 'tip-kyoto', zone_id: 'zone-kyoto', place_id: null, body: 'Buy a bus day pass' },
-      // Hangs off a stay, so it must disappear exactly when the stay does.
-      { id: 'tip-ryokan', zone_id: null, place_id: 'place-ryokan', body: 'Check in after 15:00' },
-      { id: 'tip-other', zone_id: 'zone-osaka', place_id: null, body: 'Secret Osaka plan' },
-    ],
-    itinerary: [
       {
         id: 'itin-ramen',
         trip_id: 'trip-1',
         zone_id: 'zone-tokyo',
-        place_id: 'place-ramen',
+        category: 'food',
+        name: 'Ramen Bar',
+        name_ja: null,
+        description: null,
+        address: null,
+        links: [],
+        image_url: null,
+        lat: null,
+        lng: null,
         day: '2026-10-06',
         start_time: '20:00',
-        title: 'Ramen Bar',
-        note: null,
         position: 0,
         highlight: false,
         icon: null,
-        category: null,
       },
       {
         id: 'itin-walk',
         trip_id: 'trip-1',
         zone_id: 'zone-tokyo',
-        place_id: null,
+        category: null,
+        name: 'Walk Shinjuku',
+        name_ja: null,
+        description: 'After dinner',
+        address: null,
+        links: [],
+        image_url: null,
+        lat: null,
+        lng: null,
         day: '2026-10-06',
         start_time: null,
-        title: 'Walk Shinjuku',
-        note: 'After dinner',
         position: 0,
         highlight: false,
         icon: null,
-        category: null,
       },
-      // Points at a stay: a caller who cannot see stays keeps the row and loses
-      // the link, the way the itinerary service already treats place_id.
+      // A **scheduled** stay: the other half of the visibility rule. FR-021
+      // keeps its line on the day plan and strips everything else — its
+      // category included, so the pill cannot announce the stay the tag was
+      // hiding. It carries an address and coordinates so the strip has
+      // something to take.
       {
         id: 'itin-ryokan',
         trip_id: 'trip-1',
         zone_id: 'zone-kyoto',
-        place_id: 'place-ryokan',
+        category: 'hotel',
+        name: 'Check into the ryokan',
+        name_ja: null,
+        description: 'Ask for the room facing the garden.',
+        address: '3 Higashiyama, Kyoto',
+        links: [],
+        image_url: null,
+        lat: 35.0,
+        lng: 135.78,
         day: '2026-10-10',
         start_time: '15:00',
-        title: 'Check into the ryokan',
-        note: null,
         position: 0,
         highlight: false,
         icon: null,
-        category: null,
       },
+    ],
+    tips: [
+      { id: 'tip-zone', zone_id: 'zone-tokyo', activity_id: null, body: 'Get a Suica card' },
+      { id: 'tip-place', zone_id: null, activity_id: 'place-ramen', body: 'Cash only' },
+      { id: 'tip-kyoto', zone_id: 'zone-kyoto', activity_id: null, body: 'Buy a bus day pass' },
+      // Hangs off a stay, so it must disappear exactly when the stay does.
+      {
+        id: 'tip-ryokan',
+        zone_id: null,
+        activity_id: 'place-ryokan',
+        body: 'Check in after 15:00',
+      },
+      { id: 'tip-other', zone_id: 'zone-osaka', activity_id: null, body: 'Secret Osaka plan' },
     ],
     shopping: [
       {
@@ -303,7 +370,7 @@ export function fixture(): MemoryData {
         id: 'file-trip',
         trip_id: 'trip-1',
         zone_id: null,
-        place_id: null,
+        activity_id: null,
         display_name: 'Flight booking',
         storage_path: 'placeholder-files/flight-booking.pdf',
         mime_type: 'application/pdf',
@@ -313,7 +380,7 @@ export function fixture(): MemoryData {
         id: 'file-place',
         trip_id: null,
         zone_id: null,
-        place_id: 'place-ramen',
+        activity_id: 'place-ramen',
         display_name: 'Menu photo',
         storage_path: 'placeholder-files/kyoto-walking-map.svg',
         mime_type: 'image/svg+xml',
@@ -323,7 +390,7 @@ export function fixture(): MemoryData {
         id: 'file-gone',
         trip_id: null,
         zone_id: 'zone-kyoto',
-        place_id: null,
+        activity_id: null,
         display_name: 'Missing map',
         storage_path: 'placeholder-files/does-not-exist.pdf',
         mime_type: 'application/pdf',
@@ -360,11 +427,17 @@ export function largeFixture(stops = 12, placesPerStop = 10): MemoryData {
       start_date: '2026-10-01',
       end_date: '2026-10-02',
     })
-    data.tips.push({ id: `tip-big-${s}`, zone_id: zoneId, place_id: null, body: `Tip ${s + 1}` })
+    data.tips.push({
+      id: `tip-big-${s}`,
+      zone_id: zoneId,
+      activity_id: null,
+      body: `Tip ${s + 1}`,
+    })
     for (let p = 0; p < placesPerStop; p++) {
       const placeId = `place-big-${s}-${p}`
-      data.places.push({
+      data.activities.push({
         id: placeId,
+        trip_id: 'trip-1',
         zone_id: zoneId,
         category: (['food', 'attraction', 'shopping', 'hotel', 'other'] as const)[p % 5],
         name: `Place ${s + 1}-${p + 1}`,
@@ -374,11 +447,19 @@ export function largeFixture(stops = 12, placesPerStop = 10): MemoryData {
         // exercised at a size where a miscount would not be obvious.
         address: p % 5 === 0 ? null : `${p + 1} Some Long Street, District ${s + 1}`,
         links: [{ label: 'Site', url: `https://example.com/${s}/${p}` }],
+        image_url: null,
+        lat: null,
+        lng: null,
+        day: null,
+        start_time: null,
+        position: 0,
+        highlight: false,
+        icon: null,
       })
       data.tips.push({
         id: `tip-big-${s}-${p}`,
         zone_id: null,
-        place_id: placeId,
+        activity_id: placeId,
         body: `Go early to ${s + 1}-${p + 1}`,
       })
     }

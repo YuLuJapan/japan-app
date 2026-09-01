@@ -9,7 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import TripMap from '../pages/TripMap'
-import { renderAt } from './helpers'
+import type { Category } from '../api/types'
+import { renderAt, activity } from './helpers'
 import { lastFakeEngine, resetFakeEngine } from '../map/engine.fake'
 
 vi.mock('../map/engine.leaflet', async () => await import('../map/engine.fake'))
@@ -47,35 +48,37 @@ const bundle = () => ({
 })
 
 const places = [
-  {
+  activity({
     id: 'p-ramen',
     name: 'Ramen Bar',
     name_ja: null,
-    category: 'food',
+    category: 'food' as Category,
+    zone_id: 'zone-tokyo',
     summary_line: 'Tonkotsu, open late',
     image_url: null,
     address: '1-22-7 Jinnan',
     lat: 35.69,
     lng: 139.7,
-  },
-  {
+  }),
+  activity({
     id: 'p-teamlab',
     name: 'teamLab',
     name_ja: null,
-    category: 'attraction',
+    category: 'attraction' as Category,
+    zone_id: 'zone-tokyo',
     summary_line: 'Book ahead',
     image_url: null,
     address: 'Toyosu',
     lat: 35.63,
     lng: 139.79,
-  },
+  }),
 ]
 
 beforeEach(() => {
   resetFakeEngine()
   mocks.get.mockImplementation((path: string) => {
     if (path === '/trips/trip-1') return Promise.resolve(bundle())
-    if (path.startsWith('/trips/trip-1/zones/zone-tokyo/places')) return Promise.resolve({ places })
+    if (path === '/trips/trip-1/activities') return Promise.resolve({ activities: places })
     return Promise.reject(new Error(`unexpected GET ${path}`))
   })
 })
@@ -132,7 +135,7 @@ describe('tapping a pin', () => {
     })
     expect(within(expanded).getByRole('link', { name: 'Open place' })).toHaveAttribute(
       'href',
-      '/trips/trip-1/places/p-ramen'
+      '/trips/trip-1/activities/p-ramen'
     )
     // A destination, not a search: directions in one more tap is the whole
     // point of a separate link (SC-008).

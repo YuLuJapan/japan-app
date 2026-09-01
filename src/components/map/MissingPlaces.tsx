@@ -15,7 +15,7 @@
 // (FR-021).
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { PlaceListItem } from '../../api/types'
+import type { Activity } from '../../api/types'
 import { CATEGORY_META } from '../../api/types'
 
 export function MissingPlaces({
@@ -24,7 +24,7 @@ export function MissingPlaces({
   canEdit,
 }: {
   /** Exactly the places the map could not pin — `missingPlaces` from pins.ts. */
-  places: PlaceListItem[]
+  places: Activity[]
   tripId: string
   canEdit: boolean
 }) {
@@ -53,13 +53,13 @@ export function MissingPlaces({
           {places.map((place) => (
             <li key={place.id}>
               <Link
-                to={`/trips/${tripId}/places/${place.id}/edit`}
+                to={`/trips/${tripId}/activities/${place.id}/edit`}
                 className="flex items-center justify-between gap-2 border-b border-line px-3 py-2.5 last:border-0"
               >
                 <span className="min-w-0">
                   <span className="block truncate font-semibold">{place.name}</span>
                   <span className="block truncate text-xs text-muted">
-                    {CATEGORY_META[place.category].singular}
+                    {CATEGORY_META[place.category ?? 'other'].singular}
                   </span>
                 </span>
                 <span aria-hidden="true" className="shrink-0 text-muted">

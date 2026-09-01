@@ -1,8 +1,7 @@
-import type { Category, DataStore, ZonePatch } from '../lib/datastore.js'
-import { CATEGORIES } from '../lib/datastore.js'
+import type { DataStore, ZonePatch } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
-import { zonePlaceListItem } from '../lib/place-view.js'
-import { hideStayCounts, isStay } from '../lib/trip-view.js'
+
+import { hideStayCounts } from '../lib/trip-view.js'
 
 /**
  * A zone belongs to exactly one trip since migration 0013, so the store answers
@@ -24,51 +23,28 @@ export async function getZoneDetail(
 ) {
   const zone = await store.getZone(tripId, zoneId)
   if (!zone) throw notFound('Zone')
-  const [tips, files, place_counts] = await Promise.all([
+  const [tips, files, saved_counts] = await Promise.all([
     store.listTips(tripId, { zone_id: zoneId }),
     includeFiles ? store.listFiles(tripId, { zone_id: zoneId }) : [],
-    store.countPlacesByCategory(tripId, zoneId),
+    store.countSavedByCategory(tripId, zoneId),
   ])
   return {
     zone,
     tips,
-    files: files.map(({ id, display_name, mime_type, size_bytes }) => ({
+    files: files.map(({ id, display_name, mime_type, size_bytes }: (typeof files)[number]) => ({
       id,
       display_name,
       mime_type,
       size_bytes,
     })),
-    place_counts: includeStays ? place_counts : hideStayCounts(place_counts),
+    saved_counts: includeStays ? saved_counts : hideStayCounts(saved_counts),
   }
 }
 
-// category === '' means "every category" (used by the city map, which plots
-// all of a zone's places and filters client-side).
-export async function listZonePlaces(
-  store: DataStore,
-  tripId: string,
-  zoneId: string,
-  category: string,
-  { includeStays = true }: { includeStays?: boolean } = {}
-) {
-  if (category !== '' && !CATEGORIES.includes(category as Category)) {
-    throw validation([`category must be one of: ${CATEGORIES.join(', ')}`])
-  }
-  const zone = await store.getZone(tripId, zoneId)
-  if (!zone) throw notFound('Zone')
-  const all = category
-    ? await store.listPlaces(tripId, zoneId, category as Category)
-    : await store.listPlacesInZone(tripId, zoneId)
-  // Covers both shapes: asking for the stays themselves, and the map's
-  // all-categories sweep that would otherwise carry them along.
-  const places = includeStays ? all : all.filter((p) => !isStay(p))
-  // The projection lives in `lib/place-view.ts` behind a field policy, so a new
-  // `Place` column stops the build until someone decides whether it belongs on
-  // a list. Note the order: the view is applied *here*, before the projection —
-  // reversed, a hidden stay would be cut down to a name and an address and then
-  // sent anyway.
-  return { places: places.map(zonePlaceListItem) }
-}
+// `listZonePlaces` is gone. Before 010 the city map and the category list each
+// needed their own zone-scoped read; both now filter the single
+// `GET /activities` list client-side, so the endpoint it backed would be a
+// subset of a list the caller already has (plan.md, "Client").
 
 const isHttpUrl = (u: string) => /^https?:\/\/.+/.test(u)
 const IMAGE_URL_MAX = 2000

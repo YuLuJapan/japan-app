@@ -7,7 +7,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { DayPlan } from '../components/DayPlan'
 import { TripRoleContext } from '../lib/session'
-import type { ItineraryItem } from '../api/types'
+import { activity } from './helpers'
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() }))
 
@@ -32,19 +32,13 @@ const TRIP_BUNDLE = {
   flight: null,
 }
 
-const ITEM: ItineraryItem = {
+const ITEM = activity({
   id: 'itin-1',
-  trip_id: 'trip-1',
   zone_id: null,
-  place_id: null,
   day: '2027-03-02',
   start_time: '09:00',
-  title: 'Tram 28',
-  note: null,
-  position: 0,
-  highlight: false,
-  icon: null,
-}
+  name: 'Tram 28',
+})
 
 function renderPlan(items = [ITEM]) {
   const queryClient = new QueryClient({
@@ -84,7 +78,7 @@ describe('DayPlan — moving an activity to another day', () => {
     mocks.get.mockReset()
     mocks.patch.mockReset()
     mocks.get.mockResolvedValue(TRIP_BUNDLE)
-    mocks.patch.mockResolvedValue({ item: { ...ITEM, day: '2027-03-05' } })
+    mocks.patch.mockResolvedValue({ activity: { ...ITEM, day: '2027-03-05' } })
   })
 
   it('offers the activity’s own day, bounded by the trip', async () => {
@@ -109,8 +103,8 @@ describe('DayPlan — moving an activity to another day', () => {
 
     await user.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(mocks.patch).toHaveBeenCalled())
-    expect(mocks.patch.mock.calls[0][0]).toBe('/trips/trip-1/itinerary/itin-1')
-    expect(mocks.patch.mock.calls[0][1]).toMatchObject({ title: 'Tram 28', day: '2027-03-05' })
+    expect(mocks.patch.mock.calls[0][0]).toBe('/trips/trip-1/activities/itin-1')
+    expect(mocks.patch.mock.calls[0][1]).toMatchObject({ name: 'Tram 28', day: '2027-03-05' })
     // The activity has left this day — the list would otherwise just lose a row.
     expect(await screen.findByText(/Moved to .*Mar 5/)).toBeInTheDocument()
   })

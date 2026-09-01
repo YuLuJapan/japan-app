@@ -10,7 +10,7 @@
 // `pins.length + missingCount === places.length` cannot drift — that identity
 // is SC-004, and it is the number that proves the map is not quietly
 // under-reporting what was saved.
-import { CATEGORY_META, type Category, type PlaceListItem } from '../api/types'
+import { CATEGORY_META, type Category, type Activity } from '../api/types'
 
 /**
  * What the engine draws. Deliberately narrower than a place: a pin carries no
@@ -42,26 +42,33 @@ export interface Bounds {
 }
 
 /** A place is pinnable only with both halves of a location. */
-const located = (place: Pick<PlaceListItem, 'lat' | 'lng'>): boolean =>
+const located = (place: Pick<Activity, 'lat' | 'lng'>): boolean =>
   typeof place.lat === 'number' && typeof place.lng === 'number'
 
-/** One pin per located place, in the order the list gave them. */
-export const toPins = (places: PlaceListItem[]): MapPin[] =>
+/**
+ * One pin per located activity, in the order the list gave them.
+ *
+ * An untagged activity pins as `other`: the map draws a coloured mark per pin
+ * and there is no "no colour" to draw. `CATEGORY_META.other` is the neutral
+ * one the app already uses for exactly this ("More"), so nothing new is
+ * invented here — and the row itself is left untagged, because the pin's
+ * colour is a rendering choice and not a fact about the activity.
+ */
+export const toPins = (places: Activity[]): MapPin[] =>
   places.filter(located).map((p) => ({
     id: p.id,
     name: p.name,
-    category: p.category,
+    category: p.category ?? 'other',
     lat: p.lat as number,
     lng: p.lng as number,
   }))
 
 /** How many of these places the map cannot show. The other half of SC-004. */
-export const missingCount = (places: PlaceListItem[]): number =>
+export const missingCount = (places: Activity[]): number =>
   places.length - places.filter(located).length
 
 /** Exactly the places `toPins` dropped, for the list behind the count (FR-020). */
-export const missingPlaces = (places: PlaceListItem[]): PlaceListItem[] =>
-  places.filter((p) => !located(p))
+export const missingPlaces = (places: Activity[]): Activity[] => places.filter((p) => !located(p))
 
 /**
  * The smallest box containing every pin, or `null` when there is nothing to

@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import TripMap from '../pages/TripMap'
-import { renderAt } from './helpers'
+import { renderAt, activity } from './helpers'
 import { lastFakeEngine, resetFakeEngine } from '../map/engine.fake'
 
 vi.mock('../map/engine.leaflet', async () => await import('../map/engine.fake'))
@@ -31,7 +31,7 @@ const zone = (id: string, name: string, lat: number, lng: number, saved: number)
   image_url: null,
   lat,
   lng,
-  place_counts: counts(saved),
+  saved_counts: counts(saved),
 })
 
 const TOKYO = zone('zone-tokyo', 'Tokyo', 35.68, 139.76, 4)
@@ -61,26 +61,22 @@ const bundle = () => ({
   shows: { stays: true, flight: true, documents: true, shopping: true },
 })
 
-const place = (id: string, name: string, lat: number, lng: number) => ({
-  id,
-  name,
-  name_ja: null,
-  category: 'attraction',
-  summary_line: '',
-  image_url: null,
-  address: null,
-  lat,
-  lng,
-})
+const place = (id: string, name: string, lat: number, lng: number, zoneId: string) =>
+  activity({ id, name, category: 'attraction', lat, lng, zone_id: zoneId })
 
 beforeEach(() => {
   resetFakeEngine()
   mocks.get.mockImplementation((path: string) => {
     if (path === '/trips/trip-1') return Promise.resolve(bundle())
-    if (path.startsWith('/trips/trip-1/zones/zone-tokyo/places'))
-      return Promise.resolve({ places: [place('p-teamlab', 'teamLab', 35.63, 139.79)] })
-    if (path.startsWith('/trips/trip-1/zones/zone-kyoto/places'))
-      return Promise.resolve({ places: [place('p-inari', 'Fushimi Inari', 34.96, 135.77)] })
+    // One list for the whole trip now — the map filters it by city, so both
+    // cities' activities arrive in the same response.
+    if (path === '/trips/trip-1/activities')
+      return Promise.resolve({
+        activities: [
+          place('p-teamlab', 'teamLab', 35.63, 139.79, 'zone-tokyo'),
+          place('p-inari', 'Fushimi Inari', 34.96, 135.77, 'zone-kyoto'),
+        ],
+      })
     return Promise.reject(new Error(`unexpected GET ${path}`))
   })
 })

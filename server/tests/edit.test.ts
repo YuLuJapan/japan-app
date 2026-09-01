@@ -13,25 +13,23 @@ beforeEach(() => {
   useTestTokens()
 })
 
-describe('place mutations', () => {
-  it('POST /api/places creates and it appears in the zone list', async () => {
-    const res = await auth(request(app).post('/api/trips/trip-1/places')).send({
+describe('activity mutations', () => {
+  it('POST /api/activities creates and it appears in the zone list', async () => {
+    const res = await auth(request(app).post('/api/trips/trip-1/activities')).send({
       zone_id: 'zone-kyoto',
       category: 'food',
       name: 'Matcha House',
       description: 'Green everything',
     })
     expect(res.status).toBe(201)
-    expect(res.body.place.id).toBeTruthy()
+    expect(res.body.activity.id).toBeTruthy()
 
-    const list = await auth(
-      request(app).get('/api/trips/trip-1/zones/zone-kyoto/places?category=food')
-    )
-    expect(list.body.places.map((p: { name: string }) => p.name)).toContain('Matcha House')
+    const list = await auth(request(app).get('/api/trips/trip-1/activities'))
+    expect(list.body.activities.map((a: { name: string }) => a.name)).toContain('Matcha House')
   })
 
-  it('POST /api/places 400 on missing name and bad category', async () => {
-    const res = await auth(request(app).post('/api/trips/trip-1/places')).send({
+  it('POST /api/activities 400 on missing name and bad category', async () => {
+    const res = await auth(request(app).post('/api/trips/trip-1/activities')).send({
       zone_id: 'zone-kyoto',
       category: 'nightlife',
       name: '  ',
@@ -42,8 +40,8 @@ describe('place mutations', () => {
     expect(res.body.error.details.join(' ')).toMatch(/category/)
   })
 
-  it('POST /api/places 404 for unknown zone', async () => {
-    const res = await auth(request(app).post('/api/trips/trip-1/places')).send({
+  it('POST /api/activities 404 for unknown zone', async () => {
+    const res = await auth(request(app).post('/api/trips/trip-1/activities')).send({
       zone_id: 'zone-nope',
       category: 'food',
       name: 'Ghost Cafe',
@@ -51,32 +49,32 @@ describe('place mutations', () => {
     expect(res.status).toBe(404)
   })
 
-  it('PATCH /api/trips/trip-1/places/:id updates fields (last write wins)', async () => {
-    const res = await auth(request(app).patch('/api/trips/trip-1/places/place-ramen')).send({
+  it('PATCH /api/trips/trip-1/activities/:id updates fields (last write wins)', async () => {
+    const res = await auth(request(app).patch('/api/trips/trip-1/activities/place-ramen')).send({
       description: 'Updated notes',
     })
     expect(res.status).toBe(200)
-    expect(res.body.place.description).toBe('Updated notes')
-    expect(res.body.place.name).toBe('Ramen Bar')
+    expect(res.body.activity.description).toBe('Updated notes')
+    expect(res.body.activity.name).toBe('Ramen Bar')
   })
 
   it('PATCH rejects invalid link urls', async () => {
-    const res = await auth(request(app).patch('/api/trips/trip-1/places/place-ramen')).send({
+    const res = await auth(request(app).patch('/api/trips/trip-1/activities/place-ramen')).send({
       links: [{ label: 'Bad', url: 'not-a-url' }],
     })
     expect(res.status).toBe(400)
   })
 
-  it('DELETE /api/trips/trip-1/places/:id removes the place and cascades its tips', async () => {
-    const del = await auth(request(app).delete('/api/trips/trip-1/places/place-ramen'))
+  it('DELETE /api/trips/trip-1/activities/:id removes it and cascades its tips', async () => {
+    const del = await auth(request(app).delete('/api/trips/trip-1/activities/place-ramen'))
     expect(del.status).toBe(204)
 
-    const gone = await auth(request(app).get('/api/trips/trip-1/places/place-ramen'))
+    const gone = await auth(request(app).get('/api/trips/trip-1/activities/place-ramen'))
     expect(gone.status).toBe(404)
   })
 
-  it('DELETE 404 for unknown place', async () => {
-    const res = await auth(request(app).delete('/api/trips/trip-1/places/place-nope'))
+  it('DELETE 404 for an unknown activity', async () => {
+    const res = await auth(request(app).delete('/api/trips/trip-1/activities/place-nope'))
     expect(res.status).toBe(404)
   })
 })
@@ -95,7 +93,7 @@ describe('tip mutations', () => {
     const res = await auth(request(app).post('/api/trips/trip-1/tips')).send({
       body: 'Two parents',
       zone_id: 'zone-kyoto',
-      place_id: 'place-ramen',
+      activity_id: 'place-ramen',
     })
     expect(res.status).toBe(400)
     expect(res.body.error.details.join(' ')).toMatch(/exactly one parent/)

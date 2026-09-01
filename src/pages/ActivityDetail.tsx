@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
-import { usePlace, useTrip } from '../api/hooks'
-import { useDeletePlace } from '../api/mutations'
+import { useActivity, useTrip } from '../api/hooks'
+import { useDeleteActivity } from '../api/mutations'
 import { CATEGORY_META } from '../api/types'
 import { Breadcrumbs } from '../components/Breadcrumbs'
-import { AddPlaceToDay } from '../components/AddPlaceToDay'
+import { ScheduleActivity } from '../components/ScheduleActivity'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorState } from '../components/ErrorState'
 import { FileList } from '../components/FileList'
@@ -17,15 +17,15 @@ import { placeMapsUrl } from '../lib/maps'
 import { useCanEdit } from '../lib/session'
 import { useTripId } from '../lib/trip'
 
-export default function PlaceDetail() {
-  const { placeId = '' } = useParams()
+export default function ActivityDetail() {
+  const { activityId = '' } = useParams()
   const canEdit = useCanEdit()
   const tripId = useTripId()
   const navigate = useNavigate()
-  const { data, error, isPending, isError, refetch } = usePlace(placeId)
+  const { data, error, isPending, isError, refetch } = useActivity(activityId)
   const trip = useTrip(tripId)
   const [confirming, setConfirming] = useState(false)
-  const deletePlace = useDeletePlace(data?.place.zone_id, data?.place.category)
+  const deleteActivity = useDeleteActivity(data?.activity.zone_id, data?.activity.category)
 
   if (isPending) return <Loading />
   // A stay is refused outright for a guest code (the booking lives in it), so
@@ -34,12 +34,13 @@ export default function PlaceDetail() {
     return error instanceof ApiError && error.code === 'FORBIDDEN' ? (
       <ErrorState message="The travellers keep the stays private." />
     ) : (
-      <ErrorState message="Could not load this place." onRetry={() => refetch()} />
+      <ErrorState message="Could not load this activity." onRetry={() => refetch()} />
     )
   }
 
-  const { place, tips, files } = data
-  const meta = CATEGORY_META[place.category]
+  const { activity: place, tips, files } = data
+  // An untagged activity reads as "More" — the same neutral the grid uses.
+  const meta = CATEGORY_META[place.category ?? 'other']
   // The city, so the map search lands in the right country (trips are worldwide).
   const city = trip.data?.steps?.find((s) => s.zone?.id === place.zone_id)?.zone?.name ?? null
 
@@ -50,10 +51,16 @@ export default function PlaceDetail() {
           trail={[
             { label: 'Journey', to: `/trips/${tripId}` },
             ...(city ? [{ label: city, to: `/trips/${tripId}/zones/${place.zone_id}` }] : []),
-            {
-              label: meta.label,
-              to: `/trips/${tripId}/zones/${place.zone_id}/c/${place.category}`,
-            },
+            // A scheduled activity has left Explore, so its category list is
+            // not where it came from — the city is as far up as the trail goes.
+            ...(place.day === null && place.zone_id
+              ? [
+                  {
+                    label: meta.label,
+                    to: `/trips/${tripId}/zones/${place.zone_id}/c/${place.category ?? 'other'}`,
+                  },
+                ]
+              : []),
           ]}
         />
         {place.image_url && (
@@ -106,7 +113,7 @@ export default function PlaceDetail() {
         </a>
       </div>
 
-      <AddPlaceToDay place={place} />
+      <ScheduleActivity activity={place} />
 
       {place.links.length > 0 && (
         <div>
@@ -129,34 +136,37 @@ export default function PlaceDetail() {
         </div>
       )}
 
-      <TipEditor tips={tips} parent={{ place_id: placeId }} title="Tips" />
+      <TipEditor tips={tips} parent={{ activity_id: activityId }} title="Tips" />
 
       {canEdit && (
         <section>
           <h2 className="mb-3 section-title">Files</h2>
           {files.length > 0 && (
             <div className="mb-3">
-              <FileList files={files} deletable={{ kind: 'place', id: placeId }} />
+              <FileList files={files} deletable={{ kind: 'activity', id: activityId }} />
             </div>
           )}
-          <FileUploader parent={{ kind: 'place', id: placeId }} label="Attach a file" />
+          <FileUploader parent={{ kind: 'activity', id: activityId }} label="Attach a file" />
         </section>
       )}
 
       {canEdit && (
         <>
           <div className="flex gap-3 border-t border-line pt-6">
-            <Link to={`/trips/${tripId}/places/${placeId}/edit`} className="btn-ghost flex-1">
+            <Link
+              to={`/trips/${tripId}/activities/${activityId}/edit`}
+              className="btn-ghost flex-1"
+            >
               Edit
             </Link>
             <button type="button" className="btn-danger flex-1" onClick={() => setConfirming(true)}>
               Delete
             </button>
           </div>
-          {deletePlace.isError && (
+          {deleteActivity.isError && (
             <ErrorState
               message="Delete failed — try again."
-              onRetry={() => deletePlace.mutate(placeId)}
+              onRetry={() => deleteActivity.mutate(activityId)}
             />
           )}
         </>
@@ -169,7 +179,7 @@ export default function PlaceDetail() {
         confirmLabel="Delete"
         onConfirm={() => {
           setConfirming(false)
-          deletePlace.mutate(placeId, {
+          deleteActivity.mutate(activityId, {
             onSuccess: () =>
               navigate(`/trips/${tripId}/zones/${place.zone_id}/c/${place.category}`, {
                 replace: true,

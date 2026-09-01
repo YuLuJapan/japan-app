@@ -64,7 +64,7 @@ describe('DocumentPreview page', () => {
         doc({
           display_name: 'Entrance ticket',
           mime_type: 'image/png',
-          attached_to: { kind: 'place', id: 'place-1', name: 'teamLab' },
+          attached_to: { kind: 'activity', id: 'place-1', name: 'teamLab' },
         }),
       ],
     })
@@ -74,7 +74,7 @@ describe('DocumentPreview page', () => {
     expect(await screen.findByAltText('Entrance ticket')).toHaveAttribute('src', 'blob:preview')
     expect(screen.getByRole('link', { name: 'teamLab' })).toHaveAttribute(
       'href',
-      '/trips/trip-1/places/place-1'
+      '/trips/trip-1/activities/place-1'
     )
   })
 

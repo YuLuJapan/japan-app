@@ -68,7 +68,7 @@ describe('a turn that opens a file', () => {
   it('hands the model the lines it asked for', async () => {
     const calls = script([
       {
-        tools: [{ tool: 'grep', input: { path: '/trip/places.json', pattern: 'Ramen' } }],
+        tools: [{ tool: 'grep', input: { path: '/trip/saved.json', pattern: 'Ramen' } }],
         text: 'Ramen Bar, in Tokyo.',
       },
     ])
@@ -138,7 +138,7 @@ describe('a turn that opens a file', () => {
       {
         tools: [
           { tool: 'grep', input: { path: '/trip/cities.json' } },
-          { tool: 'grep', input: { path: '/trip/places.json' } },
+          { tool: 'grep', input: { path: '/trip/saved.json' } },
           { tool: 'grep', input: { path: '/trip/tips.json' } },
         ],
         text: 'Here is the plan.',

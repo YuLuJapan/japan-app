@@ -140,7 +140,7 @@ function StrandedPanel({
   resolution: StrandedResolution
   onResolution: (r: StrandedResolution) => void
 }) {
-  const { steps, items } = impact
+  const { steps, activities: items } = impact
   return (
     <div className="mt-3 rounded-2xl border border-brand/30 bg-brand/5 p-3">
       {steps.length > 0 && (
@@ -199,7 +199,7 @@ function StrandedPanel({
             <ul className="mt-1 space-y-0.5">
               {items.slice(0, LIST_MAX).map((i) => (
                 <li key={i.id} className="text-xs text-muted">
-                  <span className="font-semibold text-ink">{i.title}</span> · {fmtPreview(i.day)}
+                  <span className="font-semibold text-ink">{i.name}</span> · {fmtPreview(i.day)}
                   {i.start_time ? ` · ${i.start_time}` : ''}
                 </li>
               ))}
@@ -539,7 +539,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
     update.mutate(
       {
         ...input,
-        ...(found?.items.length ? { stranded_activities: resolution } : {}),
+        ...(found?.activities.length ? { stranded_activities: resolution } : {}),
         ...(found?.steps.length ? { stranded_stops: 'move' as const } : {}),
       },
       { onSuccess: onClose }
@@ -567,7 +567,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
     setChecking(true)
     try {
       const found = await tripDateImpact(trip!.id, startDate, endDate)
-      if (found.steps.length || found.items.length) setImpact(found)
+      if (found.steps.length || found.activities.length) setImpact(found)
       else save()
     } catch {
       // The dry run only exists to ask a better question. If it fails, save
@@ -1097,7 +1097,7 @@ export function TripSheet({ mode, trip, onClose }: Props) {
               checking,
               mode,
               steps: impact?.steps.length ?? 0,
-              items: impact?.items.length ?? 0,
+              items: impact?.activities.length ?? 0,
               resolution,
             })}
           </button>

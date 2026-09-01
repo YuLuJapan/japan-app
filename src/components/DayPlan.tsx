@@ -29,16 +29,12 @@
 import { Fragment, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTrip } from '../api/hooks'
-import {
-  useCreateItineraryItem,
-  useDeleteItineraryItem,
-  useUpdateItineraryItem,
-} from '../api/mutations'
+import { useCreateActivity, useDeleteActivity, useUpdateActivity } from '../api/mutations'
 import {
   CATEGORY_META,
   TAGGABLE_CATEGORIES,
   type Category,
-  type ItineraryItem,
+  type Activity,
   type ZoneSummary,
 } from '../api/types'
 import { saveErrorMessage } from '../lib/errors'
@@ -87,9 +83,9 @@ export function DayPlan({ day, sections, zoneId = null, zoneChoices, tripId }: P
   const tripRange = trip.data?.trip
     ? { start: trip.data.trip.start_date, end: trip.data.trip.end_date }
     : null
-  const create = useCreateItineraryItem(tripId)
-  const update = useUpdateItineraryItem()
-  const remove = useDeleteItineraryItem()
+  const create = useCreateActivity()
+  const update = useUpdateActivity()
+  const remove = useDeleteActivity(zoneId)
 
   // An empty band needs no heading, so it is dropped; `offsets` is where each of the
   // rest starts in the day, which is what keeps the numbering continuous across them.
@@ -102,11 +98,12 @@ export function DayPlan({ day, sections, zoneId = null, zoneChoices, tripId }: P
   // One activity, at its place in the day: `i` counts across every band, so the
   // coral "the day starts here" dot lands on the day's first activity even when
   // that activity is in the city you are about to leave.
-  const renderItem = (item: ItineraryItem, i: number) => {
-    // The traveller's own tag wins over the one derived from a linked
-    // place: if they typed one, they meant it. A withheld stay leaves
-    // both null, so this cannot put back what the view took away.
-    const tag = item.category ?? item.place_category ?? null
+  const renderItem = (item: Activity, i: number) => {
+    // One tag now, typed on the activity itself. Before 010 there were two —
+    // the traveller's own and one derived from a linked place — and the rule
+    // was which won. A withheld stay is stripped of its category server-side
+    // (FR-021), so this still cannot put back what the view took away.
+    const tag = item.category
     return editingId === item.id ? (
       <li key={item.id} className="mb-2 rounded-2xl border border-line bg-white p-3">
         <ItemForm
@@ -147,14 +144,16 @@ export function DayPlan({ day, sections, zoneId = null, zoneChoices, tripId }: P
           >
             {item.start_time ? fmtTime(item.start_time) : 'Anytime'}
           </span>
-          <p className="min-w-0 flex-1 text-base font-bold leading-snug text-ink">{item.title}</p>
+          <p className="min-w-0 flex-1 text-base font-bold leading-snug text-ink">{item.name}</p>
         </div>
         <div className="ml-[76px]">
-          {item.note && <p className="mt-1 text-xs leading-relaxed text-[#8A8478]">{item.note}</p>}
+          {item.description && (
+            <p className="mt-1 text-xs leading-relaxed text-[#8A8478]">{item.description}</p>
+          )}
           {/* Boolean, not the raw length: `null || 0` is `0`, and React
                   renders a bare 0 as text — an untagged activity printed a
                   stray "0" under its title. */}
-          {!!(tag || item.place_files?.length) && (
+          {!!(tag || item.file_count) && (
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               {tag && (
                 <span
@@ -163,25 +162,24 @@ export function DayPlan({ day, sections, zoneId = null, zoneChoices, tripId }: P
                   {CATEGORY_META[tag].icon} {CATEGORY_META[tag].label}
                 </span>
               )}
-              {item.place_files?.map((name) => (
-                <span
-                  key={name}
-                  className="max-w-[180px] truncate rounded-full bg-sand px-2.5 py-1 text-[11px] font-semibold text-slate"
-                >
-                  📎 {name}
+              {/* A count, not the names: a document's name is a document, and
+                  the view that withholds documents zeroes this. The names are
+                  on the activity's own screen, one tap away. */}
+              {!!item.file_count && (
+                <span className="rounded-full bg-sand px-2.5 py-1 text-[11px] font-semibold text-slate">
+                  📎 {item.file_count}
                 </span>
-              ))}
+              )}
             </div>
           )}
           <div className="mt-2 flex gap-3 text-xs font-semibold">
-            {item.place_id && (
-              <Link
-                to={`/trips/${tripId}/places/${item.place_id}`}
-                className="font-bold text-brand"
-              >
-                View place ↗
-              </Link>
-            )}
+            {/* Every row is an activity with a screen of its own now — it is
+                where the location, the documents and the links live. Before 010
+                this link appeared only on the few rows that had a place behind
+                them. */}
+            <Link to={`/trips/${tripId}/activities/${item.id}`} className="font-bold text-brand">
+              Open ↗
+            </Link>
             {canEdit && (
               <>
                 <button type="button" className="text-muted" onClick={() => setEditingId(item.id)}>
@@ -280,9 +278,9 @@ export function DayPlan({ day, sections, zoneId = null, zoneChoices, tripId }: P
 }
 
 interface FormValues {
-  title: string
+  name: string
   start_time: string | null
-  note: string | null
+  description: string | null
   category: Category | null
   /** Only sent when editing moved the activity to another day. */
   day?: string
@@ -301,7 +299,7 @@ function ItemForm({
   onSubmit,
   onCancel,
 }: {
-  initial?: ItineraryItem
+  initial?: Activity
   /** The day being edited; omitted on the add form, which is already on it. */
   day?: string
   /** Bounds for the date picker. Null until the trip loads — the field waits. */
@@ -317,9 +315,9 @@ function ItemForm({
   onSubmit: (values: FormValues) => void
   onCancel: () => void
 }) {
-  const [title, setTitle] = useState(initial?.title ?? '')
+  const [title, setTitle] = useState(initial?.name ?? '')
   const [time, setTime] = useState(initial?.start_time ?? '')
-  const [note, setNote] = useState(initial?.note ?? '')
+  const [note, setNote] = useState(initial?.description ?? '')
   const [date, setDate] = useState(initial?.day ?? day ?? '')
   const [category, setCategory] = useState<Category | null>(initial?.category ?? null)
   // Adding starts with nothing preselected: a default there is exactly the guess this
@@ -336,9 +334,9 @@ function ItemForm({
   const submit = () => {
     if (!title.trim() || needsZone) return
     onSubmit({
-      title: title.trim(),
+      name: title.trim(),
       start_time: time || null,
-      note: note.trim() || null,
+      description: note.trim() || null,
       category,
       ...(canMove && date && date !== initial.day ? { day: date } : {}),
       ...(zone && zone !== (initial?.zone_id ?? null) ? { zone_id: zone } : {}),

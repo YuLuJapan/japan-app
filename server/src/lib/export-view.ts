@@ -18,19 +18,10 @@
 // reminders. Per FR-004a those never enter an export at either level, so they
 // have no policy at all rather than a policy set to `'never'` — a field nobody
 // can classify is a field nobody can accidentally promote.
-import type {
-  Category,
-  ItineraryItem,
-  JourneyStep,
-  Place,
-  PlaceLink,
-  Tip,
-  Trip,
-  Zone,
-} from './datastore.js'
+import type { Category, Activity, JourneyStep, PlaceLink, Tip, Trip, Zone } from './datastore.js'
 import { addDays } from './trip-dates.js'
 import { displayTitle } from './trip-title.js'
-import { isStay, type TripView } from './trip-view.js'
+import { isStay, stripStay, type TripView } from './trip-view.js'
 
 /** The two versions, and the only thing that decides what is in a file. */
 export type ExportDetail = 'share' | 'full'
@@ -70,19 +61,48 @@ const admits = (level: ExportLevel, at: Emission): boolean =>
  * named here anyway: it is the first 100 characters of the description, so it
  * carries whatever the description carries (FR-003).
  */
-export const PLACE_FIELD_POLICY: Record<keyof Place | 'summary_line', ExportLevel> = {
+export const ACTIVITY_FIELD_POLICY: Record<keyof Activity | 'summary_line', ExportLevel> = {
   name: 'share',
   address: 'share',
+  // Promoted from `never` by 010: before the merge this field existed twice,
+  // classified 'share' as a place's category and 'never' as a plan item's tag.
+  // One column cannot hold two levels. What is deferred is the *rendering* —
+  // `src/export/outline.ts` drops it from the day view — which is a decision
+  // recorded where it is made rather than a field nobody may classify.
   category: 'share',
   description: 'full', // the booking reference lives here — the reason share exists
   links: 'full', // a reservation link is a reservation
+  day: 'share',
+  start_time: 'share',
+  highlight: 'share',
+  icon: 'share',
+  position: 'never', // expressed as order
   id: 'json',
   zone_id: 'json',
+  trip_id: 'never', // the payload is one trip
   name_ja: 'never', // deferred with the CJK font work; see spec Assumptions
   image_url: 'never',
   lat: 'never',
   lng: 'never',
   summary_line: 'never',
+}
+
+/**
+ * Which **sections** a detail level admits at all — a second table, and the
+ * merge is what forced it.
+ *
+ * Before 010, `ITINERARY_FIELD_POLICY.day` was doing two jobs: classifying a
+ * field, and keeping the whole day plan out of the share copy (`projectDays`
+ * opened by testing it). Once `day` is a column on the same row as `name`,
+ * one level cannot mean both — `name` has to be `share` so the saved list
+ * travels, and the plan still must not.
+ *
+ * So the section rule is stated here, where it can be read, instead of hiding
+ * inside a field it happens to share a row with.
+ */
+export const SECTION_POLICY: Record<'saved' | 'plan', ExportLevel> = {
+  saved: 'share',
+  plan: 'full', // unchanged: a share export has never carried the day plan
 }
 
 export const ZONE_FIELD_POLICY: Record<keyof Zone, ExportLevel> = {
@@ -130,27 +150,7 @@ export const TIP_FIELD_POLICY: Record<keyof Tip, ExportLevel> = {
   body: 'full',
   id: 'never', // a tip is nested under its parent
   zone_id: 'never',
-  place_id: 'never',
-}
-
-export const ITINERARY_FIELD_POLICY: Record<keyof ItineraryItem, ExportLevel> = {
-  day: 'full',
-  start_time: 'full',
-  title: 'full',
-  note: 'full',
-  position: 'full', // as order
-  highlight: 'full',
-  icon: 'full',
-  // The traveller's own tag on an activity. Classified out for now rather than
-  // promoted: it would need a field on ExportDayItem and a rendering decision in
-  // all four writers, and the exported plan already names the linked place where
-  // there is one. Nothing stops a later change making it 'full' — this is the
-  // decision being recorded, not a limitation.
-  category: 'never',
-  place_id: 'never', // resolved to a place *name*, and only where visible
-  id: 'never',
-  trip_id: 'never',
-  zone_id: 'never',
+  activity_id: 'never',
 }
 
 // --- the payload -------------------------------------------------------------
@@ -253,9 +253,9 @@ export interface ExportSource {
   /** In the store's journey order. The projection never re-sorts. */
   steps: JourneyStep[]
   zones: Zone[]
-  places: Place[]
+  /** Every activity on the trip, scheduled and saved alike, in store order. */
+  activities: Activity[]
   tips: Tip[]
-  itinerary: ItineraryItem[]
   /** Stamped by the caller so the projection stays pure. */
   generated_at: string
 }
@@ -289,22 +289,33 @@ export function projectExport(
   // --- 1. the view -----------------------------------------------------------
   // A hidden stay takes its tips and its day-plan links with it. Nothing here
   // records what was dropped: the file never states what was withheld.
-  const visiblePlaces = view.stays ? source.places : source.places.filter((p) => !isStay(p))
-  const visiblePlaceIds = new Set(visiblePlaces.map((p) => p.id))
-  const visibleTips = source.tips.filter((t) => !t.place_id || visiblePlaceIds.has(t.place_id))
+  // FR-020/FR-021: a saved stay disappears; a scheduled one keeps its line and
+  // loses its content, so it survives into the day plan carrying nothing that
+  // would name the hotel beyond what the traveller typed.
+  const visible = view.stays
+    ? source.activities
+    : source.activities
+        .filter((a) => !(isStay(a) && a.day === null))
+        .map((a) => (isStay(a) ? stripStay(a) : a))
+  const visibleIds = new Set(visible.map((a) => a.id))
+  const visibleTips = source.tips.filter((t) => !t.activity_id || visibleIds.has(t.activity_id))
+  // The saved half is what nests under a city; the scheduled half is the plan.
+  const saved = visible.filter((a) => a.day === null)
+  const scheduled = visible.filter((a) => a.day !== null)
 
   // --- 2. the field policy, and 3. the shape ---------------------------------
   const zonesById = new Map(source.zones.map((z) => [z.id, z]))
-  const placesByZone = new Map<string, Place[]>()
-  for (const place of visiblePlaces) {
-    const bucket = placesByZone.get(place.zone_id)
-    if (bucket) bucket.push(place)
-    else placesByZone.set(place.zone_id, [place])
+  const savedByZone = new Map<string, Activity[]>()
+  for (const activity of saved) {
+    if (!activity.zone_id) continue
+    const bucket = savedByZone.get(activity.zone_id)
+    if (bucket) bucket.push(activity)
+    else savedByZone.set(activity.zone_id, [activity])
   }
   const tipsByZone = new Map<string, Tip[]>()
-  const tipsByPlace = new Map<string, Tip[]>()
+  const tipsByActivity = new Map<string, Tip[]>()
   for (const tip of visibleTips) {
-    const [map, key] = tip.zone_id ? [tipsByZone, tip.zone_id] : [tipsByPlace, tip.place_id]
+    const [map, key] = tip.zone_id ? [tipsByZone, tip.zone_id] : [tipsByActivity, tip.activity_id]
     if (!key) continue
     const bucket = map.get(key)
     if (bucket) bucket.push(tip)
@@ -320,25 +331,24 @@ export function projectExport(
   for (const step of source.steps) {
     const zone = zonesById.get(step.zone_id)
     if (!zone) continue
-    const zonePlaces = placesByZone.get(zone.id) ?? []
-    for (const place of zonePlaces) {
-      if (counted.has(place.id)) continue
-      counted.add(place.id)
-      if (!place.address?.trim()) placesWithoutAddress++
+    const zoneSaved = savedByZone.get(zone.id) ?? []
+    for (const activity of zoneSaved) {
+      if (counted.has(activity.id)) continue
+      counted.add(activity.id)
+      if (!activity.address?.trim()) placesWithoutAddress++
     }
     steps.push({
       // Both share-level, so both always travel; guarded anyway, because a
       // policy entry that changes nothing is a policy entry nobody trusts.
       ...(admits(STEP_FIELD_POLICY.start_date, at) && { start_date: step.start_date }),
       ...(admits(STEP_FIELD_POLICY.end_date, at) && { end_date: step.end_date }),
-      zone: projectZone(zone, zonePlaces, tipsByZone, tipsByPlace, at),
+      zone: projectZone(zone, zoneSaved, tipsByZone, tipsByActivity, at),
     } as ExportStep)
   }
 
-  const days =
-    detail === 'full'
-      ? projectDays(source.trip, source.steps, zonesById, source.itinerary, visiblePlaces, at)
-      : []
+  const days = admits(SECTION_POLICY.plan, at)
+    ? projectDays(source.trip, source.steps, zonesById, scheduled, at)
+    : []
 
   return {
     detail,
@@ -385,9 +395,9 @@ function projectTrip(trip: Trip, at: Emission): ExportTrip {
 
 function projectZone(
   zone: Zone,
-  places: Place[],
+  saved: Activity[],
   tipsByZone: Map<string, Tip[]>,
-  tipsByPlace: Map<string, Tip[]>,
+  tipsByActivity: Map<string, Tip[]>,
   at: Emission
 ): ExportZone {
   const out: Partial<ExportZone> = {}
@@ -395,25 +405,29 @@ function projectZone(
   if (admits(ZONE_FIELD_POLICY.summary, at) && zone.summary) out.summary = zone.summary
   // Present even when empty: a zone with nothing visible in it is an honest
   // empty section, not a missing one (spec edge case).
-  out.places = places.map((p) => projectPlace(p, tipsByPlace.get(p.id) ?? [], at))
+  out.places = saved.map((a) => projectPlace(a, tipsByActivity.get(a.id) ?? [], at))
   const tips = bodies(tipsByZone.get(zone.id) ?? [], at)
   if (tips.length) out.tips = tips
   return out as ExportZone
 }
 
-function projectPlace(place: Place, tips: Tip[], at: Emission): ExportPlace {
+function projectPlace(activity: Activity, tips: Tip[], at: Emission): ExportPlace {
   const out: Partial<ExportPlace> = {}
-  if (admits(PLACE_FIELD_POLICY.name, at)) out.name = place.name
+  if (admits(ACTIVITY_FIELD_POLICY.name, at)) out.name = activity.name
   // Always present, empty when missing: the count in `stats` is what reports
   // the gap, and a place with no address is still listed by name (SC-008).
-  if (admits(PLACE_FIELD_POLICY.address, at)) out.address = place.address ?? ''
-  if (admits(PLACE_FIELD_POLICY.category, at)) out.category = place.category
-  if (admits(PLACE_FIELD_POLICY.description, at) && place.description) {
-    out.description = place.description
+  if (admits(ACTIVITY_FIELD_POLICY.address, at)) out.address = activity.address ?? ''
+  if (admits(ACTIVITY_FIELD_POLICY.category, at) && activity.category) {
+    out.category = activity.category
   }
-  if (admits(PLACE_FIELD_POLICY.links, at) && place.links.length) out.links = place.links
-  if (admits(PLACE_FIELD_POLICY.id, at)) out.id = place.id
-  if (admits(PLACE_FIELD_POLICY.zone_id, at)) out.zone_id = place.zone_id
+  if (admits(ACTIVITY_FIELD_POLICY.description, at) && activity.description) {
+    out.description = activity.description
+  }
+  if (admits(ACTIVITY_FIELD_POLICY.links, at) && activity.links.length) out.links = activity.links
+  if (admits(ACTIVITY_FIELD_POLICY.id, at)) out.id = activity.id
+  if (admits(ACTIVITY_FIELD_POLICY.zone_id, at) && activity.zone_id) {
+    out.zone_id = activity.zone_id
+  }
   const bodyList = bodies(tips, at)
   if (bodyList.length) out.tips = bodyList
   return out as ExportPlace
@@ -445,29 +459,29 @@ function projectDays(
   trip: Trip,
   steps: JourneyStep[],
   zonesById: Map<string, Zone>,
-  itinerary: ItineraryItem[],
-  visible: Place[],
+  scheduled: Activity[],
   at: Emission
 ): ExportDay[] {
-  if (!admits(ITINERARY_FIELD_POLICY.day, at)) return []
-
-  const nameById = new Map(visible.map((p) => [p.id, p.name]))
   const itemsByDay = new Map<string, ExportDayItem[]>()
-  for (const item of itinerary) {
+  for (const activity of scheduled) {
+    if (activity.day === null) continue
     const out: Partial<ExportDayItem> = {}
-    if (admits(ITINERARY_FIELD_POLICY.title, at)) out.title = item.title
-    if (admits(ITINERARY_FIELD_POLICY.start_time, at) && item.start_time) {
-      out.start_time = item.start_time
+    if (admits(ACTIVITY_FIELD_POLICY.name, at)) out.title = activity.name
+    if (admits(ACTIVITY_FIELD_POLICY.start_time, at) && activity.start_time) {
+      out.start_time = activity.start_time
     }
-    if (admits(ITINERARY_FIELD_POLICY.note, at) && item.note) out.note = item.note
-    if (admits(ITINERARY_FIELD_POLICY.highlight, at)) out.highlight = item.highlight
-    if (admits(ITINERARY_FIELD_POLICY.icon, at) && item.icon) out.icon = item.icon
-    const name = item.place_id ? nameById.get(item.place_id) : undefined
-    if (name) out.place_name = name
+    if (admits(ACTIVITY_FIELD_POLICY.description, at) && activity.description) {
+      out.note = activity.description
+    }
+    if (admits(ACTIVITY_FIELD_POLICY.highlight, at)) out.highlight = activity.highlight
+    if (admits(ACTIVITY_FIELD_POLICY.icon, at) && activity.icon) out.icon = activity.icon
+    // `place_name` is gone with the entity split: the activity *is* the place,
+    // so its own name is already the line's title and repeating it would print
+    // the same words twice.
 
-    const bucket = itemsByDay.get(item.day)
+    const bucket = itemsByDay.get(activity.day)
     if (bucket) bucket.push(out as ExportDayItem)
-    else itemsByDay.set(item.day, [out as ExportDayItem])
+    else itemsByDay.set(activity.day, [out as ExportDayItem])
   }
 
   // The trip's own window, plus any day an item somehow sits outside it. The

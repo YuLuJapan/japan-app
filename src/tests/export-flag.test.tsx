@@ -58,7 +58,7 @@ beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   mocks.get.mockImplementation((path: string) => {
     if (path === '/trips/trip-1') return Promise.resolve(bundle())
-    if (path === '/trips/trip-1/itinerary') return Promise.resolve({ items: [] })
+    if (path === '/trips/trip-1/activities') return Promise.resolve({ activities: [] })
     if (path.includes('/export')) return Promise.resolve({ export: null })
     return Promise.reject(new Error(`unexpected GET ${path}`))
   })

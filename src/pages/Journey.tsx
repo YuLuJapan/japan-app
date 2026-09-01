@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { useItinerary, useTrip, useTripExportPrefetch } from '../api/hooks'
+import { useActivities, useTrip, useTripExportPrefetch } from '../api/hooks'
 import { CountdownWidget } from '../components/CountdownWidget'
 import { ErrorState } from '../components/ErrorState'
 import { GenericCountdown } from '../components/GenericCountdown'
@@ -27,7 +27,7 @@ export default function Journey() {
   const shows = useTripShows()
   const tripId = useTripId()
   const { data, isPending, isError, refetch } = useTrip(tripId)
-  const itinerary = useItinerary(tripId)
+  const activities = useActivities(tripId)
   const canExport = useBooleanFlag('export-trip', false)
   /**
    * The scroll-driven sushi hero, kept behind a flag rather than deleted.
@@ -158,18 +158,19 @@ export default function Journey() {
 
           <section>
             <h2 className="mb-3 font-display text-2xl font-bold tracking-tight">Day by day</h2>
-            {itinerary.isPending ? (
+            {activities.isPending ? (
               <Loading label="Loading the schedule…" />
-            ) : itinerary.isError ? (
+            ) : activities.isError ? (
               <ErrorState
                 message="Could not load the schedule."
-                onRetry={() => itinerary.refetch()}
+                onRetry={() => activities.refetch()}
               />
             ) : (
               <Schedule
                 mode="trip"
                 steps={data.steps}
-                items={itinerary.data.items}
+                // The day plan is the scheduled half; Explore holds the rest.
+                items={activities.data.activities.filter((a) => a.day !== null)}
                 days={enumerateDays(data.trip.start_date, data.trip.end_date)}
                 today={toISODate(today)}
                 tripId={tripId}

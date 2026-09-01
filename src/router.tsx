@@ -22,8 +22,8 @@ import DocumentPreview from './pages/DocumentPreview'
 import Journey from './pages/Journey'
 import JourneySteps from './pages/JourneySteps'
 import NotFound from './pages/NotFound'
-import PlaceDetail from './pages/PlaceDetail'
-import PlaceForm from './pages/PlaceForm'
+import ActivityDetail from './pages/ActivityDetail'
+import ActivityForm from './pages/ActivityForm'
 import Reminders from './pages/Reminders'
 import Search from './pages/Search'
 import ShoppingCategoryPage from './pages/ShoppingCategory'
@@ -183,6 +183,23 @@ export function RequireChat() {
 }
 
 /**
+ * A place's old address, which is now an activity's.
+ *
+ * 010 merged the two entities and preserved every id, so the id in the URL is
+ * already the right one — this is a rename, not a lookup.
+ */
+function PlaceLink() {
+  const { tripId, placeId } = useParams<{ tripId: string; placeId: string }>()
+  return <Navigate to={`/trips/${tripId}/activities/${placeId}`} replace />
+}
+
+/** The same, for the edit form. */
+function PlaceEditLink() {
+  const { tripId, placeId } = useParams<{ tripId: string; placeId: string }>()
+  return <Navigate to={`/trips/${tripId}/activities/${placeId}/edit`} replace />
+}
+
+/**
  * The old chat page's address, which is now a way of opening the window.
  *
  * `?chat=1` on the trip home is what `AskDock` reads, so a link that predates
@@ -228,7 +245,12 @@ export const router = createBrowserRouter([
           { index: true, element: <Journey /> },
           { path: 'zones/:zoneId', element: <Zone /> },
           { path: 'zones/:zoneId/c/:category', element: <CategoryList /> },
-          { path: 'places/:placeId', element: <PlaceDetail /> },
+          { path: 'activities/:activityId', element: <ActivityDetail /> },
+          // Feature 010 merged places into activities and **kept their ids**,
+          // so every link that predates it still resolves: a bookmark, a
+          // pasted URL, a reminder's `url`. `replace`, so Back does not land
+          // on the redirect and bounce forward again.
+          { path: 'places/:placeId', element: <PlaceLink /> },
           { path: 'search', element: <Search /> },
           {
             element: <RequireShopping />,
@@ -286,8 +308,9 @@ export const router = createBrowserRouter([
             element: <RequireOwner />,
             children: [
               { path: 'journey/edit', element: <JourneySteps /> },
-              { path: 'zones/:zoneId/places/new', element: <PlaceForm /> },
-              { path: 'places/:placeId/edit', element: <PlaceForm /> },
+              { path: 'zones/:zoneId/activities/new', element: <ActivityForm /> },
+              { path: 'activities/:activityId/edit', element: <ActivityForm /> },
+              { path: 'places/:placeId/edit', element: <PlaceEditLink /> },
               { path: 'shopping/new', element: <ShoppingForm /> },
               { path: 'shopping/:itemId/edit', element: <ShoppingForm /> },
               { path: 'files', element: <TripFiles /> },

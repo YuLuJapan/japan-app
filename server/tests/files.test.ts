@@ -27,7 +27,7 @@ describe('files', () => {
 
     expect(byName('Flight booking').attached_to).toEqual(expect.objectContaining({ kind: 'trip' }))
     expect(byName('Menu photo').attached_to).toEqual(
-      expect.objectContaining({ kind: 'place', id: 'place-ramen', name: 'Ramen Bar' })
+      expect.objectContaining({ kind: 'activity', id: 'place-ramen', name: 'Ramen Bar' })
     )
     expect(byName('Missing map').attached_to).toEqual(
       expect.objectContaining({ kind: 'zone', id: 'zone-kyoto', name: 'Kyoto' })
@@ -187,7 +187,7 @@ describe('files', () => {
   })
 
   it('deleting a place re-parents its files to the trip (no silent loss)', async () => {
-    await auth(request(app).delete('/api/trips/trip-1/places/place-ramen')).expect(204)
+    await auth(request(app).delete('/api/trips/trip-1/activities/place-ramen')).expect(204)
     const res = await auth(request(app).get('/api/trips/trip-1/files'))
     const names = res.body.files.map((f: { display_name: string }) => f.display_name)
     expect(names).toContain('Menu photo')
@@ -197,7 +197,7 @@ describe('files', () => {
   describe('upload', () => {
     it('POST /api/files attaches a document to a place and it opens via a data URL', async () => {
       const res = await auth(request(app).post('/api/trips/trip-1/files')).send({
-        parent: { kind: 'place', id: 'place-ramen' },
+        parent: { kind: 'activity', id: 'place-ramen' },
         display_name: 'Park reservation',
         mime_type: 'application/pdf',
         data_base64: pdfBase64,
@@ -209,7 +209,9 @@ describe('files', () => {
       // shows under the place in the Documents view…
       const list = await auth(request(app).get('/api/trips/trip-1/files'))
       const doc = list.body.files.find((f: { id: string }) => f.id === id)
-      expect(doc.attached_to).toEqual(expect.objectContaining({ kind: 'place', id: 'place-ramen' }))
+      expect(doc.attached_to).toEqual(
+        expect.objectContaining({ kind: 'activity', id: 'place-ramen' })
+      )
 
       // …and is openable (memory backend serves a data URL)
       const url = await auth(request(app).get(`/api/trips/trip-1/files/${id}/url`))
@@ -218,7 +220,7 @@ describe('files', () => {
 
     it('POST /api/files 400 on missing name, bad type, and missing parent id', async () => {
       const res = await auth(request(app).post('/api/trips/trip-1/files')).send({
-        parent: { kind: 'place' },
+        parent: { kind: 'activity' },
         display_name: '  ',
         mime_type: 'application/zip',
         data_base64: pdfBase64,
@@ -232,7 +234,7 @@ describe('files', () => {
 
     it('POST /api/files 404 for an unknown place', async () => {
       const res = await auth(request(app).post('/api/trips/trip-1/files')).send({
-        parent: { kind: 'place', id: 'place-nope' },
+        parent: { kind: 'activity', id: 'place-nope' },
         display_name: 'Ghost doc',
         mime_type: 'application/pdf',
         data_base64: pdfBase64,

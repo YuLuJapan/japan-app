@@ -15,7 +15,7 @@ import { ApiError } from '../api/client'
 import { Layout } from '../components/Layout'
 import CategoryList from '../pages/CategoryList'
 import Journey from '../pages/Journey'
-import PlaceDetail from '../pages/PlaceDetail'
+import ActivityDetail from '../pages/ActivityDetail'
 import ShoppingItemDetail from '../pages/ShoppingItem'
 import ShoppingList from '../pages/ShoppingList'
 import Zone from '../pages/Zone'
@@ -39,7 +39,7 @@ const viewer = {
 }
 
 const place = {
-  place: {
+  activity: {
     id: 'p1',
     zone_id: 'zone-1',
     category: 'attraction',
@@ -57,7 +57,7 @@ const zone = {
   zone: { id: 'zone-1', name: 'Tokyo', name_ja: '東京', summary: 'Big city' },
   tips: [{ id: 't1', body: 'Get a Suica card' }],
   files: [],
-  place_counts: { hotel: 0, attraction: 2, food: 1, shopping: 0, other: 0 },
+  saved_counts: { hotel: 0, attraction: 2, food: 1, shopping: 0, other: 0 },
 }
 
 const shoppingItem = {
@@ -104,12 +104,12 @@ function mockShoppingApi() {
   })
 }
 
-describe('viewer — places', () => {
+describe('viewer — activities', () => {
   it('shows a place and its tips without edit, delete or files', async () => {
     mocks.get.mockResolvedValue(place)
     renderAt(
-      '/trips/trip-1/places/p1',
-      [{ path: '/trips/:tripId/places/:placeId', element: <PlaceDetail /> }],
+      '/trips/trip-1/activities/p1',
+      [{ path: '/trips/:tripId/activities/:activityId', element: <ActivityDetail /> }],
       viewer
     )
 
@@ -129,8 +129,8 @@ describe('viewer — places', () => {
 
   it('still offers edit and files to the travelers', async () => {
     mocks.get.mockResolvedValue(place)
-    renderAt('/trips/trip-1/places/p1', [
-      { path: '/trips/:tripId/places/:placeId', element: <PlaceDetail /> },
+    renderAt('/trips/trip-1/activities/p1', [
+      { path: '/trips/:tripId/activities/:activityId', element: <ActivityDetail /> },
     ])
 
     expect(await screen.findByRole('link', { name: 'Edit' })).toBeInTheDocument()
@@ -153,12 +153,12 @@ describe('viewer — zones', () => {
     expect(screen.getByTestId('category-attraction')).toBeInTheDocument()
     expect(screen.getByText('Get a Suica card')).toBeInTheDocument()
 
-    expect(screen.queryByRole('link', { name: '+ Add place' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '+ Add' })).not.toBeInTheDocument()
     expect(screen.queryByText('Files')).not.toBeInTheDocument()
   })
 
   it('drops the "+ Add" link on a category list', async () => {
-    mocks.get.mockResolvedValue({ places: [], zone: zone.zone })
+    mocks.get.mockResolvedValue({ activities: [], zone: zone.zone })
     renderAt(
       '/trips/trip-1/zones/zone-1/c/food',
       [{ path: '/trips/:tripId/zones/:zoneId/c/:category', element: <CategoryList /> }],
@@ -269,7 +269,7 @@ describe('viewer — stays and flight', () => {
   })
 
   it('explains the empty stays list instead of calling it unsaved', async () => {
-    mocks.get.mockResolvedValue({ places: [], zone: zone.zone })
+    mocks.get.mockResolvedValue({ activities: [], zone: zone.zone })
     renderAt(
       '/trips/trip-1/zones/zone-1/c/hotel',
       [{ path: '/trips/:tripId/zones/:zoneId/c/:category', element: <CategoryList /> }],
@@ -284,8 +284,8 @@ describe('viewer — stays and flight', () => {
       new ApiError(403, 'FORBIDDEN', 'Where this trip is staying is not shared with you')
     )
     renderAt(
-      '/trips/trip-1/places/hotel-1',
-      [{ path: '/trips/:tripId/places/:placeId', element: <PlaceDetail /> }],
+      '/trips/trip-1/activities/hotel-1',
+      [{ path: '/trips/:tripId/activities/:activityId', element: <ActivityDetail /> }],
       viewer
     )
 

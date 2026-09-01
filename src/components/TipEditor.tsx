@@ -8,7 +8,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 
 interface Props {
   tips: Tip[]
-  parent: { zone_id: string } | { place_id: string }
+  parent: { zone_id: string } | { activity_id: string }
   title?: string
 }
 

@@ -14,12 +14,12 @@ beforeEach(() => {
 })
 
 describe('GET /api/trips/trip-1/search', () => {
-  it('finds a place by name and links to it', async () => {
+  it('finds an activity by name and links to it', async () => {
     const res = await auth(request(app).get('/api/trips/trip-1/search?q=ramen'))
     expect(res.status).toBe(200)
-    const place = res.body.results.find((r: { type: string }) => r.type === 'place')
+    const place = res.body.results.find((r: { type: string }) => r.type === 'activity')
     expect(place.title).toBe('Ramen Bar')
-    expect(place.href).toBe('/places/place-ramen')
+    expect(place.href).toBe('/activities/place-ramen')
   })
 
   it('finds a zone by name', async () => {

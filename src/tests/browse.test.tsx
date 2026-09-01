@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
-import PlaceDetail from '../pages/PlaceDetail'
+import ActivityDetail from '../pages/ActivityDetail'
 import Zone from '../pages/Zone'
 import { renderAt } from './helpers'
 
@@ -22,7 +22,7 @@ describe('Zone page (US1)', () => {
       zone: { id: 'zone-1', name: 'Tokyo', name_ja: '東京', summary: 'Big city' },
       tips: [{ id: 't1', body: 'Get a Suica card' }],
       files: [],
-      place_counts: { hotel: 0, attraction: 2, food: 1, shopping: 0, other: 0 },
+      saved_counts: { hotel: 0, attraction: 2, food: 1, shopping: 0, other: 0 },
     })
     renderAt('/trips/trip-1/zones/zone-1', [
       { path: '/trips/:tripId/zones/:zoneId', element: <Zone /> },
@@ -38,10 +38,10 @@ describe('Zone page (US1)', () => {
   })
 })
 
-describe('PlaceDetail page (US1)', () => {
+describe('ActivityDetail page (US1)', () => {
   it('shows tips alongside the place details (US1 AC3)', async () => {
     mocks.get.mockResolvedValue({
-      place: {
+      activity: {
         id: 'p1',
         zone_id: 'zone-1',
         category: 'attraction',
@@ -54,8 +54,8 @@ describe('PlaceDetail page (US1)', () => {
       tips: [{ id: 't1', body: 'Sunrise visit — no crowds' }],
       files: [],
     })
-    renderAt('/trips/trip-1/places/p1', [
-      { path: '/trips/:tripId/places/:placeId', element: <PlaceDetail /> },
+    renderAt('/trips/trip-1/activities/p1', [
+      { path: '/trips/:tripId/activities/:activityId', element: <ActivityDetail /> },
     ])
 
     expect(await screen.findByText('Fushimi Inari')).toBeInTheDocument()

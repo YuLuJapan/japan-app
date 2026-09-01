@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ItineraryItem, TripStep } from '../api/types'
+import type { Activity, TripStep } from '../api/types'
 import {
   daySections,
   enumerateDays,
@@ -9,6 +9,7 @@ import {
   primaryStep,
   zoneDays,
 } from '../lib/schedule'
+import { activity } from './helpers'
 
 const counts = { hotel: 0, attraction: 0, food: 0, shopping: 0, other: 0 }
 const zone = (id: string, name: string) => ({
@@ -16,7 +17,7 @@ const zone = (id: string, name: string) => ({
   name,
   name_ja: null,
   summary: null,
-  place_counts: counts,
+  saved_counts: counts,
 })
 
 // Tokyo Oct 5–9, then Kyoto Oct 9–12 — Oct 9 is the shared travel/checkout day.
@@ -38,19 +39,13 @@ const steps: TripStep[] = [
 ]
 const allDays = enumerateDays('2026-10-05', '2026-10-12')
 
-const itemOn = (zoneId: string | null, title: string): ItineraryItem => ({
-  id: title,
-  trip_id: 'trip-1',
-  zone_id: zoneId,
-  place_id: null,
-  day: '2026-10-09',
-  start_time: null,
-  title,
-  note: null,
-  position: 0,
-  highlight: false,
-  icon: null,
-})
+const itemOn = (zoneId: string | null, title: string): Activity =>
+  activity({
+    id: title,
+    zone_id: zoneId,
+    day: '2026-10-09',
+    name: title,
+  })
 
 describe('schedule helpers', () => {
   it('enumerateDays is inclusive on both ends', () => {

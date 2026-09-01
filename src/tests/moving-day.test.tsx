@@ -8,7 +8,7 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Zone from '../pages/Zone'
 import { Schedule } from '../components/Schedule'
-import { renderAt } from './helpers'
+import { renderAt, activity } from './helpers'
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
@@ -28,7 +28,7 @@ const zone = (id: string, name: string) => ({
   name,
   name_ja: null,
   summary: null,
-  place_counts: counts,
+  saved_counts: counts,
 })
 
 const TOKYO = zone('z-tokyo', 'Tokyo')
@@ -53,19 +53,8 @@ const TRIP_BUNDLE = {
   flight: null,
 }
 
-const item = (id: string, zoneId: string | null, time: string, title: string) => ({
-  id,
-  trip_id: 'trip-1',
-  zone_id: zoneId,
-  place_id: null,
-  day: '2026-09-25',
-  start_time: time,
-  title,
-  note: null,
-  position: 0,
-  highlight: false,
-  icon: null,
-})
+const item = (id: string, zoneId: string | null, time: string, title: string) =>
+  activity({ id, zone_id: zoneId, day: '2026-09-25', start_time: time, name: title })
 
 const ITEMS = [
   item('i1', 'z-tokyo', '09:00', 'teamLab before the train'),
@@ -78,16 +67,16 @@ let LOOSE_MORNING = false
 function mockApi(zoneId: string, name: string) {
   mocks.get.mockImplementation((path: string) => {
     if (path === '/trips/trip-1') return Promise.resolve(TRIP_BUNDLE)
-    if (path === '/trips/trip-1/itinerary')
+    if (path === '/trips/trip-1/activities')
       return Promise.resolve({
-        items: LOOSE_MORNING ? [{ ...ITEMS[0], zone_id: null }, ITEMS[1]] : ITEMS,
+        activities: LOOSE_MORNING ? [{ ...ITEMS[0], zone_id: null }, ITEMS[1]] : ITEMS,
       })
     if (path === `/trips/trip-1/zones/${zoneId}`)
       return Promise.resolve({
         zone: { id: zoneId, name, name_ja: null, summary: null },
         tips: [],
         files: [],
-        place_counts: counts,
+        saved_counts: counts,
       })
     return Promise.reject(new Error(`unexpected GET ${path}`))
   })

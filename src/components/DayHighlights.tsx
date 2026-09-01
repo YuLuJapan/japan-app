@@ -1,15 +1,11 @@
 // The "featured" banners shown between a day's date and its plan — birthdays,
 // park days, car pickup/return, anything worth flagging. A highlight is just an
-// itinerary item with `highlight: true`, so it reuses the itinerary CRUD. Each
+// activity with `highlight: true`, so it reuses the activity CRUD. Each
 // banner has an icon + text and can be edited or removed inline; a button adds
 // a new one to the current day.
 import { useState } from 'react'
-import {
-  useCreateItineraryItem,
-  useDeleteItineraryItem,
-  useUpdateItineraryItem,
-} from '../api/mutations'
-import type { ItineraryItem } from '../api/types'
+import { useCreateActivity, useDeleteActivity, useUpdateActivity } from '../api/mutations'
+import type { Activity } from '../api/types'
 import { useCanEdit } from '../lib/session'
 import { ConfirmDialog } from './ConfirmDialog'
 
@@ -17,21 +13,20 @@ const DEFAULT_ICON = '⭐'
 
 interface Props {
   day: string
-  highlights: ItineraryItem[]
+  highlights: Activity[]
   /** City this day belongs to; new highlights are tagged with it. */
   zoneId?: string | null
-  tripId: string
 }
 
-export function DayHighlights({ day, highlights, zoneId = null, tripId }: Props) {
+export function DayHighlights({ day, highlights, zoneId = null }: Props) {
   const canEdit = useCanEdit()
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  const create = useCreateItineraryItem(tripId)
-  const update = useUpdateItineraryItem()
-  const remove = useDeleteItineraryItem()
+  const create = useCreateActivity()
+  const update = useUpdateActivity()
+  const remove = useDeleteActivity(zoneId)
 
   return (
     <div className="space-y-2">
@@ -54,7 +49,7 @@ export function DayHighlights({ day, highlights, zoneId = null, tripId }: Props)
             <span className="text-sm leading-none" aria-hidden>
               {h.icon || DEFAULT_ICON}
             </span>
-            <p className="min-w-0 flex-1 text-[13px] font-bold text-brand">{h.title}</p>
+            <p className="min-w-0 flex-1 text-[13px] font-bold text-brand">{h.name}</p>
             {canEdit && (
               <div className="flex shrink-0 gap-3 text-xs font-semibold">
                 <button
@@ -120,7 +115,7 @@ export function DayHighlights({ day, highlights, zoneId = null, tripId }: Props)
 }
 
 interface FormValues {
-  title: string
+  name: string
   icon: string | null
 }
 
@@ -132,7 +127,7 @@ function HighlightForm({
   onSubmit,
   onCancel,
 }: {
-  initial?: ItineraryItem
+  initial?: Activity
   pending: boolean
   error: boolean
   submitLabel: string
@@ -140,11 +135,11 @@ function HighlightForm({
   onCancel: () => void
 }) {
   const [icon, setIcon] = useState(initial?.icon ?? DEFAULT_ICON)
-  const [title, setTitle] = useState(initial?.title ?? '')
+  const [title, setTitle] = useState(initial?.name ?? '')
 
   const submit = () => {
     if (!title.trim()) return
-    onSubmit({ title: title.trim(), icon: icon.trim() || null })
+    onSubmit({ name: title.trim(), icon: icon.trim() || null })
   }
 
   return (

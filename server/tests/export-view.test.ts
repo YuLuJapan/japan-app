@@ -1,14 +1,14 @@
 // The projection, on its own — no HTTP, no store.
 //
 // This is the file FR-011's *runtime* half lives in. The other half is a type:
-// `Record<keyof Place, ExportLevel>` in lib/export-view.ts makes a new column a
+// `Record<keyof Activity, ExportLevel>` in lib/export-view.ts makes a new column a
 // compile error, and `npm run typecheck` is what makes that error reachable.
 // The two catch different things and both are needed — a runtime test cannot
 // see a field that only exists in the interface, and a type cannot see an
 // accidental spread.
 import { describe, expect, it } from 'vitest'
 import {
-  PLACE_FIELD_POLICY,
+  ACTIVITY_FIELD_POLICY,
   projectExport,
   type ExportDetail,
   type ExportSource,
@@ -23,8 +23,8 @@ function source(): ExportSource {
   const data = fixture()
   const zones = data.zones.filter((z) => z.trip_id === 'trip-1')
   const zoneIds = new Set(zones.map((z) => z.id))
-  const places = data.places.filter((p) => zoneIds.has(p.zone_id))
-  const placeIds = new Set(places.map((p) => p.id))
+  const activities = data.activities.filter((a) => a.trip_id === 'trip-1')
+  const activityIds = new Set(activities.map((a) => a.id))
   return {
     trip: data.trips.find((t) => t.id === 'trip-1')!,
     // The store returns the journey by start date; step-1 (Tokyo) first.
@@ -32,11 +32,11 @@ function source(): ExportSource {
       .filter((s) => s.trip_id === 'trip-1')
       .sort((a, b) => (a.start_date < b.start_date ? -1 : 1)),
     zones,
-    places,
+    activities,
     tips: data.tips!.filter(
-      (t) => (t.zone_id && zoneIds.has(t.zone_id)) || (t.place_id && placeIds.has(t.place_id))
+      (t) =>
+        (t.zone_id && zoneIds.has(t.zone_id)) || (t.activity_id && activityIds.has(t.activity_id))
     ),
-    itinerary: (data.itinerary ?? []).filter((i) => i.trip_id === 'trip-1'),
     generated_at: '2026-08-28T12:00:00.000Z',
   }
 }
@@ -125,7 +125,6 @@ describe('the full projection', () => {
     expect(sixth.items.map((i) => i.title)).toEqual(['Ramen Bar', 'Walk Shinjuku'])
     expect(sixth.items[0]).toMatchObject({
       start_time: '20:00',
-      place_name: 'Ramen Bar',
       highlight: false,
     })
     expect(sixth.items[1].start_time).toBeUndefined()
@@ -232,7 +231,7 @@ describe('identifiers', () => {
   })
 
   it('are the only fields the policy marks json', () => {
-    const json = Object.entries(PLACE_FIELD_POLICY)
+    const json = Object.entries(ACTIVITY_FIELD_POLICY)
       .filter(([, level]) => level === 'json')
       .map(([field]) => field)
       .sort()

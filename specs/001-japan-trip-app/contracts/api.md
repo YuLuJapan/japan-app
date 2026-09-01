@@ -375,116 +375,133 @@ No migration — `zones.image_url` has existed since 0001.
 - Access is the usual: the route is mounted on the trip-scoped router, so a
   viewer gets 403 and a non-member 404 without this route deciding anything.
 
-### GET /api/zones/:zoneId/places?category=food
+### ~~GET /api/zones/:zoneId/places~~ — removed by feature 010
 
-Places of one category in a zone, list form (name + summary line, FR-002).
+Both surfaces it backed — a city's category list and the city map — now filter
+the single `GET /api/trips/:tripId/activities` list client-side, so the endpoint
+would return a subset of a list the caller already holds. Its guarantees moved
+to that list and are asserted there (`server/tests/browse.test.ts`,
+`server/tests/map-pins.test.ts`).
 
-- `category` is optional and must be one of `hotel|attraction|food|shopping|other`
-  when present → else 400 `VALIDATION`. **An empty `category` means every
-  category**, in one response, which is what the map reads (feature 004): its
-  chips filter client-side, so switching one costs no request.
-- 200: `{"places":[{"id":"…","name":"…","name_ja":"…","category":"food","summary_line":"first ~100 chars of description","image_url":…,"address":…,"lat":…,"lng":…}]}` (may be empty — UI renders empty state, FR-012).
-- **`lat`/`lng` are returned as `null` for a place with no location, never
-  omitted.** The map counts the places it cannot pin (004 FR-019), and an
-  absent key and a null value are not equally easy to count honestly.
-- A member whose view withholds the stays never gets `hotel` places here:
-  `category=hotel` returns `{"places":[]}`, and the all-categories sweep
-  (`category=`, used by the city map) filters them out. This is a **guarantee**
-  rather than an accident of the current code path — it is applied inside
-  `listZonePlaces`, before the response is built, and asserted on the response
-  body in `server/tests/map-pins.test.ts` so a refactor cannot quietly drop it
-  (004 FR-016).
-- The projection is `zonePlaceListItem()` in `server/src/lib/place-view.ts`,
-  driven by a `Record<keyof Place, 'list' | 'omit'>` policy: adding a column to
-  `Place` fails `npm run typecheck` until someone decides whether it belongs on
-  this wire.
+## Activities
 
-## Itinerary (day-by-day activities)
+**Feature 010 merged `Place` and `ItineraryItem` into one entity.** They
+described the same thing from two sides — a place could carry a location, files
+and links but never a date; a plan line could carry a date and none of the rest
+— and the split cost two forms, two lists and two mental models to buy a link
+that 24 rows in production used, six of them wrongly.
 
-A flat list of timed/untimed activities per trip; the client groups them by day. Distinct from journey steps above — an itinerary item is a single activity within a day, optionally linked to a saved place.
+**The date is the only thing that decides where an activity shows.**
 
-An item's `day` must fall within its trip's own `start_date`/`end_date` — the same rule journey steps follow. Nothing is planned before the trip starts or after it ends.
+|                 |                                                                    |
+| --------------- | ------------------------------------------------------------------ |
+| `day` set       | the day plan — the trip screen's timeline, and its city's Schedule |
+| `day` null      | **Explore** on the city page, grouped by category                  |
+| `lat`/`lng` set | a pin on the map, **whether or not it has a date**                 |
 
-### GET /api/itinerary
+Scheduling something saved is a `PATCH` setting its date; clearing the date
+sends it back. That is the same write in both directions, and it is the one
+write in the app that moves a row between two lists.
 
-- 200: `{"items":[{"id":"…","trip_id":"…","zone_id":"…","place_id":"…","day":"YYYY-MM-DD","start_time":"HH:MM"|null,"title":"…","note":"…"|null,"position":0,"highlight":false,"icon":"…"|null,"category":"food"|null,"place_category":"food"|null,"place_files":["Entry ticket.pdf"]}]}`
-- When the stays are withheld, an item that pointed at a `hotel` place comes back with `place_id: null` — the day still reads the same, it just doesn't link to a page that would answer 403.
+Two rules the service enforces that no column can:
 
-**`category` (2026-08-28 addition, spec 009, migration 0022).** The tag the traveller chose for the activity itself — one of `hotel`, `attraction`, `food`, `shopping`, or `null`. Accepted on `POST`/`PATCH`; `null` clears it. Anything else, `other` included, is a 400: `other` has no colour in `CATEGORY_META`, so a pill for it could not be read. Do not confuse it with `place_category` below — this one is **stored**, and it is what lets an activity linked to nothing saved still carry a tag. Where both exist the client shows this one. Classified `'never'` in the export's field policy, so it does not travel into an exported file.
+- **A saved activity needs a city** (`zone_id`) — Explore is per-city, so one
+  without would exist and be visible nowhere. A _scheduled_ activity may have
+  none. This is a service rule rather than a check constraint on purpose: as a
+  constraint it would abort trip deletion (`specs/010-activities/migration.md`
+  §2).
+- **A highlight needs a day.** A featured note banners one day of the trip.
 
-**`place_category` and `place_files` (2026-08-28 addition, redesign option 1g).** Two derived read-only fields describing the place an item links to, so the day plan can tag an activity with its category and with what is attached to it without a second request per item. They are computed per response and are **not** stored columns and **not** accepted on write — `POST`/`PATCH` ignore them, and the export's field policy (`server/src/lib/export-view.ts`) is keyed on the stored row, so neither reaches an exported file.
+`category` is optional — `null` means untagged, which is the ordinary case for
+a plan line. A **scheduled** activity may only be tagged with one of the four
+the day plan can draw a pill for (`hotel|attraction|food|shopping`); a **saved**
+one may also be `other`, which Explore renders as "More".
 
-They follow the visibility rules rather than being filtered separately:
+### GET /api/trips/:tripId/activities
 
-- both are `null`/`[]` for an item that links to no place;
-- `place_category` is `null` wherever `place_id` has been nulled — so a withheld stay cannot re-announce itself as a category tag;
-- `place_files` is always `[]` when `can_see_documents` is off, since a file name is a document.
+Every activity on the trip in one list — scheduled first in day order, then the
+saved ones in Explore order (category, then position, then name). Every screen
+filters this one response: the day plan takes the dated rows, a city's Explore
+the undated ones in that city, the map the located ones.
 
-### POST /api/itinerary
+- 200: `{"activities":[{"id":"…","zone_id":"…"|null,"category":"food"|null,"name":"…","name_ja":…,"description":…,"summary_line":"first ~100 chars of description","address":…,"links":[…],"image_url":…,"lat":…,"lng":…,"day":"YYYY-MM-DD"|null,"start_time":"HH:MM"|null,"position":0,"highlight":false,"icon":…,"file_count":0}]}`
+- **`lat`/`lng` are returned as `null` for an activity with no location, never
+  omitted.** The map counts what it cannot pin (004 FR-019), and an absent key
+  and a null value are not equally easy to count honestly.
+- **`file_count`, not file names.** A document's name is a document, so the
+  list carries a count and the detail response carries the names. It is `0` for
+  a caller whose view withholds documents.
+- `trip_id` is deliberately absent: the caller asked for this trip.
+- The projection is `activityView()` in `server/src/lib/activity-view.ts`,
+  driven by a `Record<keyof Activity, 'list' | 'omit'>` policy — adding a column
+  to `Activity` fails `npm run typecheck` until someone decides whether it
+  belongs on the wire. The runtime half is asserted in
+  `server/tests/map-pins.test.ts`.
 
-- Request: `{"day":"YYYY-MM-DD","title":"…","zone_id?","place_id?","start_time?":"HH:MM","note?","position?","highlight?","icon?"}`
-- 201: `{"item": {…}}` · 400 `VALIDATION` (missing title/bad day/bad time/day outside the trip's own dates) · 404 unknown zone.
+### GET /api/trips/:tripId/activities/:activityId
 
-**Trip-scoped (2026-08-08 addition):** `GET|POST /api/trips/:tripId/itinerary` are the same two routes pointed at a specific trip instead of the legacy default (oldest) trip — same request/response shapes.
+Full detail including tips and files.
 
-### PATCH /api/itinerary/:itemId
+- 200: `{"activity":{…},"tips":[{"id":"…","body":"…"}],"files":[{"id":"…","display_name":"…","mime_type":"…","size_bytes":123}]}`
+- `403 FORBIDDEN` when the activity is a **saved** `hotel` and this member's
+  view withholds stays — a saved stay _is_ the accommodation booking.
+- A **scheduled** `hotel` answers `200` with its content stripped instead. See
+  **Withheld content** below.
 
-- Request: any subset of the POST fields. Last write wins. A patched `day` is re-checked against the item's own trip's dates.
-- 200: `{"item": {…updated…}}` · 400 · 404 (unknown item or zone).
+### POST /api/trips/:tripId/activities
 
-### DELETE /api/itinerary/:itemId
+- Request: `{"name":"…","zone_id?","category?","day?":"YYYY-MM-DD","start_time?":"HH:MM","description?","address?","links?":[…],"image_url?","lat?","lng?","position?","highlight?","icon?"}`
+- Omit `day` (or send `null`) to save it to a city's Explore list; send one to
+  put it on the day plan. A `day` outside the trip's own dates is a 400.
+- 201: `{"activity":{…}}` · 400 `VALIDATION` · 404 unknown zone.
 
+### PATCH /api/trips/:tripId/activities/:activityId
+
+- Request: any subset of the POST fields. Last write wins. A patched `day` is
+  re-checked against the trip's dates.
+- `{"day":"YYYY-MM-DD"}` schedules; `{"day":null}` un-schedules. Both are
+  ordinary patches — there is no separate verb.
+- 200: `{"activity":{…updated…}}` · 400 · 404.
+
+### DELETE /api/trips/:tripId/activities/:activityId
+
+- Confirmation is a UI concern; the API deletes immediately. The activity's tips
+  cascade; its files are re-parented to the trip (no silent file loss).
 - 204 · 404.
 
-## Places
+### Withheld content: stays, split by date
 
-### GET /api/places/:placeId
+A stay is an activity now, so the rule the `can_see_stays` flag enforces splits
+in two:
 
-Full detail incl. tips and files (US1 AC2/AC3, US4 AC1).
+|                       |                                                                                                                                               |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **saved** `hotel`     | withheld wholesale — absent from the list, 403 on its page, no search hit, not counted                                                        |
+| **scheduled** `hotel` | the row survives; `category`, `description`, `address`, `links`, `image_url`, `lat`, `lng`, `name_ja`, its tips and its files are all dropped |
 
-**`place.summary_line`** rides along on every place the API returns (detail, create, update), derived from the description by `server/src/lib/place-view.ts` — the same function the zone's category lists use for their rows. It is there so a client can put an edited place straight back into the list it came from instead of recomputing a rule that lives on the server.
+The scheduled half keeps its line because dropping it would leave a hole in the
+day that says something was there. It loses its **category** above all: that is
+what draws the coloured pill, and a pill reading "Stays" would announce exactly
+what the flag withholds. The stripping is `stripStay()` in
+`server/src/lib/trip-view.ts`, applied **before** the field projection — the
+same order the export has always used.
 
-- 200:
+The residual risk is stated rather than solved: `name` is typed by the
+traveller, so "Hakone Yutowa 15:00" still names the hotel. A rule cannot tell a
+safe title from a revealing one.
 
-```json
-{
-  "place": {
-    "id": "…",
-    "zone_id": "…",
-    "category": "food",
-    "name": "…",
-    "name_ja": "…",
-    "description": "…",
-    "address": "…",
-    "links": [{ "label": "Tabelog", "url": "https://…" }]
-  },
-  "tips": [{ "id": "…", "body": "…" }],
-  "files": [{ "id": "…", "display_name": "…", "mime_type": "…", "size_bytes": 123 }]
-}
-```
+### Redirects from the old shapes
 
-- `403 FORBIDDEN` when the place is a `hotel` and this member's view withholds the stays — the stay carries the accommodation booking (see **Withheld content**).
-
-### POST /api/places (FR-015, SC-008)
-
-- Request: `{"zone_id":"…","category":"food","name":"…","name_ja?":"…","description?":"…","address?":"…","links?":[…]}`
-- 201: `{"place": {…full place…}}` · 400 `VALIDATION` (missing name/zone/bad category) · 404 unknown zone.
-
-### PATCH /api/places/:placeId (FR-015)
-
-- Request: any subset of the POST fields. Last write wins.
-- 200: `{"place": {…updated…}}` · 404 · 400.
-
-### DELETE /api/places/:placeId (FR-015, FR-017)
-
-- Confirmation is a UI concern; the API deletes immediately. Place's tips cascade; its files are re-parented to the trip (see data-model note — no silent file loss).
-- 204 · 404.
+Ids were preserved through the merge, so `/trips/:tripId/places/:placeId` and
+`…/places/:placeId/edit` redirect to their `activities` equivalents rather than
+404ing. `GET|POST /api/trips/:tripId/itinerary` and `/api/trips/:tripId/places`
+are gone.
 
 ## Tips
 
 ### POST /api/tips (FR-016)
 
-- Request: `{"body":"…","zone_id":"…"} | {"body":"…","place_id":"…"}` — exactly one parent, else 400.
+- Request: `{"body":"…","zone_id":"…"} | {"body":"…","activity_id":"…"}` — exactly one parent, else 400.
 - 201: `{"tip":{…}}`.
 
 ### PATCH /api/tips/:tipId

@@ -54,9 +54,9 @@ async function shortenEndDate(user: ReturnType<typeof userEvent.setup>) {
 const IMPACT = {
   range: { start_date: '2027-03-01', end_date: '2027-03-04' },
   steps: [],
-  items: [
-    { id: 'i1', day: '2027-03-06', start_time: '09:00', title: 'Tram 28', highlight: false },
-    { id: 'i2', day: '2027-03-07', start_time: null, title: 'Time Out Market', highlight: false },
+  activities: [
+    { id: 'i1', day: '2027-03-06', start_time: '09:00', name: 'Tram 28', highlight: false },
+    { id: 'i2', day: '2027-03-07', start_time: null, name: 'Time Out Market', highlight: false },
   ],
 }
 
@@ -69,7 +69,7 @@ describe('TripSheet date changes that strand activities', () => {
 
   it('saves straight through when the new dates strand nothing', async () => {
     const user = userEvent.setup()
-    mocks.get.mockResolvedValue({ ...IMPACT, items: [] })
+    mocks.get.mockResolvedValue({ ...IMPACT, activities: [] })
     renderSheet({ mode: 'edit', trip: TRIP })
 
     await shortenEndDate(user)
@@ -136,7 +136,7 @@ describe('TripSheet date changes that strand activities', () => {
           moves_to: { start_date: '2027-03-01', end_date: '2027-03-04' },
         },
       ],
-      items: [],
+      activities: [],
     })
     renderSheet({ mode: 'edit', trip: TRIP })
 
@@ -172,7 +172,7 @@ describe('TripSheet date changes that strand activities', () => {
           moves_to: { start_date: '2027-03-01', end_date: '2027-03-02' },
         },
       ],
-      items: [],
+      activities: [],
     })
     renderSheet({ mode: 'edit', trip: TRIP })
 
@@ -225,10 +225,10 @@ describe('TripSheet date changes that strand activities', () => {
       id: `i${i}`,
       day: '2027-03-06',
       start_time: null,
-      title: `Activity ${i}`,
+      name: `Activity ${i}`,
       highlight: false,
     }))
-    mocks.get.mockResolvedValue({ ...IMPACT, items: many })
+    mocks.get.mockResolvedValue({ ...IMPACT, activities: many })
     renderSheet({ mode: 'edit', trip: TRIP })
 
     await shortenEndDate(user)
@@ -250,7 +250,7 @@ describe('TripSheet date changes that strand activities', () => {
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
     await screen.findByText(/2 activities fall outside/i)
 
-    mocks.get.mockResolvedValue({ ...IMPACT, items: [] })
+    mocks.get.mockResolvedValue({ ...IMPACT, activities: [] })
     await user.selectOptions(screen.getByLabelText('End day'), '06')
     expect(screen.queryByText(/activities fall outside/i)).not.toBeInTheDocument()
 

@@ -409,14 +409,13 @@ function toAiMessages(
  * back to `eager`.
  */
 async function loadSnapshot(store: DataStore, trip: Trip) {
-  const [steps, zones, places, tips, itinerary, shopping, files] = await Promise.all([
+  const [steps, zones, activities, tips, shopping, files] = await Promise.all([
     store.listSteps(trip.id),
     store.listZones(trip.id),
-    store.listAllPlaces(trip.id),
+    store.listActivities(trip.id),
     store.listAllTips(trip.id),
-    store.listItinerary(trip.id),
     store.listShoppingItems(trip.id),
     store.listAllFiles(trip.id),
   ])
-  return { trip, steps, zones, places, tips, itinerary, shopping, files }
+  return { trip, steps, zones, activities, tips, shopping, files }
 }
