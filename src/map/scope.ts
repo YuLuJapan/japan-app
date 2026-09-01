@@ -224,6 +224,18 @@ const COUNTRY_ZOOM = 6
  *
  * A city with no coordinates is dropped from the pins rather than pinned at
  * (0, 0) — the same rule `toPins` applies to places, for the same reason.
+ *
+ * **One pin per city, not per stop.** A journey that comes back to a city —
+ * Tokyo at both ends is the ordinary shape of a Japan trip — lists it twice in
+ * `steps`, and two pins at one pair of coordinates draw the same counted
+ * circle and the same name pill exactly on top of each other. The count is a
+ * property of the city rather than of the visit (`saved_counts` is the zone's
+ * own), so the second pin says nothing the first did not, and the card row
+ * offers the same city twice. Worse, the two cards carry one `id`, so the row
+ * renders two children under one React key and the reconciler stops matching
+ * them — switching scales then left a stale city card behind on every pass,
+ * accumulating one more each time. Kept in journey order, which puts the city
+ * where its first visit did.
  */
 export function tripScope({
   steps,
@@ -232,10 +244,10 @@ export function tripScope({
   steps: TripStep[]
   onPinTap: (zoneId: string) => void
 }): MapScope {
-  const zones = steps
-    .map((step) => step.zone)
-    .filter((zone): zone is NonNullable<TripStep['zone']> => zone !== null)
-  const byId = new Map(zones.map((zone) => [zone.id, zone]))
+  const byId = new Map<string, NonNullable<TripStep['zone']>>()
+  for (const step of steps)
+    if (step.zone && !byId.has(step.zone.id)) byId.set(step.zone.id, step.zone)
+  const zones = [...byId.values()]
   const pins = toPins(
     zones.map((zone): Activity => ({
       id: zone.id,
