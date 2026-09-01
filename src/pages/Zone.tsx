@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useActivities, useTrip, useZone } from '../api/hooks'
-import { CATEGORIES, CATEGORY_META } from '../api/types'
+import { CATEGORIES, CATEGORY_META, type Category } from '../api/types'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { FileList } from '../components/FileList'
@@ -11,12 +11,49 @@ import { PhotoHero } from '../components/PhotoHero'
 import { Schedule } from '../components/Schedule'
 import { TipEditor } from '../components/TipEditor'
 import { ZonePhotoEditor } from '../components/ZonePhotoEditor'
-import { enumerateDays, toISODate, zoneDays } from '../lib/schedule'
+import { enumerateDays, fmtDayShort, toISODate, zoneDays } from '../lib/schedule'
 import { useCanEdit } from '../lib/session'
 import { useTripId } from '../lib/trip'
 
-const fmt = (iso: string) =>
-  new Date(`${iso}T00:00:00`).toLocaleDateString('en', { month: 'short', day: 'numeric' })
+/**
+ * What one tag holds in this city, split the way the traveller reads it.
+ *
+ * Counted from the same list `CategoryList` filters rather than from a server
+ * tally, so a count can never name rows the list does not show. That is not
+ * only tidiness: a member whose view hides stays is sent a scheduled stay with
+ * its category stripped (FR-021), so it lands under “More” here — exactly
+ * where the list puts it — while a server count would still have filed it
+ * under Stays and then zeroed it, leaving “More” one short of its own list.
+ */
+function tallyByCategory(
+  activities: { zone_id: string | null; category: Category | null; day: string | null }[],
+  zoneId: string
+) {
+  const empty = () => ({ total: 0, planned: 0 })
+  const out = Object.fromEntries(CATEGORIES.map((c) => [c, empty()])) as Record<
+    Category,
+    { total: number; planned: number }
+  >
+  for (const a of activities) {
+    if (a.zone_id !== zoneId) continue
+    const t = out[a.category ?? 'other']
+    t.total++
+    if (a.day !== null) t.planned++
+  }
+  return out
+}
+
+/**
+ * “3 planned · 9 saved”. Both halves are named only when both exist — a tag
+ * holding nothing but ideas should not read as though something were missing.
+ */
+const tallyLabel = ({ total, planned }: { total: number; planned: number }) => {
+  if (total === 0) return 'Nothing yet'
+  const saved = total - planned
+  if (planned === 0) return `${saved} saved`
+  if (saved === 0) return `${planned} planned`
+  return `${planned} planned · ${saved} saved`
+}
 
 export default function Zone() {
   const { zoneId = '' } = useParams()
@@ -30,14 +67,18 @@ export default function Zone() {
   if (isPending) return <Loading />
   if (isError) return <ErrorState message="Could not load this zone." onRetry={() => refetch()} />
 
-  const { zone, tips, files, saved_counts } = data
+  const { zone, tips, files } = data
 
   const steps = trip.data?.steps ?? []
   const days = trip.data?.trip
     ? zoneDays(steps, zoneId, enumerateDays(trip.data.trip.start_date, trip.data.trip.end_date))
     : []
-  // hide empty categories without breaking navigation (FR-012)
-  const visible = CATEGORIES.filter((c) => saved_counts[c] > 0)
+  const tallies = tallyByCategory(activities.data?.activities ?? [], zoneId)
+  // Every tag shows for anyone who can add, empty ones included: an empty tag
+  // is precisely where a new activity goes, so hiding it hides the way in. A
+  // read-only member still sees only what exists — for them an empty row is a
+  // button that leads nowhere.
+  const visible = canEdit ? CATEGORIES : CATEGORIES.filter((c) => tallies[c].total > 0)
 
   // "Sep 19 – Sep 25 · 6 nights", from the stops that land in this city. A city
   // visited twice (out and back) has two stops, so the range spans the whole
@@ -53,7 +94,7 @@ export default function Zone() {
     0
   )
   const eyebrow = here.length
-    ? `${fmt(here[0].start_date)} – ${fmt(here[here.length - 1].end_date)} · ${nights} ${
+    ? `${fmtDayShort(here[0].start_date)} – ${fmtDayShort(here[here.length - 1].end_date)} · ${nights} ${
         nights === 1 ? 'night' : 'nights'
       }`
     : null
@@ -128,7 +169,11 @@ export default function Zone() {
             </Link>
           )}
         </div>
-        {visible.length === 0 ? (
+        {/* The tallies come from the activities list, so until it lands there is
+            nothing truthful to say: rendering the grid early would claim every
+            tag was empty, and for a read-only member would claim the whole city
+            was. The heading and Add stay put so the section does not jump. */}
+        {!activities.data ? null : visible.length === 0 ? (
           <EmptyState
             message={
               canEdit ? 'Nothing saved here yet — add the first place.' : 'Nothing saved here yet.'
@@ -154,7 +199,7 @@ export default function Zone() {
                     <span className="block truncate text-[13px] font-bold leading-tight text-ink">
                       {meta.label}
                     </span>
-                    <span className="text-[10px] text-faint">{saved_counts[c]} saved</span>
+                    <span className="text-[10px] text-faint">{tallyLabel(tallies[c])}</span>
                   </span>
                   <span aria-hidden className="text-sm text-hush">
                     ›

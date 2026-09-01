@@ -199,35 +199,11 @@ function patchSteps(
   )
 }
 
-/**
- * Move the tally on a zone as a **saved** activity joins, leaves or changes
- * category. Only saved ones count: Explore's grid is what the tally labels,
- * and it shows what has not been scheduled yet (FR-011).
- */
-function shiftSavedCount(
-  qc: ReturnType<typeof useQueryClient>,
-  zoneId: string | null | undefined,
-  category: Category | null | undefined,
-  by: 1 | -1
-) {
-  if (!zoneId) return
-  const key = category ?? 'other'
-  qc.setQueryData(['zone', zoneId], (cached: ZoneDetail | undefined) =>
-    cached
-      ? {
-          ...cached,
-          saved_counts: {
-            ...cached.saved_counts,
-            [key]: Math.max(0, (cached.saved_counts[key] ?? 0) + by),
-          },
-        }
-      : cached
-  )
-}
-
-/** What a saved activity contributes to a zone's tally; null once scheduled. */
-const savedTally = (a: Pick<Activity, 'day' | 'zone_id' | 'category'>) =>
-  a.day === null ? { zone_id: a.zone_id, category: a.category } : null
+// The zone tally used to be patched here, row by row, as activities were
+// created, recategorised, scheduled and deleted. Explore now counts the
+// `['activities']` cache these mutations already patch, so the grid follows
+// from the same write that moves the row — there is no second number left to
+// keep in step, and no way for one to lag the other.
 
 function useActivityInvalidation() {
   const qc = useQueryClient()
@@ -290,8 +266,6 @@ export function useCreateActivity() {
     onSuccess: (data, input) => {
       capture('activity_created', activityFacts(input))
       patchActivities(qc, (rows) => [...rows, data.activity])
-      const tally = savedTally(data.activity)
-      if (tally) shiftSavedCount(qc, tally.zone_id, tally.category, 1)
       reconcile(invalidate(data.activity.zone_id, data.activity.id))
     },
   })
@@ -311,26 +285,19 @@ export function useUpdateActivity() {
         scheduled: data.activity.day !== null,
         fields: changedFields(patch),
       })
-      const before = qc.getQueryData<ActivityDetail>(['activity', id])?.activity
       qc.setQueryData(['activity', id], (cached: ActivityDetail | undefined) =>
         cached ? { ...cached, activity: data.activity } : cached
       )
+      // Scheduling, un-scheduling and recategorising all move the row between
+      // lists; replacing it in the one list every screen reads is the whole
+      // move now, tallies included.
       patchActivities(qc, (rows) => replaceById(rows, data.activity))
-      // Scheduling or un-scheduling moves the row between the day plan and
-      // Explore, so the tally the grid renders moves with it — and so does
-      // recategorising, which moves it between two of Explore's rows.
-      const was = before ? savedTally(before) : null
-      const now = savedTally(data.activity)
-      if (was?.zone_id !== now?.zone_id || was?.category !== now?.category) {
-        if (was) shiftSavedCount(qc, was.zone_id, was.category, -1)
-        if (now) shiftSavedCount(qc, now.zone_id, now.category, 1)
-      }
       reconcile(invalidate(data.activity.zone_id, id))
     },
   })
 }
 
-/** `zoneId`/`category` are for the tally and the event; the request needs the id. */
+/** `zoneId` is what to refetch and `category` what to report; the request needs the id. */
 export function useDeleteActivity(zoneId?: string | null, category?: Category | null) {
   const path = useTripPath()
   const qc = useQueryClient()
@@ -340,11 +307,8 @@ export function useDeleteActivity(zoneId?: string | null, category?: Category | 
     mutationFn: (activityId: string) => api.delete<void>(path(`/activities/${activityId}`)),
     onSuccess: (_data, activityId) => {
       capture('activity_deleted', { category: category ?? null })
-      const before = qc.getQueryData<ActivityDetail>(['activity', activityId])?.activity
       qc.removeQueries({ queryKey: ['activity', activityId] })
       patchActivities(qc, (rows) => removeById(rows, activityId))
-      const was = before ? savedTally(before) : zoneId ? { zone_id: zoneId, category } : null
-      if (was) shiftSavedCount(qc, was.zone_id, was.category, -1)
       reconcile(
         invalidate(zoneId),
         // the deleted activity's files re-parent to the trip — rows this

@@ -232,11 +232,31 @@ it is the only copy of the fold decisions once the source tables are dropped.
 **`item_copy` and `item_stay` are the same situation with opposite outcomes**, and separating
 them is what keeps §6 honest. Both are matched items that did not keep the place's id; a copy
 was given the place's location by the backfill, a stay-linked item was excluded from the fold
-and left exactly as it arrived (§3). Filed under one name, the check *“does every copy carry a
-pin?”* has to restate `p.category <> 'hotel'` to be true — a rule of the migration copied into
+and left exactly as it arrived (§3). Filed under one name, the check _“does every copy carry a
+pin?”_ has to restate `p.category <> 'hotel'` to be true — a rule of the migration copied into
 the query that verifies the migration, free to drift from it. It failed exactly that way on
 the first run against production, where the one stay-linked row has coordinates and the three
 real copies do not.
+
+### The two new tables must have RLS on
+
+Both tables 0025 creates hold **verbatim trip content** — the snapshot is every itinerary row,
+and the journal stores `to_jsonb` of both source rows, so a hotel's booking blob is in it word
+for word. Neither gets RLS by default: `create table as select` does not inherit it from the
+source table, and a plain `create table` never had it. Supabase's default grants, meanwhile,
+give `anon` full `SELECT/INSERT/UPDATE/DELETE` on every table in `public` — and `anon` is the
+publishable key that ships inside the browser bundle.
+
+RLS-off therefore means world-readable **and world-deletable**, the second of which takes the
+rollback with it. Every other table in this schema is RLS-on with no policies: the API talks as
+the service role, which bypasses RLS, and everyone else is denied. The migration matches that,
+and `run-migration-test.sh` asserts it over `pg_class` rather than by name, so a table added to
+the migration later is covered without anyone remembering.
+
+> **This was found on the live project, after 0025 had already been committed and run**
+> (2026-09-01). The two `enable row level security` statements were applied to production by
+> hand within minutes and then folded into 0025 itself, so a fresh environment never creates
+> the tables unprotected even briefly. Production and the migration agree; nothing diverged.
 
 ## 5 · The backfill
 
@@ -340,7 +360,7 @@ check, not the figure.
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **1 · migrate**  | `0025_activities.sql` against the live project, dry-run first (`commit` → `rollback`) with §6 in the same transaction. No code ships. | Everything, and trivially: the dry run commits nothing.                                                                                                       |
 | **2 · cut over** | Deploy the code that reads and writes `activities`.                                                                                   | `rollback.sql`, tested to restore the database byte-identically. **Activities written during phase 2 are lost by it** — they have no shape in the old schema. |
-| **3 · contract** | After a soak: drop `places`, `activities.place_id`, `itinerary_items_pre_010`. Keep the journal.                    | Only through the journal.                                                                                                                                     |
+| **3 · contract** | After a soak: drop `places`, `activities.place_id`, `itinerary_items_pre_010`. Keep the journal.                                      | Only through the journal.                                                                                                                                     |
 
 Phase 2's window is the real risk and it is not hidden: two trips are actively edited, so a
 soak of a week costs almost nothing and a dual-write shim would cost a service layer writing

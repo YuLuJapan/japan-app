@@ -1,32 +1,34 @@
 import type { DataStore, ZonePatch } from '../lib/datastore.js'
 import { notFound, validation } from '../lib/errors.js'
 
-import { hideStayCounts } from '../lib/trip-view.js'
-
 /**
  * A zone belongs to exactly one trip since migration 0013, so the store answers
  * "not in this trip" and "no such zone" identically — which is what we want an
  * outsider to see. The reachability workaround this replaced lived in
  * lib/access.ts and had to walk journey steps on every read.
  *
- * `includeFiles: false` keeps attachments on the server; `includeStays: false`
- * drops the stays from the counts (lib/trip-view.ts).
+ * `includeFiles: false` keeps attachments on the server.
+ *
+ * There is deliberately no per-category tally here any more. Explore counts
+ * dated and undated activities alike, and it counts them from the one
+ * `/activities` list it already renders — a server tally would be a second
+ * number to keep in step, and for a member whose view hides stays it would
+ * disagree with its own list (a scheduled stay reaches them category-stripped,
+ * so it belongs under “More”, which a count taken before the strip cannot know).
+ * `ZoneSummary.saved_counts` on the trip bundle survives for the map's city
+ * pins, which mean something different and say so.
  */
 export async function getZoneDetail(
   store: DataStore,
   tripId: string,
   zoneId: string,
-  {
-    includeFiles = true,
-    includeStays = true,
-  }: { includeFiles?: boolean; includeStays?: boolean } = {}
+  { includeFiles = true }: { includeFiles?: boolean } = {}
 ) {
   const zone = await store.getZone(tripId, zoneId)
   if (!zone) throw notFound('Zone')
-  const [tips, files, saved_counts] = await Promise.all([
+  const [tips, files] = await Promise.all([
     store.listTips(tripId, { zone_id: zoneId }),
     includeFiles ? store.listFiles(tripId, { zone_id: zoneId }) : [],
-    store.countSavedByCategory(tripId, zoneId),
   ])
   return {
     zone,
@@ -37,7 +39,6 @@ export async function getZoneDetail(
       mime_type,
       size_bytes,
     })),
-    saved_counts: includeStays ? saved_counts : hideStayCounts(saved_counts),
   }
 }
 
