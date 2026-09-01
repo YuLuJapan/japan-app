@@ -102,6 +102,7 @@ export const clusterSize = (count: number): number =>
 /** How a category is drawn, from the one table every other surface reads. */
 export const categoryStyle = (category: Category) => ({
   dot: CATEGORY_META[category].dot,
+  icon: CATEGORY_META[category].icon,
   label: CATEGORY_META[category].label,
 })
 

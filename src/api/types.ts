@@ -42,7 +42,7 @@ export const CATEGORY_META: Record<
   food: {
     label: 'Food & cafés',
     singular: 'Food spot',
-    icon: '🍜',
+    icon: '🍔',
     color: 'bg-table-tint text-table',
     dot: 'bg-table',
   },

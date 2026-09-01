@@ -21,21 +21,24 @@ const MAX_FIT_ZOOM = 16
 
 /**
  * A pin as the render draws it: a solid category-coloured disc with a white
- * ring and a soft shadow. Not a teardrop, not an icon.
+ * ring, a soft shadow, and the category's own glyph centred inside it — the
+ * same glyph the legend and the card row show, so a traveller matches a pin
+ * to its meaning without going back to the colour key.
  *
- * The fill comes from `CATEGORY_META.dot` through `categoryStyle`, so the map
- * is recoloured by the same edit that recolours the chips and the legend
- * (research R12) — no map file names a colour.
+ * The fill and the glyph both come from `CATEGORY_META` through
+ * `categoryStyle`, so the map is recoloured (or re-iconed) by the same edit
+ * that changes the chips and the legend (research R12) — no map file names a
+ * colour or a glyph of its own.
  */
-const pinIcon = (pin: MapPin) =>
-  L.divIcon({
+const pinIcon = (pin: MapPin) => {
+  const style = categoryStyle(pin.category)
+  return L.divIcon({
     className: '', // Leaflet's own class paints a box we do not want
-    html: `<span class="block h-4 w-4 rounded-full ring-2 ring-white shadow-pop ${
-      categoryStyle(pin.category).dot
-    }"></span>`,
-    iconSize: [16, 16],
-    iconAnchor: [8, 8],
+    html: `<span class="flex h-7 w-7 items-center justify-center rounded-full text-sm leading-none ring-2 ring-white shadow-pop ${style.dot}">${style.icon}</span>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
   })
+}
 
 /**
  * A city at the trip scale, in 2c's vocabulary: a circle sized by how much is
