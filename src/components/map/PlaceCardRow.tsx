@@ -10,7 +10,6 @@
 // the scope rather than from a branch here.
 import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { CATEGORY_META } from '../../api/types'
 import { directionsUrl } from '../../lib/maps'
 import type { MapCard } from '../../map/scope'
 
@@ -44,10 +43,10 @@ export function PlaceCardRow({
 
   return (
     // `items-start` is load-bearing, not tidying: a flex row stretches its
-    // children to the tallest by default, so expanding one card into its
-    // address, summary and two buttons made **every** card that tall — a row
-    // of empty boxes, and a sheet that grew by their height and covered the
-    // map. Only the expanded card is tall now.
+    // children to the tallest by default, so expanding one card into its two
+    // buttons made **every** card that tall — a row of empty boxes, and a
+    // sheet that grew by their height and covered the map. Only the expanded
+    // card is tall now.
     //
     // `py-1`, not `pb-1`: `overflow-x-auto` clips vertically as well as
     // horizontally, so the selected card's `ring-2` — which paints *outside*
@@ -79,18 +78,12 @@ export function PlaceCardRow({
             // one, and an overlay would cover it (research R13). One sheet,
             // two states — which is what the card row was already shaped for.
             //
-            // It renders what the list already returned. It does not fetch the
-            // place again: `summary_line` rides on every place the API hands
-            // back precisely so a screen never has to derive or re-request it.
+            // Deliberately bare: the name and the "type · city" subtitle are
+            // already on screen whether or not the card is expanded, so this
+            // adds only the two ways out — never the address or the summary,
+            // which read as more detail than a map card is for.
             <div className="mt-2 border-t border-line pt-2">
-              <p className="text-xs font-bold uppercase tracking-wide text-muted">
-                {CATEGORY_META[card.place.category].singular}
-              </p>
-              {card.place.address && <p className="mt-1 text-sm">{card.place.address}</p>}
-              {card.place.summary && (
-                <p className="mt-1 line-clamp-2 text-sm text-muted">{card.place.summary}</p>
-              )}
-              <div className="mt-2 flex gap-2">
+              <div className="flex gap-2">
                 <Link
                   to={`/trips/${tripId}/places/${card.id}`}
                   className="btn-ghost min-h-10 flex-1 px-3 text-xs"

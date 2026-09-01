@@ -97,7 +97,7 @@ const tapPin = (engine: { tap: (id: string) => void }, id: string) =>
   })
 
 describe('tapping a pin', () => {
-  it("expands that place's card into its summary and both ways out", async () => {
+  it('expands that place’s card into both ways out — nothing more', async () => {
     const engine = await openMap()
     const requests = mocks.get.mock.calls.length
 
@@ -105,11 +105,13 @@ describe('tapping a pin', () => {
 
     const expanded = await waitFor(() => {
       const el = card('p-ramen')
-      expect(within(el).getByText('1-22-7 Jinnan')).toBeInTheDocument()
+      expect(within(el).getByRole('link', { name: 'Open place' })).toBeInTheDocument()
       return el
     })
-    expect(within(expanded).getByText('Tonkotsu, open late')).toBeInTheDocument()
-    expect(within(expanded).getByText('Food spot')).toBeInTheDocument()
+    // Name and "type · city" are already on the unexpanded card; expanding it
+    // adds only the two links, never the address or the summary.
+    expect(within(expanded).queryByText('1-22-7 Jinnan')).toBeNull()
+    expect(within(expanded).queryByText('Tonkotsu, open late')).toBeNull()
 
     // It renders what the list already returned — no second fetch for a place
     // the screen is holding.
@@ -139,10 +141,14 @@ describe('tapping a pin', () => {
   it('expands one card at a time', async () => {
     const engine = await openMap()
     await tapPin(engine, 'p-ramen')
-    await waitFor(() => expect(within(card('p-ramen')).getByText('1-22-7 Jinnan')).toBeTruthy())
+    await waitFor(() =>
+      expect(within(card('p-ramen')).getByRole('link', { name: 'Open place' })).toBeTruthy()
+    )
     await tapPin(engine, 'p-teamlab')
-    await waitFor(() => expect(within(card('p-teamlab')).getByText('Toyosu')).toBeTruthy())
-    expect(within(card('p-ramen')).queryByText('1-22-7 Jinnan')).toBeNull()
+    await waitFor(() =>
+      expect(within(card('p-teamlab')).getByRole('link', { name: 'Open place' })).toBeTruthy()
+    )
+    expect(within(card('p-ramen')).queryByRole('link', { name: 'Open place' })).toBeNull()
   })
 
   it('leaves the map where it was — the pins are neither refitted nor redrawn', async () => {
@@ -150,7 +156,9 @@ describe('tapping a pin', () => {
     const framed = engine.fitted
     const drawn = engine.pins
     await tapPin(engine, 'p-ramen')
-    await waitFor(() => expect(within(card('p-ramen')).getByText('1-22-7 Jinnan')).toBeTruthy())
+    await waitFor(() =>
+      expect(within(card('p-ramen')).getByRole('link', { name: 'Open place' })).toBeTruthy()
+    )
     expect(engine.fitted).toEqual(framed)
     // Same array, not merely equal: expanding a card must not cost a redraw of
     // every marker on screen.
@@ -162,7 +170,9 @@ describe('tapping a card', () => {
   it('selects it the same way a pin does, so the two stay in step', async () => {
     await openMap()
     await userEvent.click(screen.getByRole('button', { name: /teamLab/ }))
-    await waitFor(() => expect(within(card('p-teamlab')).getByText('Toyosu')).toBeTruthy())
+    await waitFor(() =>
+      expect(within(card('p-teamlab')).getByRole('link', { name: 'Open place' })).toBeTruthy()
+    )
   })
 
   it('centres the map on the place, without reframing it', async () => {
