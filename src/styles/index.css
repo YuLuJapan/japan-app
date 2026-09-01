@@ -61,20 +61,29 @@
   .section-title {
     @apply text-xs font-bold uppercase tracking-wide text-muted;
   }
-  /* The chat button: the only control that is on every trip screen, and the
-     one place the palette is deliberately left behind. Sand and coral are the
-     app's colours, so a token-coloured circle in the corner of a sand page is
-     a circle nobody sees — this is meant to read as "something else lives
-     here". Painted as a layer inside the button (`::before`) rather than as
-     the button's own background, so the mark on top can stay still while the
-     colour turns underneath it. */
+  /* The chat button: the only control that is on every trip screen.
+     Built from the coral ramp rather than beside it — the whole family at
+     once, ember (`brand.800`) through coral (`brand`) and sun (`brand.400`) to
+     the market gold, which is the one warm colour bright enough to read as a
+     highlight against them. A flat `bg-brand` circle is what every other
+     action in the app already looks like; turning the ramp *through* the
+     circle is what makes this one read as the thing that answers rather than
+     one more button.
+
+     Three layers, painted in tree order and all inside the round mask. The
+     element's own background is a lit sphere and the floor: it is what shows
+     if the layer above it ever fails to paint. `::before` is the colour that
+     turns. `::after` is a fixed top-left sheen and a hairline rim, which is
+     what stops a spinning gradient from reading as a flat sticker — the light
+     stays where the light is while the colour moves under it. The mark sits on
+     top by being the last positioned thing in the button. */
   .ask-orb {
     position: relative;
     overflow: hidden;
-    background: linear-gradient(140deg, #6a5cff 0%, #b14bff 40%, #ff5c8a 72%, #ffb648 100%);
+    background: radial-gradient(circle at 32% 26%, #f9873f 0%, #f1543f 46%, #9e2b1e 100%);
     box-shadow:
-      0 10px 24px -8px rgba(122, 76, 255, 0.55),
-      0 4px 12px -4px rgba(255, 92, 138, 0.45);
+      0 10px 26px -8px rgba(241, 84, 63, 0.6),
+      0 4px 14px -6px rgba(158, 43, 30, 0.5);
   }
   .ask-orb::before {
     content: '';
@@ -83,16 +92,35 @@
        round mask has to be wider than the circle's diagonal or its corners
        sweep through as blank wedges. */
     inset: -40%;
+    /* Mirrored, so the sweep runs deep coral → gold → deep coral and the seam
+       a one-way ramp leaves behind never crosses the face. The ember stays out
+       of this layer and lives in the sphere underneath: turning it through the
+       front made a third of every rotation read as brown rather than as the
+       brightest thing on the screen, which is the one job this has. */
     background: conic-gradient(
       from 0deg,
-      #6a5cff,
-      #2ec5ff,
-      #35d9a0,
-      #ffc44d,
-      #ff5c8a,
-      #b14bff,
-      #6a5cff
+      #c0392b,
+      #f1543f,
+      #f9873f,
+      #c9a15a,
+      #f9873f,
+      #f1543f,
+      #c0392b
     );
+    opacity: 0.92;
+  }
+  .ask-orb::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(
+      circle at 30% 24%,
+      rgba(255, 255, 255, 0.5) 0%,
+      rgba(255, 255, 255, 0.12) 36%,
+      rgba(255, 255, 255, 0) 62%
+    );
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;

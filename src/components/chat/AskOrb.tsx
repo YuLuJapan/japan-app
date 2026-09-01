@@ -5,12 +5,14 @@
 // a round mark in a corner reads as something that is always there. The label
 // lives in `aria-label`, so nothing is lost to a screen reader.
 //
-// The gradient is the one deliberate exception to "reuse the design tokens":
-// the palette here is warm sand and coral, and a token-coloured circle would
-// disappear into it. This is meant to be the brightest thing on the screen,
-// because it is the only control that is on *every* screen. It is defined once
-// as `.ask-orb` in `styles/index.css` rather than inline, so the animation and
-// the reduced-motion rule live with the rest of the app's motion.
+// The colour is the app's own, used at full strength: the coral ramp from
+// `brand.600` through `brand` and `sun` to the market gold, turning slowly
+// through the circle over an ember sphere. A flat `bg-brand` disc is what every
+// other action in the app already looks like, and this is the only control that
+// is on *every* screen — the movement is what separates it from a button
+// without needing a colour from outside the palette to do it. Defined once as
+// `.ask-orb` in `styles/index.css` rather than inline, so the animation and the
+// reduced-motion rule live with the rest of the app's motion.
 export function AskOrb({ onClick, className = '' }: { onClick: () => void; className?: string }) {
   return (
     <button
