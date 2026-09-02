@@ -274,7 +274,7 @@ describe('trip-scoped activity routes', () => {
   // The tag a traveller types on the activity, as opposed to place_category,
   // which is derived from a linked place and never stored.
   describe('the activity tag', () => {
-    it('saves one of the four, and clears it again', async () => {
+    it('saves one of the five, and clears it again', async () => {
       const created = await auth(request(app).post('/api/trips/trip-1/activities')).send({
         day: '2026-10-05',
         name: 'Whatever the konbini has',
@@ -296,16 +296,41 @@ describe('trip-scoped activity routes', () => {
       expect(walk.category).toBeNull()
     })
 
-    it('refuses a category the plan cannot draw', async () => {
-      for (const category of ['other', 'nonsense']) {
-        const res = await auth(request(app).post('/api/trips/trip-1/activities')).send({
-          day: '2026-10-05',
-          name: 'Something',
-          category,
-        })
-        expect(res.status).toBe(400)
-        expect(res.body.error.details.join(' ')).toMatch(/category must be one of/)
-      }
+    // `other` used to be refused on a dated row, which made "More" an option
+    // the form offered and the API rejected. It renders as "More" on the day
+    // plan just as it does in Explore, so the date decides nothing here.
+    it('takes `other` on a scheduled activity too', async () => {
+      const res = await auth(request(app).post('/api/trips/trip-1/activities')).send({
+        day: '2026-10-05',
+        name: 'Coin laundry',
+        category: 'other',
+      })
+      expect(res.status).toBe(201)
+      expect(res.body.activity.category).toBe('other')
+    })
+
+    it('refuses a category that is not one of the five', async () => {
+      const res = await auth(request(app).post('/api/trips/trip-1/activities')).send({
+        day: '2026-10-05',
+        name: 'Something',
+        category: 'nonsense',
+      })
+      expect(res.status).toBe(400)
+      expect(res.body.error.details.join(' ')).toMatch(/category must be one of/)
+    })
+
+    it('takes `other` on a PATCH that schedules a saved activity', async () => {
+      const saved = await auth(request(app).post('/api/trips/trip-1/activities')).send({
+        zone_id: 'zone-tokyo',
+        name: 'Laundromat near the hotel',
+        category: 'other',
+      })
+      expect(saved.status).toBe(201)
+      const scheduled = await auth(
+        request(app).patch(`/api/trips/trip-1/activities/${saved.body.activity.id}`)
+      ).send({ day: '2026-10-05' })
+      expect(scheduled.status).toBe(200)
+      expect(scheduled.body.activity.category).toBe('other')
     })
   })
 })

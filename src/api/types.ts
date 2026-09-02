@@ -399,9 +399,6 @@ export interface ActivityInput {
   icon?: string | null
 }
 
-/** The categories an activity may be tagged with — every one the plan can draw. */
-export const TAGGABLE_CATEGORIES = ['hotel', 'attraction', 'food', 'shopping'] as const
-
 // Shopping list — things to buy in Japan (photo, where, how much, bought yet).
 export const SHOPPING_CATEGORIES = [
   'clothes',

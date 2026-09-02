@@ -11,7 +11,7 @@
 // Setting or clearing that date is an ordinary PATCH — it is what "Schedule
 // this" and "Unschedule" send — and it is the one write in the app that moves
 // a row from one list to another.
-import type { Activity, ActivityInput, Category, DataStore, PlaceLink } from '../lib/datastore.js'
+import type { Activity, ActivityInput, DataStore, PlaceLink } from '../lib/datastore.js'
 import { CATEGORIES } from '../lib/datastore.js'
 import { requireTrip } from '../lib/access.js'
 import { forbidden, notFound, validation } from '../lib/errors.js'
@@ -22,15 +22,6 @@ import { collectRangeErrors } from '../lib/trip-dates.js'
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 const isHttpUrl = (u: string) => /^https?:\/\/.+/.test(u)
-
-/**
- * The categories the day plan can draw a coloured pill for. `other` is
- * deliberately absent: `CATEGORY_META` has no colour for it, so it would
- * render as an unreadable tag rather than a useful one. A **saved** activity
- * may still be `other` — Explore groups it under "More", which does have a
- * look — so this constrains the plan, not the table.
- */
-export const TAGGABLE: readonly Category[] = ['hotel', 'attraction', 'food', 'shopping']
 
 /**
  * One activity as any list renders it, plus what only the detail screen needs.
@@ -141,7 +132,10 @@ function collectActivityErrors(input: Partial<ActivityInput>, partial: boolean):
     else if (name.length > 200) errors.push('name must be at most 200 characters')
   }
   // A tag is optional — 135 plan lines in production have none, and stamping
-  // them would put a pill on rows nobody asked to label.
+  // them would put a pill on rows nobody asked to label. Any of the five is
+  // allowed on any activity, dated or not: `other` renders as "More" on the
+  // day plan exactly as it does in Explore (`CATEGORY_META` carries a look for
+  // it), so there is nothing left for the date to decide.
   if (has('category') && input.category != null && !CATEGORIES.includes(input.category)) {
     errors.push(`category must be one of: ${CATEGORIES.join(', ')}`)
   }
@@ -193,7 +187,7 @@ function collectActivityErrors(input: Partial<ActivityInput>, partial: boolean):
  * against the patch — a PATCH clearing `day` on a city-less row has to be
  * refused even though neither field is wrong on its own.
  */
-function collectShapeErrors(next: Pick<Activity, 'day' | 'zone_id' | 'highlight' | 'category'>) {
+function collectShapeErrors(next: Pick<Activity, 'day' | 'zone_id' | 'highlight'>) {
   const errors: string[] = []
   // FR-004. A service rule rather than a check constraint: as a constraint it
   // would abort trip deletion (specs/010-activities/migration.md §2).
@@ -203,10 +197,6 @@ function collectShapeErrors(next: Pick<Activity, 'day' | 'zone_id' | 'highlight'
   // FR-005: a featured note banners a day, so it needs one.
   if (next.highlight && next.day === null) {
     errors.push('a featured note needs a date — it banners one day of the trip')
-  }
-  // The plan can only draw a pill for four of the five (see TAGGABLE).
-  if (next.day !== null && next.category != null && !TAGGABLE.includes(next.category)) {
-    errors.push(`a scheduled activity's category must be one of: ${TAGGABLE.join(', ')}`)
   }
   return errors
 }
@@ -226,7 +216,6 @@ export async function createActivity(store: DataStore, tripId: string, input: Ac
     day,
     zone_id: input.zone_id ?? null,
     highlight: input.highlight ?? false,
-    category: input.category ?? null,
   })
   if (shapeErrors.length) throw validation(shapeErrors)
   if (input.zone_id) {
@@ -267,7 +256,6 @@ export async function updateActivity(
     day,
     zone_id: patch.zone_id !== undefined ? (patch.zone_id ?? null) : existing.zone_id,
     highlight: patch.highlight !== undefined ? (patch.highlight ?? false) : existing.highlight,
-    category: patch.category !== undefined ? (patch.category ?? null) : existing.category,
   })
   if (shapeErrors.length) throw validation(shapeErrors)
   if (patch.zone_id) {
