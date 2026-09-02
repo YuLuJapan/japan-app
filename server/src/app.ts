@@ -63,11 +63,19 @@ export function tripScopedRouter() {
  * against the live Supabase/OAuth flow would fail closed on sign-in, which is
  * worse than the thin XSS surface React already gives us. `frame-ancestors` is
  * the half that can't break a fetch, so it is enforced.
+ *
+ * `'self'` rather than `'none'`, and that is load-bearing rather than a
+ * loosening: a `blob:` document inherits the CSP of the page that created it,
+ * so under `'none'` the document preview's own `<iframe src={objectUrl}>` was
+ * an ancestor violation and PDFs rendered as a blank frame — while the same
+ * blob opened full screen (no ancestors, nothing to check) was fine, which is
+ * exactly how the bug looked. Same-origin framing is not the clickjacking
+ * vector: an attacker frames from *their* origin, which `'self'` still refuses.
  */
 function securityHeaders(_req: express.Request, res: express.Response, next: express.NextFunction) {
   res.setHeader('X-Content-Type-Options', 'nosniff')
-  res.setHeader('X-Frame-Options', 'DENY')
-  res.setHeader('Content-Security-Policy', "frame-ancestors 'none'")
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN')
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'self'")
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
   next()
 }
