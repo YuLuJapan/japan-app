@@ -422,9 +422,10 @@ Two rules the service enforces that no column can:
 - **A highlight needs a day.** A featured note banners one day of the trip.
 
 `category` is optional — `null` means untagged, which is the ordinary case for
-a plan line. A **scheduled** activity may only be tagged with one of the four
-the day plan can draw a pill for (`hotel|attraction|food|shopping`); a **saved**
-one may also be `other`, which Explore renders as "More".
+a plan line. Any of the five (`hotel|attraction|food|shopping|other`) may be
+used on any activity, dated or not: `other` renders as "More" on the day plan
+exactly as it does in Explore. It was once refused on a scheduled activity, so
+the form offered a tag the API rejected.
 
 ### GET /api/trips/:tripId/activities
 

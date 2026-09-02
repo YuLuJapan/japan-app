@@ -41,8 +41,8 @@ import { Link } from 'react-router-dom'
 import { useTrip } from '../api/hooks'
 import { useCreateActivity, useDeleteActivity, useUpdateActivity } from '../api/mutations'
 import {
+  CATEGORIES,
   CATEGORY_META,
-  TAGGABLE_CATEGORIES,
   type Category,
   type Activity,
   type GeocodeResult,
@@ -501,13 +501,15 @@ function ItemForm({
         </fieldset>
       )}
 
-      {/* Toggles, not a select: there are four, they are the colours the plan
+      {/* Toggles, not a select: there are five, they are the colours the plan
           already speaks, and tapping the chosen one again clears it — which is
-          the only way back to "no tag" once one is set. */}
+          the only way back to "no tag" once one is set. The same five the
+          activity form offers, deliberately: a tag a row can be saved with but
+          not scheduled with is a form that refuses its own options. */}
       <fieldset>
         <legend className="label">Tag</legend>
         <div className="mt-1 flex flex-wrap gap-1.5">
-          {TAGGABLE_CATEGORIES.map((c) => {
+          {CATEGORIES.map((c) => {
             const on = category === c
             return (
               <button
