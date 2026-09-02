@@ -164,7 +164,9 @@ describe('a document that has only just been attached', () => {
     expect(screen.queryByText('This document no longer exists.')).not.toBeInTheDocument()
 
     land({ files: [doc()] })
-    expect(await screen.findByTitle('Flight ticket')).toBeInTheDocument()
+    // The drawn page, not a framed document: this assertion named the iframe's
+    // title until the preview stopped framing PDFs.
+    expect(await screen.findByRole('img', { name: 'Page 1 of 1' })).toBeInTheDocument()
   })
 
   it('still says so once the list has been read and the file is not in it', async () => {
