@@ -115,6 +115,11 @@ function Viewer({ doc, url }: { doc: TripDocument; url: string }) {
   }
 
   if (doc.mime_type === 'application/pdf') {
+    // This frame depends on `frame-ancestors 'self'` (vercel.json and
+    // server/src/app.ts): the object URL is a blob: document, and a blob
+    // document inherits the CSP of the page that created it, so tightening
+    // that back to 'none' makes every PDF preview a blank frame — with the
+    // full-screen link still working, since a top-level tab has no ancestors.
     return (
       <iframe
         src={url}
