@@ -31,6 +31,7 @@
     "jspdf": "3.0.4",
     "jspdf-autotable": "5.0.8",
     "leaflet": "^1.9.4",
+    "pdfjs-dist": "^6.3.289",
     "posthog-js": "^1.418.10",
     "posthog-node": "^5.51.4",
     "react": "^18.3.1",

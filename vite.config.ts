@@ -1,10 +1,63 @@
-import { defineConfig } from 'vite'
+import { createReadStream, cpSync, existsSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import path from 'node:path'
+import { type Plugin, defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+
+const pdfjsRoot = path.dirname(createRequire(import.meta.url).resolve('pdfjs-dist/package.json'))
+
+/**
+ * Serve pdf.js's on-demand resources at /pdfjs — the standard 14 fonts and the
+ * predefined CJK cMaps (see src/pdf/engine.pdfjs.ts for why a document preview
+ * needs them).
+ *
+ * Copied from the installed package rather than vendored into `public/`: they
+ * are ~2.5 MB of binaries that belong to a version of pdfjs-dist, and a copy
+ * in git would go stale against package.json silently. Dev serves them
+ * straight out of node_modules and the build copies them into `dist`, so the
+ * URL is the same in both and there is no branch in the app code.
+ *
+ * Nothing here is a bundle input, so none of it reaches a chunk or the
+ * precache manifest; a file is fetched only when a document names it.
+ */
+function pdfjsResources(): Plugin {
+  const dirs = ['standard_fonts', 'cmaps']
+  const fileFor = (url: string) => {
+    const rel = path.normalize(decodeURIComponent(url.split('?')[0])).replace(/^(\.\.[/\\])+/, '')
+    const full = path.join(pdfjsRoot, rel)
+    // Confine to the two directories: this middleware is dev-only, but a path
+    // that escapes them would still be reading the developer's disk.
+    return dirs.some((d) => full.startsWith(path.join(pdfjsRoot, d) + path.sep)) ? full : null
+  }
+
+  let outDir = 'dist'
+
+  return {
+    name: 'pdfjs-resources',
+    configResolved(config) {
+      outDir = config.build.outDir
+    },
+    configureServer(server) {
+      server.middlewares.use('/pdfjs', (req, res, next) => {
+        const file = req.url ? fileFor(req.url) : null
+        if (!file || !existsSync(file)) return next()
+        res.setHeader('Content-Type', 'application/octet-stream')
+        createReadStream(file).pipe(res)
+      })
+    },
+    closeBundle() {
+      for (const dir of dirs) {
+        cpSync(path.join(pdfjsRoot, dir), path.join(outDir, 'pdfjs', dir), { recursive: true })
+      }
+    },
+  }
+}
 
 export default defineConfig({
   plugins: [
     react(),
+    pdfjsResources(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['apple-touch-icon.png', 'favicon-32.png'],
@@ -50,12 +103,25 @@ export default defineConfig({
         // The map screen's own chunk stays in the manifest deliberately: with
         // no connection it still has to open and list the places it would have
         // pinned (FR-026, SC-007), which is the whole offline story here.
+        // pdf.js, which draws the document preview, is the third exclusion and
+        // the closest call. Its engine chunk and worker are ~1.7 MB — more
+        // than the entire precache without them — and precaching would make
+        // every phone pay that on install for a screen most sessions never
+        // open. It is left out and given a CacheFirst rule below instead, the
+        // same trade the gate videos make: the first document opened needs a
+        // connection, and every one after that does not. (The worker is
+        // emitted as .mjs, which Workbox's glob does not match anyway; naming
+        // it here keeps the decision in one place rather than resting on
+        // that.)
         globIgnores: [
           'assets/html2canvas*.js',
           'assets/canvg*.js',
           'assets/index.es*.js',
           'assets/purify.es*.js',
           'assets/engine.leaflet*.js',
+          'assets/engine.pdfjs*.js',
+          'assets/pdf.worker*.mjs',
+          'pdfjs/**',
           'assets/engine-*.css',
         ],
         navigateFallback: '/index.html',
@@ -117,6 +183,28 @@ export default defineConfig({
               // which asks for the whole file and caches that instead.
               cacheableResponse: { statuses: [0, 200] },
               rangeRequests: true,
+            },
+          },
+          {
+            // The pdf.js engine, its worker and the font/cMap resources it
+            // fetches per document — all kept out of the precache above. The
+            // aim is that a boarding pass opened once at home still opens at
+            // the gate.
+            //
+            // The two chunks carry Vite's content hash, so CacheFirst is safe
+            // for them in the way it is for the sushi frames. The /pdfjs/
+            // files do not: like the gate clips they are plain filenames, so a
+            // pdfjs-dist upgrade would be served stale until the entry ages
+            // out — a month here, and the failure is a substituted glyph
+            // rather than a broken screen.
+            urlPattern: ({ url }) =>
+              /\/assets\/(engine\.pdfjs|pdf\.worker)/.test(url.pathname) ||
+              url.pathname.startsWith('/pdfjs/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'pdf-engine',
+              expiration: { maxEntries: 8, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
           {

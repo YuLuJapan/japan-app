@@ -21,6 +21,24 @@ vi.mock('../api/client', async (importOriginal) => ({
   api: mocks,
 }))
 
+// The PDF is rasterised rather than framed (no mobile browser renders a PDF
+// inside a frame — that was this screen's blank-preview bug), and jsdom has no
+// canvas to rasterise onto, so the pdf.js boundary is mocked exactly as the
+// map's Leaflet engine is.
+const pdf = vi.hoisted(() => ({ renderPdf: vi.fn() }))
+
+vi.mock('../pdf/engine.pdfjs', () => ({ renderPdf: pdf.renderPdf, MAX_PAGES: 10 }))
+
+const renderedPages = (count: number, pageCount = count) => ({
+  canvases: Array.from({ length: count }, (_, i) => {
+    const canvas = document.createElement('canvas')
+    canvas.setAttribute('role', 'img')
+    canvas.setAttribute('aria-label', `Page ${i + 1} of ${pageCount}`)
+    return canvas
+  }),
+  pageCount,
+})
+
 const doc = (over: Partial<Record<string, unknown>> = {}) => ({
   id: 'file-1',
   display_name: 'Flight ticket',
@@ -39,6 +57,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   URL.createObjectURL = vi.fn(() => 'blob:preview')
   URL.revokeObjectURL = vi.fn()
+  pdf.renderPdf.mockResolvedValue(renderedPages(1))
 })
 
 describe('DocumentPreview page', () => {
@@ -47,7 +66,10 @@ describe('DocumentPreview page', () => {
     mocks.blob.mockResolvedValue(new Blob(['%PDF-1.4'], { type: 'application/pdf' }))
     renderPreview()
 
-    expect(await screen.findByTitle('Flight ticket')).toHaveAttribute('src', 'blob:preview')
+    // Drawn, not framed. A framed PDF is blank on every phone browser, so the
+    // assertion is that the pages themselves are on the screen.
+    expect(await screen.findByRole('img', { name: 'Page 1 of 1' })).toBeInTheDocument()
+    expect(pdf.renderPdf).toHaveBeenCalledWith('blob:preview', expect.any(Number))
     // Trip-scoped, like every other content route. This assertion used to
     // name the flat path, which is how the 404 survived: phase 3a-ii deleted
     // /api/files/:id/content and the test went on asserting the call it had
@@ -58,6 +80,29 @@ describe('DocumentPreview page', () => {
       'Flight ticket.pdf'
     )
     expect(screen.getByRole('link', { name: 'Open full screen' })).toBeInTheDocument()
+  })
+
+  it('says how many pages it left out of a long document', async () => {
+    mocks.get.mockResolvedValue({ files: [doc()] })
+    mocks.blob.mockResolvedValue(new Blob(['%PDF-1.4'], { type: 'application/pdf' }))
+    pdf.renderPdf.mockResolvedValue(renderedPages(10, 24))
+    renderPreview()
+
+    expect(await screen.findByText(/first 10 of 24 pages/)).toBeInTheDocument()
+  })
+
+  // pdf.js failing to load (a phone with no signal that has never opened a
+  // document) or unreadable bytes must leave the two working ways in, not a
+  // blank screen — the bug this whole path exists to fix.
+  it('falls back to the download-only card when the PDF cannot be drawn', async () => {
+    mocks.get.mockResolvedValue({ files: [doc()] })
+    mocks.blob.mockResolvedValue(new Blob(['not a pdf'], { type: 'application/pdf' }))
+    pdf.renderPdf.mockRejectedValue(new Error('InvalidPDFException'))
+    renderPreview()
+
+    expect(await screen.findByText(/can’t be shown here/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open full screen' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Download' })).toBeInTheDocument()
   })
 
   it('renders an image attached to a place, with a link back to it', async () => {

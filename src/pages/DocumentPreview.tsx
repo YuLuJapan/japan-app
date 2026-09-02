@@ -12,6 +12,7 @@ import type { TripDocument } from '../api/types'
 import { Breadcrumbs } from '../components/Breadcrumbs'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
+import { PdfDocument } from '../components/PdfDocument'
 import { useTripPath } from '../api/tripPath'
 import { useTripId } from '../lib/trip'
 
@@ -114,19 +115,10 @@ function Viewer({ doc, url }: { doc: TripDocument; url: string }) {
     )
   }
 
+  // Drawn by us, not framed: no mobile browser renders a PDF inside a frame,
+  // which is what made this preview a blank rectangle. See PdfDocument.
   if (doc.mime_type === 'application/pdf') {
-    // This frame depends on `frame-ancestors 'self'` (vercel.json and
-    // server/src/app.ts): the object URL is a blob: document, and a blob
-    // document inherits the CSP of the page that created it, so tightening
-    // that back to 'none' makes every PDF preview a blank frame — with the
-    // full-screen link still working, since a top-level tab has no ancestors.
-    return (
-      <iframe
-        src={url}
-        title={doc.display_name}
-        className="h-[70vh] w-full rounded-3xl border border-line bg-white shadow-card"
-      />
-    )
+    return <PdfDocument url={url} title={doc.display_name} />
   }
 
   return (
