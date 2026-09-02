@@ -68,7 +68,10 @@ export async function getActivityDetail(
         includeFiles ? store.listFiles(tripId, { activity_id: activityId }) : [],
       ])
   return {
-    activity: activityView(withheld ? stripStay(activity) : activity),
+    // The count is the files this response is already carrying: withheld and
+    // documents-hidden callers get an empty list, and zero is then the honest
+    // answer rather than a default — the same rule the list applies.
+    activity: activityView(withheld ? stripStay(activity) : activity, files.length),
     tips,
     files: files.map(({ id, display_name, mime_type, size_bytes }) => ({
       id,
@@ -229,7 +232,8 @@ export async function createActivity(store: DataStore, tripId: string, input: Ac
     day,
     start_time: input.start_time || null,
   })
-  return { activity: activityView(activity) }
+  // Nothing can hang off a row that did not exist a moment ago.
+  return { activity: activityView(activity, 0) }
 }
 
 export async function updateActivity(
@@ -271,7 +275,12 @@ export async function updateActivity(
   if (clean.start_time !== undefined) clean.start_time = clean.start_time || null
   const activity = await store.updateActivity(tripId, activityId, clean)
   if (!activity) throw notFound('Activity')
-  return { activity: activityView(activity) }
+  // Counted, not assumed: this row goes straight back into the day plan, where
+  // `file_count` draws the 📎. Answering `0` for an activity with documents
+  // took the attachment off the plan on every unrelated edit — a time nudged,
+  // a name fixed — until something refetched the list.
+  const files = await store.listFiles(tripId, { activity_id: activityId })
+  return { activity: activityView(activity, files.length) }
 }
 
 export async function deleteActivity(store: DataStore, tripId: string, activityId: string) {

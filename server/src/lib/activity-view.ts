@@ -105,8 +105,15 @@ export interface ActivityViewRow {
  * Assembled field by field against the policy rather than spread from the row,
  * for the same reason `projectExport` is: a spread carries whatever the row has
  * grown since anyone last looked.
+ *
+ * `fileCount` has no default, deliberately. It is the one field here that
+ * cannot be read off the row — nothing stores it, it is counted per request —
+ * and a default made "nobody counted" indistinguishable from "no files": every
+ * single-activity response answered `0`, so an edit merged back into the day
+ * plan took the 📎 off an activity that still had its documents. A caller who
+ * decides the count is `0` now has to say so.
  */
-export function activityView(activity: Activity, fileCount = 0): ActivityViewRow {
+export function activityView(activity: Activity, fileCount: number): ActivityViewRow {
   const out: Partial<ActivityViewRow> = {}
   if (onList(LIST_FIELD_POLICY.id)) out.id = activity.id
   if (onList(LIST_FIELD_POLICY.name)) out.name = activity.name

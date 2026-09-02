@@ -636,6 +636,69 @@ describe('what the API now hands back whole', () => {
     expect(mocks.get).not.toHaveBeenCalled()
   })
 
+  // The bug this pair exists for: a document attached to an activity showed up
+  // on the activity's own screen and nowhere else — the plan kept drawing the
+  // row with no 📎, and the preview, which looks a document up in the trip's
+  // list, said it did not exist. Both were one cache the write never reached.
+  it('hangs an uploaded document on its own activity, and on no other', async () => {
+    client.setQueryData(['trip-files', 't1'], { files: [] })
+    client.setQueryData(['activity', 'p1'], { activity: { id: 'p1' }, tips: [], files: [] })
+    client.setQueryData(['activity', 'p2'], { activity: { id: 'p2' }, tips: [], files: [] })
+    client.setQueryData(['zone', 'z1'], { zone: { id: 'z1' }, tips: [], files: [] })
+    mocks.post.mockResolvedValue({
+      file: { ...file, attached_to: { kind: 'activity', id: 'p1', name: 'Ramen Bar' } },
+    })
+
+    const { result } = renderHook(() => useUploadFile('t1'), { wrapper })
+    result.current.mutate({
+      parent: { kind: 'activity', id: 'p1' },
+      display_name: 'Old name',
+      mime_type: 'application/pdf',
+      data_base64: 'AAAA',
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const filesIn = (key: unknown[]) =>
+      client.getQueryData<{ files: FileMeta[] }>(key)?.files.map((f) => f.id)
+    expect(filesIn(['trip-files', 't1'])).toEqual(['f1'])
+    expect(filesIn(['activity', 'p1'])).toEqual(['f1'])
+    // Appending to every cached activity and city is what a blunt sweep did:
+    // a document that is not theirs, on screen until they refetched.
+    expect(filesIn(['activity', 'p2'])).toEqual([])
+    expect(filesIn(['zone', 'z1'])).toEqual([])
+  })
+
+  it("moves the day plan's attachment count with the file, both ways", async () => {
+    // `file_count` is on the activity row, not on the file — the plan's 📎
+    // comes from the one activities list every screen filters.
+    const row = activity({ id: 'p1', name: 'Ramen Bar', day: '2026-10-02' })
+    client.setQueryData(['activities', 't1'], { activities: [row] })
+    mocks.post.mockResolvedValue({
+      file: { ...file, attached_to: { kind: 'activity', id: 'p1', name: 'Ramen Bar' } },
+    })
+
+    const upload = renderHook(() => useUploadFile('t1'), { wrapper })
+    upload.result.current.mutate({
+      parent: { kind: 'activity', id: 'p1' },
+      display_name: 'Old name',
+      mime_type: 'application/pdf',
+      data_base64: 'AAAA',
+    })
+    await waitFor(() => expect(upload.result.current.isSuccess).toBe(true))
+    const count = () =>
+      client.getQueryData<{ activities: Activity[] }>(['activities', 't1'])?.activities[0]
+        .file_count
+    expect(count()).toBe(1)
+
+    // A delete answers 204, so where it hung comes from the list it was
+    // deleted from — which is what the count needs.
+    const remove = renderHook(() => useDeleteFile({ kind: 'activity', id: 'p1' }), { wrapper })
+    remove.result.current.mutate('f1')
+    await waitFor(() => expect(remove.result.current.isSuccess).toBe(true))
+    expect(count()).toBe(0)
+    expect(mocks.get).not.toHaveBeenCalled()
+  })
+
   it('sorts a new journey stop into date order, with its zone on it', async () => {
     const later = {
       id: 'step-2',

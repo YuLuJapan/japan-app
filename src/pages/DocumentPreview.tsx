@@ -141,14 +141,22 @@ function Viewer({ doc, url }: { doc: TripDocument; url: string }) {
 export default function DocumentPreview() {
   const { fileId = '' } = useParams()
   const tripId = useTripId()
-  const { data, isPending, isError, refetch } = useTripFiles(tripId)
+  const { data, isPending, isError, isFetching, refetch } = useTripFiles(tripId)
   const content = useFileContent(fileId)
 
   if (isPending) return <Loading />
   if (isError) return <ErrorState message="Could not load documents." onRetry={() => refetch()} />
 
   const doc = data.files.find((f) => f.id === fileId)
-  if (!doc) return <ErrorState message="This document no longer exists." />
+  // A file just attached is not in a list fetched before it existed. The
+  // upload writes it into this cache itself, but a copy that predates it can
+  // still be what is on screen for a moment — the list is invalidated rather
+  // than replaced, and offline the service worker answers `/api` from its own
+  // cache when the function is slow to wake. So while the list is being read
+  // again, wait: telling someone the document they just uploaded is gone, a
+  // beat before showing it, is the worse of the two lies.
+  if (!doc)
+    return isFetching ? <Loading /> : <ErrorState message="This document no longer exists." />
 
   const href = parentHref(doc, tripId)
 

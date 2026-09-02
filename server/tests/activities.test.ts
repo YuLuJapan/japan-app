@@ -54,6 +54,26 @@ describe('activities', () => {
     expect(byId['itin-walk'].file_count).toBe(0)
   })
 
+  // A write answers with the row its list renders, and `file_count` is part of
+  // that row. It used to default to zero on every single-activity response, so
+  // the client merged a `0` back into the day plan and the 📎 came off an
+  // activity that still had its documents — until something refetched.
+  it('answers an edit with the documents the activity actually has', async () => {
+    const before = await auth(request(app).get('/api/trips/trip-1/activities/place-ramen'))
+    expect(before.body.activity.file_count).toBe(1)
+
+    const patched = await auth(request(app).patch('/api/trips/trip-1/activities/place-ramen')).send(
+      { start_time: '19:30' }
+    )
+    expect(patched.status).toBe(200)
+    expect(patched.body.activity.file_count).toBe(1)
+
+    // and the list it goes back into agrees, which is the whole point
+    const list = await auth(request(app).get('/api/trips/trip-1/activities'))
+    const row = list.body.activities.find((a: { id: string }) => a.id === 'place-ramen')
+    expect(row.file_count).toBe(1)
+  })
+
   it('accepts a saved activity with no date, and puts it in the saved half', async () => {
     const created = await auth(request(app).post('/api/trips/trip-1/activities')).send({
       zone_id: 'zone-tokyo',

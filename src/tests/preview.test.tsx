@@ -1,6 +1,8 @@
 // Documents open in an in-app preview instead of downloading (FR-008).
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render, screen } from '@testing-library/react'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import DocumentPreview from '../pages/DocumentPreview'
 import TripFiles from '../pages/TripFiles'
@@ -85,6 +87,46 @@ describe('DocumentPreview page', () => {
 
     expect(await screen.findByText(/missing from storage/)).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Download' })).not.toBeInTheDocument()
+  })
+})
+
+describe('a document that has only just been attached', () => {
+  // The list this page looks a document up in can be a beat behind the upload
+  // that created it — invalidated rather than replaced, or answered from the
+  // service worker's copy while the function wakes. Saying the file does not
+  // exist and then showing it is the worse of the two lies, so the page waits.
+  const renderWithCache = (seed: unknown[]) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(['trip-files', 'trip-1'], { files: seed })
+    return render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/trips/trip-1/files/file-1']}>
+          <Routes>
+            <Route path="/trips/:tripId/files/:fileId" element={<DocumentPreview />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+  }
+
+  it('waits for the list to come back rather than saying it does not exist', async () => {
+    let land: (value: { files: unknown[] }) => void = () => {}
+    mocks.get.mockReturnValue(new Promise((resolve) => (land = resolve)))
+    mocks.blob.mockResolvedValue(new Blob(['%PDF-1.4'], { type: 'application/pdf' }))
+    renderWithCache([])
+
+    expect(await screen.findByRole('status')).toBeInTheDocument()
+    expect(screen.queryByText('This document no longer exists.')).not.toBeInTheDocument()
+
+    land({ files: [doc()] })
+    expect(await screen.findByTitle('Flight ticket')).toBeInTheDocument()
+  })
+
+  it('still says so once the list has been read and the file is not in it', async () => {
+    mocks.get.mockResolvedValue({ files: [] })
+    renderWithCache([])
+
+    expect(await screen.findByText('This document no longer exists.')).toBeInTheDocument()
   })
 })
 

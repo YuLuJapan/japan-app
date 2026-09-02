@@ -441,6 +441,12 @@ the undated ones in that city, the map the located ones.
 - **`file_count`, not file names.** A document's name is a document, so the
   list carries a count and the detail response carries the names. It is `0` for
   a caller whose view withholds documents.
+- **Every response carrying an activity carries the real count** — the detail
+  and the `POST`/`PATCH` answers as much as the list, since the client puts a
+  saved row straight back into the list it came from. `activityView` takes the
+  count as a required argument for that reason: with a default, an edit
+  answered `0` and took the day plan's 📎 off an activity that still had its
+  documents.
 - `trip_id` is deliberately absent: the caller asked for this trip.
 - The projection is `activityView()` in `server/src/lib/activity-view.ts`,
   driven by a `Record<keyof Activity, 'list' | 'omit'>` policy — adding a column
