@@ -121,6 +121,10 @@ const holdsFiles = (data: unknown): data is { files: FileMeta[] } =>
  * — and which of them hold a copy is not knowable from here. So all three are
  * walked, including the ones sitting inactive in the cache: the zone page
  * opened later is then already right rather than right after a refetch.
+ *
+ * Safe to be this blunt only because the callers match **by id**: a rename or a
+ * delete finds its row wherever it is and leaves every other list alone. An
+ * *upload* has no row to find yet, so it uses `addCachedFile` below instead.
  */
 function patchCachedFiles(
   qc: ReturnType<typeof useQueryClient>,
@@ -131,6 +135,53 @@ function patchCachedFiles(
       holdsFiles(data) ? { ...data, files: apply(data.files) } : data
     )
   }
+}
+
+/**
+ * Put a newly uploaded document into the lists that actually hold it: the
+ * trip's documents, and the one activity or city it hangs on.
+ *
+ * Adding is the one file write that cannot be blunt. `patchCachedFiles` walks
+ * every cached activity and zone, which is right when the row is matched by id
+ * and wrong here: appending would put the file on *every* activity and city
+ * the cache happens to hold, so the next page opened would list a document
+ * that is not its own — right on screen, gone after a refetch, and impossible
+ * to tell from a real attachment while it lasts.
+ *
+ * `attached_to` is the server's own answer about where it hangs, which is
+ * exactly what makes the narrower write possible.
+ */
+function addCachedFile(qc: ReturnType<typeof useQueryClient>, file: TripDocument) {
+  qc.setQueriesData({ queryKey: ['trip-files'] }, (data: unknown) =>
+    holdsFiles(data) ? { ...data, files: [...data.files, file] } : data
+  )
+  const { kind, id } = file.attached_to
+  if (kind === 'trip') return
+  qc.setQueryData(kind === 'activity' ? ['activity', id] : ['zone', id], (data: unknown) =>
+    holdsFiles(data) ? { ...data, files: [...data.files, file] } : data
+  )
+}
+
+/**
+ * Move an activity's attachment count in the one list every screen reads.
+ *
+ * The 📎 on the day plan is `file_count` on the **activity** row, not anything
+ * the file itself carries — so a file write that only touched the file caches
+ * left the plan showing an activity with no attachment until something else
+ * refetched it (a minute of `staleTime`, or a reload). Clamped at zero: a
+ * count that has already been corrected by a refetch must not go negative
+ * because a second delete arrived after it.
+ */
+function patchActivityFileCount(
+  qc: ReturnType<typeof useQueryClient>,
+  activityId: string,
+  delta: number
+) {
+  patchActivities(qc, (rows) =>
+    rows.map((row) =>
+      row.id === activityId ? { ...row, file_count: Math.max(0, row.file_count + delta) } : row
+    )
+  )
 }
 
 /** A zone's or an activity's detail payload, whichever a tip hangs off. */
@@ -439,13 +490,16 @@ export function useDeleteShoppingItem() {
  * The cost is small and deferred: these are inactive queries, so nothing is
  * fetched now — each screen refetches once, the next time it is opened.
  * `['trip']` is in the list because the trip home shows `trip_files_count`,
- * which an upload or a delete moves.
+ * which an upload or a delete moves, and `['activities']` because every plan
+ * line carries `file_count` — the 📎 that says an activity has something
+ * attached lives on the activity, not on the file.
  */
 function invalidateFileCaches(qc: ReturnType<typeof useQueryClient>) {
   return Promise.all([
     qc.invalidateQueries({ queryKey: ['trip-files'] }),
     qc.invalidateQueries({ queryKey: ['zone'] }),
     qc.invalidateQueries({ queryKey: ['activity'] }),
+    qc.invalidateQueries({ queryKey: ['activities'] }),
     qc.invalidateQueries({ queryKey: ['trip'] }),
   ])
 }
@@ -464,8 +518,14 @@ export function useUploadFile(tripId: string) {
         size_kb: Math.round((input.data_base64.length * 3) / 4 / 1024),
       })
       // The upload answers with the row the Documents tab renders — where it
-      // hangs, and the name of what it hangs on — so it can simply be added.
-      patchCachedFiles(qc, (files) => [...files, data.file])
+      // hangs, and the name of what it hangs on — so it can simply be added,
+      // to that parent's list and to the trip's documents.
+      addCachedFile(qc, data.file)
+      // …and to the count the day plan draws its 📎 from, which is the same
+      // write seen from the activity's side. Without it the attachment shows
+      // on the activity's own screen and not on the plan it was added from.
+      if (data.file.attached_to.kind === 'activity')
+        patchActivityFileCount(qc, data.file.attached_to.id, 1)
       reconcile(invalidateFileCaches(qc))
     },
   })
@@ -493,7 +553,13 @@ export function useRenameFile(parent?: FileParent) {
   })
 }
 
-export function useDeleteFile() {
+/**
+ * Delete a file. `parent` is what the count needs and the row does not: a
+ * delete answers `204`, so where the file hung is knowable only from the list
+ * it was deleted from — and an activity's 📎 on the day plan has to come down
+ * with it.
+ */
+export function useDeleteFile(parent?: FileParent) {
   const path = useTripPath()
   const qc = useQueryClient()
   return useMutation({
@@ -501,6 +567,7 @@ export function useDeleteFile() {
     mutationFn: (fileId: string) => api.delete<void>(path(`/files/${fileId}`)),
     onSuccess: (_data, fileId) => {
       patchCachedFiles(qc, (files) => removeById(files, fileId))
+      if (parent?.kind === 'activity') patchActivityFileCount(qc, parent.id, -1)
       reconcile(invalidateFileCaches(qc))
     },
   })
