@@ -38,6 +38,11 @@ export default function JourneySteps() {
     return <ErrorState message="Could not load the journey." onRetry={() => trip.refetch()} />
 
   const steps = trip.data.steps
+  // The journey is ordered by start date, so the last stop's end date is the
+  // earliest a new one may begin — they may share that day (the day you move)
+  // and no more. Only a hint: the server is what enforces it, for the edit form
+  // too, where the stop being moved may land anywhere in the sequence.
+  const earliestNewStart = steps.at(-1)?.end_date ?? null
 
   return (
     <div className="space-y-4">
@@ -107,6 +112,7 @@ export default function JourneySteps() {
         <div className="rounded-2xl border border-line bg-white p-3">
           <DestinationForm
             tripRange={{ start: trip.data.trip.start_date, end: trip.data.trip.end_date }}
+            earliestStart={earliestNewStart}
             pending={create.isPending}
             error={create.error}
             submitLabel="Add"
@@ -138,6 +144,7 @@ export default function JourneySteps() {
 function DestinationForm({
   initial,
   tripRange,
+  earliestStart,
   pending,
   error,
   submitLabel,
@@ -146,6 +153,12 @@ function DestinationForm({
 }: {
   initial?: TripStep
   tripRange: { start: string; end: string }
+  /**
+   * Earliest date a new stop may start — the last stop's end date, which it may
+   * share. Absent when editing, where the stop can move anywhere in the journey
+   * and only the server knows what it would collide with.
+   */
+  earliestStart?: string | null
   pending: boolean
   error: unknown
   submitLabel: string
@@ -197,7 +210,7 @@ function DestinationForm({
             type="date"
             className="field"
             value={startDate}
-            min={tripRange.start}
+            min={earliestStart ?? tripRange.start}
             max={tripRange.end}
             onChange={(e) => setStartDate(e.target.value)}
           />
@@ -211,14 +224,15 @@ function DestinationForm({
             type="date"
             className="field"
             value={endDate}
-            min={tripRange.start}
+            min={startDate || earliestStart || tripRange.start}
             max={tripRange.end}
             onChange={(e) => setEndDate(e.target.value)}
           />
         </div>
       </div>
       <p className="text-xs text-muted">
-        Stops must fall within the trip's dates ({fmt(tripRange.start)} – {fmt(tripRange.end)}).
+        Stops must fall within the trip's dates ({fmt(tripRange.start)} – {fmt(tripRange.end)}), and
+        two stops can only share the day you move between them.
       </p>
       {destinationTouched && !selected && (
         <p className="text-xs text-muted">

@@ -232,6 +232,133 @@ describe('PATCH /api/trips/trip-1/steps/:stepId', () => {
   })
 })
 
+// The journey is a sequence, not a set of simultaneous stays: two stops may
+// share the day you move between them and nothing wider. Three separate
+// readings depend on it — `primaryStep`, `isTravelDay`, and the trip screen's
+// "Earlier / Later that day" bands — so it is asserted at the door.
+//
+// fixture trip-1: step-1 Tokyo 2026-10-05 → 10-09, step-2 Kyoto 10-09 → 10-12,
+// inside a trip running 2026-10-01 → 10-14.
+describe('journey steps may overlap only on the day you move', () => {
+  it('allows a stop that starts the day the previous one ends', async () => {
+    const res = await auth(
+      request(app).post('/api/trips/trip-1/steps').send({
+        zone_id: 'zone-kyoto',
+        start_date: '2026-10-12',
+        end_date: '2026-10-14',
+      })
+    )
+    expect(res.status).toBe(201)
+  })
+
+  it('400 VALIDATION for a stop covering exactly the same days as another', async () => {
+    const res = await auth(
+      request(app).post('/api/trips/trip-1/steps').send({
+        zone_id: 'zone-kyoto',
+        start_date: '2026-10-05',
+        end_date: '2026-10-09',
+      })
+    )
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('VALIDATION')
+    // Named, so the traveller knows which stop to go and fix.
+    expect(res.body.error.details).toEqual([
+      'this stop overlaps Tokyo (2026-10-05 – 2026-10-09) — two stops can only share the day you move between them',
+    ])
+  })
+
+  it('400 VALIDATION for a stop nested inside another', async () => {
+    const res = await auth(
+      request(app).post('/api/trips/trip-1/steps').send({
+        zone_id: 'zone-kyoto',
+        start_date: '2026-10-06',
+        end_date: '2026-10-07',
+      })
+    )
+    expect(res.status).toBe(400)
+    expect(res.body.error.details[0]).toContain('Tokyo')
+  })
+
+  it('400 VALIDATION for a stop that partially overlaps another', async () => {
+    const res = await auth(
+      request(app).post('/api/trips/trip-1/steps').send({
+        zone_id: 'zone-kyoto',
+        start_date: '2026-10-07',
+        end_date: '2026-10-11',
+      })
+    )
+    expect(res.status).toBe(400)
+    // It crosses both stops, and both are named — services collect every
+    // validation error rather than stopping at the first.
+    expect(res.body.error.details).toHaveLength(2)
+  })
+
+  it('allows a zero-night stopover on the day two stops already share', async () => {
+    // The way to express a day trip out of a city you are based in: split the
+    // stay and put the stopover between the halves.
+    const res = await auth(
+      request(app)
+        .post('/api/trips/trip-1/steps')
+        .send({
+          destination: { name: 'Nara', lat: 34.6851, lng: 135.8048 },
+          start_date: '2026-10-09',
+          end_date: '2026-10-09',
+        })
+    )
+    expect(res.status).toBe(201)
+  })
+
+  it('400 VALIDATION when a patch widens a stop into its neighbour', async () => {
+    const res = await auth(
+      request(app).patch('/api/trips/trip-1/steps/step-1').send({ end_date: '2026-10-10' })
+    )
+    expect(res.status).toBe(400)
+    expect(res.body.error.details[0]).toContain('Kyoto')
+  })
+
+  it('lets a stop keep its own dates — it is not compared against itself', async () => {
+    const res = await auth(
+      request(app)
+        .patch('/api/trips/trip-1/steps/step-1')
+        .send({ destination: { name: 'Nara', lat: 34.6851, lng: 135.8048 } })
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('does not leave a zone behind when a new destination is rejected', async () => {
+    const store = createMemoryStore(fixture())
+    setDataStore(store)
+    const before = (await store.listZones('trip-1')).length
+
+    const res = await auth(
+      request(app)
+        .post('/api/trips/trip-1/steps')
+        .send({
+          destination: { name: 'Nara', lat: 34.6851, lng: 135.8048 },
+          start_date: '2026-10-06',
+          end_date: '2026-10-07',
+        })
+    )
+    expect(res.status).toBe(400)
+    expect(await store.listZones('trip-1')).toHaveLength(before)
+  })
+
+  it('constrains a stop only against its own trip', async () => {
+    // trip-2's step-other runs 2026-11-02 → 11-06; trip-1 may use those days.
+    const trip = await auth(request(app).post('/api/trips')).send({
+      name: 'Overlapping dates, different trip',
+      start_date: '2026-11-01',
+      end_date: '2026-11-08',
+    })
+    const res = await auth(request(app).post(`/api/trips/${trip.body.trip.id}/steps`)).send({
+      destination: { name: 'Osaka', lat: 34.6937, lng: 135.5023 },
+      start_date: '2026-11-02',
+      end_date: '2026-11-06',
+    })
+    expect(res.status).toBe(201)
+  })
+})
+
 describe('DELETE /api/trips/trip-1/steps/:stepId', () => {
   it('removes the step', async () => {
     const del = await auth(request(app).delete('/api/trips/trip-1/steps/step-1'))

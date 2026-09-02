@@ -4,12 +4,12 @@
 // free-text destination (validated as a real place via geocode on the
 // client); a destination reuses an existing zone when the name matches,
 // otherwise a new zone is created on the fly.
-import type { DataStore } from '../lib/datastore.js'
+import type { DataStore, JourneyStep } from '../lib/datastore.js'
 import { requireTrip } from '../lib/access.js'
 import { notFound, validation } from '../lib/errors.js'
 import { stepView } from '../lib/step-view.js'
 import type { DateRange } from '../lib/trip-dates.js'
-import { collectRangeErrors } from '../lib/trip-dates.js'
+import { collectRangeErrors, rangeLabel } from '../lib/trip-dates.js'
 import type { GeocodeResult } from './geocode.js'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -71,6 +71,49 @@ function collectStepRangeErrors(startDate: string, endDate: string, trip: DateRa
   ]
 }
 
+/**
+ * Two stops may share exactly one day — the one you check out of the first and
+ * into the second — and nothing more. Anything wider is a journey that is in two
+ * cities at once, which the day model has no way to read: `primaryStep` ("the
+ * city you sleep in that night") silently returns whichever stop was created
+ * first, `isTravelDay` calls every shared day a move, and the trip screen bands
+ * the day "Earlier / Later" by journey position rather than by the clock. Three
+ * separate readings that are only true while this holds, so it is enforced here
+ * rather than assumed there.
+ *
+ * The test is a half-open one: the ranges may touch at a boundary but not cross.
+ * That leaves a zero-night stopover legal — a stop whose start and end are the
+ * same day, sharing that day with the stop either side of it — which is the one
+ * way to express a day trip out of a city you are otherwise based in (split the
+ * stay in two and put the day trip between the halves).
+ *
+ * **One path still gets past this**: `stranded_stops: 'move'` on `PATCH /trips/:id`
+ * (`services/trips.ts`, `movedStepDates`) puts *every* stop a shrunk trip no longer
+ * covers onto the trip's first day, keeping its length — so two stranded stops land
+ * on the same dates, written through `store.updateStep` rather than through the
+ * service. Left as it was rather than quietly redesigned: what should happen when a
+ * trip shrinks below the stops it holds is a product decision, and the outcome is
+ * previewed to the traveller (`moves_to`) before they confirm it.
+ */
+async function collectOverlapErrors(
+  store: DataStore,
+  tripId: string,
+  startDate: string,
+  endDate: string,
+  others: JourneyStep[]
+): Promise<string[]> {
+  const clashes = others.filter((s) => s.end_date > startDate && endDate > s.start_date)
+  // Named, not just dated: "overlaps Tokyo (2026-10-05 – 2026-10-09)" says which
+  // stop to go and fix, which a pair of dates on its own does not.
+  return Promise.all(
+    clashes.map(async (s) => {
+      const zone = await store.getZone(tripId, s.zone_id)
+      const name = zone?.name ?? 'another stop'
+      return `this stop overlaps ${name} (${rangeLabel(s)}) — two stops can only share the day you move between them`
+    })
+  )
+}
+
 /** Resolve a zone_id or free-text destination to a zone id, creating the zone if needed. */
 async function resolveZoneId(
   store: DataStore,
@@ -109,8 +152,18 @@ export async function createStep(
   const trip = await requireTrip(store, tripId)
   const rangeErrors = collectStepRangeErrors(input.start_date!, input.end_date!, trip)
   if (rangeErrors.length) throw validation(rangeErrors)
-  const zoneId = await resolveZoneId(store, tripId, input.zone_id, input.destination)
+  // Before `resolveZoneId`, which creates a zone for a new destination: a
+  // rejected create must not leave one behind.
   const steps = await store.listSteps(trip.id)
+  const overlapErrors = await collectOverlapErrors(
+    store,
+    trip.id,
+    input.start_date!,
+    input.end_date!,
+    steps
+  )
+  if (overlapErrors.length) throw validation(overlapErrors)
+  const zoneId = await resolveZoneId(store, tripId, input.zone_id, input.destination)
   const nextPosition = steps.reduce((max, s) => Math.max(max, s.position), 0) + 1
   const step = await store.createStep({
     trip_id: trip.id,
@@ -144,6 +197,18 @@ export async function updateStep(
   if (!trip) throw notFound('Trip')
   const rangeErrors = collectStepRangeErrors(mergedStart, mergedEnd, trip)
   if (rangeErrors.length) throw validation(rangeErrors)
+
+  // Checked on the merged dates and on every write, not only a dated one: an
+  // edit that moves a stop's city is as able to produce an overlap as one that
+  // moves its dates, and the row it must not collide with is every *other* stop.
+  const overlapErrors = await collectOverlapErrors(
+    store,
+    tripId,
+    mergedStart,
+    mergedEnd,
+    (await store.listSteps(tripId)).filter((s) => s.id !== stepId)
+  )
+  if (overlapErrors.length) throw validation(overlapErrors)
 
   const zoneId =
     patch.zone_id || patch.destination

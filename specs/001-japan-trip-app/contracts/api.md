@@ -313,15 +313,17 @@ A destination is given either as an existing `zone_id` or as free-text `destinat
 
 A step's `start_date`/`end_date` must both fall within its trip's own `start_date`/`end_date` — no stop before the trip starts or after it ends.
 
+**Two steps of one trip may overlap on at most one day: the day you move between them** (`end_date` of one equalling `start_date` of the next). Anything wider — a full or partial overlap, or a step nested inside another — is a 400 `VALIDATION` naming the stop it clashes with. The journey is a sequence of stays, and the day model reads it as one: `primaryStep` ("the city you sleep in that night"), `isTravelDay`, and the trip screen's "Earlier / Later that day" bands are all only correct while this holds. Checked on create and on every patch, against the merged dates and against every _other_ step of the same trip — steps on a different trip never constrain each other. A **zero-night stopover** (`start_date === end_date`) is legal and may sit on a day two other stops already share, which is how a day trip out of a city you are based in is expressed: split the stay and put the stopover between the halves.
+
 ### POST /api/steps
 
 - Request: `{"start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","zone_id":"…"} | {"start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","destination":{"name":"…","address?":"…","lat":n,"lng":n}}`
-- 201: `{"step": {"id":"…","trip_id":"…","zone_id":"…","position":n,"start_date":"…","end_date":"…"}}` · 400 `VALIDATION` (missing zone_id/destination, bad dates, end before start, dates outside the trip's own range, bad destination name/lat/lng) · 404 unknown zone (when `zone_id` given).
+- 201: `{"step": {"id":"…","trip_id":"…","zone_id":"…","position":n,"start_date":"…","end_date":"…"}}` · 400 `VALIDATION` (missing zone_id/destination, bad dates, end before start, dates outside the trip's own range, an overlap with another step of the same trip wider than one shared day, bad destination name/lat/lng) · 404 unknown zone (when `zone_id` given).
 - **Trip-scoped (2026-08-08 addition):** `POST /api/trips/:tripId/steps` is the same route pointed at a specific trip instead of the legacy default (oldest) trip — same request/response shape.
 
 ### PATCH /api/steps/:stepId
 
-- Request: any subset of `{"zone_id","destination","start_date","end_date"}`. Dates are cross-checked against the merged (existing + patched) values, so patching just one date still enforces end ≥ start and both within the trip's own range.
+- Request: any subset of `{"zone_id","destination","start_date","end_date"}`. Dates are cross-checked against the merged (existing + patched) values, so patching just one date still enforces end ≥ start, both within the trip's own range, and no more than a one-day overlap with any other step. The overlap check runs on every patch, dated or not, and a step is never compared against itself.
 - 200: `{"step": {…updated…}}` · 400 `VALIDATION` · 404 unknown step or zone.
 
 ### DELETE /api/steps/:stepId
