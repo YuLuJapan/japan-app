@@ -158,4 +158,47 @@ describe('ActivityDetail page (US1)', () => {
       'https://example.com'
     )
   })
+
+  // Directions from a bare name is a search for a namesake, so the button is
+  // only offered once the activity says where it is — by address or by the
+  // coordinates a picked suggestion stored.
+  const detailRoute = [
+    { path: '/trips/:tripId/activities/:activityId', element: <ActivityDetail /> },
+  ]
+
+  const detail = (over: Parameters<typeof activity>[0]) => ({
+    activity: activity(over),
+    tips: [],
+    files: [],
+  })
+
+  it('offers directions for an activity with only coordinates', async () => {
+    mocks.get.mockResolvedValue(detail({ id: 'p1', name: 'Ramen Bar', lat: 35.6, lng: 139.7 }))
+    renderAt('/trips/trip-1/activities/p1', detailRoute)
+
+    expect(await screen.findByText('Ramen Bar')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Directions/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Add a location/ })).not.toBeInTheDocument()
+  })
+
+  it('offers a writer the way to add one when the activity has no location', async () => {
+    mocks.get.mockResolvedValue(detail({ id: 'p1', name: 'Ramen Bar' }))
+    renderAt('/trips/trip-1/activities/p1', detailRoute)
+
+    expect(await screen.findByText('Ramen Bar')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Directions/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Add a location/ })).toHaveAttribute(
+      'href',
+      '/trips/trip-1/activities/p1/edit'
+    )
+  })
+
+  it('shows a reader neither button when the activity has no location', async () => {
+    mocks.get.mockResolvedValue(detail({ id: 'p1', name: 'Ramen Bar' }))
+    renderAt('/trips/trip-1/activities/p1', detailRoute, { tripRole: 'viewer' })
+
+    expect(await screen.findByText('Ramen Bar')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Directions/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Add a location/ })).not.toBeInTheDocument()
+  })
 })

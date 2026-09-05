@@ -43,6 +43,12 @@ export default function ActivityDetail() {
   const meta = CATEGORY_META[place.category ?? 'other']
   // The city, so the map search lands in the right country (trips are worldwide).
   const city = trip.data?.steps?.find((s) => s.zone?.id === place.zone_id)?.zone?.name ?? null
+  // What makes a maps link worth offering: a typed address, or the
+  // coordinates a picked suggestion (or the backfill) stored. Either one names
+  // the doorway; the name alone does not.
+  const hasLocation =
+    Boolean(place.address?.trim()) ||
+    (typeof place.lat === 'number' && typeof place.lng === 'number')
 
   return (
     <div className="space-y-8">
@@ -83,35 +89,40 @@ export default function ActivityDetail() {
 
       {place.description && <p className="text-sm leading-relaxed">{place.description}</p>}
 
-      <div>
-        {place.address && (
-          <>
-            <h2 className="section-title">Address</h2>
-            <p className="mt-1 text-sm">{place.address}</p>
-          </>
-        )}
-        <a
-          href={placeMapsUrl(place.name, place.address, city)}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="btn-primary mt-3 w-full"
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 21s-7-6.3-7-11a7 7 0 0 1 14 0c0 4.7-7 11-7 11Z" />
-            <circle cx="12" cy="10" r="2.5" />
-          </svg>
-          Directions
-        </a>
-      </div>
+      {/* Directions are only honest once the activity says where it is. With
+          neither an address nor coordinates the link is a maps search for a
+          bare name, which finds a namesake as readily as the place — so a
+          writer is offered the way to fix that instead, and a reader, who
+          cannot, is shown nothing rather than a button that guesses. */}
+      {(hasLocation || canEdit) && (
+        <div>
+          {place.address && (
+            <>
+              <h2 className="section-title">Address</h2>
+              <p className="mt-1 text-sm">{place.address}</p>
+            </>
+          )}
+          {hasLocation ? (
+            <a
+              href={placeMapsUrl(place.name, place.address, city)}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="btn-primary mt-3 w-full"
+            >
+              <PinIcon />
+              Directions
+            </a>
+          ) : (
+            <Link
+              to={`/trips/${tripId}/activities/${activityId}/edit`}
+              className="btn-ghost mt-3 w-full"
+            >
+              <PinIcon />
+              Add a location
+            </Link>
+          )}
+        </div>
+      )}
 
       <ScheduleActivity activity={place} />
 
@@ -189,5 +200,25 @@ export default function ActivityDetail() {
         onCancel={() => setConfirming(false)}
       />
     </div>
+  )
+}
+
+/** The marker both states of that button carry — one shape, two labels. */
+function PinIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 21s-7-6.3-7-11a7 7 0 0 1 14 0c0 4.7-7 11-7 11Z" />
+      <circle cx="12" cy="10" r="2.5" />
+    </svg>
   )
 }
